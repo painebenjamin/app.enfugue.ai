@@ -1,0 +1,11 @@
+---
+noauth: false
+safe: true
+queue: 4
+width: 512
+height: 512
+engine:
+    root: ~/.cache/enfugue
+downloads:
+    concurrent: 2
+    queue: 10

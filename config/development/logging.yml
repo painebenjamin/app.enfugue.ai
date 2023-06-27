@@ -1,0 +1,7 @@
+---
+colored: true
+handler: stream
+stream: stdout
+level: debug
+silenced:
+    - sqlalchemy.pool.impl.NullPool # This emits errors that have been handled and doesn't give us any useful information, ignore it

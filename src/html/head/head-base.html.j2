@@ -1,0 +1,45 @@
+{% block head %}
+    <title>{{ title }} | {{ site }}</title>
+
+    {%- for rel in links -%}{%- if rel not in ["canonical"] -%}
+    {%- for property_set in links[rel] %}
+    <link rel="{{ rel }}" {{ html_properties(property_set) }} />
+    {%- endfor %}
+    {%- endif -%}{%- endfor %}
+    <link rel="canonical" href="{{ canonical_url }}" />
+
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    {%- for name in meta %}{%- if name not in ["description", "twitter:description", "twitter:title"] %}
+    <meta name="{{ name }}" content="{{ meta[name] | check_resolve_url }}" />
+    {%- endif %}{%- endfor %}
+    <meta name="description" content="{{ description }}" />
+    <meta name="twitter:description" content="{{ description }}" />
+    <meta name="twitter:title" content="{{ title }}" />
+
+    {%- for property in opengraph %}{%- if property not in ["title", "site", "url", "description", "locale"] %}
+    <meta property="og:{{ property }}" content="{{ opengraph[property] | check_resolve_url }}" />
+    {%- endif %}{%- endfor %}
+    <meta property="og:locale" content="{{ locale }}" />
+    <meta property="og:site_name" content="{{ site }}" />
+    <meta property="og:title" content="{{ title }}" />
+    <meta property="og:url" content="{{ canonical_url }}" />
+    <meta property="og:description" content="{{ description }}" />
+    {%- for link in social %}
+    {%- if "facebook.com" in link %}
+    <meta property="article:publisher" content="{{ link }}" />
+    {%- endif %}
+    {%- endfor %}
+    
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Organization","url":"{{ canonical_url }}","sameAs":{{ social | serialize }},"@id":"#organization","name":"{{ site }}","logo":"{{ logo | check_resolve_url }}"}</script>
+    <script>
+        window.enfugue = window.enfugue || {};
+        window.enfugue.url = {{ paths | serialize }};
+        {% if user %}
+        window.enfugue.user = "{{ user.username }}";
+        window.enfugue.admin = {{ "true" if admin else "false" }};
+        {% endif %}
+    </script>
+    {%- for script in scripts %}
+    <script {{ html_properties(script) }}></script>
+    {%- endfor %}
+{% endblock %}

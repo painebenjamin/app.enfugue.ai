@@ -1,0 +1,13 @@
+{% extends "base.html.j2" %}
+{%- block body %}
+<script>
+const GoodyControllerData = {{ serialize(datum, indent = 4 if parameters.pretty_print else None) }};
+</script>
+{% include "header-external.html.j2" %}
+{% if csrf_token %}
+<input type="hidden" id="csrf_token" value="{{ csrf_token }}" />
+{% endif %}
+    <main class="external">
+    {%- block content %}{% endblock %}
+    </main>
+{%- endblock %}

@@ -1,0 +1,18 @@
+{% extends "body-base.html.j2" %}
+{%- block content %}
+      <div class="foreground">
+        <div class="container double-padded-top">
+          <form class="login" method="POST" action="{% resolve 'Login' %}">
+            <h2>You must login to use this application.</h2>
+            <label for="username">Username</label>
+            <input type="username" name="username" id="username" placeholder="Username" autocomplete="username" value = "{{ username }}"/>
+            <label for="password">Password</label>
+            <input type="password" name="password" id="password" placeholder="Password" autocomplete="password" />
+            {%- if error %}
+            <p class="error strong margin-top">{{ error }}</p>
+            {%- endif %}
+            <input class="margin-top" type="submit" value="Login" />
+          </form>
+        </div>
+      </div>
+{%- endblock %}

@@ -1,0 +1,872 @@
+enfugue-node-editor,
+enfugue-nodes {
+    display: block;
+    width: 100%;
+    height: 100%;
+    flex-grow: 1;
+    overflow: hidden;
+    position: relative;
+}
+
+enfugue-node-editor {
+    display: block;
+}
+
+enfugue-nodes {
+    display: flex;
+    flex-flow: row nowrap;
+    align-items: center;
+    justify-content: center;
+}
+
+enfugue-nodes.oversize-x {
+    justify-content: flex-start;
+    overflow-x: auto;
+}
+
+enfugue-node-canvas {
+    position: absolute;
+    left: 0;
+    top: 0;
+    transform-origin: top left;
+}
+
+enfugue-node-editor enfugue-node-canvas {
+    background: 
+        linear-gradient(to right, var(--dark-color) 0px, transparent 1px) 0 0,
+        linear-gradient(to right, var(--darker-color) 0px, transparent 1px) 0 0,
+        linear-gradient(to bottom, var(--dark-color) 0px, transparent 1px) 0 0,
+        linear-gradient(to bottom, var(--darker-color) 0px, transparent 1px) 0 0;
+    background-size: 64px 64px, 8px 8px, 64px 64px, 8px 8px;
+    background-position: -0.5px -0.5px;
+    background-color: var(--darkest-color);
+}
+
+enfugue-node-editor enfugue-node-canvas > canvas {
+    pointer-events: none;
+}
+
+
+enfugue-nodes enfugue-node-canvas {
+    position: relative;
+}
+
+enfugue-nodes enfugue-node-canvas > canvas {
+    display: none;
+}
+
+enfugue-node-editor.windows > enfugue-node-canvas {
+    background: none;
+}
+
+enfugue-node-editor-position,
+enfugue-node-editor-zoom {
+    position: absolute;
+    bottom: 5px;
+    z-index: 3;
+    color: var(--light-color);
+    font-weight: bold;
+    text-transform: uppercase;
+}
+
+enfugue-node-editor-position {
+    left: 5px;
+}
+
+enfugue-node-editor-position-reset,
+enfugue-node-editor-zoom-reset {
+    cursor: pointer;
+    font-size: 12px;
+    padding: 2px 4px;
+    border: 1px solid black;
+    background-color: rgba(255,255,255,0.05);
+    border-radius: 2px;
+    transition: background-color 0.25s ease-in-out;
+}
+
+enfugue-node-editor-position-reset:hover,
+enfugue-node-editor-zoom-reset:hover {
+    background-color: rgba(255,255,255,0.1);
+}
+
+enfugue-node-editor-position-reset {
+    margin-left: 5px;
+}
+
+enfugue-node-editor-zoom-reset {
+    margin-right: 5px;
+}
+
+enfugue-node-editor-zoom {
+    right: 5px;
+}
+
+enfugue-node-editor-zoom-readout::after {
+    content: '×';
+}
+
+enfugue-node-editor-zoom-out,
+enfugue-node-editor-zoom-in {
+    cursor: pointer;
+    margin-right: 5px;
+}
+
+enfugue-node {
+    display: flex;
+    flex-flow: row nowrap;
+    align-items: stretch;
+    justify-content: stretch;
+    position: absolute;
+    padding: 10px;
+    transition: transform 0.25s ease-out;
+    z-index: 1;
+    pointer-events: all;
+}
+
+enfugue-node.minimized {
+    transition: all 0.25s ease-in;
+    pointer-events: none;
+}
+
+enfugue-node.focused {
+    z-index: 2;
+}
+
+enfugue-node-container {
+    display: block;
+    width: 100%;
+    flex-flow: column nowrap;
+    align-items: stretch;
+    justify-content: stretch;
+    background-color: var(--darkest-color);
+    border: 1px solid black;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+enfugue-node.input-output > enfugue-node-container {
+    background-color: #153131;
+    color: var(--lightest-color);
+}
+
+enfugue-node-header,
+enfugue-windows-toolbar-item {
+    z-index: 10;
+    display: flex;
+    flex-flow: row nowrap;
+    align-items: center;
+    justify-content: stretch;
+    flex-grow: 0;
+    background-color: var(--darker-color);
+    color: var(--lightest-color);
+    font-size: 14px;
+    transition: background-color 0.2s ease-in-out, height 0.2s ease-in-out;
+    padding: 0 5px;
+    overflow: hidden;
+}
+
+enfugue-node.flipped enfugue-node-header {
+    bottom: 0;
+}
+
+enfugue-windows-toolbar-item {
+    height: 30px;
+    cursor: pointer;
+}
+
+enfugue-node-header:hover,
+enfugue-windows-toolbar-item:hover {
+    background-color: var(--dark-color);
+}
+
+enfugue-node-name,
+enfugue-windows-toolbar-item-name {
+    flex-grow: 1;
+    margin-right: 5px;
+    font-family: var(--monospace-font), monospace;
+}
+
+enfugue-node-button,
+enfugue-windows-toolbar-item-button {
+    z-index: 10;
+    flex-grow: 0;
+    margin: 0 3px;
+    cursor: pointer;
+    transition: color 0.25s ease-in-out;
+}
+
+enfugue-node-button:hover,
+enfugue-windows-toolbar-item-button:hover {
+    color: var(--theme-color-primary);
+}
+
+enfugue-windows-toolbar {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    display: flex;
+    flex-flow: row wrap;
+    pointer-events: all;
+    min-height: 30px;
+    background-color: var(--dark-color);
+    border-top: 1px solid rgba(255,255,255,0.1);
+    border-bottom: 1px solid rgba(0,0,0,0.2);
+    gap: 1px;
+}
+
+enfugue-node-contents {
+    position: relative;
+    flex-grow: 1;
+    overflow: auto;
+    display: block;
+    width: 100%;
+}
+
+enfugue-node-contents h1,
+enfugue-node-contents h2,
+enfugue-node-contents h3 {
+    margin: 1rem 0 0 1rem;
+}
+
+enfugue-node-editor.image-editor enfugue-node.hide-header enfugue-node-header {
+    position: absolute;
+    width: 100%;
+    background-color: rgba(0,0,0,0.4);
+    background-image: linear-gradient(to bottom, rgba(0,0,0,0.7), transparent);
+}
+
+enfugue-node-editor.image-editor enfugue-node.hide-header enfugue-node-header:hover {
+    background-color: rgba(0,0,0,0.6);
+}
+
+enfugue-node-editor.image-editor enfugue-node-container {
+    position: relative;
+    border-width: 0px;
+    background: transparent;
+    border-radius: 0px;
+}
+
+enfugue-node-editor.image-editor enfugue-node:hover enfugue-node-container {
+    background: rgba(255,255,255,0.02);
+}
+
+enfugue-node-editor.image-editor enfugue-node-contents {
+    overflow: hidden;
+}
+
+enfugue-node-editor.image-editor enfugue-node-contents enfugue-background-image-view {
+    display: block;
+    width: 100%;
+    height: 100%;
+    position: relative;
+    z-index: -1;
+}
+
+enfugue-node-editor.image-editor enfugue-node-contents enfugue-background-image-view .background {
+    background-size: auto;
+    background-position: top left;
+    background-repeat: no-repeat;
+}
+
+enfugue-node-editor.image-editor enfugue-node-contents enfugue-background-image-view.fit-actual .background {
+    background-size: auto;
+}
+
+enfugue-node-editor.image-editor enfugue-node-contents enfugue-background-image-view.fit-stretch .background {
+    background-size: 100% 100%;
+}
+
+enfugue-node-editor.image-editor enfugue-node-contents enfugue-background-image-view.fit-contain .background {
+    background-size: contain;
+}
+
+enfugue-node-editor.image-editor enfugue-node-contents enfugue-background-image-view.fit-cover .background {
+    background-size: cover;
+}
+
+enfugue-node-editor.image-editor enfugue-node-contents enfugue-background-image-view.anchor-top-left .background {
+    background-position: top left;
+}
+
+enfugue-node-editor.image-editor enfugue-node-contents enfugue-background-image-view.anchor-top-center .background {
+    background-position: top center;
+}
+
+enfugue-node-editor.image-editor enfugue-node-contents enfugue-background-image-view.anchor-top-right .background {
+    background-position: top right;
+}
+
+enfugue-node-editor.image-editor enfugue-node-contents enfugue-background-image-view.anchor-center-left .background {
+    background-position: center left;
+}
+
+enfugue-node-editor.image-editor enfugue-node-contents enfugue-background-image-view.anchor-center-center .background {
+    background-position: center center;
+}
+
+enfugue-node-editor.image-editor enfugue-node-contents enfugue-background-image-view.anchor-center-right .background {
+    background-position: center right;
+}
+
+enfugue-node-editor.image-editor enfugue-node-contents enfugue-background-image-view.anchor-bottom-left .background {
+    background-position: bottom left;
+}
+
+enfugue-node-editor.image-editor enfugue-node-contents enfugue-background-image-view.anchor-bottom-center .background {
+    background-position: bottom center;
+}
+
+enfugue-node-editor.image-editor enfugue-node-contents enfugue-background-image-view.anchor-bottom-right .background {
+    background-position: bottom right;
+}
+
+enfugue-node-editor.image-editor enfugue-node-header enfugue-node-button.top-right {
+    transform: rotate(90deg);
+}
+
+enfugue-node-editor.image-editor enfugue-node-header enfugue-node-button.bottom-right {
+    transform: rotate(180deg);
+}
+
+enfugue-node-editor.image-editor enfugue-node-header enfugue-node-button.bottom-left {
+    transform: rotate(270deg);
+}
+
+enfugue-node-editor.image-editor enfugue-node-canvas .current-invocation-image-view {
+    position: absolute;
+    left: 0;
+    top: 0;
+}
+
+enfugue-node-editor.image-editor.zoom-out enfugue-node-canvas .current-invocation-image-view,
+enfugue-node-editor.image-editor.zoom-out enfugue-node-canvas enfugue-background-image-view {
+    image-rendering: auto;
+}
+
+enfugue-node-editor.image-editor.zoom-in enfugue-node-canvas .current-invocation-image-view,
+enfugue-node-editor.image-editor.zoom-in enfugue-node-canvas enfugue-background-image-view {
+    image-rendering: pixelated;
+}
+
+enfugue-node-editor.image-editor enfugue-node-canvas {
+    background: none;
+    border: 1px solid var(--dark-color);
+    box-sizing: content-box;
+}
+
+enfugue-node-editor.image-editor enfugue-node-canvas enfugue-image-editor-grid {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: transparent;
+    background: 
+        linear-gradient(to right, rgba(255,255,255,0.1) 0px, rgba(255,255,255,0.1) 1px, transparent 1px) 0 0,
+        linear-gradient(to right,  rgba(255,255,255,0.02) 0px, rgba(255,255,255,0.02) 1px, transparent 1px) 0 0,
+        linear-gradient(to bottom,  rgba(255,255,255,0.1) 0px, rgba(255,255,255,0.1) 1px, transparent 1px) 0 0,
+        linear-gradient(to bottom,  rgba(255,255,255,0.02) 0px, rgba(255,255,255,0.02) 1px, transparent 1px) 0 0;
+    background-size: 64px 64px, 8px 8px, 64px 64px, 8px 8px;
+    background-position: -0.5px -0.5px;
+    pointer-events: none;
+    z-index: 2;
+    opacity: 1;
+    transition: 0.1s ease-in-out;
+}
+
+enfugue-node-editor.image-editor.has-image enfugue-node-canvas enfugue-image-editor-grid {
+    opacity: 0;
+}
+
+enfugue-node-editor.image-editor.has-image enfugue-node-canvas:hover enfugue-image-editor-grid {
+    opacity: 1;
+}
+
+enfugue-node-editor.image-editor.has-image enfugue-node-canvas enfugue-node {
+    display: none;
+}
+
+enfugue-node-editor.image-editor enfugue-invocation-loading {
+    display: block;
+    position: absolute;
+    left: 175px;
+    right: 175px;
+    bottom: 5px;
+    border-radius: 10px;
+    border: 1px solid var(--dark-color);
+    transition: all 0.25s ease-in-out;
+    height: 20px;
+    line-height: 18px;
+    z-index: 1;
+}
+
+enfugue-node-editor.image-editor enfugue-invocation-sample-chooser {
+    display: flex;
+    flex-flow: row nowrap;
+    align-items: center;
+    justify-content: center;
+    position: absolute;
+    left: 175px;
+    right: 175px;
+    bottom: 30px;
+    gap: 5px;
+}
+
+enfugue-node-editor.image-editor enfugue-invocation-sample-chooser enfugue-invocation-sample {
+    display: flex;
+    flex-flow: row nowrap;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--dark-color);
+    border-radius: 2px;
+    height: 100px;
+    cursor: pointer;
+    opacity: 0.7;
+    transition: all 0.25s ease-in-out;
+}
+
+enfugue-node-editor.image-editor enfugue-invocation-sample-chooser enfugue-invocation-sample:hover {
+    opacity: 0.9;
+}
+
+enfugue-node-editor.image-editor enfugue-invocation-sample-chooser enfugue-invocation-sample:active {
+    opacity: 1;
+}
+
+enfugue-node-editor.image-editor enfugue-invocation-sample-chooser enfugue-invocation-sample.no-sample {
+    width: 100px;
+    font-size: 100px;
+    color: var(--dark-color);
+}
+
+enfugue-node-editor.image-editor enfugue-invocation-sample-chooser enfugue-invocation-sample img {
+    max-height: 100px;
+}
+
+enfugue-node-editor.image-editor enfugue-invocation-stop {
+    display: block;
+    text-transform: uppercase;
+    position: absolute;
+    right: 5px;
+    top: 5px;
+    width: 40px;
+    height: 40px;
+    border-radius: 80px;
+    line-height: 40px;
+    text-align: center;
+    color: white;
+    font-size: 11px;
+    background-color: var(--theme-color-primary);
+    filter: grayscale(100%);
+    opacity: 0;
+    pointer-events: none;
+    cursor: not-allowed;
+    transition: all 0.25s ease-in-out;
+}
+
+enfugue-node-editor.image-editor enfugue-invocation-stop.ready {
+    cursor: pointer;
+    opacity: 1;
+    pointer-events: all;
+    filter: grayscale(50%);
+}
+
+enfugue-node-editor.image-editor enfugue-invocation-stop.ready:hover {
+    filter: grayscale(25%);
+}
+
+enfugue-node-editor.image-editor enfugue-invocation-stop.ready:active {
+    filter: grayscale(0%);
+}
+
+enfugue-node-editor.image-editor enfugue-invocation-loading {
+    display: flex;
+    flex-flow: row nowrap;
+    align-items: center;
+    justify-content: space-between;
+    overflow: hidden;
+}
+
+enfugue-node-editor.image-editor enfugue-invocation-loading enfugue-invocation-loaded {
+    display: block;
+    position: absolute;
+    opacity: 0;
+    height: 100%;
+    transition: all 0.1s linear;
+    z-index: -1;
+}
+
+enfugue-node-editor.image-editor enfugue-invocation-loading.loading enfugue-invocation-loaded {
+    opacity: 1;
+}
+
+enfugue-node-editor.image-editor enfugue-invocation-loading enfugue-invocation-duration,
+enfugue-node-editor.image-editor enfugue-invocation-loading enfugue-invocation-iterations, 
+enfugue-node-editor.image-editor enfugue-invocation-loading enfugue-invocation-remaining {
+    display: block;
+    top: 0;
+    bottom: 0;
+    font-size: 10px;
+    color: white;
+    text-shadow: 1px 1px 1px black;
+}
+
+enfugue-node-editor.image-editor enfugue-invocation-loading enfugue-invocation-duration {
+    margin-left: 5px;
+}
+
+enfugue-node-editor.image-editor enfugue-invocation-loading enfugue-invocation-iterations {
+    margin-left: 5px;
+    margin-right: 5px;
+}
+
+enfugue-node-editor.image-editor enfugue-invocation-loading enfugue-invocation-remaining {
+    margin-right: 5px;
+}
+
+enfugue-node-editor.image-editor enfugue-node form {
+    position: absolute;
+    top: 0;
+    height: 0;
+    width: 100%;
+    overflow-y: auto;
+    padding-bottom: 1em;
+    transition: all 0.25s ease-in-out;
+    font-size: 11px;
+    opacity: 0;
+}
+
+enfugue-node-editor.image-editor enfugue-node.image-editor-prompt-node-view form {
+    height: 100% !important;
+    opacity: 1.0 !important;
+    background-color: var(--dark-color) !important;
+    top: 0 !important;
+}
+
+enfugue-node-editor.image-editor enfugue-node.image-editor-image-node-view enfugue-scribble-view {
+    opacity: 0.5;
+}
+
+enfugue-node-editor.image-editor enfugue-node.flipped form {
+    top: auto;
+    bottom: 0;    
+}
+
+enfugue-node-editor.image-editor enfugue-node form select,
+enfugue-node-editor.image-editor enfugue-node form label,
+enfugue-node-editor.image-editor enfugue-node form input {
+    font-size: 11px;
+    color: white;
+}
+
+enfugue-node-editor.image-editor enfugue-node form legend {
+    display: none;
+}
+
+enfugue-node-editor.image-editor enfugue-node form .field-container {
+    flex-basis: 30%;
+}
+
+enfugue-node-editor.image-editor enfugue-node form .field-container.image-editor-image-fit-input-view,
+enfugue-node-editor.image-editor enfugue-node form .field-container.image-editor-image-anchor-input-view,
+enfugue-node-editor.image-editor enfugue-node form .field-container.checkbox-input-view,
+enfugue-node-editor.image-editor enfugue-node form .field-container.text-input-view {
+    flex-basis: 40%;
+}
+
+enfugue-node-editor.image-editor enfugue-node:hover form {
+    opacity: 1;
+    top: 30px;
+    height: calc(100% - 30px);
+    background-color: rgba(0,0,0,0.4);
+}
+
+enfugue-node-editor.image-editor enfugue-node.flipped:hover form {
+    top: auto;
+    bottom: 30px;
+}
+
+enfugue-node-editor.image-editor enfugue-node:hover form:hover {
+    background-color: rgba(0,0,0,0.6);
+}
+
+enfugue-node-editor.image-editor enfugue-node-canvas enfugue-toolbar {
+    left: auto;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    background-color: transparent;
+    background-image: linear-gradient(to right, transparent, rgba(0,0,0,0.4));
+    border: none;
+}
+
+enfugue-node-editor.image-editor enfugue-node-canvas enfugue-toolbar-item {
+    border: none;
+    background: none;
+    opacity: 0.5;
+    transition: all 0.25s ease-in-out;
+}
+
+enfugue-node-editor.image-editor enfugue-node-canvas enfugue-toolbar-item:hover,
+enfugue-node-editor.image-editor enfugue-node-canvas enfugue-toolbar-item:active {
+    border: none;
+    opacity: 1;
+}
+
+enfugue-node-editor.image-editor enfugue-node-canvas enfugue-toolbar-item::after {
+    display: none;
+}
+
+.field-container.checkpoint-input-view,
+.field-container.multi-lora-input-view,
+.field-container.multi-inversion-input-view,
+.field-container.upscale-methods-input-view,
+.field-container.upscale-diffusion-prompt-input-view,
+.field-container.upscale-diffusion-negative-prompt-input-view,
+.field-container.upscale-diffusion-guidance-scale-input-view,
+.field-container.upscale-diffusion-steps-input-view,
+fieldset.field-set-prompts .field-container
+{
+    flex-basis: 100%;
+}
+
+fieldset.field-set-prompts .field-container {
+    margin-bottom: 1em;
+}
+
+.field-container.multi-lora-input-view legend {
+    display: none;
+}
+
+.field-container.multi-lora-input-view form .field-container {
+    flex-basis: 100%;
+}
+
+enfugue-model-table {
+    display: flex;
+    flex-flow: column nowrap;
+    justify-content: space-between;
+}
+
+enfugue-model-table-paging {
+    display: flex;
+    flex-flow: row nowrap;
+    align-items: center;
+    justify-content: space-between;
+    padding: 5px 1em 0 1em;
+}
+
+enfugue-model-table-paging > span {
+    font-size: 12px;
+    color: var(--theme-color-tertiary);
+}
+
+enfugue-model-table-paging ul {
+    display: flex;
+    flex-flow: row nowrap;
+    gap: 5px;
+}
+
+enfugue-model-table-paging ul li {
+    position: relative;
+    color: white;
+    background-color: var(--theme-color-tertiary);
+    display: flex;
+    flex-flow: row nowrap;
+    align-items: center;
+    justify-content: center;
+    width: 25px;
+    height: 25px;
+    cursor: pointer;
+    text-align: center;
+    line-height: 25px;
+    border-radius: 3px;
+    transition: background-color 0.25s ease-in-out;
+}
+
+enfugue-model-table-paging ul li.selected {
+    background-color: var(--theme-color-secondary);
+}
+
+enfugue-model-table-paging ul li span {
+    font-family: var(--monospace-font), monospace;
+}
+
+enfugue-model-table ul.include-first li:first-child {
+    margin-right: 30px;
+}
+
+enfugue-model-table ul.include-first li:first-child::after {
+    position: absolute;
+    content: '…';
+    font-size: 16px;
+    left: calc(100% + 11px);
+    color: var(--theme-color-tertiary);
+}
+
+enfugue-model-table ul.include-last li:last-child {
+    margin-left: 30px;
+}
+
+enfugue-model-table ul.include-last li:last-child::after {
+    position: absolute;
+    content: '…';
+    font-size: 16px;
+    right: calc(100% + 11px);
+    color: var(--theme-color-tertiary);
+}
+
+enfugue-model-table-paging ul li::before {
+    content: '\A';
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    background-color: white;
+    opacity: 0;
+    transition: opacity 0.25s ease-in-out;
+    pointer-events: none;
+}
+
+enfugue-model-table-paging ul li:hover::before {
+    opacity: 0.1;
+}
+
+enfugue-invocation-outputs {
+    display: flex;
+    flex-flow: row nowrap;
+    gap: 5px;
+}
+
+enfugue-model-table.invocation-history tr th:nth-child(1),
+enfugue-model-table.invocation-history tr td:nth-child(1) {
+    width: 15%;
+}
+
+enfugue-model-table.invocation-history tr th:nth-child(2),
+enfugue-model-table.invocation-history tr td:nth-child(2) {
+    width: 15%;
+}
+
+enfugue-model-table.invocation-history tr th:nth-child(3),
+enfugue-model-table.invocation-history tr td:nth-child(3) {
+    width: 25%;
+}
+
+enfugue-model-table.invocation-history tr th:nth-child(4),
+enfugue-model-table.invocation-history tr td:nth-child(4) {
+    width: 35%;
+}
+
+div.announcements-view > .view > p,
+div.about-view > p {
+    margin: 1rem 0 0 1rem;
+    line-height: 1.1em;
+}
+
+div.announcements-view > .view > h3 {
+    text-align: left;
+    color: var(--theme-color-tertiary);
+    margin: 1rem 0 0 1rem;
+}
+
+div.about-view .donate-links {
+    margin-top: 1em;
+    display: flex;
+    padding: 0.5em 1em;
+    flex-flow: row nowrap;
+    align-items: stretch;
+    justify-content: stretch;
+    gap: 1em;
+}
+
+div.about-view .donate-links a {
+    flex-basis: 100%;
+    text-decoration: none;
+    display: block;
+    padding: 1em;
+    border-style: solid;
+    border-radius: 5px;
+    border-width: 2px;
+    color: white;
+    font-weight: 900;
+    transition: all 0.25s ease-in-out;
+}
+
+div.about-view .donate-links a::before {
+    content: "\A";
+    display: inline-block;
+    width: 25px;
+    height: 25px;
+    margin-right: 10px;
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center center;
+    vertical-align: middle;
+}
+
+div.about-view .donate-links a.patreon {
+    background-color: #EE614A;
+    border-color: #EE614A;
+}
+
+div.about-view .donate-links a.ko-fi {
+    background-color: #29ABE0;
+    border-color: #29ABE0;
+}
+
+div.about-view .donate-links a.patreon::before {
+    background-image: url("../img/brand/patreon.png");
+}
+
+div.about-view .donate-links a.ko-fi::before {
+    background-image: url("../img/brand/ko-fi.png");
+}
+
+div.about-view .donate-links a:hover {
+    background-color: transparent;
+}
+
+div.about-view .donate-links a.patreon:hover {
+    color: #EE614A;
+}
+
+div.about-view .donate-links a.ko-fi:hover {
+    color: #29ABE0;
+}
+
+div.history-view > input {
+    float: right;
+    margin: 1em 1em 0 0;
+}
+
+table.history-table-view tr th:nth-child(1),
+table.history-table-view tr td:nth-child(1) {
+    width: 150px;
+}
+
+input.new-user-input-view,
+input.new-model-input-view,
+input.upload-file-input-view {
+    float: right;
+    margin-right: 1em;
+}
+
+input.upload-file-input-view {
+    margin-top: 1em;
+}
+
+input.download-input-view {
+    margin: 1em;
+    width: calc(100% - 2em);
+}
+
+enfugue-invocation-outputs enfugue-invocation-output {
+    cursor: pointer;
+}
+
+enfugue-invocation-outputs enfugue-invocation-output img {
+    max-height: 50px;
+}

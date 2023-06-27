@@ -1,0 +1,9 @@
+{% extends "footer-base.html.j2" %}
+{%- block footer %}
+<p>
+    {{ site }} developed by <a href="mailto:{{ author.email }}">{{ author.name }}</a> and licensed under the <a href="{{ license.href }}" target="_blank">{{ license.name }}</a>.
+</p>
+<p>
+    Based on <a href="https://ommer-lab.com/research/latent-diffusion-models/" target="_blank">High-Resolution Image Synthesis with Latent Diffusion Models (A.K.A. LDM &amp; Stable Diffusion)</a> by the Computer Vision &amp; Learning Group, <a href="https://stability.ai/" target="_blank">Stability AI</a> and <a href="http://runwayml.com">Runway</a>, licensed under The <a href="https://bigscience.huggingface.co/blog/bigscience-openrail-m">BigScience (Creative ML) OpenRAIL-M</a> License.
+</p>
+{%- endblock %}

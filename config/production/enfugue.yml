@@ -1,0 +1,5 @@
+---
+noauth: true
+safe: true
+engine:
+    root: ~/.cache/enfugue

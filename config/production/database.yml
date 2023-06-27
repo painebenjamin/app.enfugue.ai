@@ -1,0 +1,5 @@
+---
+type: sqlite
+connection:
+  database: ~/.cache/enfugue.db
+migrate: true

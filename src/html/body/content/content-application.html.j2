@@ -1,0 +1,5 @@
+{% extends "body-base.html.j2" %}
+{% block content %}
+<enfugue-application{% if controller %} data-enfugue-controller="{{ controller }}"{% if view_controller %} data-enfugue-view-controller="{{ view_controller }}"{% if scope %} data-enfugue-view-controller-scope="{{ scope }}"{% endif %}{% endif %}{% endif %}>
+</enfugue-application>
+{% endblock %}

@@ -1,0 +1,26 @@
+:root {
+    --theme-color-primary: #ff3366;
+    --theme-color-secondary: #598392;
+    --theme-color-tertiary: #aec3b0;
+
+    --node-color-1: #c66a00;
+    --node-color-2: #080059;
+    --node-color-3: #047c70;
+    --node-color-4: #044472;
+    --node-color-5: #87013b;
+    --node-color-6: #54037c;
+    --node-color-7: #58843e;
+    --node-color-8: #b5050f;
+
+    --light-color: #e7f1d0;
+    --lighter-color: #eff3e0;
+    --lightest-color: #f7faef;
+
+    --dark-color: #2f2f2f;
+    --darker-color: #141414;
+    --darkest-color: #0a0a0a;
+
+    --header-font: 'Roboto';
+    --body-font: 'Noto Sans';
+    --monospace-font: 'Ubuntu Mono';
+}

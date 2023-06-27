@@ -1,0 +1,5 @@
+{% extends "external-base.html.j2" %}
+{% block content %}
+<enfugue-external-application{% if controller %} data-enfugue-external-controller="{{ controller }}" {% if scope %} data-enfugue-external-controller-scope="{{ scope }}"{% endif %}{% endif %}>
+</enfugue-external-application>
+{% endblock %}

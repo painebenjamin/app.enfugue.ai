@@ -1,0 +1,18 @@
+{
+  "name": "enfugue",
+  "scripts": {},
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/painebenjamin/enfugue.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/painebenjamin/enfugue/issues"
+  },
+  "homepage": "https://github.com/painebenjamin/enfugue#readme",
+  "dependencies": {
+    "css-minify": "^2.0.0",
+    "terser": "^5.16.0"
+  }
+}

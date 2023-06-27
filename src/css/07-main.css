@@ -1,0 +1,284 @@
+main {
+    background-color: var(--darkest-color);
+    color: var(--lightest-color);
+    background: radial-gradient(rgba(255, 255, 255, 0.005) 35%, transparent 36%) 0 0;
+    background-size: 4px 4px;
+}
+
+table {
+    width: calc(100% - 2em);
+    margin: 0 1em;
+    table-layout: fixed;
+    border-collapse: collapse;
+}
+
+table tbody tr td,
+table tbody tr th,
+table thead tr th {
+    padding: 5px 10px;
+    font-size: 11px;
+    height: 35px;
+    vertical-align: middle;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: hidden;
+}
+
+table thead tr,
+table tbody tr:last-child {
+    border-bottom: 1px solid var(--theme-color-tertiary);
+}
+
+table thead tr th {
+    position: relative;
+    text-align: left;
+    color: var(--theme-color-tertiary);
+    font-weight: bold;
+    cursor: pointer;
+}
+
+table thead tr th.sort::before,
+table thead tr th.sort::after {
+    position: absolute;
+    display: inline-block;
+}
+
+table thead tr th.sort::before {
+    right: 15px;
+    font-family: var(--monospace-font), monospace;
+}
+
+table thead tr th.sort::after {
+    right: 2px;
+    content: '\f062';
+    font-family: 'Font Awesome 6 Free';
+}
+
+table thead tr th.sort.sort-reverse::after {
+    content: '\f063';
+}
+
+table thead tr th.sort.sort-0::before {
+    content: '1';
+}
+table thead tr th.sort.sort-1::before {
+    content: '2';
+}
+table thead tr th.sort.sort-2::before {
+    content: '3';
+}
+table thead tr th.sort.sort-3::before {
+    content: '4';
+}
+table thead tr th.sort.sort-4::before {
+    content: '5';
+}
+table thead tr th.sort.sort-5::before {
+    content: '6';
+}
+table thead tr th.sort.sort-6::before {
+    content: '7';
+}
+table thead tr th.sort.sort-7::before {
+    content: '8';
+}
+table thead tr th.sort.sort-8::before {
+    content: '9';
+}
+
+table tbody tr th {
+    text-align: left;
+    color: #75a1ba;
+}
+
+table tbody tr:nth-child(2n + 1) {
+    background-color: rgba(0, 0, 0, 0.02);
+}
+
+table tbody tr td {
+    font-size: 11px;
+}
+
+table tbody tr td.empty {
+    text-align: center;
+    font-style: italic;
+    padding: 15px;
+}
+
+table tbody tr td a.button,
+table tbody tr td button,
+table tbody tr td input[type='submit'] {
+    width: 100%;
+}
+
+table tbody tr td a.button.round,
+table tbody tr td button.round,
+table tbody tr td input[type='submit'].round {
+    width: 30px;
+    height: 30px;
+    text-align: center;
+    display: inline-block;
+    border-radius: 30px;
+    padding: 0;
+}
+
+table thead tr th.button-column {
+    visibility: hidden;
+}
+
+table thead tr th.button-column,
+table tbody tr td.button-column {
+    padding: 0;
+    width: 35px;
+}
+
+form.login {
+    display: flex;
+    flex-flow: column nowrap;
+    max-width: 600px;
+    margin: 0 auto;
+    padding: 1em;
+    border-radius: 5px;
+    border: 1px solid var(--dark-color);
+}
+
+form.login input {
+    width: 100% !important;
+}
+
+form.login label {
+    font-weight: 400;
+    font-size: 18px;
+    color: var(--theme-color-tertiary);
+    margin-top: 25px;
+    margin-bottom: 0;
+}
+
+.code-input-view {
+    min-height: 200px;
+    height: 100%;
+}
+
+.rich-text-input-view {
+    height: calc(100% - 42px);
+}
+
+.ace,
+.ace_editor {
+    height: 100%;
+}
+
+.ace,
+.ace_editor,
+.ace_content,
+.ace_layer,
+.ace_layer > *,
+.ace_line,
+.ace_line > * {
+    font-family: monospace;
+}
+
+fieldset.field-set-initial-date-range {
+    flex-flow: row nowrap;
+}
+
+.civit-ai-view > div:first-child > a {
+    display: block;
+    text-align: center;
+    margin-top: 1em;
+}
+
+.civit-ai-view > div:first-child > a > img {
+    height: 60px;
+}
+
+.civit-ai-view > div:first-child > p {
+    padding: 1em;
+}
+
+.civit-ai-item {
+    display: flex;
+    flex-flow: column nowrap;
+    align-items: stretch;
+    justify-content: stretch;
+    border: 1px solid var(--dark-color);
+    border-radius: 5px;
+    margin: 1em;
+    padding: 1em;
+    gap: 1em;
+    line-height: 1.2em;
+}
+
+.civit-ai-item div.flags,
+.civit-ai-item div.tags,
+.civit-ai-item div.triggers {
+    display: flex;
+    flex-flow: row nowrap;
+    gap: 5px;
+}
+
+.civit-ai-item div.triggers {
+    margin-top: 5px;
+}
+
+.civit-ai-item div.flags > span,
+.civit-ai-item div.tags > span,
+.civit-ai-item div.triggers > span {
+    display: block;
+    padding: 5px;
+    border: 2px solid var(--light-color);
+    border-radius: 6px;
+}
+
+.civit-ai-item div.flags > span {
+    border-color: var(--theme-color-secondary);
+    color: var(--theme-color-secondary);
+}
+
+.civit-ai-item div.tags > span {
+    border-color: var(--theme-color-tertiary);
+    color: var(--theme-color-tertiary);
+}
+
+.civit-ai-item div.triggers > span {
+    border-color: var(--theme-color-primary);
+    color: var(--theme-color-primary);
+}
+
+.civit-ai-item div.images {
+    display: flex;
+    flex-flow: row nowrap;
+    align-items: stretch;
+    justify-content: flex-start;
+}
+
+.civit-ai-item div.images > img {
+    object-fit: cover;
+    object-position: center top;
+    flex-basis: 100%;
+    max-height: 300px;
+}
+
+.civit-ai-item div.downloads {
+    margin-top: 5px;
+    display: table;
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.civit-ai-item div.downloads div.download {
+    display: table-row;
+}
+
+.civit-ai-item div.downloads div.download:not(:last-child) {
+    border-bottom: 1px solid var(--theme-color-secondary);
+}
+
+.civit-ai-item div.downloads div.download > * {
+    display: table-cell;
+    padding: 5px;
+}
+
+.civit-ai-item h2 {
+    margin: 0;
+}

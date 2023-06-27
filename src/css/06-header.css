@@ -1,0 +1,59 @@
+header {
+    height: 25px;
+    text-transform: uppercase;
+    display: flex;
+    flex-flow: row nowrap;
+    align-items: center;
+    justify-content: space-between;
+    overflow: hidden;
+}
+
+header .background {
+    background-repeat: repeat-x;
+    z-index: -2;
+}
+
+header::after {
+    content: "\A";
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    background-blend-mode: color-burn;
+    background-image: linear-gradient(to right, transparent 300px, rgba(0,0,0,0.5) 600px);
+    z-index: -1;
+    pointer-events: none;
+}
+
+header h1 {
+    color: var(--lightest-color);
+    text-shadow: 2px 2px 0px rgba(0,0,0,0.50),
+                 4px 4px 0px rgba(0,0,0,0.45),
+                 6px 6px 0px rgba(0,0,0,0.40),
+                 8px 8px 0px rgba(0,0,0,0.35),
+                 10px 10px 0px rgba(0,0,0,0.30),
+                 12px 12px 0px rgba(0,0,0,0.25),
+                 14px 14px 0px rgba(0,0,0,0.20),
+                 16px 16px 0px rgba(0,0,0,0.15),
+                 18px 18px 0px rgba(0,0,0,0.10),
+                 20px 20px 0px rgba(0,0,0,0.05);
+    border: none;
+    margin: 0 0 0 4px;
+    font-size: 21px;
+    letter-spacing: -1px;
+    font-weight: 900;
+    font-family: var(--body-font);
+}
+
+header .logout {
+    margin-right: 5px;
+    opacity: 0.5;
+    cursor: pointer;
+    transition: all 0.25s ease-in-out;
+    color: var(--light-color);
+}
+
+header .logout:hover {
+    opacity: 1.0;
+}

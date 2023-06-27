@@ -1,0 +1,8 @@
+---
+type: sqlite
+connection:
+  database: ~/.cache/enfugue.db
+migrate: true
+cipher:
+  password: cipher_password
+  salt: DEADBEEF
