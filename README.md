@@ -17,7 +17,7 @@ Enfugue is a feature-rich self-hosted Stable Diffusion web application.
 # Feature Summary
 
 - 🚀 **One Click Install:** Enfugue is available as a simple `.exe` to make it as easy as possible to get busy making images, not configuring environments.
-- 🤝 **Plays Nice with Others:** If you want more control in managing your environment, simply install `enfugue` via `pip` into your existing stable diffusion workflow.
+- 🤝 **Plays Nice with Others:** If you want more control in managing your environment, simply install `enfugue` via `pip` into your existing stable diffusion workflow. Worried about a whole webapp clogging up your installation? Don't be, Enfugue is only `1 MB` in size on it's own.
 - 👥 **Owners and Users:** Optional authentication and authorization keeps your installation settings locked down.
 - 🗃 **Easy Model Management:** In-app CivitAI browser makes community checkpoints, LoRA, and Textual Inversions one click away. Drop any other models directly into the app to keep files organized.
 - 🧷 **Safety's On:** Safety checker is on by default, and can be disabled by owners right in the UI.
