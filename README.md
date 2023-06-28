@@ -26,7 +26,7 @@ Enfugue is a feature-rich self-hosted Stable Diffusion web application.
 - 🧈 **Unified Pipeline:** Never choose between `txt2img`, `img2img`, `inpainting`, or any upscaling pipeline again, with or without multi-diffusion. Just ask what you want, and Enfugue will take care of the rest.
 - 🕹️ **Take Control:** Region prompting and Controlnet are standard.
 - 🔌 **Plug Away:** All features are available via JSON API, or can be added to your Python scripts using our `diffusers` extensions.
-- 👁️ **Eye Queue:** Have things to do? Send an unlimited\* number of invocations at once, let Enfugue take care of make sure they all get done.
+- 👁️ **Eye Queue:** Have things to do? Send an unlimited\* number of invocations at once, let Enfugue take care of making sure they all get done.
 - ☁️ **Your Own Cloud:** All of the best features you would expect from a SaaS application, with the security of knowing nothing ever leaves your computer. Results are kept by the app until you no longer need them, and your browser keeps a lengthy history of workspaces so you can always revisit where you left off. 
 
 *\* configurable in-app, defaults to five queued invocations*
