@@ -41,4 +41,5 @@ dependencies:
     - git+https://github.com/openai/CLIP.git@main#egg=clip
     - git+https://github.com/CompVis/stable-diffusion.git@main#egg=latent-diffusion
     - --extra-index-url https://download.pytorch.org/whl/cu117
+    - --extra-index-url https://pypi.ngc.nvidia.com
     - torch==1.13.1+cu117
