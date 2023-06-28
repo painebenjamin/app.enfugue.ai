@@ -179,9 +179,19 @@ The header contains useful information about your GPU, as well as two important 
     <img src="https://github.com/painebenjamin/app.enfugue.ai/blob/main/docs/terminate.png?raw=true" alt="A window in the ENFUGUE interface offering to terminate any active invocations." />
 </p>
 
+### The Model Picker
+
+A special callout should be made to the Model Picker, the input in the top-left-hand corner of the Canvas:
+
+![image](https://github.com/painebenjamin/app.enfugue.ai/assets/57536852/122837ea-52d7-45db-b1fe-47b655515efa)
+
+This is essential to unlock the best results from enfugue. After downloading a model from Civit AI, uploading it through the menu at `System` -> `Installation`, or manually playing them into the correct directory (`~/.cache/enfugue/checkpoint`, `~/.cache/enfugue/lora`, etc,) use the **Model Manager** from the `Models` menu to create a pre-configured set of model, LoRA, inversions, and default/trigger prompts.
+
+![image](https://github.com/painebenjamin/app.enfugue.ai/assets/57536852/78c7c05f-4af5-47a0-ab2b-da80ae38e035)
+
 ## Tensor RT
 
-TensorRT is a technology created by NVidia that transforms an AI model into one that takes advantage of hardware acceleration available on NVidia GPUs.
+TensorRT is a technology created by Nvidia that transforms an AI model into one that takes advantage of hardware acceleration available on NVidia GPUs.
 
 As there are numerous varying architectures used by NVidia that support this technology, these engines must be compiled by an architecture compatible with your actual hardware, rather than distributed by AI model providers. The compilation time for each model varies, but generally takes between 15 and 30 minutes each. You can expect between 50% and 100% faster inference speeds during the engine's respective step(s).
 
