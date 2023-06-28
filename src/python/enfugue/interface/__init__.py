@@ -266,7 +266,13 @@ class EnfugueInterfaceServer(
         for root in directories:
             root_path = os.path.join(root, path)
             if os.path.exists(root_path) and os.path.isfile(root_path):
-                return root_path
+                if root_path.endswith(".mjs"):
+                    # Force content-type
+                    response.content_type = "application/javascript"
+                    return open(root_path, "rb")
+                else:
+                    # Let pibble infer by filename
+                    return root_path
         logger.debug(f"Couldn't find path {path}, tried {directories}")
         raise NotFoundError(f"No file at {path}")
 
