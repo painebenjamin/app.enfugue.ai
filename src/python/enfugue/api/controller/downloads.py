@@ -6,7 +6,7 @@ from webob import Request, Response
 from pibble.api.exceptions import BadRequestError, StateConflictError
 from pibble.ext.user.server.base import UserExtensionHandlerRegistry
 
-
+from enfugue.util import check_make_directory
 from enfugue.partner.civitai import CivitAI
 from enfugue.api.controller.base import EnfugueAPIControllerBase
 
@@ -41,8 +41,7 @@ class EnfugueAPIDownloadsController(EnfugueAPIControllerBase):
             if os.path.exists(target_file) and not request.parsed.get("overwrite", False):
                 raise StateConflictError(f"File exists: {request.parsed['filename']}")
 
-            if not os.path.exists(target_dir):
-                os.makedirs(target_dir)
+            check_make_directory(target_dir)
 
             return self.manager.download(
                 request.token.user.id, request.parsed["url"], target_file

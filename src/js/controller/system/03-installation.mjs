@@ -149,7 +149,9 @@ class TensorRTEngineSummaryTableView extends TableView {
      * @var object column format functions
      */
     static columnFormatters = {
-        "bytes": (bytes) => humanSize(bytes)
+        "total": (total) => isEmpty(total) ? "None" : total,
+        "used": (used) => isEmpty(used) ? "None" : used,
+        "bytes": (bytes) => isEmpty(bytes) ? "0 Bytes" : humanSize(bytes)
     };
 };
 

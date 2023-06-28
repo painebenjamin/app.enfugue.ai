@@ -273,6 +273,7 @@ class DiffusionEngineProcess(Process):
         """
         from pibble.util.helpers import OutputCatcher
         from pibble.util.log import ConfigurationLoggingContext
+
         with OutputCatcher():
             with ConfigurationLoggingContext(self.configuration):
                 last_data = datetime.datetime.now()
@@ -309,10 +310,14 @@ class DiffusionEngineProcess(Process):
                     instruction_action = instruction["action"]
                     instruction_payload = instruction.get("payload", None)
 
-                    logger.debug(f"Received instruction {instruction_id}, action {instruction_action}")
+                    logger.debug(
+                        f"Received instruction {instruction_id}, action {instruction_action}"
+                    )
                     if instruction_action == "ping":
                         logger.debug("Responding with 'pong'")
-                        self.results.put(Serializer.serialize({"id": instruction_id, "result": "pong"}))
+                        self.results.put(
+                            Serializer.serialize({"id": instruction_id, "result": "pong"})
+                        )
                     elif instruction_action in ["exit", "stop"]:
                         logger.debug("Exiting process")
                         self.pipemanager.unload_pipeline()
@@ -323,7 +328,9 @@ class DiffusionEngineProcess(Process):
                         try:
                             if instruction_action == "plan":
                                 intermediate_dir = instruction_payload.get("intermediate_dir", None)
-                                intermediate_steps = instruction_payload.get("intermediate_steps", None)
+                                intermediate_steps = instruction_payload.get(
+                                    "intermediate_steps", None
+                                )
                                 plan = self.get_diffusion_plan(instruction_payload)
                                 response["result"] = self.execute_diffusion_plan(
                                     instruction_id,

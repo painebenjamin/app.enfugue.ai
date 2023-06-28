@@ -22,6 +22,8 @@ def get_directory_size(directory: str, recurse: bool = True) -> Tuple[int, int, 
     """
     Sums the files and filesize of a directory
     """
+    if not os.path.exists(directory):
+        return 0, 0, 0
     items = os.listdir(directory)
     top_level_items = len(items)
     files, size = 0, 0
@@ -245,7 +247,7 @@ class EnfugueAPISystemController(EnfugueAPIControllerBase):
         """
         directory = os.path.join(self.engine_root, dirname)
         if not os.path.isdir(directory):
-            raise BadRequestError(f"Unknown engine directory {dirname}")
+            return []
 
         items = []
 

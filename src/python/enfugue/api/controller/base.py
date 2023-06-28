@@ -5,6 +5,7 @@ import os
 from typing import Iterator, Callable
 
 from pibble.api.server.webservice.jsonapi import JSONWebServiceAPIServer
+from enfugue.util import check_make_directory
 from enfugue.api.invocations import Invocation
 from enfugue.api.downloads import Download
 from enfugue.api.manager import SystemManager
@@ -33,8 +34,7 @@ class EnfugueAPIControllerBase(JSONWebServiceAPIServer):
         if root.startswith("~"):
             root = os.path.expanduser(root)
         root = os.path.realpath(root)
-        if not os.path.exists(root):
-            os.makedirs(root)
+        check_make_directory(root)
         return root
 
     @staticmethod

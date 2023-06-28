@@ -26,7 +26,7 @@ from pibble.api.configuration import APIConfiguration
 from pibble.api.exceptions import ConfigurationError
 from pibble.util.files import load_json, dump_json
 
-from enfugue.util import logger, check_download
+from enfugue.util import logger, check_download, check_make_directory
 from enfugue.diffusion.constants import (
     DEFAULT_MODEL,
     DEFAULT_INPAINTING_MODEL,
@@ -273,8 +273,7 @@ class DiffusionPipelineManager:
         if root.startswith("~"):
             root = os.path.expanduser(root)
         root = os.path.realpath(root)
-        if not os.path.exists(root):
-            os.makedirs(root)
+        check_make_directory(root)
         return root
 
     @property
@@ -283,8 +282,7 @@ class DiffusionPipelineManager:
         Gets the cache for diffusers-downloaded configuration files, base models, etc.
         """
         path = os.path.join(self.engine_root, "cache")
-        if not os.path.exists(path):
-            os.makedirs(path)
+        check_make_directory(path)
         return path
 
     @property
@@ -293,8 +291,7 @@ class DiffusionPipelineManager:
         Gets where checkpoints are downloaded in.
         """
         path = os.path.join(self.engine_root, "checkpoint")
-        if not os.path.exists(path):
-            os.makedirs(path)
+        check_make_directory(path)
         return path
 
     @property
@@ -303,8 +300,7 @@ class DiffusionPipelineManager:
         Gets where any other weights are download in
         """
         path = os.path.join(self.engine_root, "other")
-        if not os.path.exists(path):
-            os.makedirs(path)
+        check_make_directory(path)
         return path
 
     @property
@@ -313,8 +309,7 @@ class DiffusionPipelineManager:
         Gets where lora are downloaded in.
         """
         path = os.path.join(self.engine_root, "lora")
-        if not os.path.exists(path):
-            os.makedirs(path)
+        check_make_directory(path)
         return path
 
     @property
@@ -323,8 +318,7 @@ class DiffusionPipelineManager:
         Gets where inversions are downloaded in.
         """
         path = os.path.join(self.engine_root, "inversions")
-        if not os.path.exists(path):
-            os.makedirs(path)
+        check_make_directory(path)
         return path
 
     @property
@@ -333,8 +327,7 @@ class DiffusionPipelineManager:
         Gets where models are pushed to after converting to diffusers.
         """
         path = os.path.join(self.engine_root, "models")
-        if not os.path.exists(path):
-            os.makedirs(path)
+        check_make_directory(path)
         return path
 
     @property
@@ -344,8 +337,7 @@ class DiffusionPipelineManager:
         """
         model = self.model
         path = os.path.join(self.engine_models_dir, self.model)
-        if not os.path.exists(path):
-            os.makedirs(path)
+        check_make_directory(path)
         return path
 
     @property
@@ -354,8 +346,7 @@ class DiffusionPipelineManager:
         Gets where tensorrt engines will be built per model.
         """
         path = os.path.join(self.model_dir, "tensorrt")
-        if not os.path.exists(path):
-            os.makedirs(path)
+        check_make_directory(path)
         return path
 
     @staticmethod
@@ -400,8 +391,7 @@ class DiffusionPipelineManager:
         Gets where the tensorrt CLIP engine will be stored.
         """
         path = os.path.join(self.model_tensorrt_dir, "clip", self.model_tensorrt_clip_key)
-        if not os.path.exists(path):
-            os.makedirs(path)
+        check_make_directory(path)
         metadata_path = os.path.join(path, "metadata.json")
         if not os.path.exists(metadata_path):
             self.write_tensorrt_metadata(metadata_path)
@@ -452,8 +442,7 @@ class DiffusionPipelineManager:
         Gets where the tensorrt CLIP engine will be stored.
         """
         path = os.path.join(self.model_tensorrt_dir, "unet", self.model_tensorrt_unet_key)
-        if not os.path.exists(path):
-            os.makedirs(path)
+        check_make_directory(path)
         metadata_path = os.path.join(path, "metadata.json")
         if not os.path.exists(metadata_path):
             self.write_tensorrt_metadata(metadata_path)
@@ -506,8 +495,7 @@ class DiffusionPipelineManager:
         path = os.path.join(
             self.model_tensorrt_dir, "controlledunet", self.model_tensorrt_controlled_unet_key
         )
-        if not os.path.exists(path):
-            os.makedirs(path)
+        check_make_directory(path)
         metadata_path = os.path.join(path, "metadata.json")
         if not os.path.exists(metadata_path):
             self.write_tensorrt_metadata(metadata_path)
@@ -544,8 +532,7 @@ class DiffusionPipelineManager:
         path = os.path.join(
             self.model_tensorrt_dir, "controlnet", self.model_tensorrt_controlnet_key
         )
-        if not os.path.exists(path):
-            os.makedirs(path)
+        check_make_directory(path)
         metadata_path = os.path.join(path, "metadata.json")
         if not os.path.exists(metadata_path):
             self.write_tensorrt_metadata(metadata_path)
@@ -574,8 +561,7 @@ class DiffusionPipelineManager:
         Gets where the tensorrt VAE engine will be stored.
         """
         path = os.path.join(self.model_tensorrt_dir, "vae", self.model_tensorrt_vae_key)
-        if not os.path.exists(path):
-            os.makedirs(path)
+        check_make_directory(path)
         metadata_path = os.path.join(path, "metadata.json")
         if not os.path.exists(metadata_path):
             self.write_tensorrt_metadata(metadata_path)

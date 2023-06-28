@@ -9,6 +9,7 @@ from pibble.util.files import load_yaml, load_json
 
 __all__ = [
     "VersionDict",
+    "check_make_directory",
     "get_local_installation_directory",
     "get_local_config_directory",
     "get_local_static_directory",
@@ -65,6 +66,21 @@ def get_local_static_directory() -> str:
         if here == "/":
             raise IOError("Couldn't find static directory.")
     return os.path.join(here, "static")
+
+
+def check_make_directory(directory: str) -> None:
+    """
+    Checks if a directory doesn't exist, and makes it.
+    Attempts to be thread-safe.
+    """
+    if not os.path.exists(directory):
+        try:
+            os.makedirs(directory)
+            return
+        except:
+            if not os.path.exists(directory):
+                raise
+            return
 
 
 def get_local_configuration() -> Dict[str, Any]:

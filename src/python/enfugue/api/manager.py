@@ -16,7 +16,7 @@ from enfugue.api.invocations import Invocation
 from enfugue.diffusion.engine import DiffusionEngine
 from enfugue.diffusion.plan import DiffusionPlan
 from enfugue.diffusion.constants import DEFAULT_MODEL, DEFAULT_INPAINTING_MODEL
-from enfugue.util import logger
+from enfugue.util import logger, check_make_directory
 
 __all__ = ["SystemManagerThread", "SystemManager"]
 
@@ -127,8 +127,7 @@ class SystemManager:
         if root.startswith("~"):
             root = os.path.expanduser(root)
         root = os.path.realpath(root)
-        if not os.path.exists(root):
-            os.makedirs(root)
+        check_make_directory(root)
         return root
 
     @property
@@ -137,8 +136,7 @@ class SystemManager:
         Gets the location for image result outputs.
         """
         directory = os.path.join(self.engine_root_dir, "images")
-        if not os.path.exists(directory):
-            os.makedirs(directory)
+        check_make_directory(directory)
         return directory
 
     @property
@@ -147,8 +145,7 @@ class SystemManager:
         Gets the location for image intermediate outputs.
         """
         directory = os.path.join(self.engine_root_dir, "intermediates")
-        if not os.path.exists(directory):
-            os.makedirs(directory)
+        check_make_directory(directory)
         return directory
 
     @property
@@ -157,8 +154,7 @@ class SystemManager:
         Gets the location for models.
         """
         directory = os.path.join(self.engine_root_dir, "models")
-        if not os.path.exists(directory):
-            os.makedirs(directory)
+        check_make_directory(directory)
         return directory
 
     @property
@@ -167,8 +163,7 @@ class SystemManager:
         Returns the engine checkpoint location.
         """
         path = os.path.join(self.engine_root_dir, "checkpoint")
-        if not os.path.exists(path):
-            os.makedirs(path)
+        check_make_directory(path)
         return path
 
     @property

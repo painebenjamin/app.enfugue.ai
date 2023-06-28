@@ -27,6 +27,7 @@ from enfugue.api.downloads import Download
 from enfugue.api.config import EnfugueConfiguration
 
 from enfugue.util import (
+    check_make_directory,
     get_version,
     get_pending_versions,
     get_gpu_status,
@@ -68,8 +69,7 @@ class EnfugueAPIServerBase(
         if root.startswith("~"):
             root = os.path.expanduser(root)
         root = os.path.realpath(root)
-        if not os.path.exists(root):
-            os.makedirs(root)
+        check_make_directory(root)
         return root
 
     def on_configure(self) -> None:
