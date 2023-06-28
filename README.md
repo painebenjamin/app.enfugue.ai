@@ -213,7 +213,7 @@ When enabled, authentication will be required when using Enfugue. This enables s
     <img src="https://github.com/painebenjamin/app.enfugue.ai/blob/main/docs/settings.png?raw=true" alt="A window in the ENFUGUE interface offering multiple settings options" />
 </p>
 
-Once enabled in the settings menu, you will be taken to a login screen. The default user is `enfugue` and default password is `password`. You can change any other user's password as an administrator. 
+Once enabled in the settings menu, you will be taken to a login screen. The default user and password are both `enfugue`, all lowercase. You can change any other user's password as an administrator. 
 
 If you ever forget your password, you can reset the root password by creating a file named `password_reset.txt` in the enfugue cache directory with the desired new password, then restart the server. The cache directory is located at `~/.cache/enfugue/`, where `~` is your home directory or user directory, depending on platform.
 
