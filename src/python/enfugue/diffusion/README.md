@@ -79,6 +79,7 @@ Many arguments are present and function precisely the same as the general `Stabl
 Changes of note are as follows:
 
 1. This pipeline does not assume any particular 'mode' of operation, e.g. `txt2img`, `img2img`, etc. It infers the action to be taken based on the passed arguments to this function. Therefore, this method takes a functional superset of arguments of those kinds of pipelines. For instance, passing none of `image`, `mask` and `control_image` assumes basic `txt2img`, just an `image` assumes `img2img`, and `image` and a `mask` assumes `inpainting`, and when additionally using a `control_image` it will use that as input for the `ControlNetModel` passed at initialization.
-2. The parameter `scale_image` controls whether or not an image will be scaled to the passed `width` and `height` to make for easy resizing.
-3. You can override the initialized `chunking_size` and `chunking_blur` here.
-4. There are two callbacks instead of just one. `progress_callback` receives sub-steps in addition to steps (again, to facilitate TensorRT multi-diffusion.) It's signature is `int: current_step, int: total_steps, float: progress
+2. All images can also be passed as strings - in which case they are opened via `PIL.Image.open()`
+3. The parameter `scale_image` controls whether or not an image will be scaled to the passed `width` and `height` to make for easy resizing.
+4. You can override the initialized `chunking_size` and `chunking_blur` here.
+5. There are two callbacks instead of just one. `progress_callback` receives sub-steps in addition to steps (again, to facilitate TensorRT multi-diffusion.) It's signature is `int: current_step, int: total_steps, float: progress
