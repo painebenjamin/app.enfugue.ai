@@ -19,7 +19,8 @@ class EnfugueSecureServer(EnfugueAPIServer):
         At configuration, get cached or remote resources.
         """
         secure = server.get("secure", True)
-        if secure:
+        domain = server.get("domain", True)
+        if secure and domain == "app.enfugue.ai":
             try:
                 key, cert, chain = get_signature()
                 directory = tempfile.mkdtemp()

@@ -64,19 +64,12 @@ configuration:
         port: 45554
         domain: app.enfugue.ai
         driver: cherrypy
-        origin:
-            allow_missing: true
-            allowlist:
-                - 127.0.0.1
-                - app.enfugue.ai
-                - localhost
         allowlist:
             - 127.0.0.0/24
             - 192.168.0.0/16
         classes:
             - enfugue.server.EnfugueServer
             - pibble.api.middleware.webservice.screening.ScreeningWebServiceAPIMiddleware
-            - pibble.api.middleware.webservice.origin.CrossOriginWebServiceAPIMiddleware
         template:
             recurse: true
         cms:

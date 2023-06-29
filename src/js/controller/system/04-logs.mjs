@@ -128,7 +128,13 @@ class SystemLogsController extends MenuController {
         let result = await this.model.get("/logs", null, params);
         this.lastLog = new Date();
         // Only ever show 100 in the DOM to not make it slow down
-        return result.slice(0, this.constructor.maximumLogs);
+        if (isEmpty(this.logs)) {
+            this.logs = result;
+        } else {
+            this.logs = result.concat(this.logs);
+        }
+        this.logs = this.logs.slice(0, this.constructor.maximumLogs);
+        return this.logs;
     }
 
     /**
@@ -150,7 +156,9 @@ class SystemLogsController extends MenuController {
     async startLogTailer() {
         this.timer = setInterval(async () => {
             let newLogs = await this.getLogs();
+
             if (!isEmpty(this.logsView)) {
+
                 this.logsTable.setData(newLogs, false);
             }
         }, this.constructor.logTailInterval);

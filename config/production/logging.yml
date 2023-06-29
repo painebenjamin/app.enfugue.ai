@@ -2,6 +2,6 @@
 colored: false
 handler: file
 file: ~/.cache/enfugue.log
-level: info
+level: error
 silenced:
     - sqlalchemy.pool.impl.NullPool

@@ -1,5 +1,10 @@
 ---
 noauth: true
 safe: true
+queue: 4
 engine:
     root: ~/.cache/enfugue
+    logging:
+        handler: file
+        file: ~/.cache/enfugue-engine.log
+        level: debug

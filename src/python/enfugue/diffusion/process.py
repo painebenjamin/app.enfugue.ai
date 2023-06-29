@@ -47,7 +47,7 @@ class DiffusionEngineProcess(Process):
     """
 
     POLLING_DELAY_MS = 500
-    IDLE_SEC = 30
+    IDLE_SEC = 15
 
     def __init__(
         self,

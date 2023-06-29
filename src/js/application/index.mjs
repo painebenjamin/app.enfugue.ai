@@ -356,7 +356,7 @@ class Application {
      * Starts the process that periodically checks status.
      */
     async startKeepalive() {
-        const statusInterval = this.config.model.status.interval || 15000,
+        const statusInterval = this.config.model.status.interval || 10000,
               triggerStateChange = (newStatus) => {
                     if (newStatus === "ready") {
                         this.publish("engineReady");

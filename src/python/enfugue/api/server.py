@@ -53,7 +53,6 @@ EnfugueAPIRESTConfiguration = {
 
 __all__ = ["EnfugueAPIServerBase", "EnfugueAPIServer"]
 
-
 class EnfugueAPIServerBase(
     JSONWebServiceAPIServer,
     UserRESTExtensionServerBase,
@@ -319,6 +318,7 @@ class EnfugueAPIServerBase(
                         "destination": dest,
                     }
                 )
+
             pending_versions = get_pending_versions()
             for version in pending_versions:
                 announcements.append(
