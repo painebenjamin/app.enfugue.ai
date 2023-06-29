@@ -304,12 +304,10 @@ class DiffusionStep:
         if self.remove_background:
             for i, image in enumerate(result["images"]):
                 result["images"][i] = remove_background(image)
-                logger.critical(result["images"][i])
 
         if image_scale > 1:
             for i, image in enumerate(result["images"]):
                 result["images"][i] = self.scale_image(image, 1 / image_scale)
-                logger.critical(result["images"][i])
 
         self.result = result
         return result

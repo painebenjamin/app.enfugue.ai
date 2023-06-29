@@ -173,14 +173,34 @@ class EnfugueAPIServerBase(
         if not diffusion_model:
             raise NotFoundError(f"Unknown diffusion model {model_name}")
 
-        model = os.path.join(self.manager.engine_root_dir, "checkpoint", diffusion_model.model)
+        model = os.path.join(
+            self.configuration.get(
+                "enfugue.engine.checkpoint",
+                os.path.join(self.manager.engine_root_dir, "checkpoint"),
+            ),
+            diffusion_model.model,
+        )
         size = diffusion_model.size
         lora = [
-            (os.path.join(self.manager.engine_root_dir, "lora", lora.model), float(lora.weight))
+            (
+                os.path.join(
+                    self.configuration.get(
+                        "enfugue.engine.lora", os.path.join(self.manager.engine_root_dir, "lora")
+                    ),
+                    lora.model,
+                ),
+                float(lora.weight),
+            )
             for lora in diffusion_model.lora
         ]
         inversion = [
-            os.path.join(self.manager.engine_root_dir, "inversion", inversion.model)
+            os.path.join(
+                self.configuration.get(
+                    "enfugue.engine.inversion",
+                    os.path.join(self.manager.engine_root_dir, "inversion"),
+                ),
+                inversion.model,
+            )
             for inversion in diffusion_model.inversion
         ]
         model_prompt = diffusion_model.prompt
@@ -273,23 +293,19 @@ class EnfugueAPIServerBase(
         snooze_duration = float("inf")
         if snooze_time is not None:
             snooze_duration = (datetime.datetime.now() - snooze_time).total_seconds()
-        
+
         is_snoozed = snooze_duration < (60 * 60 * 24)
-        
+
         if not is_snoozed:
             is_initialized = self.user_config.get("enfugue.initialized", False)
             if not is_initialized:
                 directories = {}
-                for dirname in ["cache", "checkpoint", "lora", "inversion", "other"]:
+                for dirname in ["cache", "checkpoint", "lora", "inversion", "other", "tensorrt"]:
                     directories[dirname] = self.configuration.get(
-                        f"enfugue.engine.{dirname}", 
-                        os.path.join(self.engine_root, dirname)
+                        f"enfugue.engine.{dirname}", os.path.join(self.engine_root, dirname)
                     )
 
-                announcements.append({
-                    "type": "initialize",
-                    "directories": directories
-                })
+                announcements.append({"type": "initialize", "directories": directories})
 
             pending_downloads = self.manager.pending_default_downloads
             for url, dest in pending_downloads:

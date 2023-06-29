@@ -6,6 +6,10 @@ width: 512
 height: 512
 engine:
     root: ~/.cache/enfugue
+    logging:
+        handler: file
+        file: ~/.cache/enfugue-engine.log
+        level: debug
 downloads:
     concurrent: 2
     queue: 10

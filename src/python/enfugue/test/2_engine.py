@@ -10,7 +10,7 @@ def main() -> None:
         save_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "test-images", "base")
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
-        with DiffusionEngine() as engine:
+        with DiffusionEngine.debug() as engine:
             engine(prompt="A happy-looking puppy")["images"][0].save(os.path.join(save_dir, "./puppy-async.png"))
 
 if __name__ == "__main__":

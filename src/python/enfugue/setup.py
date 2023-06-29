@@ -4,7 +4,7 @@ from setuptools import setup, find_packages
 package_name = "enfugue"
 version_major = "0"
 version_minor = "1"
-version_patch = "0"
+version_patch = "2"
 
 install_requires = [
     "cheroot>=9.0.0",
@@ -57,6 +57,7 @@ extras_require = {
         "types-setuptools>=67.7,<68.0",
         "types-urllib3>=1.26.25,<2.0",
         "types-tabulate>=0.9,<0.10",
+        "types-pyyaml>=6.0,<7.0",
         "importchecker>=2.0,<3.0",
     ],
 }

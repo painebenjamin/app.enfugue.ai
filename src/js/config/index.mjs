@@ -1,6 +1,6 @@
 let Configuration = {};
 
-Configuration.debug = true;
+Configuration.debug = false;
 
 Configuration.controller = {
     module: 'index'

@@ -53,7 +53,7 @@ configuration:
                 - delete
         users:
             - username: enfugue
-              password: password
+              password: enfugue
               first_name: Default
               last_name: User
               groups:

@@ -35,20 +35,14 @@ from transformers import (
 from diffusers.schedulers import (
     KarrasDiffusionSchedulers,
     DDIMScheduler,
-    DDPMScheduler,
     DPMSolverMultistepScheduler,
     EulerAncestralDiscreteScheduler,
     EulerDiscreteScheduler,
     HeunDiscreteScheduler,
     LMSDiscreteScheduler,
-    PNDMScheduler,
-    UnCLIPScheduler
+    PNDMScheduler
 )
-from diffusers.models import (
-    AutoencoderKL, 
-    UNet2DConditionModel, 
-    ControlNetModel
-)
+from diffusers.models import AutoencoderKL, UNet2DConditionModel, ControlNetModel
 from diffusers.pipelines.stable_diffusion import (
     StableDiffusionPipeline,
     StableDiffusionPipelineOutput,
@@ -133,17 +127,20 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         cache_dir: str,
         prediction_type: Optional[str] = None,
         image_size: int = 512,
-        scheduler_type: Literal["pndm", "lms", "heun", "euler", "euler-ancestral", "dpm", "ddim"] = "ddim",
+        scheduler_type: Literal[
+            "pndm", "lms", "heun", "euler", "euler-ancestral", "dpm", "ddim"
+        ] = "ddim",
         load_safety_checker: bool = True,
         torch_dtype: Optional[torch.dtype] = None,
         upcast_attention: Optional[bool] = None,
         extract_ema: Optional[bool] = None,
-        **kwargs: Any
+        num_in_channels: Optional[int] = None,
+        **kwargs: Any,
     ) -> EnfugueStableDiffusionPipeline:
         """
         Loads a checkpoint into this pipeline.
         Diffusers' `from_pretrained` lets us pass arbitrary kwargs in, but `from_ckpt` does not.
-        That's why we override it for this method - most of this is copied from 
+        That's why we override it for this method - most of this is copied from
         https://github.com/huggingface/diffusers/blob/49949f321d9b034440b52e54937fd2df3027bf0a/src/diffusers/pipelines/stable_diffusion/convert_from_ckpt.py
         """
         device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -167,7 +164,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         # "state_dict" key https://huggingface.co/thibaud/controlnet-canny-sd21
         while "state_dict" in checkpoint:
             checkpoint = checkpoint["state_dict"]
-        
+
         key_name = "model.diffusion_model.input_blocks.2.1.transformer_blocks.0.attn2.to_k.weight"
 
         # model_type = "v1"
@@ -182,13 +179,17 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 upcast_attention = True
 
         original_config_file = check_download_to_dir(config_url, cache_dir, check_size=False)
-        
+
         from omegaconf import OmegaConf
+
         original_config = OmegaConf.load(original_config_file)
 
+        if num_in_channels is not None:
+            original_config["model"]["params"]["unet_config"]["params"]["in_channels"] = num_in_channels # type: ignore
+
         if (
-            "parameterization" in original_config["model"]["params"]
-            and original_config["model"]["params"]["parameterization"] == "v"
+           "parameterization" in original_config["model"]["params"] # type: ignore
+            and original_config["model"]["params"]["parameterization"] == "v" # type: ignore
         ):
             if prediction_type is None:
                 # NOTE: For stable diffusion 2 base it is recommended to pass `prediction_type=="epsilon"`
@@ -197,12 +198,12 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             if image_size is None:
                 # NOTE: For stable diffusion 2 base one has to pass `image_size==512`
                 # as it relies on a brittle global step parameter here
-                image_size = 512 if global_step == 875000 else 768
+                image_size = 512 if global_step == 875000 else 768 # type: ignore[unreachable]
         else:
             if prediction_type is None:
                 prediction_type = "epsilon"
             if image_size is None:
-                image_size = 512
+                image_size = 512 # type: ignore[unreachable]
 
         num_train_timesteps = original_config.model.params.timesteps
         beta_start = original_config.model.params.linear_start
@@ -218,7 +219,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             set_alpha_to_one=False,
             prediction_type=prediction_type,
         )
-        
+
         # make sure scheduler works correctly with DDIM
         scheduler.register_to_config(clip_sample=False)
 
@@ -240,7 +241,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             scheduler = scheduler
         else:
             raise ValueError(f"Scheduler of type {scheduler_type} doesn't exist!")
-        
+
         unet_config = create_unet_diffusers_config(original_config, image_size=image_size)
         unet_config["upcast_attention"] = upcast_attention
         unet = UNet2DConditionModel(**unet_config)
@@ -267,8 +268,12 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         tokenizer = CLIPTokenizer.from_pretrained("openai/clip-vit-large-patch14")
 
         if load_safety_checker:
-            safety_checker = StableDiffusionSafetyChecker.from_pretrained("CompVis/stable-diffusion-safety-checker")
-            feature_extractor = AutoFeatureExtractor.from_pretrained("CompVis/stable-diffusion-safety-checker")
+            safety_checker = StableDiffusionSafetyChecker.from_pretrained(
+                "CompVis/stable-diffusion-safety-checker"
+            )
+            feature_extractor = AutoFeatureExtractor.from_pretrained(
+                "CompVis/stable-diffusion-safety-checker"
+            )
         else:
             safety_checker = None
             feature_extractor = None
@@ -281,10 +286,11 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             scheduler=scheduler,
             safety_checker=safety_checker,
             feature_extractor=feature_extractor,
-            **kwargs
+            **kwargs,
         )
+        if torch_dtype is not None:
+            return pipe.to(torch_dtype=torch_dtype)
         return pipe
-        
 
     @contextmanager
     def get_runtime_context(

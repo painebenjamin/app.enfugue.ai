@@ -31,7 +31,9 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         Gets installed checkpoints.
         """
         checkpoints = []
-        checkpoints_dir = self.configuration.get("enfugue.engine.checkpoint", os.path.join(self.engine_root, "checkpoint"))
+        checkpoints_dir = self.configuration.get(
+            "enfugue.engine.checkpoint", os.path.join(self.engine_root, "checkpoint")
+        )
         if os.path.exists(checkpoints_dir):
             checkpoints = os.listdir(checkpoints_dir)
         return checkpoints
@@ -45,7 +47,9 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         Gets installed lora.
         """
         lora = []
-        lora_dir = self.configuration.get("enfugue.engine.lora", os.path.join(self.engine_root, "lora"))
+        lora_dir = self.configuration.get(
+            "enfugue.engine.lora", os.path.join(self.engine_root, "lora")
+        )
         if os.path.exists(lora_dir):
             lora = os.listdir(lora_dir)
         return lora
@@ -59,7 +63,9 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         Gets installed textual inversions.
         """
         inversions = []
-        inversions_dir = self.configuration.get("enfugue.engine.inversion", os.path.join(self.engine_root, "inversion"))
+        inversions_dir = self.configuration.get(
+            "enfugue.engine.inversion", os.path.join(self.engine_root, "inversion")
+        )
         if os.path.exists(inversions_dir):
             inversions = os.listdir(inversions_dir)
         return inversions
@@ -170,9 +176,7 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         """
         Removes an individual tensorrt engine.
         """
-        engine_dir = os.path.join(
-            self.engine_root, "tensorrt", model_name, engine_type, engine_key
-        )
+        engine_dir = os.path.join(self.engine_root, "tensorrt", model_name, engine_type, engine_key)
         if not os.path.exists(engine_dir):
             raise NotFoundError(
                 f"Couldn't find {engine_type} TensorRT engine for {model_name} with key {engine_key}"

@@ -17,14 +17,13 @@ from typing import (
     Dict,
     Literal,
     Callable,
-    TYPE_CHECKING,
-    cast,
+    TYPE_CHECKING
 )
 from hashlib import md5
 
 from pibble.api.configuration import APIConfiguration
 from pibble.api.exceptions import ConfigurationError
-from pibble.util.files import load_json, dump_json
+from pibble.util.files import dump_json
 
 from enfugue.util import logger, check_download, check_make_directory
 from enfugue.diffusion.constants import (
@@ -914,12 +913,13 @@ class DiffusionPipelineManager:
     def check_create_tensorrt_engine_cache(self) -> None:
         """
         Converts a .ckpt file to the directory structure from diffusers
-	    This ensures TRT compatibility		
+            This ensures TRT compatibility
         """
         if not self.engine_cache_exists:
             from diffusers.pipelines.stable_diffusion.convert_from_ckpt import (
                 download_from_original_stable_diffusion_ckpt,
             )
+
             self.start_keepalive()
             _, ext = os.path.splitext(self.model)
             pipe = download_from_original_stable_diffusion_ckpt(
@@ -944,7 +944,8 @@ class DiffusionPipelineManager:
                 "engine_size": self.size,
                 "chunking_size": self.chunking_size,
                 "requires_safety_checker": self.safe,
-                "controlnet": self.controlnet
+                "controlnet": self.controlnet,
+                "torch_dtype": self.dtype
             }
 
             if self.use_tensorrt:
@@ -961,13 +962,28 @@ class DiffusionPipelineManager:
                     kwargs["vae_engine_dir"] = self.model_tensorrt_vae_dir
                 if "clip" in self.TENSORRT_STAGES:
                     kwargs["clip_engine_dir"] = self.model_tensorrt_clip_dir
+                if not self.safe:
+                    kwargs["safety_checker"] = None
                 self.check_create_tensorrt_engine_cache()
+                logger.debug(
+                    f"Initializing pipeline from diffusers cache directory at {self.model_tensorrt_dir}. Arguments are {kwargs}"
+                )
                 pipeline = self.pipeline_class.from_pretrained(self.model_tensorrt_dir, **kwargs)
             elif self.engine_cache_exists:
+                if not self.safe:
+                    kwargs["safety_checker"] = None
+                logger.debug(
+                    f"Initializing pipeline from diffusers cache directory at {self.model_tensorrt_dir}. Arguments are {kwargs}"
+                )
                 pipeline = self.pipeline_class.from_pretrained(self.model_tensorrt_dir, **kwargs)
             else:
-                kwargs["load_safety_checker"] = self.safe,
-                pipeline = self.pipeline_class.from_ckpt(self.model, **kwargs)
+                kwargs["load_safety_checker"] = self.safe
+                logger.debug(
+                    f"Initializing pipeline from checkpoint at {self.model}. Arguments are {kwargs}"
+                )
+                pipeline = self.pipeline_class.from_ckpt(
+                    self.model, num_in_channels=9 if self.inpainting else 4, **kwargs
+                )
             if not self.tensorrt_is_ready:
                 for lora, weight in self.lora:
                     logger.debug(f"Adding LoRA {lora} to pipeline")
@@ -975,7 +991,7 @@ class DiffusionPipelineManager:
                 for inversion in self.inversion:
                     logger.debug(f"Adding textual inversion {inversion} to pipeline")
                     pipeline.load_textual_inversion(inversion)
-            self._pipeline = pipeline.to(self.device, torch_dtype=self.dtype)
+            self._pipeline = pipeline.to(self.device)
         return self._pipeline
 
     @pipeline.deleter
@@ -1045,6 +1061,15 @@ class DiffusionPipelineManager:
         if controlnet is None:
             return None
         from diffusers.models import ControlNetModel
+
+        expected_controlnet_location = os.path.join(
+            self.engine_cache_dir, controlnet.replace("/", "--")
+        )
+
+        if not os.path.exists(expected_controlnet_location):
+            logger.info(
+                f"Controlnet {controlnet} does not exist in cache directory {self.engine_cache_dir}, it will be downloaded."
+            )
 
         self.start_keepalive()
         result = ControlNetModel.from_pretrained(
@@ -1129,10 +1154,12 @@ class DiffusionPipelineManager:
         Will switch between inpainting and non-inpainting models
         """
         logger.debug(f"Calling pipeline with arguments {kwargs}")
+
         if kwargs.get("mask", None) is not None:
             self.inpainting = True
         else:
             self.inpainting = False
+
         called_width = kwargs.get("width", self.size)
         called_height = kwargs.get("height", self.size)
         chunk_size = kwargs.get("chunking_size", self.chunking_size)
@@ -1266,12 +1293,10 @@ class DiffusionPipelineManager:
             unet_key = DiffusionPipelineManager.get_tensorrt_unet_key(
                 size, lora=lora_key, inversion=inversion_key
             )
-            unet_plan = os.path.join(model_dir,"unet", unet_key, "engine.plan")
+            unet_plan = os.path.join(model_dir, "unet", unet_key, "engine.plan")
             unet_ready = os.path.exists(unet_plan)
 
-            inpaint_unet_plan = os.path.join(
-                inpaint_model_dir, "unet", unet_key, "engine.plan"
-            )
+            inpaint_unet_plan = os.path.join(inpaint_model_dir, "unet", unet_key, "engine.plan")
             inpaint_unet_ready = os.path.exists(inpaint_unet_plan)
 
             controlled_unet_key = DiffusionPipelineManager.get_tensorrt_controlled_unet_key(

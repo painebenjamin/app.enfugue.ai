@@ -15,7 +15,7 @@ def main() -> None:
         os.makedirs(output_dir)
 
     with DebugUnifiedLoggingContext():
-        with DiffusionEngine() as engine:
+        with DiffusionEngine.debug() as engine:
             base_image = engine(prompt = "A suburban home frontage", seed=12345)["images"][0]
             base_image.save(os.path.join(output_dir, "base.png"))
             for controlnet in ["mlsd", "hed", "canny"]:

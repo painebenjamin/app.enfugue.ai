@@ -166,6 +166,7 @@ class Application {
         }
 
         this.model = new Model(this.config);
+        console.log(this.model);
         this.menu = new MenuView(this.config);
         this.sidebar = new SidebarView(this.config);
         this.toolbar = new ToolbarView(this.config);

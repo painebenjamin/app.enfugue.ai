@@ -153,7 +153,9 @@ class SystemManager:
         """
         Gets the location for tensorrt engines.
         """
-        directory = os.path.join(self.engine_root_dir, "tensorrt")
+        directory = self.configuration.get(
+            "enfugue.engine.tensorrt", os.path.join(self.engine_root_dir, "tensorrt")
+        )
         check_make_directory(directory)
         return directory
 
@@ -162,7 +164,9 @@ class SystemManager:
         """
         Returns the engine checkpoint location.
         """
-        path = self.configuration.get("enfugue.engine.checkpoint", os.path.join(self.engine_root_dir, "checkpoint"))
+        path = self.configuration.get(
+            "enfugue.engine.checkpoint", os.path.join(self.engine_root_dir, "checkpoint")
+        )
         check_make_directory(path)
         return path
 
@@ -478,9 +482,7 @@ class SystemManager:
                                 file_mod_time = datetime.datetime.fromtimestamp(
                                     os.path.getmtime(file_path)
                                 )
-                                file_age = (
-                                    datetime.datetime.now() - file_mod_time
-                                ).total_seconds()
+                                file_age = (datetime.datetime.now() - file_mod_time).total_seconds()
                                 if (
                                     file_age > self.max_timing_cache_age
                                     or "engine.plan" in stage_files

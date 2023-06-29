@@ -848,6 +848,18 @@ table.history-table-view tr td:nth-child(1) {
     width: 150px;
 }
 
+table.log-table-view tr th:nth-child(1),
+table.log-table-view tr td:nth-child(1) {
+    width: 150px;
+}
+
+table.log-table-view tr th:nth-child(2),
+table.log-table-view tr td:nth-child(2),
+table.log-table-view tr th:nth-child(3),
+table.log-table-view tr td:nth-child(3) {
+    width: 80px;
+}
+
 input.new-user-input-view,
 input.new-model-input-view,
 input.upload-file-input-view {

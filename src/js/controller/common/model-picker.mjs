@@ -353,6 +353,7 @@ class ModelPickerController extends Controller {
 
         this.application.container.appendChild(await this.formView.render());
         this.subscribe("invocationError", (payload) => {
+            console.error(payload);
             if (!isEmpty(payload.metadata) && !isEmpty(payload.metadata.tensorrt_build)) {
                 let network = payload.metadata.tensorrt_build.network,
                     networkName = ModelTensorRTStatusView.supportedNetworks[network],

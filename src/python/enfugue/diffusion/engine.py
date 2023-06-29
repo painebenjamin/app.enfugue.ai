@@ -301,3 +301,21 @@ class DiffusionEngine:
         Issues a single invocation request using kwarg syntax.
         """
         return self.wait(self.dispatch("invoke", kwargs), timeout)
+
+    @staticmethod
+    def debug() -> DiffusionEngine:
+        """
+        Gets a DiffusionEngine instance with debug logging enabled.
+        """
+        return DiffusionEngine(
+            APIConfiguration(enfugue = {
+                "engine": {
+                    "logging": {
+                        "level": "DEBUG",
+                        "handler": "stream",
+                        "stream": "stdout",
+                        "colored": True
+                    }
+                }
+            })
+        )
