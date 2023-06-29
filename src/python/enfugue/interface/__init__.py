@@ -284,7 +284,6 @@ class EnfugueInterfaceServer(
         if self.configuration.get("enfugue.noauth", False):
             # Bypass login
             self.bypass_login(request, response)
-            logger.critical(":BYOP")
             self.handle_request(request, response)  # type: ignore
         else:
             self.redirect(response, "/login", 302)

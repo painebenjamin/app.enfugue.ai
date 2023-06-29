@@ -273,11 +273,23 @@ class EnfugueAPIServerBase(
         snooze_duration = float("inf")
         if snooze_time is not None:
             snooze_duration = (datetime.datetime.now() - snooze_time).total_seconds()
+        
         is_snoozed = snooze_duration < (60 * 60 * 24)
+        
         if not is_snoozed:
             is_initialized = self.user_config.get("enfugue.initialized", False)
             if not is_initialized:
-                announcements.append({"type": "initialize"})
+                directories = {}
+                for dirname in ["cache", "checkpoint", "lora", "inversion", "other"]:
+                    directories[dirname] = self.configuration.get(
+                        f"enfugue.engine.{dirname}", 
+                        os.path.join(self.engine_root, dirname)
+                    )
+
+                announcements.append({
+                    "type": "initialize",
+                    "directories": directories
+                })
 
             pending_downloads = self.manager.pending_default_downloads
             for url, dest in pending_downloads:

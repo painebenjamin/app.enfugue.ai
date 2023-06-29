@@ -5,9 +5,34 @@ import { isEmpty, humanSize } from "../../base/helpers.mjs";
 import { View, ParentView } from "../../view/base.mjs";
 import { FormView } from "../../view/forms/base.mjs";
 import { TableView } from "../../view/table.mjs";
-import { FileInputView, ButtonInputView } from "../../view/forms/input.mjs";
+import { FileInputView, ButtonInputView, StringInputView } from "../../view/forms/input.mjs";
 
 const E = new ElementBuilder();
+
+/**
+ * The ChangeDirectoryForm allows changing the filesystem location for a directory
+ */
+class ChangeDirectoryForm extends FormView {
+    /**
+     * @var bool Enable canceling
+     */
+    static showCancel = true;
+
+    /**
+     * @var object Only a single fieldset
+     */
+    static fieldSets = {
+        "Directory": {
+            "directory": {
+                "class": StringInputView,
+                "config": {
+                    "required": true,
+                    "placeholder": "C:\\Users\\MyUser\\..."
+                }
+            }
+        }
+    };
+};
 
 /**
  * The UploadFileFormView allows uploading a single file to a directory
@@ -57,6 +82,7 @@ class InstallationDirectorySummaryTableView extends TableView {
      */
     static columns = {
         "directory": "Directory",
+        "location": "Location",
         "items": "Items",
         "bytes": "Total File Size"
     };
@@ -149,8 +175,8 @@ class TensorRTEngineSummaryTableView extends TableView {
      * @var object column format functions
      */
     static columnFormatters = {
-        "total": (total) => isEmpty(total) ? "None" : total,
-        "used": (used) => isEmpty(used) ? "None" : used,
+        "total": (total) => isEmpty(total) ? "None" : `${total}`,
+        "used": (used) => isEmpty(used) ? "None" : `${used}`,
         "bytes": (bytes) => isEmpty(bytes) ? "0 Bytes" : humanSize(bytes)
     };
 };
@@ -170,6 +196,9 @@ class InstallationSummaryView extends View {
         this.summaryTable.addButton("Manage", "fa-solid fa-list-check", (row) => {
             this.controller.showDirectoryManager(row.directory);
         });
+        this.summaryTable.addButton("Change Directory", "fa-solid fa-edit", (row) => {
+            this.controller.showChangeDirectory(row.directory);
+        });
         this.engineTable = new TensorRTEngineSummaryTableView(this.config);
         this.engineTable.addButton("Manage", "fa-solid fa-list-check", () => {
             this.controller.showTensorRTManager();
@@ -184,8 +213,10 @@ class InstallationSummaryView extends View {
             tensorrtSummary = await this.controller.model.get("/tensorrt");
         
         await this.summaryTable.setData(Object.getOwnPropertyNames(installationSummary).map((directory) => {
+            console.log(directory);
             return {
                 "directory": directory,
+                "location": installationSummary[directory].path,
                 "items": installationSummary[directory].items,
                 "bytes": installationSummary[directory].bytes
             };
@@ -234,7 +265,7 @@ class InstallationController extends MenuController {
     /**
      * @var int The width of the summary window
      */
-    static summaryWindowWidth = 400;
+    static summaryWindowWidth = 600;
 
     /**
      * @var int The height of the summary window
@@ -260,6 +291,16 @@ class InstallationController extends MenuController {
      * @var int The height of the upload window
      */
     static uploadWindowHeight = 250;
+
+    /**
+     * @var int The width of the change directory form
+     */
+    static changeDirectoryWindowWidth = 400;
+
+    /**
+     * @var int The height of the change directory form
+     */
+    static changeDirectoryWindowHeight = 200;
 
     /**
      * @var array The directories that can be uploaded to
@@ -375,6 +416,48 @@ class InstallationController extends MenuController {
             uploadFileWindow.remove();
         });
         uploadFileForm.onCancel(() => { uploadFileWindow.remove(); });
+    }
+
+    /**
+     * Shows the 'change directory' dialogue for a directory
+     */
+    async showChangeDirectory(directory) {
+        let changeDirectoryForm = new ChangeDirectoryForm(this.config),
+            changeDirectoryWindow = await this.spawnWindow(
+                `Change Filesystem Location for ${directory}`,
+                changeDirectoryForm,
+                this.constructor.changeDirectoryWindowWidth,
+                this.constructor.changeDirectoryWindowHeight
+            );
+
+        changeDirectoryForm.onSubmit(async (formValues) => {
+            try {
+                await this.model.post(
+                    `/installation/${directory}/move`,
+                    null,
+                    null,
+                    { directory: formValues.directory }
+                );
+                this.notify("info", "Changed", `Filesystem Location successfully changed for ${directory}`);
+                if (!isEmpty(this.summaryView)) {
+                    this.summaryView.update();
+                }
+                if (!isEmpty(this.directoryWindows[directory])) {
+                    this.directoryWindows[directory].content.getChild(0).setData(
+                        await this.model.get(`/installation/${directory}`),
+                        false
+                    );
+                }
+                changeDirectoryWindow.remove();
+            } catch(e) {
+                let errorMessage = `${e}`;
+                if (!isEmpty(e.detail)) errorMessage = e.detail;
+                else if (!isEmpty(e.title)) errorMessage = e.title;
+                this.notify("error", "Couldn't Change", errorMessage);
+                changeDirectoryForm.enable();
+            }
+        });
+        changeDirectoryForm.onCancel(() => { changeDirectoryWindow.remove(); });
     }
 
     /**

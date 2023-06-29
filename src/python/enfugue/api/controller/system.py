@@ -230,10 +230,26 @@ class EnfugueAPISystemController(EnfugueAPIControllerBase):
         Gets a summary of files and filesize in the installation
         """
         sizes = {}
-        for dirname in ["cache", "checkpoint", "inversion", "lora", "models", "other"]:
-            items, files, size = get_directory_size(os.path.join(self.engine_root, dirname))
-            sizes[dirname] = {"items": items, "files": files, "bytes": size}
+        for dirname in ["cache", "checkpoint", "lora", "inversions", "other"]:
+            directory = self.configuration.get(f"enfugue.engine.{dirname}", os.path.join(self.engine_root, dirname))
+            items, files, size = get_directory_size(directory)
+            sizes[dirname] = {"items": items, "files": files, "bytes": size, "path": directory}
         return sizes
+    
+    @handlers.path("^/api/installation$")
+    @handlers.methods("POST")
+    @handlers.format()
+    @handlers.secured("System", "update")
+    def change_installation_directories(self, request: Request, response: Response) -> None:
+        """
+        Changes all configured directories.
+        """
+        for dirname in request.parsed["directories"]:
+            path = request.parsed["directories"][dirname]
+            if not os.path.exists(path):
+                raise BadRequestError(f"Unknown directory {path}")
+            self.user_config[f"enfugue.engine.{dirname}"] = path # Save config to database
+            self.configuration[f"enfugue.engine.{dirname}"] = path # Save config to memory
 
     @handlers.path("^/api/installation/(?P<dirname>[a-zA-Z0-9_]+)$")
     @handlers.methods("GET")
@@ -245,12 +261,10 @@ class EnfugueAPISystemController(EnfugueAPIControllerBase):
         """
         Gets a summary of files and filesize in the installation
         """
-        directory = os.path.join(self.engine_root, dirname)
+        directory = self.configuration.get(f"enfugue.engine.{dirname}", os.path.join(self.engine_root, dirname))
         if not os.path.isdir(directory):
             return []
-
         items = []
-
         for item in os.listdir(directory):
             path = os.path.join(directory, item)
             if os.path.isdir(path):
@@ -271,7 +285,8 @@ class EnfugueAPISystemController(EnfugueAPIControllerBase):
         Deletes a file or directory from the installation
         """
 
-        path = os.path.join(self.engine_root, dirname, filename)
+        directory = self.configuration.get(f"enfugue.engine.{dirname}", os.path.join(self.engine_root, dirname))
+        path = os.path.join(directory, filename)
         if not os.path.exists(path):
             raise BadRequestError(f"Unknown engine file/directory {dirname}/{filename}")
         if os.path.isdir(path):
@@ -293,11 +308,27 @@ class EnfugueAPISystemController(EnfugueAPIControllerBase):
             raise BadRequestError("File is missing.")
 
         filename = request.POST["file"].filename
-        dirpath = os.path.join(self.engine_root, dirname)
-        if not os.path.exists(dirpath):
+        directory = self.configuration.get(f"enfugue.engine.{dirname}", os.path.join(self.engine_root, dirname))
+        if not os.path.exists(directory):
             raise BadRequestError(f"Unknonwn directory {dirname}")
 
-        path = os.path.join(dirpath, filename)
+        path = os.path.join(directory, filename)
         with open(path, "wb") as handle:
             for chunk in request.POST["file"].file:
                 handle.write(chunk)
+    
+    @handlers.path("^/api/installation/(?P<dirname>[a-zA-Z0-9_]+)/move$")
+    @handlers.methods("POST")
+    @handlers.format()
+    @handlers.secured("System", "update")
+    def change_installation_directory(
+        self, request: Request, response: Response, dirname: str
+    ) -> None:
+        """
+        Changes the directory of a particular model folder.
+        """
+        path = os.path.realpath(os.path.abspath(request.parsed["directory"]))
+        if not os.path.exists(path):
+            raise BadRequestError(f"Couldn't find directory {path}")
+        self.user_config[f"enfugue.engine.{dirname}"] = path # Save config to database
+        self.configuration[f"enfugue.engine.{dirname}"] = path # Save config to memory

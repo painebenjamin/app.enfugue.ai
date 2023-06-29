@@ -1,10 +1,11 @@
 /** @module controller/common/announcements */
-import { isEmpty, waitFor, humanSize, humanDuration } from "../../base/helpers.mjs";
+import { isEmpty, waitFor, humanSize, humanDuration, titleCase } from "../../base/helpers.mjs";
 import { ElementBuilder } from "../../base/builder.mjs";
 import { Controller } from "../base.mjs";
 import { View, ParentView } from "../../view/base.mjs";
 import { TableView } from "../../view/table.mjs";
-import { ButtonInputView } from "../../view/forms/input.mjs";
+import { FormView } from "../../view/forms/base.mjs";
+import { ButtonInputView, StringInputView } from "../../view/forms/input.mjs";
 
 const E = new ElementBuilder();
 
@@ -27,6 +28,18 @@ class AcknowledgeButtonInputView extends ButtonInputView {
  * This class shows the initial message display to the user with privacy and terms
  */
 class InitializationAnnouncementView extends View {
+    /**
+     * The constructor receives the initial directory structure.
+     */
+    constructor(config, directories) {
+        super(config);
+        this.directories = directories;
+        this.formView = new FormView(config);
+        for (let directory in this.directories) {
+            this.formView.addInput("Directories", StringInputView, directory, titleCase(directory), { "required": true, "value": this.directories[directory] });
+        }
+    }
+
     /**
      * On build, append text and links
      */
@@ -51,6 +64,9 @@ class InitializationAnnouncementView extends View {
         node.append(E.p().content("Furthermore, you hold all the above parties blameless from any and all liability, damage, loss, and expense (including without limitation reasonable attorney’s fees and court costs) arising from claims against parties that Enfugue, or your use of the same as permitted by this Agreement, infringe the intellectual property rights of a third party."));
         node.append(E.p().class("strong").content("Enfugue is and always will be free and open-source software."));
         node.append(E.p().content("To support further development, please consider financially supporting it if you are able. Simply click 'About' under 'Help' above to see ways you can help keep Enfugue improving."));
+        node.append(E.h2().content("Directories"));
+        node.append(E.p().content("Use these fields to specify the directories to use for your installation. These do not need to be solely used by Enfugue, and Enfugue will never delete anything from these directories unless you specifically request."));
+        node.append(await this.formView.getNode());
         return node;
     }
 };
@@ -171,20 +187,35 @@ class AnnouncementsController extends Controller {
     async checkShowAnnouncements() {
         let activeAnnouncements = await this.model.get("/announcements");
         if (!isEmpty(activeAnnouncements)) {
-            let showInitializeAnnouncement = activeAnnouncements.filter(
+            let initializeAnnouncement = activeAnnouncements.filter(
                     (announcement) => announcement.type === "initialize"
-                ).length > 0,
+                ),
                 downloadAnnouncements = activeAnnouncements.filter(
                     (announcement) => announcement.type === "download"
                 ),
                 updateAnnouncements = activeAnnouncements.filter(
                     (announcement) => announcement.type === "update"
-                );
+                ),
+                acknowledgeButton;
 
             let announcementsView = new ParentView(this.config);
             await announcementsView.addClass("announcements-view");
-            if (showInitializeAnnouncement) {
-                await announcementsView.addChild(InitializationAnnouncementView);
+            if (!isEmpty(initializeAnnouncement)) {
+                let initializationAnnouncementView = await announcementsView.addChild(InitializationAnnouncementView, initializeAnnouncement[0].directories),
+                    directoryForm = initializationAnnouncementView.formView;
+
+                directoryForm.onChange(() => {
+                    acknowledgeButton.disable();
+                    directoryForm.setError("You must submit directory changes before continuing.");
+                });
+
+                directoryForm.onSubmit(async (newDirectories) => {
+                    await this.model.post("installation", null, null, {"directories": newDirectories});
+                    this.notify("info", "Success", "Directories successfully set.");
+                    directoryForm.clearError();
+                    directoryForm.enable();
+                    acknowledgeButton.enable();
+                });
             }
             if (!isEmpty(downloadAnnouncements)) {
                 await announcementsView.addChild(DownloadAnnouncementHeaderView);
@@ -206,20 +237,20 @@ class AnnouncementsController extends Controller {
                 }
             }
             if (!announcementsView.isEmpty()) {
-                let acknowledgeButton = await announcementsView.addChild(AcknowledgeButtonInputView),
-                    announcementsWindow = await this.spawnWindow(
-                        "Announcements",
-                        announcementsView,
-                        this.constructor.announcementsWindowWidth,
-                        this.constructor.announcementsWindowHeight
-                    );
+                acknowledgeButton = await announcementsView.addChild(AcknowledgeButtonInputView);
+                let announcementsWindow = await this.spawnWindow(
+                    "Announcements",
+                    announcementsView,
+                    this.constructor.announcementsWindowWidth,
+                    this.constructor.announcementsWindowHeight
+                );
                 acknowledgeButton.onChange(() => {
                     announcementsWindow.remove();
                 });
                 announcementsWindow.onClose(async () => {
                     await this.model.post("/announcements/snooze");
                 });
-                if (showInitializeAnnouncement) {
+                if (!isEmpty(initializeAnnouncement)) {
                     // Disable hiding
                     let buttons = (await announcementsWindow.getNode()).findAll("enfugue-node-button");
                     for (let button of buttons) {

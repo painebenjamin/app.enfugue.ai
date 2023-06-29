@@ -29,7 +29,6 @@ install_requires = [
     "transformers>=4.28,<5.0",
     "torchmetrics==0.11.4",
     "kornia>=0.6,<0.7",
-    "polygraphy>=0.47,<0.48",
     "accelerate>=0.18,<0.19",
     "tqdm>=4.27",
     "safetensors>=0.3,<0.4",
@@ -46,6 +45,7 @@ install_requires = [
 
 extras_require = {
     "tensorrt": [
+        "polygraphy>=0.47,<0.48",
         "onnx==1.12",
         "onnxruntime-gpu==1.12.1",
         "onnx-graphsurgeon==0.3.26",

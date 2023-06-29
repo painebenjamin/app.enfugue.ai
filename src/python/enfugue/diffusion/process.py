@@ -272,93 +272,91 @@ class DiffusionEngineProcess(Process):
         First instantiate the diffusion pipeline, then communicate as needed.
         """
         from pibble.util.helpers import OutputCatcher
-        from pibble.util.log import ConfigurationLoggingContext
+        from pibble.util.log import ConfigurationLoggingContext, DebugUnifiedLoggingContext
+        with DebugUnifiedLoggingContext():
+            last_data = datetime.datetime.now()
+            idle_seconds = 0.0
 
-        with OutputCatcher():
-            with ConfigurationLoggingContext(self.configuration):
-                last_data = datetime.datetime.now()
-                idle_seconds = 0.0
-
-                while True:
-                    try:
-                        payload = self.instructions.get(timeout=self.POLLING_DELAY_MS / 1000)
-                    except KeyboardInterrupt:
-                        return
-                    except Empty:
-                        idle_seconds = (datetime.datetime.now() - last_data).total_seconds()
-                        if idle_seconds > self.idle_seconds:
-                            logger.info(
-                                f"Reached maximum idle time after {idle_seconds:.1f} seconds, exiting engine process"
-                            )
-                            return
-                        continue
-                    except Exception as ex:
-                        if logger.isEnabledFor(logging.DEBUG):
-                            logger.debug(traceback.format_exc())
-                        raise IOError(
-                            "Received unexpected {0}, process will exit. {1}".format(
-                                type(ex).__name__, ex
-                            )
+            while True:
+                try:
+                    payload = self.instructions.get(timeout=self.POLLING_DELAY_MS / 1000)
+                except KeyboardInterrupt:
+                    return
+                except Empty:
+                    idle_seconds = (datetime.datetime.now() - last_data).total_seconds()
+                    if idle_seconds > self.idle_seconds:
+                        logger.info(
+                            f"Reached maximum idle time after {idle_seconds:.1f} seconds, exiting engine process"
                         )
-
-                    instruction = Serializer.deserialize(payload)
-                    if not isinstance(instruction, dict):
-                        logger.error(f"Unexpected non-dictionary argument {instruction}")
-                        continue
-
-                    instruction_id = instruction["id"]
-                    instruction_action = instruction["action"]
-                    instruction_payload = instruction.get("payload", None)
-
-                    logger.debug(
-                        f"Received instruction {instruction_id}, action {instruction_action}"
+                        return
+                    continue
+                except Exception as ex:
+                    if logger.isEnabledFor(logging.DEBUG):
+                        logger.debug(traceback.format_exc())
+                    raise IOError(
+                        "Received unexpected {0}, process will exit. {1}".format(
+                            type(ex).__name__, ex
+                        )
                     )
-                    if instruction_action == "ping":
-                        logger.debug("Responding with 'pong'")
-                        self.results.put(
-                            Serializer.serialize({"id": instruction_id, "result": "pong"})
-                        )
-                    elif instruction_action in ["exit", "stop"]:
-                        logger.debug("Exiting process")
-                        self.pipemanager.unload_pipeline()
-                        self.pipemanager.unload_upscaler()
-                        return
-                    elif instruction_action in ["invoke", "plan"]:
-                        response = {"id": instruction_id, "payload": instruction_payload}
-                        try:
-                            if instruction_action == "plan":
-                                intermediate_dir = instruction_payload.get("intermediate_dir", None)
-                                intermediate_steps = instruction_payload.get(
-                                    "intermediate_steps", None
-                                )
-                                plan = self.get_diffusion_plan(instruction_payload)
-                                response["result"] = self.execute_diffusion_plan(
-                                    instruction_id,
-                                    plan,
-                                    intermediate_dir=intermediate_dir,
-                                    intermediate_steps=intermediate_steps,
-                                )
-                            else:
-                                payload = self.check_invoke_kwargs(
-                                    instruction_id, **instruction_payload
-                                )
-                                response["result"] = self.pipemanager(**payload)
-                        except Exception as ex:
-                            response["error"] = qualify(type(ex))
-                            response["message"] = str(ex)
-                            if logger.isEnabledFor(logging.DEBUG):
-                                response["trace"] = traceback.format_exc()
 
-                        del self.pipemanager.keepalive_callback
-                        self.results.put(Serializer.serialize(response))
-                        self.clear_intermediates(instruction_id)
-                    else:
-                        self.results.put(
-                            Serializer.serialize(
-                                {
-                                    "id": instruction_id,
-                                    "error": f"Unknown action '{instruction_action}'",
-                                }
+                instruction = Serializer.deserialize(payload)
+                if not isinstance(instruction, dict):
+                    logger.error(f"Unexpected non-dictionary argument {instruction}")
+                    continue
+
+                instruction_id = instruction["id"]
+                instruction_action = instruction["action"]
+                instruction_payload = instruction.get("payload", None)
+
+                logger.debug(
+                    f"Received instruction {instruction_id}, action {instruction_action}"
+                )
+                if instruction_action == "ping":
+                    logger.debug("Responding with 'pong'")
+                    self.results.put(
+                        Serializer.serialize({"id": instruction_id, "result": "pong"})
+                    )
+                elif instruction_action in ["exit", "stop"]:
+                    logger.debug("Exiting process")
+                    self.pipemanager.unload_pipeline()
+                    self.pipemanager.unload_upscaler()
+                    return
+                elif instruction_action in ["invoke", "plan"]:
+                    response = {"id": instruction_id, "payload": instruction_payload}
+                    try:
+                        if instruction_action == "plan":
+                            intermediate_dir = instruction_payload.get("intermediate_dir", None)
+                            intermediate_steps = instruction_payload.get(
+                                "intermediate_steps", None
                             )
+                            plan = self.get_diffusion_plan(instruction_payload)
+                            response["result"] = self.execute_diffusion_plan(
+                                instruction_id,
+                                plan,
+                                intermediate_dir=intermediate_dir,
+                                intermediate_steps=intermediate_steps,
+                            )
+                        else:
+                            payload = self.check_invoke_kwargs(
+                                instruction_id, **instruction_payload
+                            )
+                            response["result"] = self.pipemanager(**payload)
+                    except Exception as ex:
+                        response["error"] = qualify(type(ex))
+                        response["message"] = str(ex)
+                        if logger.isEnabledFor(logging.DEBUG):
+                            response["trace"] = traceback.format_exc()
+
+                    del self.pipemanager.keepalive_callback
+                    self.results.put(Serializer.serialize(response))
+                    self.clear_intermediates(instruction_id)
+                else:
+                    self.results.put(
+                        Serializer.serialize(
+                            {
+                                "id": instruction_id,
+                                "error": f"Unknown action '{instruction_action}'",
+                            }
                         )
-                    last_data = datetime.datetime.now()
+                    )
+                last_data = datetime.datetime.now()

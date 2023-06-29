@@ -149,11 +149,11 @@ class SystemManager:
         return directory
 
     @property
-    def engine_models_dir(self) -> str:
+    def engine_tensorrt_dir(self) -> str:
         """
-        Gets the location for models.
+        Gets the location for tensorrt engines.
         """
-        directory = os.path.join(self.engine_root_dir, "models")
+        directory = os.path.join(self.engine_root_dir, "tensorrt")
         check_make_directory(directory)
         return directory
 
@@ -162,7 +162,7 @@ class SystemManager:
         """
         Returns the engine checkpoint location.
         """
-        path = os.path.join(self.engine_root_dir, "checkpoint")
+        path = self.configuration.get("enfugue.engine.checkpoint", os.path.join(self.engine_root_dir, "checkpoint"))
         check_make_directory(path)
         return path
 
@@ -454,45 +454,45 @@ class SystemManager:
         Cleans up models, engines, etc.
         """
         reclaimed_bytes = 0
-        for model_name in os.listdir(self.engine_models_dir):
-            model_path = os.path.join(self.engine_models_dir, model_name)
-            model_tensorrt_dir = os.path.join(model_path, "tensorrt")
-            if os.path.exists(model_tensorrt_dir):
-                for stage in ["clip", "unet", "vae"]:
-                    model_tensorrt_stage_dir = os.path.join(model_tensorrt_dir, stage)
-                    if os.path.exists(model_tensorrt_stage_dir):
-                        for stage_key in os.listdir(model_tensorrt_stage_dir):
-                            stage_dir = os.path.join(model_tensorrt_stage_dir, stage_key)
-                            stage_files = os.listdir(stage_dir)
-                            to_remove = []
+        for model_name in os.listdir(self.engine_tensorrt_dir):
+            model_path = os.path.join(self.engine_tensorrt_dir, model_name)
+            for stage in ["clip", "unet", "vae", "controlledunet", "controlnet"]:
+                model_tensorrt_stage_dir = os.path.join(model_path, stage)
+                if os.path.exists(model_tensorrt_stage_dir):
+                    for stage_key in os.listdir(model_tensorrt_stage_dir):
+                        stage_dir = os.path.join(model_tensorrt_stage_dir, stage_key)
+                        if not os.path.isdir(stage_dir):
+                            continue
+                        stage_files = os.listdir(stage_dir)
+                        to_remove = []
 
-                            for file_name in stage_files:
-                                file_path = os.path.join(stage_dir, file_name)
-                                if file_name == "model.opt.onnx":
-                                    if "engine.plan" in stage_files:
-                                        to_remove.append(file_path)
-                                elif file_name == "model.onnx":
-                                    if "model.opt.onnx" in stage_files:
-                                        to_remove.append(file_path)
-                                elif file_name == "timing_cache":
-                                    file_mod_time = datetime.datetime.fromtimestamp(
-                                        os.path.getmtime(file_path)
-                                    )
-                                    file_age = (
-                                        datetime.datetime.now() - file_mod_time
-                                    ).total_seconds()
-                                    if (
-                                        file_age > self.max_timing_cache_age
-                                        or "engine.plan" in stage_files
-                                    ):
-                                        to_remove.append(file_path)
-                                elif file_name != "engine.plan" and file_name != "metadata.json":
+                        for file_name in stage_files:
+                            file_path = os.path.join(stage_dir, file_name)
+                            if file_name == "model.opt.onnx":
+                                if "engine.plan" in stage_files:
                                     to_remove.append(file_path)
+                            elif file_name == "model.onnx":
+                                if "model.opt.onnx" in stage_files:
+                                    to_remove.append(file_path)
+                            elif file_name == "timing_cache":
+                                file_mod_time = datetime.datetime.fromtimestamp(
+                                    os.path.getmtime(file_path)
+                                )
+                                file_age = (
+                                    datetime.datetime.now() - file_mod_time
+                                ).total_seconds()
+                                if (
+                                    file_age > self.max_timing_cache_age
+                                    or "engine.plan" in stage_files
+                                ):
+                                    to_remove.append(file_path)
+                            elif file_name != "engine.plan" and file_name != "metadata.json":
+                                to_remove.append(file_path)
 
-                            for file_path in to_remove:
-                                logger.info(f"Removing unneeded engine file {file_path}")
-                                reclaimed_bytes += os.path.getsize(file_path)
-                                os.remove(file_path)
+                        for file_path in to_remove:
+                            logger.info(f"Removing unneeded engine file {file_path}")
+                            reclaimed_bytes += os.path.getsize(file_path)
+                            os.remove(file_path)
         if reclaimed_bytes > 0:
             logger.info(f"Reclaimed {human_size(reclaimed_bytes)} from models")
 

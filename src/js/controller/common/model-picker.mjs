@@ -352,6 +352,20 @@ class ModelPickerController extends Controller {
         });
 
         this.application.container.appendChild(await this.formView.render());
+        this.subscribe("invocationError", (payload) => {
+            if (!isEmpty(payload.metadata) && !isEmpty(payload.metadata.tensorrt_build)) {
+                let network = payload.metadata.tensorrt_build.network,
+                    networkName = ModelTensorRTStatusView.supportedNetworks[network],
+                    model = payload.metadata.tensorrt_build.model;
+
+                this.notify("info", "TensorRT Engine Build Failed", `${model} ${networkName} TensorRT Engine failed to build. Please try again.`);
+                
+                if (isEmpty(this.builtEngines[model])) {
+                    this.builtEngines[model] = [];
+                }
+                this.builtEngines[model].push(network);
+            }
+        });
         this.subscribe("invocationComplete", (payload) => {
             if (!isEmpty(payload.metadata) && !isEmpty(payload.metadata.tensorrt_build)) {
                 let network = payload.metadata.tensorrt_build.network,

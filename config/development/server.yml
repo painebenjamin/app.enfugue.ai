@@ -79,11 +79,11 @@ configuration:
             - pibble.api.middleware.webservice.origin.CrossOriginWebServiceAPIMiddleware
         static:
             directories:
-              - 'C:\cygwin64\home\paine\projects\enfugue\src\'
+              - 'C:\cygwin64\home\paine\projects\app.enfugue.ai\src\'
         template:
             recurse: true
             directories:
-              - 'C:\cygwin64\home\paine\projects\enfugue\src\html'
+              - 'C:\cygwin64\home\paine\projects\app.enfugue.ai\src\html'
         cms:
             name: Enfugue
             path:

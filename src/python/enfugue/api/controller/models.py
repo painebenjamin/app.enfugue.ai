@@ -31,7 +31,7 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         Gets installed checkpoints.
         """
         checkpoints = []
-        checkpoints_dir = os.path.join(self.engine_root, "checkpoint")
+        checkpoints_dir = self.configuration.get("enfugue.engine.checkpoint", os.path.join(self.engine_root, "checkpoint"))
         if os.path.exists(checkpoints_dir):
             checkpoints = os.listdir(checkpoints_dir)
         return checkpoints
@@ -45,7 +45,7 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         Gets installed lora.
         """
         lora = []
-        lora_dir = os.path.join(self.engine_root, "lora")
+        lora_dir = self.configuration.get("enfugue.engine.lora", os.path.join(self.engine_root, "lora"))
         if os.path.exists(lora_dir):
             lora = os.listdir(lora_dir)
         return lora
@@ -59,7 +59,7 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         Gets installed textual inversions.
         """
         inversions = []
-        inversions_dir = os.path.join(self.engine_root, "inversion")
+        inversions_dir = self.configuration.get("enfugue.engine.inversion", os.path.join(self.engine_root, "inversion"))
         if os.path.exists(inversions_dir):
             inversions = os.listdir(inversions_dir)
         return inversions
@@ -73,13 +73,11 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         Finds engines in the model directory and determines their metadata and status.
         """
         engines = []
-        for engine in glob.glob(f"{self.engine_root}/**/engine.plan", recursive=True):
+        for engine in glob.glob(f"{self.engine_root}/tensorrt/**/engine.plan", recursive=True):
             engine_dir = os.path.abspath(os.path.dirname(engine))
             engine_type = os.path.basename(os.path.dirname(engine_dir))
             engine_key = os.path.basename(os.path.dirname(engine))
-            engine_model = os.path.basename(
-                os.path.dirname(os.path.dirname(os.path.dirname(engine_dir)))
-            )
+            engine_model = os.path.basename(os.path.dirname(os.path.dirname(engine_dir)))
             engine_model_name = engine_model
             engine_metadata_path = os.path.join(engine_dir, "metadata.json")
             engine_used = False
@@ -173,7 +171,7 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         Removes an individual tensorrt engine.
         """
         engine_dir = os.path.join(
-            self.engine_root, "models", model_name, "tensorrt", engine_type, engine_key
+            self.engine_root, "tensorrt", model_name, engine_type, engine_key
         )
         if not os.path.exists(engine_dir):
             raise NotFoundError(

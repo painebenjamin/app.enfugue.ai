@@ -269,19 +269,22 @@ class DiffusionPipelineManager:
         """
         Gets the root of the engine.
         """
-        root = self.configuration.get("enfugue.engine.root", "~/.cache/enfugue")
-        if root.startswith("~"):
-            root = os.path.expanduser(root)
-        root = os.path.realpath(root)
-        check_make_directory(root)
-        return root
+        path = self.configuration.get("enfugue.engine.root", "~/.cache/enfugue")
+        if path.startswith("~"):
+            path = os.path.expanduser(path)
+        path = os.path.realpath(path)
+        check_make_directory(path)
+        return path
 
     @property
-    def diffusers_cache_dir(self) -> str:
+    def engine_cache_dir(self) -> str:
         """
         Gets the cache for diffusers-downloaded configuration files, base models, etc.
         """
-        path = os.path.join(self.engine_root, "cache")
+        path = self.configuration.get("enfugue.engine.cache", "~/.cache/enfugue/cache")
+        if path.startswith("~"):
+            path = os.path.expanduser(path)
+        path = os.path.realpath(path)
         check_make_directory(path)
         return path
 
@@ -290,7 +293,10 @@ class DiffusionPipelineManager:
         """
         Gets where checkpoints are downloaded in.
         """
-        path = os.path.join(self.engine_root, "checkpoint")
+        path = self.configuration.get("enfugue.engine.checkpoint", "~/.cache/enfugue/checkpoint")
+        if path.startswith("~"):
+            path = os.path.expanduser(path)
+        path = os.path.realpath(path)
         check_make_directory(path)
         return path
 
@@ -299,7 +305,10 @@ class DiffusionPipelineManager:
         """
         Gets where any other weights are download in
         """
-        path = os.path.join(self.engine_root, "other")
+        path = self.configuration.get("enfugue.engine.other", "~/.cache/enfugue/other")
+        if path.startswith("~"):
+            path = os.path.expanduser(path)
+        path = os.path.realpath(path)
         check_make_directory(path)
         return path
 
@@ -308,35 +317,34 @@ class DiffusionPipelineManager:
         """
         Gets where lora are downloaded in.
         """
-        path = os.path.join(self.engine_root, "lora")
+        path = self.configuration.get("enfugue.engine.lora", "~/.cache/enfugue/lora")
+        if path.startswith("~"):
+            path = os.path.expanduser(path)
+        path = os.path.realpath(path)
         check_make_directory(path)
         return path
 
     @property
     def engine_inversions_dir(self) -> str:
         """
-        Gets where inversions are downloaded in.
+        Gets where inversions are downloaded to.
         """
-        path = os.path.join(self.engine_root, "inversions")
+        path = self.configuration.get("enfugue.engine.inversions", "~/.cache/enfugue/inversions")
+        if path.startswith("~"):
+            path = os.path.expanduser(path)
+        path = os.path.realpath(path)
         check_make_directory(path)
         return path
 
     @property
-    def engine_models_dir(self) -> str:
+    def engine_tensorrt_dir(self) -> str:
         """
-        Gets where models are pushed to after converting to diffusers.
+        Gets where TensorRT engines are downloaded to.
         """
-        path = os.path.join(self.engine_root, "models")
-        check_make_directory(path)
-        return path
-
-    @property
-    def model_dir(self) -> str:
-        """
-        Gets where the current model should be stored.
-        """
-        model = self.model
-        path = os.path.join(self.engine_models_dir, self.model)
+        path = self.configuration.get("enfugue.engine.tensorrt", "~/.cache/enfugue/tensorrt")
+        if path.startswith("~"):
+            path = os.path.expanduser(path)
+        path = os.path.realpath(path)
         check_make_directory(path)
         return path
 
@@ -345,7 +353,7 @@ class DiffusionPipelineManager:
         """
         Gets where tensorrt engines will be built per model.
         """
-        path = os.path.join(self.model_dir, "tensorrt")
+        path = os.path.join(self.engine_tensorrt_dir, self.model_name)
         check_make_directory(path)
         return path
 
@@ -598,7 +606,7 @@ class DiffusionPipelineManager:
         """
         Disables or enables TensorRT.
         """
-        if new_enabled != self.tensorrt_is_enabled:
+        if new_enabled != self.tensorrt_is_enabled and self.tensorrt_is_ready:
             del self.pipeline
         self._tensorrt_enabled = new_enabled
 
@@ -684,8 +692,8 @@ class DiffusionPipelineManager:
         """
         if not hasattr(self, "_model"):
             self._model = self.configuration.get("enfugue.model", DEFAULT_MODEL)
-            if self._model.endswith(".ckpt") or self._model.endswith(".safetensors"):
-                self._model = self.check_convert_checkpoint(self._model)
+            if self._model.startswith("http"):
+                self._model = self.check_download_checkpoint(self._model)
         return self._model
 
     @model.setter
@@ -695,11 +703,18 @@ class DiffusionPipelineManager:
         """
         if new_model is None:
             new_model = self.configuration.get("enfugue.model", DEFAULT_MODEL)
-        if new_model.endswith(".ckpt") or new_model.endswith(".safetensors"):
-            new_model = self.check_convert_checkpoint(new_model)
+        if new_model.startswith("http"):
+            new_model = self.check_download_checkpoint(new_model)
         if self.model != new_model:
             del self.pipeline
         self._model = new_model
+
+    @property
+    def model_name(self) -> str:
+        """
+        Gets just the basename of the model
+        """
+        return os.path.splitext(os.path.basename(self.model))[0]
 
     @property
     def dtype(self) -> torch.dtype:
@@ -833,41 +848,11 @@ class DiffusionPipelineManager:
             raise IOError(f"Unknown model {self.model}")
 
     @property
-    def vae_config(self) -> Dict:
-        """
-        Reads the VAE config.json file.
-        """
-        path = os.path.join(self.model_dir, "vae", "config.json")
-        if not os.path.exists(path):
-            raise OSError(f"Couldn't find VAE config file at {path}")
-        return cast(Dict, load_json(path))
-
-    @property
-    def unet_config(self) -> Dict:
-        """
-        Reads the unet config.json file.
-        """
-        path = os.path.join(self.model_dir, "unet", "config.json")
-        if not os.path.exists(path):
-            raise OSError(f"Couldn't find unet config file at {path}")
-        return cast(Dict, load_json(path))
-
-    @property
-    def clip_config(self) -> Dict:
-        """
-        Reads the clip config.json file.
-        """
-        path = os.path.join(self.model_dir, "text_encoder", "config.json")
-        if not os.path.exists(path):
-            raise OSError(f"Couldn't find clip config file at {path}")
-        return cast(Dict, load_json(path))
-
-    @property
     def inpainting(self) -> bool:
         """
         Returns true if the model is an inpainting model.
         """
-        return self.unet_config["in_channels"] == 9
+        return "inpaint" in self.model
 
     @inpainting.setter
     def inpainting(self, new_inpainting: bool) -> None:
@@ -879,8 +864,8 @@ class DiffusionPipelineManager:
         """
         if self.inpainting != new_inpainting:
             del self.pipeline
-            current_checkpoint_path = self.model_ckpt_path
 
+            current_checkpoint_path = self.model
             default_checkpoint_name, _ = os.path.splitext(os.path.basename(DEFAULT_MODEL))
             default_inpainting_name, _ = os.path.splitext(
                 os.path.basename(DEFAULT_INPAINTING_MODEL)
@@ -920,21 +905,47 @@ class DiffusionPipelineManager:
                 self.model = target_checkpoint_path
 
     @property
+    def engine_cache_exists(self) -> bool:
+        """
+        Gets whether or not the diffusers cache exists.
+        """
+        return os.path.exists(os.path.join(self.model_tensorrt_dir, "model_index.json"))
+
+    def check_create_tensorrt_engine_cache(self) -> None:
+        """
+        Converts a .ckpt file to the directory structure from diffusers
+	    This ensures TRT compatibility		
+        """
+        if not self.engine_cache_exists:
+            from diffusers.pipelines.stable_diffusion.convert_from_ckpt import (
+                download_from_original_stable_diffusion_ckpt,
+            )
+            self.start_keepalive()
+            _, ext = os.path.splitext(self.model)
+            pipe = download_from_original_stable_diffusion_ckpt(
+                checkpoint_path=self.model,
+                scheduler_type="ddim",
+                from_safetensors=ext == ".safetensors",
+                num_in_channels=9 if "inpaint" in self.model else 4,
+            ).to(torch_dtype=self.dtype)
+            pipe.save_pretrained(self.model_tensorrt_dir)
+            del pipe
+            torch.cuda.empty_cache()
+            self.stop_keepalive()
+
+    @property
     def pipeline(self) -> EnfugueStableDiffusionPipeline:
         """
         Instantiates the pipeline.
         """
         if not hasattr(self, "_pipeline"):
             kwargs = {
-                "cache_dir": self.diffusers_cache_dir,
+                "cache_dir": self.engine_cache_dir,
                 "engine_size": self.size,
                 "chunking_size": self.chunking_size,
                 "requires_safety_checker": self.safe,
-                "torch_dtype": self.dtype,
+                "controlnet": self.controlnet
             }
-
-            if not self.safe:
-                kwargs["safety_checker"] = None
 
             if self.use_tensorrt:
                 if "unet" in self.TENSORRT_STAGES:
@@ -950,13 +961,13 @@ class DiffusionPipelineManager:
                     kwargs["vae_engine_dir"] = self.model_tensorrt_vae_dir
                 if "clip" in self.TENSORRT_STAGES:
                     kwargs["clip_engine_dir"] = self.model_tensorrt_clip_dir
-
-            logger.debug(
-                f"Initializing pipeline model {self.model} in directory {self.model_dir} with arguments {kwargs}"
-            )
-            kwargs["controlnet"] = self.controlnet
-
-            pipeline = self.pipeline_class.from_pretrained(self.model_dir, **kwargs)
+                self.check_create_tensorrt_engine_cache()
+                pipeline = self.pipeline_class.from_pretrained(self.model_tensorrt_dir, **kwargs)
+            elif self.engine_cache_exists:
+                pipeline = self.pipeline_class.from_pretrained(self.model_tensorrt_dir, **kwargs)
+            else:
+                kwargs["load_safety_checker"] = self.safe,
+                pipeline = self.pipeline_class.from_ckpt(self.model, **kwargs)
             if not self.tensorrt_is_ready:
                 for lora, weight in self.lora:
                     logger.debug(f"Adding LoRA {lora} to pipeline")
@@ -964,7 +975,7 @@ class DiffusionPipelineManager:
                 for inversion in self.inversion:
                     logger.debug(f"Adding textual inversion {inversion} to pipeline")
                     pipeline.load_textual_inversion(inversion)
-            self._pipeline = pipeline.to(self.device)
+            self._pipeline = pipeline.to(self.device, torch_dtype=self.dtype)
         return self._pipeline
 
     @pipeline.deleter
@@ -1039,7 +1050,7 @@ class DiffusionPipelineManager:
         result = ControlNetModel.from_pretrained(
             controlnet,
             torch_dtype=torch.half,
-            cache_dir=self.diffusers_cache_dir,
+            cache_dir=self.engine_cache_dir,
         )
         self.stop_keepalive()
         return result
@@ -1111,33 +1122,6 @@ class DiffusionPipelineManager:
         check_download(remote_url, output_path)
         self.stop_keepalive()
         return output_path
-
-    def check_convert_checkpoint(self, checkpoint_path: str) -> str:
-        """
-        Converts a .ckpt file to the directory structure from diffusers
-        """
-        checkpoint_file = os.path.basename(checkpoint_path)
-        model_name, ext = os.path.splitext(checkpoint_file)
-        model_dir = os.path.join(self.engine_models_dir, model_name)
-
-        if not os.path.exists(model_dir):
-            if checkpoint_path.startswith("http"):
-                checkpoint_path = self.check_download_checkpoint(checkpoint_path)
-
-            from diffusers.pipelines.stable_diffusion.convert_from_ckpt import (
-                download_from_original_stable_diffusion_ckpt,
-            )
-
-            self.start_keepalive()
-            pipe = download_from_original_stable_diffusion_ckpt(
-                checkpoint_path=checkpoint_path,
-                scheduler_type="ddim",
-                from_safetensors=ext == ".safetensors",
-                num_in_channels=9 if "inpaint" in checkpoint_path else 4,
-            ).to(torch_dtype=self.dtype)
-            pipe.save_pretrained(model_dir)
-            self.stop_keepalive()
-        return model_name
 
     def __call__(self, **kwargs: Any) -> Any:
         """
@@ -1225,8 +1209,8 @@ class DiffusionPipelineManager:
             # Look for the base model instead, we'll look for inpainting separately
             model, _, _ = model.rpartition("-")
 
-        model_dir = os.path.join(engine_root, "models", model)
-        inpaint_model_dir = os.path.join(engine_root, "models", f"{model}-inpainting")
+        model_dir = os.path.join(engine_root, "tensorrt", model)
+        inpaint_model_dir = os.path.join(engine_root, "tensorrt", f"{model}-inpainting")
 
         if size is None:
             size = DiffusionPipelineManager.DEFAULT_SIZE
@@ -1268,25 +1252,25 @@ class DiffusionPipelineManager:
             clip_key = DiffusionPipelineManager.get_tensorrt_clip_key(
                 size, lora=lora_key, inversion=inversion_key
             )
-            clip_plan = os.path.join(model_dir, "tensorrt", "clip", clip_key, "engine.plan")
+            clip_plan = os.path.join(model_dir, "clip", clip_key, "engine.plan")
             clip_ready = os.path.exists(clip_plan)
 
         if not vae_ready:
             vae_key = DiffusionPipelineManager.get_tensorrt_vae_key(
                 size, lora=lora_key, inversion=inversion_key
             )
-            vae_plan = os.path.join(model_dir, "tensorrt", "vae", vae_key, "engine.plan")
+            vae_plan = os.path.join(model_dir, "vae", vae_key, "engine.plan")
             vae_ready = os.path.exists(vae_plan)
 
         if not unet_ready:
             unet_key = DiffusionPipelineManager.get_tensorrt_unet_key(
                 size, lora=lora_key, inversion=inversion_key
             )
-            unet_plan = os.path.join(model_dir, "tensorrt", "unet", unet_key, "engine.plan")
+            unet_plan = os.path.join(model_dir,"unet", unet_key, "engine.plan")
             unet_ready = os.path.exists(unet_plan)
 
             inpaint_unet_plan = os.path.join(
-                inpaint_model_dir, "tensorrt", "unet", unet_key, "engine.plan"
+                inpaint_model_dir, "unet", unet_key, "engine.plan"
             )
             inpaint_unet_ready = os.path.exists(inpaint_unet_plan)
 
@@ -1294,7 +1278,7 @@ class DiffusionPipelineManager:
                 size, lora=lora_key, inversion=inversion_key
             )
             controlled_unet_plan = os.path.join(
-                model_dir, "tensorrt", "controlledunet", controlled_unet_key, "engine.plan"
+                model_dir, "controlledunet", controlled_unet_key, "engine.plan"
             )
             controlled_unet_ready = os.path.exists(controlled_unet_plan)
 
@@ -1310,7 +1294,7 @@ class DiffusionPipelineManager:
                         size, controlnet=controlnet_name
                     )
                     controlnet_plan = os.path.join(
-                        model_dir, "tensorrt", "controlnet", controlnet_key, "engine.plan"
+                        model_dir, "controlnet", controlnet_key, "engine.plan"
                     )
                     controlnet_ready[controlnet_name] = os.path.exists(controlnet_plan)
 

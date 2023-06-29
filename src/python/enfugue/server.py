@@ -18,22 +18,23 @@ class EnfugueSecureServer(EnfugueAPIServer):
         """
         At configuration, get cached or remote resources.
         """
-        try:
-            key, cert, chain = get_signature()
-            directory = tempfile.mkdtemp()
-            keyfile = os.path.join(directory, "key.pem")
-            certfile = os.path.join(directory, "cert.pem")
-            chainfile = os.path.join(directory, "chain.pem")
-            open(keyfile, "w").write(key)
-            open(certfile, "w").write(cert)
-            open(chainfile, "w").write(chain)
-            server["secure"] = True
-            server["cert"] = certfile
-            server["key"] = keyfile
-            server["chain"] = chainfile
-        except Exception as ex:
-            logger.error(f"Couldn't get signatures, disabling SSL. {ex}")
-            server["secure"] = False
+        secure = server.get("secure", True)
+        if secure:
+            try:
+                key, cert, chain = get_signature()
+                directory = tempfile.mkdtemp()
+                keyfile = os.path.join(directory, "key.pem")
+                certfile = os.path.join(directory, "cert.pem")
+                chainfile = os.path.join(directory, "chain.pem")
+                open(keyfile, "w").write(key)
+                open(certfile, "w").write(cert)
+                open(chainfile, "w").write(chain)
+                server["cert"] = certfile
+                server["key"] = keyfile
+                server["chain"] = chainfile
+            except Exception as ex:
+                logger.error(f"Couldn't get signatures, disabling SSL. {ex}")
+                server["secure"] = False
         super(EnfugueSecureServer, self).configure(server=server, **kwargs)
 
     def on_destroy(self) -> None:
