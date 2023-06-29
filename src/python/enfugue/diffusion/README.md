@@ -82,4 +82,4 @@ Changes of note are as follows:
 2. All images can also be passed as strings - in which case they are opened via `PIL.Image.open()`
 3. The parameter `scale_image` controls whether or not an image will be scaled to the passed `width` and `height` to make for easy resizing.
 4. You can override the initialized `chunking_size` and `chunking_blur` here.
-5. There are two callbacks instead of just one. `progress_callback` receives sub-steps in addition to steps (again, to facilitate TensorRT multi-diffusion.) It's signature is `int: current_step, int: total_steps, float: progress
+5. There are two callbacks instead of just one. `progress_callback` receives sub-steps in addition to steps (again, to facilitate TensorRT multi-diffusion.) It's signature is `int: current_step, int: total_steps, float: progress`.
