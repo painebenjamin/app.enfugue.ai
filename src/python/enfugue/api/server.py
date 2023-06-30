@@ -53,6 +53,7 @@ EnfugueAPIRESTConfiguration = {
 
 __all__ = ["EnfugueAPIServerBase", "EnfugueAPIServer"]
 
+
 class EnfugueAPIServerBase(
     JSONWebServiceAPIServer,
     UserRESTExtensionServerBase,

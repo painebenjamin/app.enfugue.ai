@@ -40,7 +40,7 @@ from diffusers.schedulers import (
     EulerDiscreteScheduler,
     HeunDiscreteScheduler,
     LMSDiscreteScheduler,
-    PNDMScheduler
+    PNDMScheduler,
 )
 from diffusers.models import AutoencoderKL, UNet2DConditionModel, ControlNetModel
 from diffusers.pipelines.stable_diffusion import (
@@ -185,11 +185,11 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         original_config = OmegaConf.load(original_config_file)
 
         if num_in_channels is not None:
-            original_config["model"]["params"]["unet_config"]["params"]["in_channels"] = num_in_channels # type: ignore
+            original_config["model"]["params"]["unet_config"]["params"]["in_channels"] = num_in_channels  # type: ignore
 
         if (
-           "parameterization" in original_config["model"]["params"] # type: ignore
-            and original_config["model"]["params"]["parameterization"] == "v" # type: ignore
+            "parameterization" in original_config["model"]["params"]  # type: ignore
+            and original_config["model"]["params"]["parameterization"] == "v"  # type: ignore
         ):
             if prediction_type is None:
                 # NOTE: For stable diffusion 2 base it is recommended to pass `prediction_type=="epsilon"`
@@ -198,12 +198,12 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             if image_size is None:
                 # NOTE: For stable diffusion 2 base one has to pass `image_size==512`
                 # as it relies on a brittle global step parameter here
-                image_size = 512 if global_step == 875000 else 768 # type: ignore[unreachable]
+                image_size = 512 if global_step == 875000 else 768  # type: ignore[unreachable]
         else:
             if prediction_type is None:
                 prediction_type = "epsilon"
             if image_size is None:
-                image_size = 512 # type: ignore[unreachable]
+                image_size = 512  # type: ignore[unreachable]
 
         num_train_timesteps = original_config.model.params.timesteps
         beta_start = original_config.model.params.linear_start

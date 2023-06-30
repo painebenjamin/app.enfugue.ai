@@ -308,14 +308,16 @@ class DiffusionEngine:
         Gets a DiffusionEngine instance with debug logging enabled.
         """
         return DiffusionEngine(
-            APIConfiguration(enfugue = {
-                "engine": {
-                    "logging": {
-                        "level": "DEBUG",
-                        "handler": "stream",
-                        "stream": "stdout",
-                        "colored": True
+            APIConfiguration(
+                enfugue={
+                    "engine": {
+                        "logging": {
+                            "level": "DEBUG",
+                            "handler": "stream",
+                            "stream": "stdout",
+                            "colored": True,
+                        }
                     }
                 }
-            })
+            )
         )

@@ -10,6 +10,8 @@ engine:
         handler: file
         file: ~/.cache/enfugue-engine.log
         level: debug
+        silenced:
+            - sqlalchemy.pool.impl.NullPool
 downloads:
     concurrent: 2
     queue: 10

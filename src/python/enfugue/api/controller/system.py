@@ -37,6 +37,7 @@ class LogDict(TypedDict):
     line: int
     content: str
 
+
 def get_directory_size(directory: str, recurse: bool = True) -> Tuple[int, int, int]:
     """
     Sums the files and filesize of a directory
@@ -249,7 +250,7 @@ class EnfugueAPISystemController(EnfugueAPIControllerBase):
         Gets a summary of files and filesize in the installation
         """
         sizes = {}
-        for dirname in ["cache", "checkpoint", "lora", "inversions", "other"]:
+        for dirname in ["cache", "checkpoint", "lora", "inversion", "other"]:
             directory = self.configuration.get(
                 f"enfugue.engine.{dirname}", os.path.join(self.engine_root, dirname)
             )
@@ -428,16 +429,23 @@ class EnfugueAPISystemController(EnfugueAPIControllerBase):
                     raise ValueError("Unknown log format.")
 
                 parsed_dict = parsed_line.groupdict()
-                timestamp = datetime.datetime.strptime(parsed_dict["timestamp"], "%Y-%m-%d %H:%M:%S,%f")
+                timestamp = datetime.datetime.strptime(
+                    parsed_dict["timestamp"], "%Y-%m-%d %H:%M:%S,%f"
+                )
 
-                logs.append(cast(LogDict, {
-                    "timestamp": timestamp,
-                    "logger": parsed_dict["logger"],
-                    "level": parsed_dict["level"],
-                    "file": parsed_dict["file"],
-                    "line": parsed_dict["line"],
-                    "content": parsed_dict["content"],
-                }))
+                logs.append(
+                    cast(
+                        LogDict,
+                        {
+                            "timestamp": timestamp,
+                            "logger": parsed_dict["logger"],
+                            "level": parsed_dict["level"],
+                            "file": parsed_dict["file"],
+                            "line": parsed_dict["line"],
+                            "content": parsed_dict["content"],
+                        },
+                    )
+                )
             except ValueError as ex:
                 if logs:
                     logs[-1]["content"] += f"\n{line}"

@@ -7,18 +7,7 @@ import random
 import datetime
 import threading
 
-from typing import (
-    Type,
-    Union,
-    Any,
-    Optional,
-    List,
-    Tuple,
-    Dict,
-    Literal,
-    Callable,
-    TYPE_CHECKING
-)
+from typing import Type, Union, Any, Optional, List, Tuple, Dict, Literal, Callable, TYPE_CHECKING
 from hashlib import md5
 
 from pibble.api.configuration import APIConfiguration
@@ -324,11 +313,11 @@ class DiffusionPipelineManager:
         return path
 
     @property
-    def engine_inversions_dir(self) -> str:
+    def engine_inversion_dir(self) -> str:
         """
-        Gets where inversions are downloaded to.
+        Gets where inversion are downloaded to.
         """
-        path = self.configuration.get("enfugue.engine.inversions", "~/.cache/enfugue/inversions")
+        path = self.configuration.get("enfugue.engine.inversion", "~/.cache/enfugue/inversion")
         if path.startswith("~"):
             path = os.path.expanduser(path)
         path = os.path.realpath(path)
@@ -803,14 +792,14 @@ class DiffusionPipelineManager:
     @property
     def inversion(self) -> List[str]:
         """
-        Get textual inversions added to the text encoder.
+        Get textual inversion added to the text encoder.
         """
         return getattr(self, "_inversion", [])
 
     @inversion.setter
     def inversion(self, new_inversion: Optional[Union[str, List[str]]]) -> None:
         """
-        Sets new textual inversions. Destroys the pipeline.
+        Sets new textual inversion. Destroys the pipeline.
         """
         if new_inversion is None:
             if hasattr(self, "_inversion") and len(self._inversion) > 0:
@@ -945,7 +934,7 @@ class DiffusionPipelineManager:
                 "chunking_size": self.chunking_size,
                 "requires_safety_checker": self.safe,
                 "controlnet": self.controlnet,
-                "torch_dtype": self.dtype
+                "torch_dtype": self.dtype,
             }
 
             if self.use_tensorrt:
