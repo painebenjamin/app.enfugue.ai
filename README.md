@@ -77,9 +77,13 @@ Once that is complete, download the following packages and install them anywhere
 3. [Install TensorRT](https://developer.nvidia.com/nvidia-tensorrt-8x-download), add `/lib` to PATH. If you are creating your own environment, you should also use `pip` to install `python/tensorrt-8.*-cp310-none-win_amd64.whl` from this directory.
 4. If you are creating your own environment, now run `pip install pibble[tensorrt]`
 
+## Configuration
+
+Many configuration options are available, but none are required. If you want to specify things such as the host and port that the server listens on, please review the documentation for this on [the wiki](https://github.com/painebenjamin/app.enfugue.ai/wiki/Configuration-for-Advanced-Users).
+
 # App Quickstart Guide
 
-Once the Enfugue server is running on your computer, you can start using the app. Simply open any browser (Chromium-based browsers are recommended for all features, but Firefox is also supported) and navigate to `my.enfugue.ai`. You'll be greeted by your application home screen and some initial documentation - please read it in it's entirety.
+Once the Enfugue server is running on your computer, you can start using the app. Simply open any browser (Chromium-based browsers are recommended for all features, but Firefox is also supported) and navigate to `https://app.enfugue.ai:45554`, or for short, `my.enfugue.ai` (this redirects you to the first address.) If you specified your own configuration, then the server will instead be listening on your configured address. You'll be greeted by your application home screen and some initial documentation - please read it in it's entirety.
 
 ## Windows
 
