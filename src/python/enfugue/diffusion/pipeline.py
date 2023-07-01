@@ -139,11 +139,10 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
     ) -> EnfugueStableDiffusionPipeline:
         """
         Loads a checkpoint into this pipeline.
-        Diffusers' `from_pretrained` lets us pass arbitrary kwargs in, but `from_ckpt` does not.
+        Diffusers' `from_pretrained` lets us pass arbitrary kwargs in, but `7from_ckpt` does not.
         That's why we override it for this method - most of this is copied from
         https://github.com/huggingface/diffusers/blob/49949f321d9b034440b52e54937fd2df3027bf0a/src/diffusers/pipelines/stable_diffusion/convert_from_ckpt.py
         """
-        device = "cuda" if torch.cuda.is_available() else "cpu"
         if checkpoint_path.endswith("safetensors"):
             from safetensors import safe_open
 
@@ -152,7 +151,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 for key in f.keys():
                     checkpoint[key] = f.get_tensor(key)
         else:
-            checkpoint = torch.load(checkpoint_path, map_location=device)
+            checkpoint = torch.load(checkpoint_path, map_location="cpu")
 
         # Sometimes models don't have the global_step item
         if "global_step" in checkpoint:

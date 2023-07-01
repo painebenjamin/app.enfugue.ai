@@ -5,6 +5,7 @@ import time
 import torch
 import random
 import datetime
+import traceback
 import threading
 
 from typing import Type, Union, Any, Optional, List, Tuple, Dict, Literal, Callable, TYPE_CHECKING
@@ -680,8 +681,6 @@ class DiffusionPipelineManager:
         """
         if not hasattr(self, "_model"):
             self._model = self.configuration.get("enfugue.model", DEFAULT_MODEL)
-            if self._model.startswith("http"):
-                self._model = self.check_download_checkpoint(self._model)
         return self._model
 
     @model.setter
@@ -693,7 +692,8 @@ class DiffusionPipelineManager:
             new_model = self.configuration.get("enfugue.model", DEFAULT_MODEL)
         if new_model.startswith("http"):
             new_model = self.check_download_checkpoint(new_model)
-        if self.model != new_model:
+        new_model_name, _ = os.path.splitext(os.path.basename(new_model))
+        if self.model_name != new_model_name:
             del self.pipeline
         self._model = new_model
 
@@ -821,21 +821,6 @@ class DiffusionPipelineManager:
         return [os.path.splitext(os.path.basename(inversion))[0] for inversion in self.inversion]
 
     @property
-    def model_ckpt_path(self) -> str:
-        """
-        Gets the path for a model checkpoint. May be a .ckpt or .safetensors.
-        """
-        ckpt_path = os.path.join(self.engine_checkpoints_dir, f"{self.model}.ckpt")
-        safetensor_path = os.path.join(self.engine_checkpoints_dir, f"{self.model}.safetensors")
-
-        if os.path.exists(ckpt_path):
-            return ckpt_path
-        elif os.path.exists(safetensor_path):
-            return safetensor_path
-        else:
-            raise IOError(f"Unknown model {self.model}")
-
-    @property
     def inpainting(self) -> bool:
         """
         Returns true if the model is an inpainting model.
@@ -928,6 +913,10 @@ class DiffusionPipelineManager:
         Instantiates the pipeline.
         """
         if not hasattr(self, "_pipeline"):
+            if self.model.startswith("http"):
+                # Base model, make sure it's downloaded here
+                self.model = self.check_download_checkpoint(self.model)
+
             kwargs = {
                 "cache_dir": self.engine_cache_dir,
                 "engine_size": self.size,
@@ -1340,12 +1329,18 @@ class DiffusionPipelineManager:
         from enfugue.diffusion.util import ModelMerger
 
         self.start_keepalive()
-        merger = ModelMerger(
-            self.check_download_checkpoint(DEFAULT_INPAINTING_MODEL),
-            source_checkpoint_path,
-            self.check_download_checkpoint(DEFAULT_MODEL),
-            interpolation="add-difference",
-        )
-        merger.save(target_checkpoint_path)
-        logger.info(f"Saved merged inpainting checkpoint at {target_checkpoint_path}")
+        try:
+            merger = ModelMerger(
+                self.check_download_checkpoint(DEFAULT_INPAINTING_MODEL),
+                source_checkpoint_path,
+                self.check_download_checkpoint(DEFAULT_MODEL),
+                interpolation="add-difference",
+            )
+            merger.save(target_checkpoint_path)
+        except Exception as ex:
+            logger.error(f"Couldn't save merged checkpoint made from {source_checkpoint_path} to {target_checkpoint_path}: {ex}")
+            logger.error(traceback.format_exc())
+            raise
+        else:
+            logger.info(f"Saved merged inpainting checkpoint at {target_checkpoint_path}")
         self.stop_keepalive()
