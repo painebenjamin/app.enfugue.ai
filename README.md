@@ -189,7 +189,7 @@ A special callout should be made to the Model Picker, the input in the top-left-
 
 ![image](https://github.com/painebenjamin/app.enfugue.ai/assets/57536852/122837ea-52d7-45db-b1fe-47b655515efa)
 
-This is essential to unlock the best results from enfugue. After downloading a model from Civit AI, uploading it through the menu at `System` -> `Installation`, or manually playing them into the correct directory (`~/.cache/enfugue/checkpoint`, `~/.cache/enfugue/lora`, etc,) use the **Model Manager** from the `Models` menu to create a pre-configured set of model, LoRA, inversions, and default/trigger prompts.
+This is essential to unlock the best results from enfugue. After downloading a model from Civit AI, uploading it through the menu at `System` -> `Installation`, or manually playing them into the correct directory (`~/.cache/enfugue/checkpoint`, `~/.cache/enfugue/lora`, etc, by default, or as configured by the user during initialization or using the `system > Installation Manager` menu item,) use the **Model Manager** from the `Models` menu to create a pre-configured set of model, LoRA, inversions, and default/trigger prompts.
 
 ![image](https://github.com/painebenjamin/app.enfugue.ai/assets/57536852/78c7c05f-4af5-47a0-ab2b-da80ae38e035)
 
