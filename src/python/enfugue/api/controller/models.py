@@ -352,3 +352,32 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
             return new_model
         except KeyError as ex:
             raise BadRequestError(f"Missing required parameter {ex}")
+
+    @handlers.path("^/api/model-options$")
+    @handlers.methods("GET")
+    @handlers.format()
+    @handlers.secured("DiffusionModel", "read")
+    def get_all_models(self, request: Request, response: Response) -> List[Dict[str, Any]]:
+        """
+        Gets all checkpoints and model names for the picker.
+        """
+        checkpoints_dir = self.configuration.get(
+            "enfugue.engine.checkpoint", os.path.join(self.engine_root, "checkpoint")
+        )
+        checkpoints = os.listdir(checkpoints_dir)
+        checkpoints.sort(key = lambda item: os.path.getmtime(os.path.join(checkpoints_dir, item)))
+        model_names = self.database.query(self.orm.DiffusionModel.name).all()
+
+        return [
+            {
+                "type": "checkpoint",
+                "name": checkpoint
+            }
+            for checkpoint in checkpoints
+        ] + [
+            {
+                "type": "model",
+                "name": model[0]
+            }
+            for model in model_names
+        ]

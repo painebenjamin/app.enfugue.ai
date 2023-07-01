@@ -220,6 +220,23 @@ class InvocationController extends Controller {
     }
 
     /**
+     * @return string The type of model in use, default is checkpoint
+     */
+    get modelType() {
+        return this.kwargs.model_type || "checkpoint";
+    }
+    
+    /**
+     * @param string The type of model in use, default is checkpoint
+     */
+    set modelType(newModelType) {
+        if (this.modelType !== newModelType) {
+            this.publish("engineModelTypeChange", newModelType);
+        }
+        this.kwargs.model_type = newModelType;
+    }
+
+    /**
      * @return int The output scale (1 by default.)
      */
     get outscale() {

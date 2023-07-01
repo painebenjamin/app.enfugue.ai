@@ -719,13 +719,13 @@ enfugue-repeatable-input.columns
     color: black;
 }
 
-
 form.model-picker {
     position: absolute;
     left: 40px;
     top: 35px;
     padding: 5px 0 0 5px;
-    width: auto;
+    width: 500px;
+    max-width: calc(100vw - 400px);
     z-index: 3;
     display: flex;
     flex-flow: row nowrap;
@@ -734,7 +734,7 @@ form.model-picker {
 }
 
 form.model-picker fieldset {
-    width: 250px;
+    width: 100%;
 }
 
 form.model-picker fieldset legend {
@@ -800,9 +800,17 @@ form.model-picker div#tensorrt span.fraction > span:last-child {
     display: block;
 }
 
-
 form.model-picker enfugue-search-list {
     margin: 0;
+}
+
+ul.model-picker-list-input-view > li > span {
+    display: flex;
+    width: 100%;
+    height: 100%;
+    flex-flow: row nowrap;
+    align-items: center;
+    justify-content: space-between;
 }
 
 .page-buttons {

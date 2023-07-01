@@ -1060,3 +1060,12 @@ export let stripHTML = (text) => {
     let replaced = text.replace(/<[^>]*>?/gm, '');
     return replaced;
 };
+
+/**
+ * Turns an HTML string into a set of document elements
+ */
+export let createElementsFromString = (text) => {
+    let div = document.createElement("div");
+    div.innerHTML = text.trim();
+    return div.childNodes;
+}

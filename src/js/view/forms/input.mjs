@@ -24,6 +24,7 @@ import {
     ListInputView,
     ListMultiInputView,
     SearchListInputView,
+    SearchListInputListView,
     SearchListMultiInputView,
 } from "./input/enumerable.mjs";
 
@@ -47,6 +48,7 @@ export {
     ListInputView,
     ListMultiInputView,
     SearchListInputView,
+    SearchListInputListView,
     SearchListMultiInputView,
     RepeatableInputView,
     FormInputView,

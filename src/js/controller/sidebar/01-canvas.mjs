@@ -135,21 +135,22 @@ class CanvasController extends Controller {
         this.subscribe("modelPickerChange", async (newModel) => {
             let currentEngineWidth = this.engine.width,
                 currentEngineHeight = this.engine.height,
-                dimensionsChanged = false;
+                dimensionsChanged = false,
+                widthInput = await this.canvasForm.getInputView("width"),
+                heightInput = await this.canvasForm.getInputView("height");
+            
+            widthInput.setMin(newModel.size);
+            heightInput.setMin(newModel.size);
 
             if (currentEngineWidth < newModel.size) {
-                let widthInput = await this.canvasForm.getInputView("width");
                 widthInput.setValue(newModel.size);
-                widthInput.setMin(newModel.size);
                 this.engine.width = newModel.size;
                 this.images.width = newModel.size;
                 dimensionsChanged = true;
-            }
+            } 
             
             if (currentEngineHeight < newModel.size) {
-                let heightInput = await this.canvasForm.getInputView("height");
                 heightInput.setValue(newModel.size);
-                heightInput.setMin(newModel.size);
                 this.engine.height = newModel.size;
                 this.images.height = newModel.size;
                 dimensionsChanged = true;

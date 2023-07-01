@@ -976,5 +976,6 @@ export {
     ListInputView,
     ListMultiInputView,
     SearchListInputView,
+    SearchListInputListView,
     SearchListMultiInputView
 };

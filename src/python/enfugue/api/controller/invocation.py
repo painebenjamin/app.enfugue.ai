@@ -51,10 +51,19 @@ class EnfugueAPIInvocationController(EnfugueAPIControllerBase):
             None,
         )
         model_name = request.parsed.pop("model", None)
+        model_type = request.parsed.pop("model_type", None)
         plan_kwargs: Dict[str, Any] = {}
-        if model_name is not None:
+        if model_name is not None and model_type == "model":
             plan_kwargs = self.get_plan_kwargs_from_model(model_name)
-
+        elif model_name is not None and model_type == "checkpoint":
+            plan_kwargs = {
+                "model": os.path.join(
+                    self.configuration.get("enfugue.engine.checkpoint",
+                        os.path.join(self.engine_root, "checkpoint")
+                    ),
+                    model_name
+                )
+            }
         plan = DiffusionPlan.from_nodes(**{**plan_kwargs, **request.parsed})
         return self.invoke(request.token.user.id, plan).format()
 

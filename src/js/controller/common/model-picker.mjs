@@ -3,20 +3,46 @@ import { Controller } from "../base.mjs";
 import { TableView } from "../../view/table.mjs";
 import { View } from "../../view/base.mjs";
 import { FormView } from "../../view/forms/base.mjs";
-import { SearchListInputView } from "../../view/forms/input.mjs";
-import { isEmpty, waitFor } from "../../base/helpers.mjs";
+import { SearchListInputView, StringInputView, SearchListInputListView } from "../../view/forms/input.mjs";
+import { isEmpty, waitFor, createElementsFromString } from "../../base/helpers.mjs";
 import { ElementBuilder } from "../../base/builder.mjs";
 
 const E = new ElementBuilder();
+
+class ModelPickerListInputView extends SearchListInputListView {
+    static classList = SearchListInputListView.classList.concat(["model-picker-list-input-view"]);
+}
+
+/**
+ * Extend the StringInputView so we can strip HTML from the value
+ */
+class ModelPickerStringInputView extends StringInputView {
+    /**
+     * Strip HTML from the value and only display the name portion.
+     */
+    setValue(newValue, triggerChange) {
+        if(!isEmpty(newValue)) {
+            newValue = createElementsFromString(newValue)[0].innerText;
+        }
+        return super.setValue(newValue, triggerChange);
+    }
+}
 
 /**
  * We extend the SearchListInputView to change some default config.
  */
 class ModelPickerInputView extends SearchListInputView {
     /**
-     * @var string The contenxt of the node when nothing is selected.
+     * @var string The content of the node when nothing is selected.
      */
     static placeholder = "Start typing to search models…";
+
+    /**
+     * @var class The class of the string input, override so we can override setValue
+     */
+    static stringInputClass = ModelPickerStringInputView;
+
+    static listInputClass = ModelPickerListInputView
 };
 
 /**
@@ -69,7 +95,7 @@ class ModelTensorRTStatusView extends View {
     /**
      * @var string Custom tag name
      */
-    static tagNam = "enfugue-tensorrt-status-view";
+    static tagName = "enfugue-tensorrt-status-view";
 
     /**
      * @var object The supported network names
@@ -331,23 +357,39 @@ class ModelPickerController extends Controller {
      */
     async initialize() {
         this.builtEngines = {};
-        ModelPickerInputView.defaultOptions = async () => (await this.model.DiffusionModel.queryAll()).map((datum) => datum.name);
+        ModelPickerInputView.defaultOptions = async () => {
+            let allModels = await this.model.get("/model-options"),
+                modelOptions = allModels.reduce((carry, datum) => {
+                    carry[`${datum.type}/${datum.name}`] = `<strong>${datum.name}</strong><em>(${datum.type})</strong>`;
+                    return carry;
+                }, {});
+            return modelOptions;
+        };
         this.formView = new ModelPickerFormView(this.config);
         
         this.formView.onSubmit(async (values) => {
-            try {
-                let fullModel = await this.model.DiffusionModel.query({name: values.model}),
-                    tensorRTStatus = await fullModel.getTensorRTStatus();
-
-                this.publish("modelPickerChange", fullModel);
-                this.engine.model = values.model;
-                this.formView.setTensorRTStatus(
-                    tensorRTStatus, 
-                    () => this.showBuildTensorRT(fullModel)
-                );
-            } catch(e) {
-                // Reset
-                this.formView.setValues({"model": null});
+            if (values.model) {
+                let [selectedType, selectedName] = values.model.split("/");
+                this.engine.model = selectedName;
+                this.engine.modelType = selectedType;
+                if (selectedType === "model") {
+                    try {
+                        let fullModel = await this.model.DiffusionModel.query({name: selectedName}),
+                            tensorRTStatus = await fullModel.getTensorRTStatus();
+                        this.publish("modelPickerChange", fullModel);
+                        this.formView.setTensorRTStatus(
+                            tensorRTStatus, 
+                            () => this.showBuildTensorRT(fullModel)
+                        );
+                    } catch(e) {
+                        // Reset
+                        this.formView.setValues({"model": null});
+                    }
+                } else {
+                    this.formView.setTensorRTStatus({supported: false});
+                }
+            } else {
+                this.formView.setTensorRTStatus({supported: false});
             }
         });
 
