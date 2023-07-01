@@ -356,4 +356,8 @@ class ModelManagerController extends Controller {
     }
 }
 
-export { ModelManagerController };
+export {
+    ModelManagerController,
+    MultiLoraInputView,
+    MultiInversionInputView
+};

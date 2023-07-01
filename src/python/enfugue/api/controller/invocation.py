@@ -62,7 +62,30 @@ class EnfugueAPIInvocationController(EnfugueAPIControllerBase):
                         os.path.join(self.engine_root, "checkpoint")
                     ),
                     model_name
-                )
+                ),
+                "lora": [
+                    (
+                        os.path.join(
+                            self.configuration.get("enfugue.engine.lora",
+                                os.path.join(self.engine_root, "lora")
+                            ),
+                            lora["model"]
+                        ),
+                        float(lora["weight"])
+                    )
+                    for lora
+                    in request.parsed.pop("lora", [])
+                ],
+                "inversion": [
+                    os.path.join(
+                        self.configuration.get("enfugue.engine.inversion",
+                            os.path.join(self.engine_root, "inversion")
+                        ),
+                        inversion
+                    )
+                    for inversion
+                    in request.parsed.pop("inversion", [])
+                ],
             }
         plan = DiffusionPlan.from_nodes(**{**plan_kwargs, **request.parsed})
         return self.invoke(request.token.user.id, plan).format()

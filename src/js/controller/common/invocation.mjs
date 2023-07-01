@@ -475,6 +475,40 @@ class InvocationController extends Controller {
     }
 
     /**
+     * @return array<string> Optional textual inversion when not using preconfigured models
+     */
+    get inversion() {
+        return this.kwargs.inversion || [];
+    }
+
+    /**
+     * @param array<string> The new value of inversion for when not using preconfigured models
+     */
+    set inversion(newInversion) {
+        if(!isEquivalent(this.inversion, newInversion)) {
+            this.publish("engineInversionChange", newInversion);
+        }
+        this.kwargs.inversion = newInversion;
+    }
+    
+    /**
+     * @return array<object> Optional lora when not using preconfigured models
+     */
+    get lora() {
+        return this.kwargs.lora || [];
+    }
+
+    /**
+     * @param array<object> The new value of lora for when not using preconfigured models
+     */
+    set lora(newLora) {
+        if(!isEquivalent(this.lora, newLora)) {
+            this.publish("engineLoraChange", newLora);
+        }
+        this.kwargs.lora = newLora;
+    }
+
+    /**
      * On initialization, create DOM elements related to invocations.
      */
     async initialize() {

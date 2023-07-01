@@ -78,11 +78,16 @@ class UploadFileButtonInputView extends ButtonInputView {
  */
 class InstallationDirectorySummaryTableView extends TableView {
     /**
+     * @var string Custom class name
+     */
+    static className = "installation-directory-summary-table-view";
+
+    /**
      * @var object column names and labels
      */
     static columns = {
-        "directory": "Directory",
         "location": "Location",
+        "directory": "Directory",
         "items": "Items",
         "bytes": "Total File Size"
     };
@@ -99,6 +104,11 @@ class InstallationDirectorySummaryTableView extends TableView {
  * This is the table view for a single directory
  */
 class InstallationDirectoryTableView extends TableView {
+    /**
+     * @var string Custom class name
+     */
+    static className = "installation-directory-table-view";
+
     /**
      * @var object column names and labels
      */
@@ -197,7 +207,7 @@ class InstallationSummaryView extends View {
             this.controller.showDirectoryManager(row.directory);
         });
         this.summaryTable.addButton("Change Directory", "fa-solid fa-edit", (row) => {
-            this.controller.showChangeDirectory(row.directory);
+            this.controller.showChangeDirectory(row.directory, row.location);
         });
         this.engineTable = new TensorRTEngineSummaryTableView(this.config);
         this.engineTable.addButton("Manage", "fa-solid fa-list-check", () => {
@@ -421,8 +431,8 @@ class InstallationController extends MenuController {
     /**
      * Shows the 'change directory' dialogue for a directory
      */
-    async showChangeDirectory(directory) {
-        let changeDirectoryForm = new ChangeDirectoryForm(this.config),
+    async showChangeDirectory(directory, currentValue) {
+        let changeDirectoryForm = new ChangeDirectoryForm(this.config, {"directory": currentValue}),
             changeDirectoryWindow = await this.spawnWindow(
                 `Change Filesystem Location for ${directory}`,
                 changeDirectoryForm,
@@ -484,6 +494,7 @@ class InstallationController extends MenuController {
                 }
             });
             let container = new ParentView(this.config);
+            container.addClass("installation-summary-view");
             container.addChild(table);
             if (this.constructor.uploadableDirectories.indexOf(directory) !== -1) {
                 let uploadView = new UploadFileButtonInputView(this.config);

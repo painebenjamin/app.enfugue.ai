@@ -860,6 +860,11 @@ table.log-table-view tr td:nth-child(3) {
     width: 80px;
 }
 
+table.installation-directory-summary-table-view tr th:nth-child(1),
+table.installation-directory-summary-table-view tr td:nth-child(1) {
+    width: 250px;
+}
+
 input.new-user-input-view,
 input.new-model-input-view,
 input.upload-file-input-view {

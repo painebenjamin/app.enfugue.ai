@@ -3,15 +3,26 @@ import { Controller } from "../base.mjs";
 import { TableView } from "../../view/table.mjs";
 import { View } from "../../view/base.mjs";
 import { FormView } from "../../view/forms/base.mjs";
-import { SearchListInputView, StringInputView, SearchListInputListView } from "../../view/forms/input.mjs";
+import {
+    SearchListInputView, 
+    StringInputView, 
+    SearchListInputListView
+} from "../../view/forms/input.mjs";
+import { MultiLoraInputView, MultiInversionInputView } from "./model-manager.mjs";
 import { isEmpty, waitFor, createElementsFromString } from "../../base/helpers.mjs";
 import { ElementBuilder } from "../../base/builder.mjs";
 
 const E = new ElementBuilder();
 
+/**
+ * Extend the SearchListInputListView to add additional classes
+ */
 class ModelPickerListInputView extends SearchListInputListView {
+    /**
+     * @var array<string> CSS classes
+     */
     static classList = SearchListInputListView.classList.concat(["model-picker-list-input-view"]);
-}
+};
 
 /**
  * Extend the StringInputView so we can strip HTML from the value
@@ -22,11 +33,15 @@ class ModelPickerStringInputView extends StringInputView {
      */
     setValue(newValue, triggerChange) {
         if(!isEmpty(newValue)) {
-            newValue = createElementsFromString(newValue)[0].innerText;
+            if (newValue.startsWith("<")) {
+                newValue = createElementsFromString(newValue)[0].innerText;
+            } else {
+                newValue = newValue.split("/")[1];
+            }
         }
         return super.setValue(newValue, triggerChange);
     }
-}
+};
 
 /**
  * We extend the SearchListInputView to change some default config.
@@ -42,7 +57,52 @@ class ModelPickerInputView extends SearchListInputView {
      */
     static stringInputClass = ModelPickerStringInputView;
 
+    /**
+     * @var class The class of the list input, override so we can add css classes
+     */
     static listInputClass = ModelPickerListInputView
+};
+
+/**
+ * This form allows additional pipeline weights when using a checkpoint
+ */
+class AdditionalWeightsFormView extends FormView {
+    /**
+     * @var string Custom CSS class
+     */
+    static className = "additional-weights-form-view";
+
+    /**
+     * @var boolean no submit button
+     */
+    static autoSubmit = true;
+
+    /**
+     * @var boolean Start hidden
+     */
+    static collapseFieldSets = true;
+
+    /**
+     * @var object one fieldset describes all inputs
+     */
+    static fieldSets = {
+        "Additional Weights": {
+            "lora": {
+                "class": MultiLoraInputView,
+                "label": "LoRA",
+                "config": {
+                    "tooltip": "LoRA stands for <strong>Low Rank Adapation</strong>, it is a kind of fine-tuning that can perform very specific modifications to Stable Diffusion such as training an individual's appearance, new products that are not in Stable Diffusion's training set, etc."
+                }
+            },
+            "inversion": {
+                "class": MultiInversionInputView,
+                "label": "Textual Inversion",
+                "config": {
+                    "tooltip": "Textual Inversion is another kind of fine-tuning that teaches novel concepts to Stable Diffusion in a small number of images, which can be used to positively or negatively affect the impact of various prompts."
+                }
+            }
+        }
+    };
 };
 
 /**
@@ -280,14 +340,14 @@ class ModelPickerController extends Controller {
      * Get state from the model picker
      */
     getState() {
-        return { "model": this.formView.values };
+        return { "model": this.formView.values, "weights": this.additionalWeightsFormView.values };
     }
 
     /**
      * Gets default state
      */
     getDefaultState() {
-        return { "model": null };
+        return { "model": null, "weights": null };
     }
 
     /**
@@ -297,8 +357,10 @@ class ModelPickerController extends Controller {
         if (!isEmpty(newState.model)) {
             this.formView.setValues(newState.model).then(() => this.formView.submit());
         }
+        if (!isEmpty(newState.weights)) {
+            this.additionalWeightsFormView.setValues(newState.weights).then(() => this.additionalWeightsFormView.submit());
+        }
     }
-
 
     /**
      * Issues the request to the engine to build a specific engine
@@ -308,7 +370,6 @@ class ModelPickerController extends Controller {
         this.notify("info", "Build Started", "The engine will be busy throughout this TensorRT build. You will see a notification when it is complete, and the status indicator in the top bar will show ready or idle.");
         await waitFor(
             () => {
-                console.log("Built engines are", this.builtEngines);
                 return !isEmpty(this.builtEngines[model]) && this.builtEngines[model].indexOf(engine) !== -1;
             },
             {
@@ -365,14 +426,17 @@ class ModelPickerController extends Controller {
                 }, {});
             return modelOptions;
         };
+
         this.formView = new ModelPickerFormView(this.config);
-        
+        this.additionalWeightsFormView = new AdditionalWeightsFormView(this.config);
+
         this.formView.onSubmit(async (values) => {
             if (values.model) {
                 let [selectedType, selectedName] = values.model.split("/");
                 this.engine.model = selectedName;
                 this.engine.modelType = selectedType;
                 if (selectedType === "model") {
+                    this.additionalWeightsFormView.hide();
                     try {
                         let fullModel = await this.model.DiffusionModel.query({name: selectedName}),
                             tensorRTStatus = await fullModel.getTensorRTStatus();
@@ -386,14 +450,22 @@ class ModelPickerController extends Controller {
                         this.formView.setValues({"model": null});
                     }
                 } else {
+                    this.additionalWeightsFormView.show();
                     this.formView.setTensorRTStatus({supported: false});
                 }
             } else {
                 this.formView.setTensorRTStatus({supported: false});
             }
         });
+        
+        this.additionalWeightsFormView.onSubmit(async (values) => {
+            this.engine.lora = values.lora;
+            this.engine.inversion = values.inversion;
+        });
 
         this.application.container.appendChild(await this.formView.render());
+        this.application.container.appendChild(await this.additionalWeightsFormView.render());
+
         this.subscribe("invocationError", (payload) => {
             console.error(payload);
             if (!isEmpty(payload.metadata) && !isEmpty(payload.metadata.tensorrt_build)) {
@@ -402,11 +474,6 @@ class ModelPickerController extends Controller {
                     model = payload.metadata.tensorrt_build.model;
 
                 this.notify("info", "TensorRT Engine Build Failed", `${model} ${networkName} TensorRT Engine failed to build. Please try again.`);
-                
-                if (isEmpty(this.builtEngines[model])) {
-                    this.builtEngines[model] = [];
-                }
-                this.builtEngines[model].push(network);
             }
         });
         this.subscribe("invocationComplete", (payload) => {
