@@ -13,12 +13,20 @@ if __name__ == "__main__":
     os.environ["CUDA_MODULE_LOADING"] = "LAZY"
 
     from enfugue.server import EnfugueServer
+    from enfugue.util.browser import OpenBrowserWhenResponsiveThread
 
     system = platform.system()
     configuration = get_local_configuration()
-    if system == "Windows":
-        EnfugueServer.serve_icon(configuration)
-    else:
-        server = EnfugueServer()
-        server.configure(**configuration)
-        server.serve()
+    
+    open_browser_thread = OpenBrowserWhenResponsiveThread(configuration)
+    try:
+        open_browser_thread.start()
+        if system == "Windows":
+            EnfugueServer.serve_icon(configuration)
+        else:
+            server = EnfugueServer()
+            server.configure(**configuration)
+            server.serve()
+    finally:
+        open_browser_thread.stop()
+        open_browser_thread.join()

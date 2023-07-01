@@ -594,7 +594,7 @@ class Application {
      * @param string $extension The file extension to append,
      */
     async saveAs(message, content, fileType, extension) {
-        let blob = new Blob([content], fileType);
+        let blob = new Blob([content], {"type": fileType});
         return this.saveBlobAs(message, blob, extension);
     }
     

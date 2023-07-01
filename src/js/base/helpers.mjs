@@ -1039,7 +1039,6 @@ export let promptFiles = (contentType = "*", allowMultiple = false) => {
                 window.removeEventListener("mousemove", onMouseMove);
                 reject("No files selected.");
             };
-
         inputElement.type = "file";
         inputElement.multiple = allowMultiple;
         inputElement.accept = contentType;

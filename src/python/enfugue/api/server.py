@@ -362,6 +362,17 @@ class EnfugueAPIServerBase(
             stop_event.set()
             icon.stop()
 
+        def open_app(icon: pystray.Icon) -> None:
+            """
+            Opens up a browser and navigates to the app
+            """
+            server_config = configuration.get("server", {})
+            scheme = "https" if server_config.get("secure", False) else "http"
+            domain = server_config.get("domain", "127.0.0.1")
+            port = server_config.get("port", 45554)
+            url = f"{scheme}://{domain}:{port}/"
+            webbrowser.open(url)
+
         def setup(icon: pystray.Icon) -> None:
             """
             Starts the server.
@@ -378,7 +389,10 @@ class EnfugueAPIServerBase(
         icon_path = configuration.get("enfugue", {}).get("icon", "favicon/favicon-64x64.png")
         icon_image = PIL.Image.open(os.path.join(static_dir, "img", icon_path))
         icon = pystray.Icon("enfugue", icon_image)
-        icon.menu = pystray.Menu(pystray.MenuItem("Quit", stop))
+        icon.menu = pystray.Menu(
+            pystray.MenuItem("Open App", open_app),
+            pystray.MenuItem("Quit", stop)
+        )
         icon.run(setup=setup)
 
 
