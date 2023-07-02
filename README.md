@@ -21,7 +21,7 @@ Enfugue is a feature-rich self-hosted Stable Diffusion web application.
 - 👥 **Owners and Users:** Optional authentication and authorization keeps your installation settings locked down.
 - 🗃 **Easy Model Management:** In-app CivitAI browser makes community checkpoints, LoRA, and Textual Inversions one click away. Drop any other models directly into the app to keep files organized.
 - 🧷 **Safety's On:** Safety checker is on by default, and can be disabled by owners right in the UI.
-- ⚡ **Turbocharged:** Have a powerful NVidia GPU? TensorRT support is built-in; speed up inference by up to 100% using state-of-the-art AI technology from NVidia.
+- ⚡ **Turbocharged:** Have a powerful Nvidia GPU? TensorRT support is built-in; speed up inference by up to 100% using state-of-the-art AI technology from Nvidia.
 - ♻️ **Waste Not, Want Not:** AI can take a lot of resources, and Enfugue takes care to only use what it needs. It will free your GPU for desktop applications or gaming as soon as it's no longer needed, and clean up unneeded files as it goes.
 - 🧈 **Unified Pipeline:** Never choose between `txt2img`, `img2img`, `inpainting`, or any upscaling pipeline again, with or without multi-diffusion. Just ask what you want, and Enfugue will take care of the rest.
 - 🕹️ **Take Control:** Region prompting and Controlnet are standard.
@@ -46,7 +46,7 @@ On windows, you will now see the Enfugue icon in the bottom-right-hand corner of
 This instruction assumes you are using a variant of [Conda](https://docs.conda.io/projects/conda/en/stable/).
 
 1. Download a copy of the `environments/enfugue-*.yml` file that corresponds to your hardware.
-   1. For Nvidia GPUs, use [enfugue-cuda.yaml](https://github.com/painebenjamin/app.enfugue.ai/blob/main/environments/enfugue-cuda.yaml)
+   1. For Nvidia GPUs, use [enfugue-cuda.yml](https://github.com/painebenjamin/app.enfugue.ai/blob/main/environments/enfugue-cuda.yml)
    2. More backends will be coming shortly. Stay tuned! (Written 2023-07-02)
 2. Run the command `conda env create -f <file_downloaded_above>`
 3. Run the command `conda activate enfugue`
@@ -57,9 +57,9 @@ This instruction assumes you are using a variant of [Conda](https://docs.conda.i
 
 You can install `enfugue` into any other latent diffusion environment using `pip install enfugue`. If you are on Linux and want to install TensorRT support as well, use `pip install enfugue[tensorrt]`. If you are on Windows, this will not work, you will need to install the python packages from source as detailed below.
 
-## Windows TensorRT Support
+## Windows Nvidia TensorRT Support
 
-In order to use TensorRT on Windows, some additional steps must be taken. This is temporary (hopefully) as TensorRT support for Windows is very new.
+In order to use Nvidia TensorRT on Windows, some additional steps must be taken. This is temporary (hopefully) as TensorRT support for Windows is very new.
 
 You will be asked to add a number of directories to your PATH. On windows, the easiest way to reach it is:
 1. Open the start menu and begin typing "Environment". You will see an option that says "Edit the system environment variables," click this.
@@ -71,7 +71,7 @@ You will be asked to add a number of directories to your PATH. On windows, the e
     <img src="https://github.com/painebenjamin/app.enfugue.ai/blob/main/docs/github-windows-env.png?raw=true" alt="Windows Configuration for Enabling TensorRT" />
 </p>
 
-Before downloading anything, you will need to make an account with NVidia and [Join the Nvidia Developer Program](https://developer.nvidia.com/developer-program).
+Before downloading anything, you will need to make an account with Nvidia and [Join the Nvidia Developer Program](https://developer.nvidia.com/developer-program).
 
 Once that is complete, download the following packages and install them anywhere to your system. 
 1. [Install CUDA](https://developer.nvidia.com/cuda-11-7-1-download-archive?target_os=Windows&target_arch=x86_64&target_version=10&target_type=exe_local), add `/bin` to PATH
@@ -197,9 +197,9 @@ This is essential to unlock the best results from enfugue. After downloading a m
 
 ## Tensor RT
 
-TensorRT is a technology created by Nvidia that transforms an AI model into one that takes advantage of hardware acceleration available on NVidia GPUs.
+TensorRT is a technology created by Nvidia that transforms an AI model into one that takes advantage of hardware acceleration available on Nvidia GPUs.
 
-As there are numerous varying architectures used by NVidia that support this technology, these engines must be compiled by an architecture compatible with your actual hardware, rather than distributed by AI model providers. The compilation time for each model varies, but generally takes between 15 and 30 minutes each. You can expect between 50% and 100% faster inference speeds during the engine's respective step(s).
+As there are numerous varying architectures used by Nvidia that support this technology, these engines must be compiled by an architecture compatible with your actual hardware, rather than distributed by AI model providers. The compilation time for each model varies, but generally takes between 15 and 30 minutes each. You can expect between 50% and 100% faster inference speeds during the engine's respective step(s).
 
 This is **only** available for modern 30xx and 40xx Nvidia GPU's.
 
