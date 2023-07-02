@@ -17,7 +17,7 @@ if __name__ == "__main__":
 
     system = platform.system()
     configuration = get_local_configuration()
-    
+
     open_browser_thread = OpenBrowserWhenResponsiveThread(configuration)
     try:
         open_browser_thread.start()

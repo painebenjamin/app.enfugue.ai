@@ -58,33 +58,31 @@ class EnfugueAPIInvocationController(EnfugueAPIControllerBase):
         elif model_name is not None and model_type == "checkpoint":
             plan_kwargs = {
                 "model": os.path.join(
-                    self.configuration.get("enfugue.engine.checkpoint",
-                        os.path.join(self.engine_root, "checkpoint")
+                    self.configuration.get(
+                        "enfugue.engine.checkpoint", os.path.join(self.engine_root, "checkpoint")
                     ),
-                    model_name
+                    model_name,
                 ),
                 "lora": [
                     (
                         os.path.join(
-                            self.configuration.get("enfugue.engine.lora",
-                                os.path.join(self.engine_root, "lora")
+                            self.configuration.get(
+                                "enfugue.engine.lora", os.path.join(self.engine_root, "lora")
                             ),
-                            lora["model"]
+                            lora["model"],
                         ),
-                        float(lora["weight"])
+                        float(lora["weight"]),
                     )
-                    for lora
-                    in request.parsed.pop("lora", [])
+                    for lora in request.parsed.pop("lora", [])
                 ],
                 "inversion": [
                     os.path.join(
-                        self.configuration.get("enfugue.engine.inversion",
-                            os.path.join(self.engine_root, "inversion")
+                        self.configuration.get(
+                            "enfugue.engine.inversion", os.path.join(self.engine_root, "inversion")
                         ),
-                        inversion
+                        inversion,
                     )
-                    for inversion
-                    in request.parsed.pop("inversion", [])
+                    for inversion in request.parsed.pop("inversion", [])
                 ],
             }
         plan = DiffusionPlan.from_nodes(**{**plan_kwargs, **request.parsed})

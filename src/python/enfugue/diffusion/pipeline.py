@@ -913,7 +913,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
         num_steps = len(timesteps)
         num_warmup_steps = num_steps - num_inference_steps * self.scheduler.order
-        logger.debug(f"Denoising image in {num_steps} steps (unchunked)")
+        logger.debug(f"Denoising image on {device} in {num_steps} steps (unchunked)")
 
         for i, t in enumerate(timesteps):
             # expand the latents if we are doing classifier free guidance
@@ -1068,7 +1068,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
         total_num_steps = num_steps * num_chunks
         logger.debug(
-            f"Denoising image in {total_num_steps} total steps ({num_inference_steps} inference steps * {num_chunks} chunks)"
+            f"Denoising image in {total_num_steps} on {device} in total steps ({num_inference_steps} inference steps * {num_chunks} chunks)"
         )
 
         for i, t in enumerate(timesteps):

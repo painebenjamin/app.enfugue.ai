@@ -415,7 +415,7 @@ class Application {
 
         if (!isEmpty(activeInvocation)) {
             // There is an active invocation for this user at present
-            if (!isEmpty(activeInvocation) && !isEmpty(activeInvocation.metadata.tensorrt_build)) {
+            if (!isEmpty(activeInvocation) && !isEmpty(activeInvocation.metadata) && !isEmpty(activeInvocation.metadata.tensorrt_build)) {
                 this.notifications.push("info", "TensorRT Build in Progress", `You have a TensorRT engine build in progress for ${activeInvocation.metadata.tensorrt_build.model}. You'll receive a notification in this window when it is complete. The engine will remain unavailable until that time.`);
             } else {
                 // Monitor it

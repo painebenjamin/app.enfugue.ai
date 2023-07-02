@@ -1,3 +1,0 @@
-types-setuptools>=67,<68
-types-tabulate>=0.9
-importchecker>=2.0,<3.0

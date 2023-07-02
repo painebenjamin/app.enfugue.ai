@@ -117,7 +117,11 @@ class DiffusionPipelineManager:
         """
         Gets the device that will be executed on
         """
-        return "cuda" if torch.cuda.is_available() else "cpu"
+        if not hasattr(self, "_device"):
+            from enfugue.diffusion.util import get_optimal_device
+
+            self._device = get_optimal_device()
+        return self._device
 
     @property
     def seed(self) -> int:
@@ -185,7 +189,11 @@ class DiffusionPipelineManager:
         Creates the generator once, otherwise returns it.
         """
         if not hasattr(self, "_generator"):
-            self._generator = torch.Generator(device=self.device)
+            try:
+                self._generator = torch.Generator(device=self.device)
+            except RuntimeError:
+                # Unsupported device, go to CPU
+                self._generator = torch.Generator()
             self._generator.manual_seed(self.seed)
         return self._generator
 
@@ -707,9 +715,9 @@ class DiffusionPipelineManager:
     @property
     def dtype(self) -> torch.dtype:
         if not hasattr(self, "_torch_dtype"):
-            if self.device == "cpu":
+            if self.device.type == "cpu":
                 logger.debug("Inferencing on CPU, using BFloat")
-                self._torch_dtype = torch.float
+                self._torch_dtype = torch.bfloat16
             else:
                 configuration_dtype = self.configuration.get("enfugue.dtype", "float16")
                 if configuration_dtype == "float16" or configuration_dtype == "half":
@@ -728,7 +736,7 @@ class DiffusionPipelineManager:
         Sets the torch dtype.
         Deletes the pipeline if it's different from the previous one.
         """
-        if self.device == "cpu":
+        if self.device.type == "cpu":
             raise ValueError("CPU-based diffusion can only use bfloat")
         if new_dtype == "float16" or new_dtype == "half":
             new_dtype = torch.half
@@ -1338,7 +1346,9 @@ class DiffusionPipelineManager:
             )
             merger.save(target_checkpoint_path)
         except Exception as ex:
-            logger.error(f"Couldn't save merged checkpoint made from {source_checkpoint_path} to {target_checkpoint_path}: {ex}")
+            logger.error(
+                f"Couldn't save merged checkpoint made from {source_checkpoint_path} to {target_checkpoint_path}: {ex}"
+            )
             logger.error(traceback.format_exc())
             raise
         else:

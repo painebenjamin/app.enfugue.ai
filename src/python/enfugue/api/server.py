@@ -3,6 +3,7 @@ import PIL
 import signal
 import requests
 import datetime
+import webbrowser
 
 from typing import Any, Dict, List
 
@@ -390,8 +391,7 @@ class EnfugueAPIServerBase(
         icon_image = PIL.Image.open(os.path.join(static_dir, "img", icon_path))
         icon = pystray.Icon("enfugue", icon_image)
         icon.menu = pystray.Menu(
-            pystray.MenuItem("Open App", open_app),
-            pystray.MenuItem("Quit", stop)
+            pystray.MenuItem("Open App", open_app), pystray.MenuItem("Quit", stop)
         )
         icon.run(setup=setup)
 

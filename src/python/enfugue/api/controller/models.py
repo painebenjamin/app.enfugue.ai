@@ -365,19 +365,9 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
             "enfugue.engine.checkpoint", os.path.join(self.engine_root, "checkpoint")
         )
         checkpoints = os.listdir(checkpoints_dir)
-        checkpoints.sort(key = lambda item: os.path.getmtime(os.path.join(checkpoints_dir, item)))
+        checkpoints.sort(key=lambda item: os.path.getmtime(os.path.join(checkpoints_dir, item)))
         model_names = self.database.query(self.orm.DiffusionModel.name).all()
 
-        return [
-            {
-                "type": "checkpoint",
-                "name": checkpoint
-            }
-            for checkpoint in checkpoints
-        ] + [
-            {
-                "type": "model",
-                "name": model[0]
-            }
-            for model in model_names
+        return [{"type": "checkpoint", "name": checkpoint} for checkpoint in checkpoints] + [
+            {"type": "model", "name": model[0]} for model in model_names
         ]

@@ -40,7 +40,7 @@ enfugue-menu {
     top: 0;
     right: 0;
     border-bottom: 1px solid rgba(0,0,0,0.2);
-    z-index: 5;
+    z-index: 6;
     text-shadow: 1px 1px 0px rgba(0,0,0,0.2);
 }
 

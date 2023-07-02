@@ -36,17 +36,45 @@ def version() -> None:
         enfugue_version = get_version()
     except:
         enfugue_version = "development"
+
     import torch
+    from enfugue.diffusion.util import (
+        get_optimal_device,
+        tensorrt_available,
+        directml_available,
+    )
+
+    device = get_optimal_device()
 
     click.echo(f"Enfugue v.{enfugue_version}")
     click.echo(f"Torch v.{torch.__version__}")
-    click.echo("CUDA {0}".format("available" if torch.cuda.is_available() else "unavailable"))
-    try:
-        import tensorrt
+    click.echo(f"\nAI/ML Capabilities:\n---------------------")
+    click.echo(f"Device type: {device.type}")
 
-        click.echo("TensorRT Supported")
-    except ImportError:
-        click.echo("TensorRT Unsupported")
+    if torch.cuda.is_available():
+        if torch.backends.cuda.is_built():
+            click.echo("CUDA: Ready")
+        else:
+            click.echo("CUDA: Available, but not installed")
+        if tensorrt_available():
+            click.echo("TensorRT: Ready")
+        else:
+            click.echo("TensorRT: Unavailable")
+    else:
+        click.echo("CUDA: Unavailable")
+
+    if directml_available():
+        click.echo("DirectML: Ready")
+    else:
+        click.echo("DirectML: Unavailable")
+
+    if torch.backends.mps.is_available():
+        if torch.backends.mps.is_built():
+            click.echo("MPS: Ready")
+        else:
+            click.echo("MPS: Available, but not installed")
+    else:
+        click.echo("MPS: Unavailable")
 
 
 @main.command(short_help="Dumps a copy of the configuration")
@@ -126,7 +154,7 @@ try:
     main()
 except Exception as ex:
     print(termcolor.colored(str(ex), "red"))
-    if "--verbose" in sys.argv or "-v" in sys.argv:
+    if "--verbose" in sys.argv or "-v" in sys.argv or os.environ.get("ENFUGUE_DEBUG", "0") == "1":
         print(termcolor.colored(traceback.format_exc(), "red"))
     sys.exit(5)
 sys.exit(0)

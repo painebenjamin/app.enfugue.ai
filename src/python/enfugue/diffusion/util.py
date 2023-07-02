@@ -4,12 +4,59 @@ import os
 import re
 import numpy as np
 import torch
+import torch.backends
 import safetensors.torch
 
 from typing import Dict, Type, Union, Optional, Literal, cast
 from enfugue.util import logger
 
-__all__ = ["DTypeConverter", "ModelMerger"]
+__all__ = [
+    "tensorrt_available",
+    "mps_available",
+    "directml_available",
+    "get_optimal_device",
+    "DTypeConverter",
+    "ModelMerger",
+]
+
+
+def tensorrt_available() -> bool:
+    """
+    Returns true if TensorRT is available.
+    """
+    try:
+        import tensorrt
+
+        return True
+    except:
+        return False
+
+
+def directml_available() -> bool:
+    """
+    Returns true if directml is available.
+    """
+    try:
+        import torch_directml
+
+        return True
+    except:
+        return False
+
+
+def get_optimal_device() -> torch.device:
+    """
+    Gets the optimal device based on availability.
+    """
+    if torch.cuda.is_available() and torch.backends.cuda.is_built():
+        return torch.device("cuda")
+    elif directml_available():
+        import torch_directml
+
+        return torch_directml.device()
+    elif torch.backends.mps.is_available() and torch.backends.mps.is_built():
+        return torch.device("mps")
+    return torch.device("cpu")
 
 
 class DTypeConverter:

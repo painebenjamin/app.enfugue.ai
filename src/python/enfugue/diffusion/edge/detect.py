@@ -88,20 +88,24 @@ class EdgeDetector:
         Runs Mobile Line Segment Detection (MLSD) on an image.
         """
         import torch
+        from enfugue.diffusion.util import get_optimal_device
         from enfugue.diffusion.edge.mlsd import MLSD, pred_lines  # type: ignore[attr-defined]
 
-        if torch.cuda.is_available():
+        device = get_optimal_device()
+        model = MLSD().to(device).eval()
+        """
+        if device.type == "cuda":
+
             model = MLSD().cuda().eval()
-            device = torch.device("cuda")
         else:
             model = MLSD().eval()
-            device = torch.device("cpu")
-
+        device = torch.device(device_type)
+        """
         model.load_state_dict(torch.load(self.mlsd_weights, map_location=device), strict=True)
         cv2_image = ComputerVision.convert_image(image)
         cv2_image = cv2.resize(cv2_image, (512, 512))
         cv2_image = cv2.cvtColor(cv2_image, cv2.COLOR_BGR2RGB)
-        lines = pred_lines(cv2_image, model, [512, 512], 0.1, 20)
+        lines = pred_lines(cv2_image, model, [512, 512], 0.1, 20, device)
         cv2_image = np.zeros((512, 512, 3), np.uint8)
 
         for line in lines:

@@ -44,6 +44,7 @@ install_requires = [
 ]
 
 extras_require = {
+    "directml": ["torch-directml==0.1.13.1.dev230413"],
     "tensorrt": [
         "polygraphy>=0.47,<0.48",
         "onnx==1.12",

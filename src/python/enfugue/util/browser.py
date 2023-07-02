@@ -4,6 +4,7 @@ import requests
 
 from pibble.api.configuration import APIConfiguration
 
+
 class OpenBrowserWhenResponsiveThread(threading.Thread):
     """
     This thread will open a browser once it receives a positive response
@@ -43,6 +44,7 @@ class OpenBrowserWhenResponsiveThread(threading.Thread):
                 r = requests.get(self.url)
                 if 200 <= r.status_code < 400:
                     import webbrowser
+
                     webbrowser.open(self.url)
                     self.stop()
             except:
