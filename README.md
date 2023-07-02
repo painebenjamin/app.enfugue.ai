@@ -45,8 +45,10 @@ On windows, you will now see the Enfugue icon in the bottom-right-hand corner of
 
 This instruction assumes you are using a variant of [Conda](https://docs.conda.io/projects/conda/en/stable/).
 
-1. Download a copy of [environment.yaml](https://github.com/painebenjamin/app.enfugue.ai/blob/main/environment.yaml) somewhere to your computer.
-2. Run the command `conda env create -f environment.yaml`
+1. Download a copy of the `environments/enfugue-*.yml` file that corresponds to your hardware.
+   1. For Nvidia GPUs, use [enfugue-cuda.yaml](https://github.com/painebenjamin/app.enfugue.ai/blob/main/environments/enfugue-cuda.yaml)
+   2. More backends will be coming shortly. Stay tuned! (Written 2023-07-02)
+2. Run the command `conda env create -f <file_downloaded_above>`
 3. Run the command `conda activate enfugue`
 4. Run the comand `pip install enfugue`.  If you are on Linux and want to install TensorRT support as well, use `pip install enfugue[tensorrt]`. If you are on Windows, this will not work, you will need to install the python packages from source as detailed below.
 5. Run the command `enfugue run` to run the server. Issue a keyboard interrupt (Ctrl+C) to stop it.
