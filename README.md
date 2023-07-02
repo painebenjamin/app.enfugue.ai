@@ -75,7 +75,7 @@ Once that is complete, download the following packages and install them anywhere
 1. [Install CUDA](https://developer.nvidia.com/cuda-11-7-1-download-archive?target_os=Windows&target_arch=x86_64&target_version=10&target_type=exe_local), add `/bin` to PATH
 2. [Install CUDNN](https://developer.nvidia.com/rdp/cudnn-download), add `/lib` to PATH
 3. [Install TensorRT](https://developer.nvidia.com/nvidia-tensorrt-8x-download), add `/lib` to PATH. If you are creating your own environment, you should also use `pip` to install `python/tensorrt-8.*-cp310-none-win_amd64.whl` from this directory.
-4. If you are creating your own environment, now run `pip install pibble[tensorrt]`
+4. If you are creating your own environment, now run `pip install enfugue[tensorrt]`
 
 ## Configuration
 
