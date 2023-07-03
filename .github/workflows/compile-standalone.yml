@@ -22,7 +22,6 @@ jobs:
       run: |
         pip install src/python/enfugue[build]
         pip install src/python/enfugue[tensorrt]
-        - name: Build package
     - name: Compile Package 
       run: |
         make
