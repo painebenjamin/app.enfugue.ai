@@ -37,6 +37,7 @@ install_requires = [
     "backgroundremover>=0.2.3,<0.3",
     "beautifulsoup4>=4.12,<5",
     "pystray>=0.19,<0.24",
+    "pydantic==1.10.10",
     "html2text",
     "taming-transformers",
     "clip",
@@ -50,7 +51,7 @@ extras_require = {
         "onnx==1.12",
         "onnxruntime-gpu==1.12.1",
         "onnx-graphsurgeon==0.3.26",
-        "tensorrt>=8.6,<8.7",
+        "tensorrt==8.6.0",
     ],
     "build": [
         "types-protobuf>=4.23.0.1,<5.0",

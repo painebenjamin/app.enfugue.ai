@@ -37,6 +37,7 @@ dependencies:
     - accelerate>=0.18<0.19
     - gputil>=1.4,<1.5
     - safetensors>=0.3,<0.4
+    - pydantic==1.10.10
     - git+https://github.com/CompVis/taming-transformers.git@master#egg=taming-transformers
     - git+https://github.com/openai/CLIP.git@main#egg=clip
     - git+https://github.com/CompVis/stable-diffusion.git@main#egg=latent-diffusion
