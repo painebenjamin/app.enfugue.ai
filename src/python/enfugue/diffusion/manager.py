@@ -113,7 +113,7 @@ class DiffusionPipelineManager:
             del self.pipeline
 
     @property
-    def device(self) -> str:
+    def device(self) -> torch.device:
         """
         Gets the device that will be executed on
         """

@@ -66,7 +66,7 @@ class EdgeDetector:
         width, height = image.size
 
         model = cv2.dnn.readNetFromCaffe(self.hed_prototxt, self.hed_caffemodel)
-        cv2.dnn_registerLayer("Crop", HEDCropLayer)
+        cv2.dnn_registerLayer("Crop", HEDCropLayer) # type: ignore[attr-defined]
 
         cv2_image = ComputerVision.convert_image(image)
         dnn_input = cv2.dnn.blobFromImage(
@@ -80,7 +80,7 @@ class EdgeDetector:
         model.setInput(dnn_input)
         dnn_output = model.forward()
         output_array = (cv2.cvtColor(dnn_output[0, 0], cv2.COLOR_GRAY2BGR) * 255).astype(np.uint8)
-        cv2.dnn_unregisterLayer("Crop")
+        cv2.dnn_unregisterLayer("Crop") # type: ignore[attr-defined]
         return PIL.Image.fromarray(output_array)
 
     def mlsd(self, image: PIL.Image.Image) -> PIL.Image.Image:

@@ -53,7 +53,7 @@ def pred_lines(
     input_shape=[512, 512],
     score_thr=0.10,
     dist_thr=20.0,
-    device: Optional[Union[str, torch.Device]] = None,
+    device=None,
 ):
     h, w, _ = image.shape
     h_ratio, w_ratio = [h / input_shape[0], w / input_shape[1]]

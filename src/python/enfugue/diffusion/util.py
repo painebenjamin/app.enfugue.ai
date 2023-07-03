@@ -26,7 +26,7 @@ def tensorrt_available() -> bool:
     """
     try:
         import tensorrt
-
+        tensorrt # silence importchecker
         return True
     except:
         return False

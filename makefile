@@ -54,7 +54,7 @@ BUILD_CSS_MINIFY=$(BUILD_DIR)/node_modules/.bin/css-minify
 PYTHON_SRC_DIR=$(SRC_DIR)/python
 PYTHON_PACKAGES=$(shell find $(PYTHON_SRC_DIR) -mindepth 1 -maxdepth 1 -type d -not -path '*/.*' -exec basename {} \;)
 PYTHON_ARTIFACTS=$(PYTHON_PACKAGES:%=$(BUILD_DIR)/%-$(VERSION_MAJOR).$(VERSION_MINOR).$(VERSION_PATCH).tar.gz)
-PYTHON_SRC=$(shell find $(PYTHON_SRC_DIR) -type f -name "*.py" -not -path '*/.*' -not -path '*/test*' -not -path '*/sphinx*')
+PYTHON_SRC=$(shell find $(PYTHON_SRC_DIR) -type f -name "*.py" -not -path '*/.*' -not -path '*/test*' -not -path '*/sphinx*' -not -path '*/build*')
 PYTHON_REQUIREMENTS=$(shell find $(PYTHON_SRC_DIR) -type f -name "requirements*.txt*")
 
 PYTHON_BUILD_SRC=$(PYTHON_SRC:%=$(BUILD_DIR)/%)
@@ -116,6 +116,7 @@ $(LINUX_ARTIFACT): $(PYTHON_ARTIFACTS)
 	pyinstaller $(CONFIG_DIR)/$(PYINSTALLER_SPEC) --distpath $(BUILD_DIR)/dist
 	cp $(SCRIPT_DIR)/$(LINUX_RUN_SCRIPT) $(BUILD_DIR)/dist/$(PYINSTALLER_NAME)/
 	tar -cvzf $@ -C $(BUILD_DIR)/dist/$(PYINSTALLER_NAME)/ .
+	split -b $(ARCHIVE_SIZE) -d -a 1 --additional-suffix=.part $@ $(shell basename $@).
 
 ## Deletes build directory
 .PHONY: clean
@@ -197,9 +198,11 @@ $(PYTHON_TEST_UNIT): $(PYTHON_TEST_SRC)
 ## Run integration tests
 .PHONY: test
 test: $(PYTHON_TEST_INTEGRATION)
-$(PYTHON_TEST_INTEGRATION): 
-	@mkdir -p $(shell dirname $@)
-	PYTHONPATH=${PYTHONPATH_PREFIX}$(realpath $(SRC_DIR))/python $(PYTHON) -m $(patsubst %.test,%,$(patsubst $(BUILD_DIR)/%,%,$@)).test.run
+$(PYTHON_TEST_INTEGRATION):
+	@if [ '$(SKIP_INTEGRATION_TESTS)' != '1' ]; then \
+		mkdir -p $(shell dirname $@); \
+		PYTHONPATH=${PYTHONPATH_PREFIX}$(realpath $(SRC_DIR))/python $(PYTHON) -m $(patsubst %.test,%,$(patsubst $(BUILD_DIR)/%,%,$@)).test.run; \
+	fi;
 	@touch $@
 
 ## STATIC FILES

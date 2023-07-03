@@ -60,6 +60,7 @@ extras_require = {
         "types-tabulate>=0.9,<0.10",
         "types-pyyaml>=6.0,<7.0",
         "importchecker>=2.0,<3.0",
+        "pyinstaller"
     ],
 }
 
