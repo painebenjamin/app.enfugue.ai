@@ -115,8 +115,16 @@ $(LINUX_ARTIFACT): $(PYTHON_ARTIFACTS)
 	pip install $<
 	pyinstaller $(CONFIG_DIR)/$(PYINSTALLER_SPEC) --distpath $(BUILD_DIR)/dist
 	cp $(SCRIPT_DIR)/$(LINUX_RUN_SCRIPT) $(BUILD_DIR)/dist/$(PYINSTALLER_NAME)/
-	tar -cvzf $@ -C $(BUILD_DIR)/dist/$(PYINSTALLER_NAME)/ .
-	split -b $(ARCHIVE_SIZE) -d -a 1 --additional-suffix=.part $@ $(shell basename $@).
+	@if [ '$(MINIMAL_BUILD)' != '1' ]; then \
+		tar -cvzf $@ -C $(BUILD_DIR)/dist/$(PYINSTALLER_NAME)/ .; \
+	else \
+		tar -cvzf $@ --remove-files -C $(BUILD_DIR)/dist/$(PYINSTALLER_NAME)/ .; \
+	fi;
+
+## Split on Linux
+.PHONY: split
+split: $(ARTIFACT)
+	split -b $(ARCHIVE_SIZE) -d -a 1 --additional-suffix=.part $(ARTIFACT) $(shell basename $(ARTIFACT)).
 
 ## Deletes build directory
 .PHONY: clean
@@ -128,10 +136,6 @@ clean:
 
 ## BUILD TOOLS
 ##
-
-## Python+Conda
-
-
 
 ## Node
 .PHONY: node
@@ -199,7 +203,7 @@ $(PYTHON_TEST_UNIT): $(PYTHON_TEST_SRC)
 .PHONY: test
 test: $(PYTHON_TEST_INTEGRATION)
 $(PYTHON_TEST_INTEGRATION):
-	@if [ '$(SKIP_INTEGRATION_TESTS)' != '1' ]; then \
+	@if [ '$(MINIMAL_BUILD)' != '1' ]; then \
 		mkdir -p $(shell dirname $@); \
 		PYTHONPATH=${PYTHONPATH_PREFIX}$(realpath $(SRC_DIR))/python $(PYTHON) -m $(patsubst %.test,%,$(patsubst $(BUILD_DIR)/%,%,$@)).test.run; \
 	fi;

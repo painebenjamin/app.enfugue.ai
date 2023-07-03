@@ -25,11 +25,11 @@ name = 'enfugue-server'
 debug = False
 console = False
 
-all_packages = ['torch', 'jaxlib', 'onnxruntime', 'transformers', 'basicsr', 'gfpgan', 'realesrgan', 'tensorrt']
+all_packages = ['torch', 'jaxlib', 'onnxruntime', 'transformers', 'basicsr', 'gfpgan', 'realesrgan', 'tensorrt', 'PIL']
 data_packages = ['enfugue']
 submodule_packages = []
-metadata_packages = ['requests', 'tqdm', 'numpy', 'tokenizers', 'importlib_metadata', 'regex', 'packaging', 'filelock', 'cheroot', 'enfugue']
-hidden_packages = ['pkg_resources.py2_warn', 'pytorch', 'requests', 'jax', 'cheroot.ssl', 'cheroot.ssl.builtin']
+metadata_packages = ['requests', 'tqdm', 'numpy', 'tokenizers', 'importlib_metadata', 'regex', 'packaging', 'filelock', 'cheroot', 'pillow', 'enfugue']
+hidden_packages = ['pkg_resources.py2_warn', 'pytorch', 'requests', 'jax', 'cheroot.ssl', 'cheroot.ssl.builtin', 'pillow']
 
 
 #
