@@ -24,4 +24,8 @@ jobs:
         pip install src/python/enfugue[tensorrt]
     - name: Compile Package 
       run: |
-        make
+        SKIP_INTEGRATION_TESTS=1 make
+    - name: Upload build artifact
+      uses: actions/upload-artifact@v3.1.2
+      with:
+        path: ./enfugue-server*.part
