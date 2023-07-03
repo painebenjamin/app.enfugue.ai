@@ -1,4 +1,4 @@
-name: Compile Standalone
+name: Compile Standalone (Linux)
 on:
   - workflow_dispatch
 jobs:
