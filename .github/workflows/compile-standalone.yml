@@ -1,0 +1,23 @@
+name: Compile Standalone
+on:
+  - workflow_dispatch
+jobs:
+  build-linux-cuda:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: Setup Miniconda
+      uses: conda-incubator/setup-miniconda@v2.2.0
+    - name: Add conda to system path
+      run: |
+        # $CONDA is an environment variable pointing to the root of the miniconda directory
+        echo $CONDA/bin >> $GITHUB_PATH
+    - name: Install dependencies
+      run: |
+        conda env update --file environments/enfugue-cuda.yml --name base
+    - name: Install build dependencies
+      run: |
+        conda install make
+    - name: Build package
+      run: |
+        make
