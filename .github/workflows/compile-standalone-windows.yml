@@ -18,15 +18,15 @@ jobs:
     - name: Install build binary dependencies
       run: |
         conda install make
+        conda install 7zip -c conda-forge
     - name: Install additional python packages
       run: |
         conda clean -aqy
-        pip install src/python/enfugue[build]
-        pip install src/python/enfugue[tensorrt]
+        pip install src/python/enfugue[build,tensorrt]
     - name: Compile Package 
       run: |
         MINIMAL_BUILD=1 make
     - name: Upload build artifact
       uses: actions/upload-artifact@v3.1.2
       with:
-        path: ./enfugue-server*zip
+        path: ./enfugue-server-*zip*
