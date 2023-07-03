@@ -23,7 +23,7 @@ jobs:
         conda clean -aqy
         pip install src/python/enfugue[build]
         pip install src/python/enfugue[tensorrt]
-        pip install tensorrt==8.6.0
+        pip install tensorrt==8.6.0 -I
     - name: Compile Package 
       run: |
         MINIMAL_BUILD=1 make
