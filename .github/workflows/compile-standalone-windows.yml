@@ -2,7 +2,7 @@ name: Compile Standalone (Windows)
 on:
   - workflow_dispatch
 jobs:
-  build-linux-cuda:
+  build:
     runs-on: windows-latest
     steps:
     - uses: actions/checkout@v3
