@@ -1,0 +1,32 @@
+name: Compile Standalone (Windows)
+on:
+  - workflow_dispatch
+jobs:
+  build-linux-cuda:
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: Setup Miniconda
+      uses: conda-incubator/setup-miniconda@v2.2.0
+    - name: Add conda to system path
+      run: |
+        # $CONDA is an environment variable pointing to the root of the miniconda directory
+        echo $CONDA/bin >> $GITHUB_PATH
+    - name: Install dependencies
+      run: |
+        conda env update --file environments/enfugue-cuda.yml --name base
+    - name: Install build binary dependencies
+      run: |
+        conda install make
+    - name: Install additional python packages
+      run: |
+        conda clean -aqy
+        pip install src/python/enfugue[build]
+        pip install src/python/enfugue[tensorrt]
+    - name: Compile Package 
+      run: |
+        MINIMAL_BUILD=1 make
+    - name: Upload build artifact
+      uses: actions/upload-artifact@v3.1.2
+      with:
+        path: ./enfugue-server*zip
