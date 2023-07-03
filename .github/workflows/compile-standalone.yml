@@ -5,12 +5,6 @@ jobs:
   build-linux-cuda:
     runs-on: ubuntu-latest
     steps:
-    - name: Maximize build space
-      uses: easimon/maximize-build-space@master
-      with:
-        root-reserve-mb: 512
-        swap-size-mb: 1024
-        remove-dotnet: 'true'
     - uses: actions/checkout@v3
     - name: Setup Miniconda
       uses: conda-incubator/setup-miniconda@v2.2.0
@@ -27,6 +21,7 @@ jobs:
     - name: Install additional python packages
       run: |
         conda activate
+        conda clean -aqy
         pip install src/python/enfugue[build]
         pip install src/python/enfugue[tensorrt]
     - name: Compile Package 
@@ -36,6 +31,7 @@ jobs:
       run: |
         conda install --revision 0
         conda install make
+        conda clean -aqy
     - name: Split artifact
       run: |
         make split
