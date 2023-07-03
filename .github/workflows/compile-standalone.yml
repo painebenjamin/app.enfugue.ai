@@ -26,11 +26,19 @@ jobs:
         conda install make
     - name: Install additional python packages
       run: |
+        conda activate
         pip install src/python/enfugue[build]
         pip install src/python/enfugue[tensorrt]
     - name: Compile Package 
       run: |
-        SKIP_INTEGRATION_TESTS=1 make
+        MINIMAL_BUILD=1 make
+    - name: Reclaim space
+      run: |
+        conda install --revision 0
+        conda install make
+    - name: Split artifact
+      run: |
+        make split
     - name: Upload build artifact
       uses: actions/upload-artifact@v3.1.2
       with:
