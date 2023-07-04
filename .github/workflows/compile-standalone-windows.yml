@@ -14,15 +14,14 @@ jobs:
         echo $CONDA/bin >> $GITHUB_PATH
     - name: Install dependencies
       run: |
-        conda env update --file environments/enfugue-cuda.yml --name base
+        conda env update --file environments/enfugue-build-windows-tensorrt.yml --name base
     - name: Install build binary dependencies
       run: |
         conda install make
         conda install 7zip -c conda-forge
-    - name: Install additional python packages
+    - name: Clean Space
       run: |
-        conda clean -yqitcl
-        pip install src/python/enfugue[build,tensorrt]
+        conda clean -ayq
     - name: Compile Package 
       run: |
         MINIMAL_BUILD=1 make
