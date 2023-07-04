@@ -21,6 +21,7 @@ jobs:
       run: |
         conda clean -aqy
     - name: Compile Package 
+      shell: bash
       run: |
         make
     - name: Upload build artifact
