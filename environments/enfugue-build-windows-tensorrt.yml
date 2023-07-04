@@ -45,6 +45,19 @@ dependencies:
     - pystray>=0.19,<0.24
     - pydantic==1.10.10
     - html2text
+    - polygraphy>=0.47,<0.48
+    - onnx==1.12
+    - onnxruntime-gpu==1.12.1
+    - onnx-graphsurgeon==0.3.26
+    - tensorrt>=8.6.0,<8.7
+    - types-protobuf>=4.23.0.1,<5.0
+    - types-requests>=2.30,<3.0
+    - types-setuptools>=67.7,<68
+    - types-urllib>=1.26.25,<2.0
+    - types-tabulate>=0.9,<0.10
+    - types-pyyaml>=6.0,<7.0
+    - importcheckper>=2.0,<3.0
+    - pyinstaller
     - git+https://github.com/CompVis/taming-transformers.git@master#egg=taming-transformers
     - git+https://github.com/openai/CLIP.git@main#egg=clip
     - git+https://github.com/CompVis/stable-diffusion.git@main#egg=latent-diffusion
