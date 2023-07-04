@@ -16,12 +16,9 @@ jobs:
       run: |
         conda env update --file environments/enfugue-build-windows-tensorrt.yml --name base
         conda install make 7zip -c conda-forge
-        curl -O https://developer.nvidia.com/downloads/compute/machine-learning/tensorrt/secure/8.6.1/zip/TensorRT-8.6.1.6.Windows10.x86_64.cuda-11.8.zip
-        7z x TensorRT-8.6.1.6.Windows10.x86_64.cuda-11.8.zip
-        pip install TensorRT-8.6.1.6/python/tensorrt-8.6.1-cp310-none-win_amd64.whl
+        pip install https://cdn.enfugue.ai/tensorrt-8.6.1-cp310-none-win_amd64.whl
     - name: Clean Space
       run: |
-        rm -rf TensorRT*
         conda clean -aqy
     - name: Compile Package 
       run: |
