@@ -22,7 +22,7 @@ jobs:
     - name: Install additional python packages
       run: |
         conda clean -yqitcl
-        src/python/enfugue[build,tensorrt]
+        pip install src/python/enfugue[build,tensorrt]
     - name: Compile Package 
       run: |
         MINIMAL_BUILD=1 make
