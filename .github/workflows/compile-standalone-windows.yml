@@ -23,6 +23,7 @@ jobs:
     - name: Compile Package 
       shell: bash
       run: |
+        . /c/Miniconda/etc/profile.d/conda.sh
         conda activate base
         make
     - name: Upload build artifact
