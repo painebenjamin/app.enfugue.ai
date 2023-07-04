@@ -4,6 +4,8 @@ on:
 jobs:
   build-linux-cuda:
     runs-on: ubuntu-latest
+    env:
+      MINIMAL_BUILD: 1
     steps:
     - uses: actions/checkout@v3
     - name: Setup Miniconda
@@ -26,7 +28,7 @@ jobs:
         pip install tensorrt==8.6.0 -I
     - name: Compile Package 
       run: |
-        MINIMAL_BUILD=1 make
+        make
     - name: Reclaim space
       run: |
         conda install --revision 0

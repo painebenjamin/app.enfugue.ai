@@ -4,6 +4,8 @@ on:
 jobs:
   build:
     runs-on: windows-2019
+    env:
+      MINIMAL_BUILD: 1
     steps:
     - uses: actions/checkout@v3
     - name: Setup Miniconda
@@ -20,7 +22,7 @@ jobs:
         conda clean -aqy
     - name: Compile Package 
       run: |
-        MINIMAL_BUILD=1 make
+        make
     - name: Upload build artifact
       uses: actions/upload-artifact@v3.1.2
       with:
