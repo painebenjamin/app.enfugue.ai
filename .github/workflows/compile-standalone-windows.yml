@@ -22,7 +22,7 @@ jobs:
     - name: Install additional python packages
       run: |
         conda clean -aqy
-        pip install src/python/enfugue[build,tensorrt]
+        pip install git+https://github.com/CompVis/stable-diffusion.git@main#egg=latent-diffusion git+https://github.com/openai/CLIP.git@main#egg=clip git+https://github.com/CompVis/stable-diffusion.git@main#egg=latent-diffusion src/python/enfugue[build,tensorrt]
     - name: Compile Package 
       run: |
         MINIMAL_BUILD=1 make
