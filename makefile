@@ -12,6 +12,7 @@ LINUX_ARTIFACT=$(BUILD_DIR)/enfugue-server-$(VERSION_MAJOR).$(VERSION_MINOR).$(V
 
 # Default build is linux, we'll test in a moment
 ARTIFACT=$(LINUX_ARTIFACT)
+IS_WINDOWS=0
 
 # Build tools
 BUILD_NODE_PACKAGE=$(BUILD_DIR)/package.json
@@ -76,6 +77,7 @@ BUILD_STATIC=$(patsubst $(SRC_DIR)/%,$(BUILD_DIR)/static/%,$(SRC_STATIC))
 PYTHONPATH_PREFIX=
 ifneq ($(findstring Windows,${OS}),)
   # WINDOWS
+  IS_WINDOWS=1
   ARTIFACT=$(WINDOWS_ARTIFACT)
   PYINSTALLER_DEPENDENCIES=$(WINDOWS_PYINSTALLER_DEPENDENCIES)
   ifeq ($(findstring /cygwin/,$(SHELL)),)
@@ -106,7 +108,12 @@ $(WINDOWS_ARTIFACT): $(PYTHON_ARTIFACTS)
 	pip install pyinstaller $(WINDOWS_PYINSTALLER_DEPENDENCIES)
 	pip install $<
 	pyinstaller $(CONFIG_DIR)/$(PYINSTALLER_SPEC) --distpath $(BUILD_DIR)/dist
-	zip $(BUILD_DIR)/dist/enfugue $@
+	@if [ '$(MINIMAL_BUILD)' != '1' ]; then \
+		7z a -tzip -v$(ARCHIVE_SIZE) -sdel $@ $(BUILD_DIR)/dist/$(PYINSTALLER_NAME); \
+	else \
+		7z a -tzip -v$(ARCHIVE_SIZE) $@ $(BUILD_DIR)/dist/$(PYINSTALLER_NAME); \
+	fi;
+
 
 ## Linux build
 $(LINUX_ARTIFACT): $(PYTHON_ARTIFACTS)
@@ -124,7 +131,8 @@ $(LINUX_ARTIFACT): $(PYTHON_ARTIFACTS)
 ## Split on Linux
 .PHONY: split
 split: $(ARTIFACT)
-	split -b $(ARCHIVE_SIZE) -d -a 1 --additional-suffix=.part $(ARTIFACT) $(shell basename $(ARTIFACT)).
+	split -b $(ARCHIVE_SIZE) -d -a 1 --additional-suffix=.part $(ARTIFACT) $(shell basename $(ARTIFACT))
+
 
 ## Deletes build directory
 .PHONY: clean

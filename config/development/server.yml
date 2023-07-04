@@ -59,10 +59,10 @@ configuration:
               groups:
                 - admin
     server:
-        secure: false
+        secure: true
         host: 0.0.0.0
         port: 45554
-        domain: 192.168.1.38
+        domain: app.enfugue.ai
         driver: cherrypy
         allowlist:
             - 127.0.0.0/24
@@ -72,15 +72,15 @@ configuration:
             - pibble.api.middleware.webservice.screening.ScreeningWebServiceAPIMiddleware
         static:
             directories:
-              - 'C:\cygwin64\home\paine\projects\app.enfugue.ai\src\'
+              - './app.enfugue.ai/src/'
         template:
             recurse: true
             directories:
-              - 'C:\cygwin64\home\paine\projects\app.enfugue.ai\src\html'
+              - './src/html'
         cms:
             name: Enfugue
             path:
-                root: http://192.168.1.38:45554/
-                static: http://192.168.1.38:45554/static/
-                api: http://192.168.1.38:45554/api/
+                root: https://app.enfugue.ai:45554/
+                static: https://app.enfugue.ai:45554/static/
+                api: https://app.enfugue.ai:45554/api/
             context: !include ./cms-context.yml

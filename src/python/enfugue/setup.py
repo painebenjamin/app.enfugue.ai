@@ -51,7 +51,7 @@ extras_require = {
         "onnx==1.12",
         "onnxruntime-gpu==1.12.1",
         "onnx-graphsurgeon==0.3.26",
-        "tensorrt==8.6.0",
+        "tensorrt>=8.6.0,<8.7",
     ],
     "build": [
         "types-protobuf>=4.23.0.1,<5.0",

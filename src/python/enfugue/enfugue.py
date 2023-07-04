@@ -14,13 +14,16 @@ if __name__ == "__main__":
 
     from enfugue.server import EnfugueServer
     from enfugue.util.browser import OpenBrowserWhenResponsiveThread
+    from typing import Optional
 
     system = platform.system()
     configuration = get_local_configuration()
-
-    open_browser_thread = OpenBrowserWhenResponsiveThread(configuration)
+    open_browser_thread: Optional[OpenBrowserWhenResponsiveThread] = None
+    if configuration.get("open", True):
+        open_browser_thread = OpenBrowserWhenResponsiveThread(configuration)
     try:
-        open_browser_thread.start()
+        if open_browser_thread is not None:
+            open_browser_thread.start()
         if system == "Windows":
             EnfugueServer.serve_icon(configuration)
         else:
@@ -28,5 +31,6 @@ if __name__ == "__main__":
             server.configure(**configuration)
             server.serve()
     finally:
-        open_browser_thread.stop()
-        open_browser_thread.join()
+        if open_browser_thread is not None:
+            open_browser_thread.stop()
+            open_browser_thread.join()
