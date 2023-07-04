@@ -6,8 +6,8 @@ channels:
   - nvidia/label/cuda-11.7.1
   - conda-forge
 dependencies:
-  - python=3.10.9
-  - pip=22.3
+  - python=3.10.11
+  - pip=23.1.2
   - cudatoolkit=11.7
   - pytorch=1.13.1
   - torchvision=0.14.1

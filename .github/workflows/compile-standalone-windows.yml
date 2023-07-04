@@ -15,13 +15,14 @@ jobs:
     - name: Install dependencies
       run: |
         conda env update --file environments/enfugue-build-windows-tensorrt.yml --name base
-    - name: Install build binary dependencies
-      run: |
-        conda install make
-        conda install 7zip -c conda-forge
+        conda install wget make 7zip -c conda-forge
+        wget https://developer.nvidia.com/downloads/compute/machine-learning/tensorrt/secure/8.6.1/zip/TensorRT-8.6.1.6.Windows10.x86_64.cuda-11.8.zip
+        7z x TensorRT-8.6.1.6.Windows10.x86_64.cuda-11.8.zip
+        pip install TensorRT-8.6.1.6/python/tensorrt-8.6.1-cp310-none-win_amd64.whl
     - name: Clean Space
       run: |
-        conda clean -ayq
+        rm -rf TensorRT*
+        conda clean -aqy
     - name: Compile Package 
       run: |
         MINIMAL_BUILD=1 make
