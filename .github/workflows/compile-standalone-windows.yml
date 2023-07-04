@@ -15,8 +15,6 @@ jobs:
     - name: Install dependencies
       run: |
         conda env update --file environments/enfugue-build-windows-tensorrt.yml --name base
-        conda install make 7zip -c conda-forge
-        python -m pip install https://cdn.enfugue.ai/tensorrt-8.6.1-cp310-none-win_amd64.whl
     - name: Clean Space
       run: |
         conda clean -aqy

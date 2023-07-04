@@ -38,7 +38,7 @@ install_requires = [
     "beautifulsoup4>=4.12,<5",
     "pystray>=0.19,<0.24",
     "pydantic==1.10.10",
-    "html2text",
+    "html2text==2020.1.16",
     "taming-transformers",
     "clip",
     "latent-diffusion",
@@ -61,7 +61,7 @@ extras_require = {
         "types-tabulate>=0.9,<0.10",
         "types-pyyaml>=6.0,<7.0",
         "importchecker>=2.0,<3.0",
-        "pyinstaller"
+        "pyinstaller>=5.13.0"
     ],
 }
 
