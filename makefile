@@ -13,6 +13,7 @@ LINUX_ARTIFACT=$(BUILD_DIR)/enfugue-server-$(VERSION_MAJOR).$(VERSION_MINOR).$(V
 # Default build is linux, we'll test in a moment
 ARTIFACT=$(LINUX_ARTIFACT)
 IS_WINDOWS=0
+BUILD_TENSORRT=1
 
 # Build tools
 BUILD_NODE_PACKAGE=$(BUILD_DIR)/package.json
@@ -80,6 +81,11 @@ ifneq ($(findstring Windows,${OS}),)
   IS_WINDOWS=1
   ARTIFACT=$(WINDOWS_ARTIFACT)
   PYINSTALLER_DEPENDENCIES=$(WINDOWS_PYINSTALLER_DEPENDENCIES)
+  ifneq ($(shell where nvinfer.dll 2>/dev/null),)
+    BUILD_TENSORRT=1
+  else
+    BUILD_TENSORRT=0
+  endif
   ifeq ($(findstring /cygwin/,$(SHELL)),)
     ifneq ($(findstring .exe,${SHELL}),.exe)
       ifneq (MINGW,$(findstring MINGW,$(shell uname)))
@@ -88,6 +94,12 @@ ifneq ($(findstring Windows,${OS}),)
       endif
     endif
   endif
+endif
+
+## Change test requirements based on capabiilities
+ifneq ($(BUILD_TENSORRT),1)
+  PYTHON_TEST_SRC=$(filter-out %setup.py %__main__.py %server.py $(SRC_DIR)/python/enfugue/diffusion/rt/%,$(PYTHON_SRC))
+  PYTHON_TEST_UNIT=$(PYTHON_TEST_SRC:%=$(BUILD_DIR)/%.unittest)
 endif
 
 #############
