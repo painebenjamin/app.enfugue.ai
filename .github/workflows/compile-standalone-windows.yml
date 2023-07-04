@@ -23,6 +23,7 @@ jobs:
     - name: Compile Package 
       shell: bash
       run: |
+        conda activate base
         make
     - name: Upload build artifact
       uses: actions/upload-artifact@v3.1.2
