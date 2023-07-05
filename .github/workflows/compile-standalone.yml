@@ -37,7 +37,7 @@ jobs:
         df -h
     - name: Install dependencies
       run: |
-        conda env update --file environments/build/${{ matrix.os }}/${{ matrix.api }} --name base
+        conda env update --file environments/build/${{ matrix.os }}/${{ matrix.api }}.yml --name base
     - name: Clean space
       run: |
         conda clean -aqy
