@@ -9,7 +9,7 @@ class ModelManagerController extends MenuController {
     /**
      * @var string The name in the UI
      */
-    static menuName = "Model Manager";
+    static menuName = "Configuration Manager";
 
     /**
      * @var string The class of the icon in the UI

@@ -766,7 +766,7 @@ form ul.list-input-view li.selected {
     transition: opacity 0.25s ease-in-out;
     white-space: break-spaces;
     max-width: 75vw;
-    z-index: 5;
+    z-index: 99;
     pointer-events: none;
 }
 

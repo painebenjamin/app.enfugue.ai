@@ -320,7 +320,7 @@ class ModelManagerController extends Controller {
             this.newModelWindow.focus();
         } else {
             this.newModelWindow = await this.spawnWindow(
-                "New Model",
+                "New Configuration",
                 this.createModelForm(),
                 this.constructor.modelWindowWidth,
                 this.constructor.modelWindowHeight
@@ -337,7 +337,7 @@ class ModelManagerController extends Controller {
             this.managerWindow.focus();
         } else {
             this.managerWindow = await this.spawnWindow(
-                "Model Manager",
+                "Model Configuration Manager",
                 this.createManager(),
                 this.constructor.managerWindowWidth,
                 this.constructor.managerWindowHeight

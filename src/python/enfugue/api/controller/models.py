@@ -364,7 +364,10 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         checkpoints_dir = self.configuration.get(
             "enfugue.engine.checkpoint", os.path.join(self.engine_root, "checkpoint")
         )
-        checkpoints = os.listdir(checkpoints_dir)
+        if not os.path.exists(checkpoints_dir):
+            checkpoints = []
+        else:
+            checkpoints = os.listdir(checkpoints_dir)
         checkpoints.sort(key=lambda item: os.path.getmtime(os.path.join(checkpoints_dir, item)))
         model_names = self.database.query(self.orm.DiffusionModel.name).all()
 

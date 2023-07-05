@@ -8,7 +8,7 @@ class NewModelController extends MenuController {
     /**
      * @var string The text in the UI
      */
-    static menuName = "New Model";
+    static menuName = "New Configuration";
     
     /**
      * @var string The class of the icon in the UI
