@@ -120,12 +120,20 @@ $(WINDOWS_ARTIFACT): $(PYTHON_ARTIFACTS)
 	pip install pyinstaller $(WINDOWS_PYINSTALLER_DEPENDENCIES)
 	pip install $<
 	pyinstaller $(CONFIG_DIR)/$(PYINSTALLER_SPEC) --distpath $(BUILD_DIR)/dist
-	@if [ '$(MINIMAL_BUILD)' != '1' ]; then \
-		7z a -tzip -v$(ARCHIVE_SIZE) -sdel $@ $(BUILD_DIR)/dist/$(PYINSTALLER_NAME); \
+	if [ '$(MINIMAL_BUILD)' = '1' ]; then \
+		7z a -tzip -v$(ARCHIVE_SIZE) -sdel $@ ./$(BUILD_DIR)/dist/*; \
 	else \
-		7z a -tzip -v$(ARCHIVE_SIZE) $@ $(BUILD_DIR)/dist/$(PYINSTALLER_NAME); \
+		7z a -tzip -v$(ARCHIVE_SIZE) $@ ./$(BUILD_DIR)/dist/*; \
 	fi;
 
+.PHONY: bundle
+bundle:
+	rm -rf $(BUILD_DIR)/*zip*
+	if [ '$(MINIMAL_BUILD)' = '1' ]; then \
+		7z a -tzip -v$(ARCHIVE_SIZE) -sdel $@ ./$(BUILD_DIR)/dist/*; \
+	else \
+		7z a -tzip -v$(ARCHIVE_SIZE) $@ ./$(BUILD_DIR)/dist/*; \
+	fi;
 
 ## Linux build
 $(LINUX_ARTIFACT): $(PYTHON_ARTIFACTS)

@@ -930,9 +930,9 @@ class DiffusionPipelineManager:
                 "engine_size": self.size,
                 "chunking_size": self.chunking_size,
                 "requires_safety_checker": self.safe,
-                "controlnet": self.controlnet,
                 "torch_dtype": self.dtype,
             }
+            controlnet = self.controlnet # Load into memory here
 
             if self.use_tensorrt:
                 if "unet" in self.TENSORRT_STAGES:
@@ -954,21 +954,31 @@ class DiffusionPipelineManager:
                 logger.debug(
                     f"Initializing pipeline from diffusers cache directory at {self.model_tensorrt_dir}. Arguments are {kwargs}"
                 )
-                pipeline = self.pipeline_class.from_pretrained(self.model_tensorrt_dir, **kwargs)
+                pipeline = self.pipeline_class.from_pretrained(
+                    self.model_tensorrt_dir,
+                    controlnet=controlnet,
+                    **kwargs
+                )
             elif self.engine_cache_exists:
                 if not self.safe:
                     kwargs["safety_checker"] = None
                 logger.debug(
                     f"Initializing pipeline from diffusers cache directory at {self.model_tensorrt_dir}. Arguments are {kwargs}"
                 )
-                pipeline = self.pipeline_class.from_pretrained(self.model_tensorrt_dir, **kwargs)
+                pipeline = self.pipeline_class.from_pretrained(
+                    self.model_tensorrt_dir,
+                    controlnet=controlnet,
+                    **kwargs
+                )
             else:
                 kwargs["load_safety_checker"] = self.safe
                 logger.debug(
                     f"Initializing pipeline from checkpoint at {self.model}. Arguments are {kwargs}"
                 )
                 pipeline = self.pipeline_class.from_ckpt(
-                    self.model, num_in_channels=9 if self.inpainting else 4, **kwargs
+                    self.model, num_in_channels=9 if self.inpainting else 4,
+                    controlnet=controlnet,
+                    **kwargs
                 )
             if not self.tensorrt_is_ready:
                 for lora, weight in self.lora:
