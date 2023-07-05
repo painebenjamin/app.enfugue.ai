@@ -109,6 +109,17 @@ def get_version() -> Version:
     """
     Gets the version of enfugue installed.
     """
+    import logging
+    logger = logging.getLogger("enfugue")
+    try:
+        local_install = get_local_installation_directory()
+        version_file = os.path.join(local_install, "version.txt")
+        if os.path.exists(version_file):
+            with open(version_file, "r") as fp:
+                return Version(fp.read())
+    except:
+        pass
+
     from importlib.metadata import version, PackageNotFoundError
 
     try:

@@ -1,3 +1,4 @@
+include version.txt
 include py.typed
 recursive-include static *
 recursive-include config *

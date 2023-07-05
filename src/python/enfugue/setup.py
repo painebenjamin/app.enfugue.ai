@@ -2,9 +2,21 @@ import os
 from setuptools import setup, find_packages
 
 package_name = "enfugue"
-version_major = "0"
-version_minor = "1"
-version_patch = "3"
+
+# These variables will be replaced during build, but we keep
+# a default version so we can install from the directory itself
+try:
+    version_major = int("{{ version_major }}")
+except:
+    version_major = 0
+try:
+    version_minor = int("{{ version_minor }}")
+except:
+    version_minor = 0
+try:
+    version_patch = int("{{ version_patch }}")
+except:
+    version_patch = 1
 
 install_requires = [
     "cheroot>=9.0.0",
@@ -84,7 +96,7 @@ setup(
     author_email="painebenjamin@gmail.com",
     version=f"{version_major}.{version_minor}.{version_patch}",
     packages=find_packages("."),
-    package_data={package_name: ["py.typed", *package_data]},
+    package_data={package_name: ["py.typed", "version.txt", *package_data]},
     license="agpl-3.0",
     entry_points={"console_scripts": ["enfugue = enfugue.__main__:main"]},
     install_requires=install_requires,

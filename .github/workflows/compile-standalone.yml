@@ -1,0 +1,73 @@
+name: Compile Portable Distributions
+on:
+  - workflow_dispatch
+jobs:
+  compile-distribution:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            api: tensorrt
+          - os: ubuntu-latest
+            api: cuda
+          - os: windows-latest
+            api: cuda
+    runs-on: ${{ matrix.os }}
+    env:
+      MINIMAL_BUILD: 1
+    steps:
+    - uses: actions/checkout@v3
+    - name: Setup Miniconda
+      uses: conda-incubator/setup-miniconda@v2.2.0
+    - name: Add conda to system path
+      run: |
+        # $CONDA is an environment variable pointing to the root of the miniconda directory
+        echo $CONDA/bin >> $GITHUB_PATH
+    - name: Clean unneeded pre-installed code
+      if: ${{ !contains(matrix.os, 'windows') }}
+      run: |
+        echo "Storage before:"
+        df -h
+        sudo rm -rf /usr/share/dotnet
+        sudo rm -rf /usr/local/lib/android
+        sudo rm -rf /opt/ghc
+        sudo rm -rf /opt/hostedtoolcache/CodeQL
+        sudo docker image prune --all --force
+        echo "Storage after:"
+        df -h
+    - name: Install dependencies
+      run: |
+        conda env update --file environments/build/${{ matrix.os }}/${{ matrix.api }} --name base
+    - name: Clean space
+      run: |
+        conda clean -aqy
+    - name: Compile Linux package
+      if: ${{ !contains(matrix.os, 'windows') }} 
+      run: |
+        make
+    - name: Compile Windows package
+      if: ${{ contains(matrix.os, 'windows') }} 
+      shell: bash
+      run: |
+        . /c/Miniconda/etc/profile.d/conda.sh
+        conda activate base
+        make
+    - name: Clean space and split artifact
+      if: ${{ !contains(matrix.os, 'windows') }} 
+      run: |
+        conda install --revision 0
+        conda install make
+        conda clean -aqy
+        make split
+    - name: Upload Linux artifact
+      if: ${{ !contains(matrix.os, 'windows') }} 
+      uses: actions/upload-artifact@v3.1.2
+      with:
+        name: ${{ matrix.os }}-${{ matrix.api }}
+        path: ./enfugue-server*.part
+    - name: Upload Windows artifact
+      if: ${{ contains(matrix.os, 'windows') }} 
+      uses: actions/upload-artifact@v3.1.2
+      with:
+        name: ${{ matrix.os }}-${{ matrix.api }}
+        path: ./build/enfugue-server*zip*

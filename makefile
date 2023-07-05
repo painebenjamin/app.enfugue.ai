@@ -133,7 +133,7 @@ $(LINUX_ARTIFACT): $(PYTHON_ARTIFACTS)
 	pip install $<
 	pyinstaller $(CONFIG_DIR)/$(PYINSTALLER_SPEC) --distpath $(BUILD_DIR)/dist
 	cp $(SCRIPT_DIR)/$(LINUX_RUN_SCRIPT) $(BUILD_DIR)/dist/$(PYINSTALLER_NAME)/
-	@if [ '$(MINIMAL_BUILD)' != '1' ]; then \
+	@if [ '$(MINIMAL_BUILD)' != '2' ]; then \
 		tar -cvzf $@ -C $(BUILD_DIR)/dist/$(PYINSTALLER_NAME)/ .; \
 	else \
 		tar -cvzf $@ --remove-files -C $(BUILD_DIR)/dist/$(PYINSTALLER_NAME)/ .; \
@@ -173,19 +173,25 @@ sdist: $(PYTHON_ARTIFACTS)
 $(PYTHON_ARTIFACTS): $(PYTHON_BUILD_SRC) $(BUILD_TEMPLATES) $(BUILD_CSS) $(BUILD_JS) $(BUILD_VENDOR_SCRIPTS) $(BUILD_IMAGES)
 	$(eval PACKAGE=$(patsubst %-$(VERSION_MAJOR).$(VERSION_MINOR).$(VERSION_PATCH).tar.gz,%,$(patsubst $(BUILD_DIR)/%,%,$@)))
 	$(eval SETUP_SRC_PATH=$(PACKAGE:%=$(SRC_DIR)/python/%/setup.py))
+	$(eval VERSION_SRC_PATH=$(PACKAGE:%=$(SRC_DIR)/python/%/version.txt))
 	$(eval SETUP_BUILD_PATH=$(abspath $(BUILD_DIR)/$(SETUP_SRC_PATH)))
+	$(eval VERSION_BUILD_PATH=$(abspath $(BUILD_DIR)/$(VERSION_SRC_PATH)))
 	mkdir -p $(BUILD_DIR)/package/$(PACKAGE)/config/
+	cp $(VERSION_SRC_PATH) $(VERSION_BUILD_PATH)
+	$(PYTHON) -m pibble.scripts.templatefiles $(VERSION_BUILD_PATH) --version_major "$(VERSION_MAJOR)" --version_minor "$(VERSION_MINOR)" --version_patch "$(VERSION_PATCH)"
 	cp -r $(shell dirname $(SETUP_BUILD_PATH)) $(BUILD_DIR)/package/
 	cp -r $(BUILD_DIR)/static $(BUILD_DIR)/package/$(PACKAGE)/
 	cp -r $(BUILD_DIR)/html $(BUILD_DIR)/package/$(PACKAGE)/static/
 	cp $(ROOT_DIR)/config/production/* $(BUILD_DIR)/package/$(PACKAGE)/config/
 	mv $(BUILD_DIR)/package/$(PACKAGE)/setup.py $(BUILD_DIR)/package/
+	$(PYTHON) -m pibble.scripts.templatefiles $(BUILD_DIR)/package/setup.py --version_major "$(VERSION_MAJOR)" --version_minor "$(VERSION_MINOR)" --version_patch "$(VERSION_PATCH)"
 	cd $(BUILD_DIR)/package/ && $(PYTHON) setup.py sdist -d .
 	mv $(BUILD_DIR)/package/$(PACKAGE)-$(VERSION_MAJOR).$(VERSION_MINOR).$(VERSION_PATCH).tar.gz $@
 	rm -rf $(BUILD_DIR)/package
 
 ## Copy source files
-$(PYTHON_BUILD_SRC): $(PYTHON_TEST_TYPE) $(PYTHON_TEST_IMPORT) $(PYTHON_TEST_UNIT) $(PYTHON_TEST_INTEGRATION)
+# $(PYTHON_BUILD_SRC): $(PYTHON_TEST_TYPE) $(PYTHON_TEST_IMPORT) $(PYTHON_TEST_UNIT) $(PYTHON_TEST_INTEGRATION)
+$(PYTHON_BUILD_SRC):
 	@mkdir -p $(shell dirname $@)
 	cat $(patsubst $(BUILD_DIR)%,.%,$@) >> $@
 
