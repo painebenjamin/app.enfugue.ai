@@ -18,7 +18,7 @@ CSS_TARGET=$CSS/vendor/fa
 CSS_FILES=( brands.min.css fontawesome.min.css regular.min.css solid.min.css )
 
 cd $DIR
-wget https://use.fontawesome.com/releases/v$VERSION/$FA_DIRNAME.zip
+curl -sOL https://use.fontawesome.com/releases/v$VERSION/$FA_DIRNAME.zip
 unzip $FA_DIRNAME.zip
 
 rm -rf $CSS_TARGET
