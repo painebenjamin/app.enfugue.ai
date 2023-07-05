@@ -14,6 +14,17 @@ jobs:
       run: |
         # $CONDA is an environment variable pointing to the root of the miniconda directory
         echo $CONDA/bin >> $GITHUB_PATH
+    - name: Clean space
+      run: |
+        echo "Storage before:"
+        df -h
+        sudo rm -rf /usr/share/dotnet
+        sudo rm -rf /usr/local/lib/android
+        sudo rm -rf /opt/ghc
+        sudo rm -rf /opt/hostedtoolcache/CodeQL
+        sudo docker image prune --all --force
+        echo "Storage after:"
+        df -h
     - name: Install dependencies
       run: |
         conda env update --file environments/enfugue-build-linux-tensorrt.yml --name base
