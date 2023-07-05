@@ -16,20 +16,14 @@ jobs:
         echo $CONDA/bin >> $GITHUB_PATH
     - name: Install dependencies
       run: |
-        conda env update --file environments/enfugue-cuda.yml --name base
-    - name: Install build binary dependencies
-      run: |
-        conda install make
-    - name: Install additional python packages
+        conda env update --file environments/enfugue-build-linux-tensorrt.yml --name base
+    - name: Clean space
       run: |
         conda clean -aqy
-        pip install src/python/enfugue[build]
-        pip install src/python/enfugue[tensorrt]
-        pip install tensorrt==8.6.0 -I
     - name: Compile Package 
       run: |
         make
-    - name: Reclaim space
+    - name: Clean space again
       run: |
         conda install --revision 0
         conda install make

@@ -126,15 +126,6 @@ $(WINDOWS_ARTIFACT): $(PYTHON_ARTIFACTS)
 		7z a -tzip -v$(ARCHIVE_SIZE) $@ ./$(BUILD_DIR)/dist/*; \
 	fi;
 
-.PHONY: bundle
-bundle:
-	rm -rf $(BUILD_DIR)/*zip*
-	if [ '$(MINIMAL_BUILD)' = '1' ]; then \
-		7z a -tzip -v$(ARCHIVE_SIZE) -sdel $@ ./$(BUILD_DIR)/dist/*; \
-	else \
-		7z a -tzip -v$(ARCHIVE_SIZE) $@ ./$(BUILD_DIR)/dist/*; \
-	fi;
-
 ## Linux build
 $(LINUX_ARTIFACT): $(PYTHON_ARTIFACTS)
 	rm -rf $(BUILD_DIR)/dist
