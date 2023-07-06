@@ -44,14 +44,13 @@ On windows, you will now see the Enfugue icon in the bottom-right-hand corner of
 ## Advanced: Creating your Own Environment and Running from Command Line
 
 This instruction assumes you are using a variant of [Conda](https://docs.conda.io/projects/conda/en/stable/).
-
-1. Download a copy of the `environments/enfugue-*.yml` file that corresponds to your hardware.
-   1. For Nvidia GPUs, use [enfugue-cuda.yml](https://github.com/painebenjamin/app.enfugue.ai/blob/main/environments/enfugue-cuda.yml)
-   2. More backends will be coming shortly. Stay tuned! (Written 2023-07-02)
+1. Choose an environment in in the `environments/` directory that corresponds to your platform and hardware.
+   1. If you have a powerful next-generation Nvidia GPU (3000 series and better with at least 12 GB of VRAM), use `tensorrt` for all of the capabilities of `cuda` with the added ability to compile TensorRT engines.
+   2. If you have any other Nvidia GPU or CUDA-capable device, use `cuda`.
+   3. Additional graphics APIs for AMD and MacOS devices coming soon.
 2. Run the command `conda env create -f <file_downloaded_above>`
 3. Run the command `conda activate enfugue`
-4. Run the comand `pip install enfugue`.  If you are on Linux and want to install TensorRT support as well, use `pip install enfugue[tensorrt]`. If you are on Windows, this will not work, you will need to install the python packages from source as detailed below.
-5. Run the command `enfugue run` to run the server. Issue a keyboard interrupt (Ctrl+C) to stop it.
+4. Run the command `enfugue run` to run the server. Issue a keyboard interrupt (Ctrl+C) to stop it.
 
 ## À la Carte
 
