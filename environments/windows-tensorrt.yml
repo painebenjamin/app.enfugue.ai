@@ -13,6 +13,7 @@ dependencies:
   - torchvision=0.14.1
   - numpy=1.24.3
   - pip:
+    - torch==1.13.1+cu117
     - cheroot>=9.0.0
     - nvidia-pyindex>=1.0.9
     - pibble[cherrypy]>=0.6
@@ -44,10 +45,14 @@ dependencies:
     - beautifulsoup4>=4.12,<5
     - pystray>=0.19,<0.24
     - pydantic==1.10.10
-    - html2text
+    - html2text==2020.1.16
+    - polygraphy>=0.47,<0.48
+    - onnx==1.12
+    - onnxruntime-gpu==1.12.1
+    - onnx-graphsurgeon==0.3.26
+    - pyarrow>=12.0.1,<13
     - git+https://github.com/CompVis/taming-transformers.git@master#egg=taming-transformers
     - git+https://github.com/openai/CLIP.git@main#egg=clip
     - git+https://github.com/CompVis/stable-diffusion.git@main#egg=latent-diffusion
     - --extra-index-url https://download.pytorch.org/whl/cu117
     - --extra-index-url https://pypi.ngc.nvidia.com
-    - torch==1.13.1+cu117
