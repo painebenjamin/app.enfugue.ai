@@ -88,7 +88,6 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
     """
 
     controlnet: Optional[ControlNetModel]
-    scheduler: DDIMScheduler  # Must use DDIM for multi-diffusion
 
     def __init__(
         self,
@@ -118,9 +117,6 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             feature_extractor,
             requires_safety_checker,
         )
-        # Override scheduler to DDIM for multidiffusion
-        self.scheduler = DDIMScheduler.from_config(self.scheduler.config)
-
         # Enfugue engine settings
         self.engine_size = engine_size
         self.chunking_size = chunking_size
