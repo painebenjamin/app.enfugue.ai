@@ -37,6 +37,7 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         safety_checker: StableDiffusionSafetyChecker,
         feature_extractor: CLIPImageProcessor,
         requires_safety_checker: bool = True,
+        force_zeros_for_empty_prompt: bool = True,
         engine_size: int = 512,  # Recommended even for machines that can handle more
         chunking_size: int = 32,
         chunking_blur: int = 64,
@@ -63,6 +64,7 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
             safety_checker,
             feature_extractor,
             requires_safety_checker,
+            force_zeros_for_empty_prompt,
             engine_size,
             chunking_size,
             chunking_blur,
