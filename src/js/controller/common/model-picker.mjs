@@ -383,9 +383,9 @@ class ModelPickerController extends Controller {
      * @param model.DiffusionModel $model The model from the API
      */
     async showBuildTensorRT(model) {
-        let currentStatus = await model.getTensorRTStatus(),
+        let currentStatus = await model.getStatus(),
             currentEngineBuildProcess = await this.getCurrentEngineBuildProcess();
-
+            console.log(currentStatus);
         if (!isEmpty(currentEngineBuildProcess) && currentEngineBuildProcess.metadata.tensorrt_build.model === model.name) {
             currentStatus.building = currentEngineBuildProcess.metadata.tensorrt_build.network;
         }

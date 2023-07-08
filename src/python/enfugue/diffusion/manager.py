@@ -1830,6 +1830,7 @@ class DiffusionPipelineManager:
             model_index = os.path.join(model_cache_dir, "model_index.json")
             if not os.path.exists(model_index):
                 model_index = None
+        
         inpaint_model_dir = os.path.join(engine_root, "tensorrt", f"{model}-inpainting")
         inpaint_model_cache_dir = os.path.join(engine_root, "diffusers", f"{model}-inpainting")
         inpaint_model_index = os.path.join(inpaint_model_dir, "model_index.json")
@@ -1851,7 +1852,7 @@ class DiffusionPipelineManager:
 
         if not tensorrt_is_supported or model_is_sdxl:
             return {
-                "supported": tensorrt_is_supported,
+                "supported": False,
                 "xl": model_is_sdxl,
                 "ready": False
             }

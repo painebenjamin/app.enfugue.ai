@@ -431,8 +431,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         num_images_per_prompt: int = 1,
         do_classifier_free_guidance: bool=False,
         negative_prompt: Optional[str]=None,
-        prompt_embeds: Optional[torch.FloatTensor] = None,
-        negative_prompt_embeds: Optional[torch.FloatTensor] = None,
+        prompt_embeds: Optional[torch.Tensor] = None,
+        negative_prompt_embeds: Optional[torch.Tensor] = None,
         lora_scale: Optional[float] = None,
     ) -> Union[
         torch.Tensor,

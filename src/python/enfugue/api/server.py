@@ -185,7 +185,7 @@ class EnfugueAPIServerBase(
         )
         size = diffusion_model.size
         refiner = diffusion_model.refiner
-        if refiner is not None:
+        if refiner:
             refiner = os.path.abspath(
                 os.path.join(
                     self.configuration.get(
@@ -195,6 +195,8 @@ class EnfugueAPIServerBase(
                     refiner[0].model
                 ),
             )
+        else:
+            refiner = None
         lora = [
             (
                 os.path.abspath(
