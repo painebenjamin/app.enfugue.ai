@@ -704,7 +704,7 @@ class DiffusionPlan:
                         else:
                             pipeline.controlnet = None
                         if self.refiner:
-                            upscale_pipeline = pipeline.refiner
+                            upscale_pipeline = pipeline.refiner_pipeline
                         else:
                             pipeline.reload_pipeline() # If we didn't change controlnet, then pipeline is still on CPU
                             upscale_pipeline = pipeline.pipeline
