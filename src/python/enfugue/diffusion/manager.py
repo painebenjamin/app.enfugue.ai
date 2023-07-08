@@ -940,15 +940,6 @@ class DiffusionPipelineManager:
         return os.path.splitext(os.path.basename(self.model))[0]
 
     @property
-    def xl(self) -> bool:
-        """
-        Returns true if this is an XL model (based on filename unless cached)
-        """
-        if self.engine_cache_exists:
-            return os.path.exists(os.path.join(self.model_diffusers_cache_dir, "text_encoder_2"))
-        return "xl" in self.model_name.lower()
-    
-    @property
     def has_refiner(self) -> bool:
         """
         Returns true if the refiner is set.
@@ -1271,6 +1262,8 @@ class DiffusionPipelineManager:
         """
         Returns true if this is SDXL (based on name)
         """
+        if self.engine_cache_exists:
+            return os.path.exists(os.path.join(self.model_diffusers_cache_dir, "text_encoder_2"))
         return "xl" in self.model_name.lower()
 
     def check_create_engine_cache(self) -> None:
