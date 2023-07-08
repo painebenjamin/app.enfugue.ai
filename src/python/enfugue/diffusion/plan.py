@@ -672,20 +672,42 @@ class DiffusionPlan:
                         logger.debug("Using refiner for upscaling.")
                         re_enable_safety = False
                         pipeline.reload_refiner()
-                        upscale_pipeline = pipeline.refiner_pipeline
                     else:
                         # Disable pipeline safety here, it gives many false positives when upscaling.
                         # We'll re-enable it after.
                         logger.debug("Using base pipeline for upscaling.")
                         re_enable_safety = pipeline.safe
                         pipeline.safe = False
-                        pipeline.reload_pipeline()
-                        upscale_pipeline = pipeline.pipeline
                     for i, image in enumerate(images):
                         if nsfw is not None and nsfw[i]:
                             logger.debug(f"Image {i} had NSFW content, not upscaling.")
                             continue
                         
+                        upscale_controlnet = get_item_for_scale(self.upscale_diffusion_controlnet)
+                        if upscale_controlnet is not None:
+                            logger.debug(f"Enabling {upscale_controlnet} for upscale diffusion")
+                            if upscale_controlnet == "canny":
+                                pipeline.controlnet = "canny"
+                                kwargs["control_image"] = pipeline.edge_detector.canny(image)
+                            elif upscale_controlnet == "mlsd":
+                                pipeline.controlnet = "mlsd"
+                                kwargs["control_image"] = pipeline.edge_detector.mlsd(image)
+                            elif upscale_controlnet == "hed":
+                                pipeline.controlnet = "hed"
+                                kwargs["control_image"] = pipeline.edge_detector.hed(image)
+                            elif upscale_controlnet == "tile":
+                                pipeline.controlnet = "tile"
+                                kwargs["control_image"] = image
+                            else:
+                                logger.error(f"Unknown controlnet {upscale_controlnet}, ignoring.")
+                                pipeline.controlnet = None
+                        else:
+                            pipeline.controlnet = None
+                        if self.refiner:
+                            upscale_pipeline = pipeline.refiner
+                        else:
+                            pipeline.reload_pipeline() # If we didn't change controlnet, then pipeline is still on CPU
+                            upscale_pipeline = pipeline.pipeline
                         width, height = image.size
                         kwargs = {
                             "width": width,
@@ -714,26 +736,7 @@ class DiffusionPlan:
                             kwargs["chunking_blur"] = min(
                                 self.upscale_diffusion_chunking_blur * (j + 1), pipeline.size // 2
                             )
-                        upscale_controlnet = get_item_for_scale(self.upscale_diffusion_controlnet)
-                        if upscale_controlnet is not None:
-                            logger.debug(f"Enabling {upscale_controlnet} for upscale diffusion")
-                            if upscale_controlnet == "canny":
-                                pipeline.controlnet = "canny"
-                                kwargs["control_image"] = pipeline.edge_detector.canny(image)
-                            elif upscale_controlnet == "mlsd":
-                                pipeline.controlnet = "mlsd"
-                                kwargs["control_image"] = pipeline.edge_detector.mlsd(image)
-                            elif upscale_controlnet == "hed":
-                                pipeline.controlnet = "hed"
-                                kwargs["control_image"] = pipeline.edge_detector.hed(image)
-                            elif upscale_controlnet == "tile":
-                                pipeline.controlnet = "tile"
-                                kwargs["control_image"] = image
-                            else:
-                                logger.error(f"Unknown controlnet {upscale_controlnet}, ignoring.")
-                                pipeline.controlnet = None
-                        else:
-                            pipeline.controlnet = None
+                        
                         logger.debug(f"Upscaling sample {i} with arguments {kwargs}")
                         image = upscale_pipeline(**kwargs).images[0]
                         images[i] = image

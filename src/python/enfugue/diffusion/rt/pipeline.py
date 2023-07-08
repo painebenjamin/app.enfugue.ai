@@ -204,6 +204,8 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
 
         if torch_device == "cpu" or isinstance(torch_device, torch.device) and torch_device.type == "cpu":
             return self
+        elif getattr(self, "_built", False):
+            return self
 
         # set device
         self.torch_device = self._execution_device
@@ -237,6 +239,7 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
             enable_preview=self.build_preview_features,
         )
 
+        self_built = True
         return self
 
     def create_latents(
