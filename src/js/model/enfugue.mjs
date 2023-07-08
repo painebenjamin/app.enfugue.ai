@@ -12,16 +12,17 @@ class DiffusionModel extends ModelObject {
     static alwaysInclude = true;
     static apiRoot = "models";
     static apiScope = ["name"];
-    static apiInclude = ["lora", "inversion"];
+    static apiInclude = ["refiner", "lora", "lycoris", "inversion"];
 
-    getTensorRTStatus() {
-        return this.queryModel("get", `${this.url}/tensorrt`);
+    getStatus() {
+        return this.queryModel("get", `${this.url}/status`);
     }
 };
 
+class DiffusionModelRefiner extends ModelObject {};
 class DiffusionModelInversion extends ModelObject {};
-
 class DiffusionModelLora extends ModelObject {};
+class DiffusionModelLycoris extends ModelObject {};
 
 class DiffusionInvocation extends ModelObject {
     static apiRoot = "invocation-history";
@@ -45,8 +46,10 @@ class PermissionGroup extends ModelObject {};
 class EnfugueModel extends Model {
     static modelObjects = [
         DiffusionModel,
+        DiffusionModelRefiner,
         DiffusionModelInversion,
         DiffusionModelLora,
+        DiffusionModelLycoris,
         DiffusionInvocation,
         User,
         UserPermission,

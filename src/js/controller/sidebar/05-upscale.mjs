@@ -1,4 +1,4 @@
-/** @module controller/sidebar/04-upscale */
+/** @module controller/sidebar/05-upscale */
 import { isEmpty, deepClone } from "../../base/helpers.mjs";
 import { Controller } from "../base.mjs";
 import { FormView } from "../../view/forms/base.mjs";

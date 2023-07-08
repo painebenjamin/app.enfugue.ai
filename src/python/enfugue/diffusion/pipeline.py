@@ -103,6 +103,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         feature_extractor: CLIPImageProcessor,
         requires_safety_checker: bool = True,
         force_zeros_for_empty_prompt: bool = True,
+        requires_aesthetic_score: bool = False,
         engine_size: int = 512,
         chunking_size: int = 32,
         chunking_blur: int = 64,
@@ -126,7 +127,10 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         self.set_progress_bar_config(disable=True)
 
         # Add config for xl
-        self.register_to_config(force_zeros_for_empty_prompt=force_zeros_for_empty_prompt)
+        self.register_to_config(
+            requires_aesthetic_score=requires_aesthetic_score,
+            force_zeros_for_empty_prompt=force_zeros_for_empty_prompt
+        )
 
         # Add an image processor for later
         self.image_processor = VaeImageProcessor(vae_scale_factor=self.vae_scale_factor)
@@ -137,6 +141,22 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             text_encoder_2=text_encoder_2,
             tokenizer_2=tokenizer_2
         )
+
+    @classmethod
+    def debug_tensors(cls, **kwargs: Union[Dict, List, torch.Tensor]) -> None:
+        """
+        Debug logs tensors.
+        """
+        for key in kwargs:
+            value = kwargs[key]
+            if isinstance(value, list):
+                for i, v in enumerate(value):
+                    cls.debug_tensors(**{f"{key}_{i}": v})
+            elif isinstance(value, dict):
+                for k in value:
+                    cls.debug_tensors(**{f"{key}_{k}": value[k]})
+            else:
+                logger.debug(f"{key} = {value.shape} ({value.dtype})")
 
     @classmethod
     def from_ckpt(
@@ -252,7 +272,6 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         if "timesteps" in original_config.model.params:
             # SD 1 or 2
             num_train_timesteps = original_config.model.params.timesteps
-
 
         if model_type in ["SDXL", "SDXL-Refiner"]:
             image_size = 1024
@@ -861,6 +880,10 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
         count = torch.zeros((1, num_channels, latent_height, latent_width)).to(device=device)
         value = torch.zeros_like(count)
+        
+        if self.is_sdxl:
+            self.vae.to(dtype=torch.float32)
+            image = image.float()
 
         for i, (top, bottom, left, right) in enumerate(chunks):
             top_px = top * self.vae_scale_factor
@@ -897,8 +920,9 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
             if progress_callback is not None:
                 progress_callback()
-
-        return torch.where(count > 0, value / count, value) * self.vae.config.scaling_factor
+        if self.is_sdxl:
+            self.vae.to(dtype=dtype)
+        return (torch.where(count > 0, value / count, value) * self.vae.config.scaling_factor).to(dtype=dtype)
 
     def prepare_image_latents(
         self,
@@ -1012,7 +1036,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         """
         Gets added time embedding vectors for SDXL
         """
-        if aesthetic_score is not None and negative_aesthetic_score is not None:
+        if aesthetic_score is not None and negative_aesthetic_score is not None and self.config.requires_aesthetic_score:
             add_time_ids = list(original_size + crops_coords_top_left + (aesthetic_score,))
             add_neg_time_ids = list(original_size + crops_coords_top_left + (negative_aesthetic_score,))
         else:
@@ -1065,7 +1089,6 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         kwargs = {}
         if added_cond_kwargs is not None:
             kwargs["added_cond_kwargs"] = added_cond_kwargs
-
         return self.unet(
             latents,
             timestep,
@@ -1278,7 +1301,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
         num_steps = len(timesteps)
         num_warmup_steps = num_steps - num_inference_steps * self.scheduler.order
-        logger.debug(f"Denoising image on {device} in {num_steps} steps (unchunked)")
+        logger.debug(f"Denoising image in {num_steps} steps on {device} (unchunked)")
 
         for i, t in enumerate(timesteps):
             # expand the latents if we are doing classifier free guidance
@@ -1435,7 +1458,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
         total_num_steps = num_steps * num_chunks
         logger.debug(
-            f"Denoising image in {total_num_steps} on {device} in total steps ({num_inference_steps} inference steps * {num_chunks} chunks)"
+            f"Denoising image in {total_num_steps} steps on {device} ({num_inference_steps} inference steps * {num_chunks} chunks)"
         )
 
         for i, t in enumerate(timesteps):
@@ -1603,16 +1626,26 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         chunks = self.get_chunks(height, width)
         total_steps = len(chunks)
 
+        revert_dtype = None
+
+        if self.is_sdxl:
+            # Resist overflow
+            revert_dtype = latents.dtype
+            self.vae.to(dtype=torch.float32)
+            latents = latents.to(dtype=torch.float32)
+
         if total_steps == 1:
             result = self.decode_latents_unchunked(latents, device)
             if progress_callback is not None:
                 progress_callback()
+            if self.is_sdxl:
+                self.vae.to(dtype=latents.dtype)
             return result
 
         latent_width = width // self.vae_scale_factor
         latent_height = height // self.vae_scale_factor
 
-        count = torch.zeros((samples, 3, height, width)).to(device=device)
+        count = torch.zeros((samples, 3, height, width)).to(device=device, dtype=latents.dtype)
         value = torch.zeros_like(count)
 
         logger.debug(f"Decoding latents in {total_steps} steps")
@@ -1659,6 +1692,9 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
         # re-average pixels
         latents = torch.where(count > 0, value / count, value)
+        if revert_dtype is not None:
+            latents = latents.to(dtype=revert_dtype)
+            self.vae.to(dtype=revert_dtype)
         return latents
 
     def get_step_complete_callback(
@@ -1994,15 +2030,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 if do_classifier_free_guidance:
                     prompt_embeds = torch.cat([negative_prompt_embeds, prompt_embeds], dim=0)
                     add_text_embeds = torch.cat([negative_pooled_prompt_embeds, add_text_embeds], dim=0)
-                if image is None:
-                    add_time_ids, _ = self.get_add_time_ids(
-                        original_size=original_size,
-                        crops_coords_top_left=crops_coords_top_left,
-                        target_size=target_size,
-                        dtype=prompt_embeds.dtype
-                    )
-                    add_time_ids = torch.cat([add_time_ids, add_time_ids], dim=0)
-                else:
+                if self.config.requires_aesthetic_score:
                     add_time_ids, add_neg_time_ids = self.get_add_time_ids(
                         original_size=original_size,
                         crops_coords_top_left=crops_coords_top_left,
@@ -2013,6 +2041,14 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     )
                     if do_classifier_free_guidance:
                         add_time_ids = torch.cat([add_neg_time_ids, add_time_ids], dim=0)
+                else:
+                    add_time_ids, _ = self.get_add_time_ids(
+                        original_size=original_size,
+                        crops_coords_top_left=crops_coords_top_left,
+                        target_size=target_size,
+                        dtype=prompt_embeds.dtype
+                    )
+                    add_time_ids = torch.cat([add_time_ids, add_time_ids], dim=0)
                 
                 prompt_embeds = prompt_embeds.to(device)
                 add_text_embeds = add_text_embeds.to(device)
@@ -2083,9 +2119,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             output = self.denormalize_latents(prepared_latents)
             if output_type != "pt":
                 output = self.image_processor.pt_to_numpy(output)
-                output_nsfw = self.run_safety_checker(output, device, prompt_embeds.dtype)[
-                    1
-                ]
+                output_nsfw = self.run_safety_checker(output, device, prompt_embeds.dtype)[1]
                 if output_type == "pil":
                     output = self.image_processor.numpy_to_pil(output)
 

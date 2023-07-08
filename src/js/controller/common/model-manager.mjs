@@ -21,9 +21,14 @@ import { isEmpty, deepClone } from "../../base/helpers.mjs";
 class InversionInputView extends SearchListInputView {};
 
 /**
- * Lora input - will be populated at init.
+ * LoRA input - will be populated at init.
  */
 class LoraInputView extends SearchListInputView {};
+
+/**
+ * LyCORIS input - will be populated at init.
+ */
+class LycorisInputView extends SearchListInputView {};
 
 /**
  * Checkpoint input - will be populated at init.
@@ -77,6 +82,52 @@ class LoraFormInputView extends FormInputView {
 };
 
 /**
+ * Lycoris input additionally has weight; create the FormView here,
+ * then define a RepeatableInputView of a FormInputView
+ */
+class LycorisFormView extends FormView {
+    /**
+     * @var bool disable submit button for form, automatically submit on every change
+     */
+    static autoSubmit = true;
+
+    /**
+     * @var object All fieldsets; the label will be removed.
+     */
+    static fieldSets = {
+        "LyCORIS": {
+            "model": {
+                "label": "Model",
+                "class": LycorisInputView,
+                "config": {
+                    "required": true
+                }
+            },
+            "weight": {
+                "label": "Weight",
+                "class": FloatInputView,
+                "config": {
+                    "min": 0,
+                    "value": 1.0,
+                    "step": 0.01,
+                    "required": true
+                }
+            }
+        }
+    };
+};
+
+/**
+ * The input element containing the parent form
+ */
+class LycorisFormInputView extends FormInputView {
+    /**
+     * @var class The sub-form to use in the input.
+     */
+    static formClass = LycorisFormView;
+};
+
+/**
  * The overall multi-input that allows any number of lora
  */
 class MultiLoraInputView extends RepeatableInputView {
@@ -84,6 +135,16 @@ class MultiLoraInputView extends RepeatableInputView {
      * @var class The repeatable input element.
      */
     static memberClass = LoraFormInputView;
+};
+
+/**
+ * The overall multi-input that allows any number of lycoris
+ */
+class MultiLycorisInputView extends RepeatableInputView {
+    /**
+     * @var class The repeatable input element.
+     */
+    static memberClass = LycorisFormInputView;
 };
 
 /**
@@ -130,9 +191,18 @@ class ModelForm extends FormView {
                 "class": MultiLoraInputView,
                 "label": "LoRA"
             },
+            "lycoris": {
+                "class": MultiLycorisInputView,
+                "label": "LyCORIS"
+            },
             "inversion": {
                 "class": MultiInversionInputView,
                 "label": "Textual Inversions"
+            }
+        },
+        "Refiner": {
+            "refiner": {
+                "class": CheckpointInputView
             }
         },
         "Engine": {
@@ -158,6 +228,13 @@ class ModelForm extends FormView {
                 "label": "Negative Prompt"
             }
         }
+    };
+
+    /**
+     * @var object Conditions for display of fields
+     */
+    static fieldSetConditions = {
+        "Refiner": (values) => !isEmpty(values.checkpoint) && values.checkpoint.toLowerCase().indexOf("xl") !== -1
     };
 };
 
@@ -223,6 +300,7 @@ class ModelManagerController extends Controller {
             modelValues.checkpoint = modelValues.model;
             modelValues.lora = isEmpty(row.lora) ? [] : row.lora.map((lora) => lora.getAttributes());
             modelValues.inversion = isEmpty(row.inversion) ? [] : row.inversion.map((inversion) => inversion.model);
+            modelValues.refiner = isEmpty(row.refiner) ? null : row.refiner[0].model;
 
             let modelForm = new ModelForm(this.config, deepClone(modelValues)),
                 modelWindow;
@@ -351,6 +429,7 @@ class ModelManagerController extends Controller {
      */
     async initialize() {
         LoraInputView.defaultOptions = async () => this.model.get("/lora");
+        LycorisInputView.defaultOptions = async () => this.model.get("/lycoris");
         CheckpointInputView.defaultOptions = async () => this.model.get("/checkpoints");
         InversionInputView.defaultOptions = async () => this.model.get("/inversions");
     }
@@ -358,6 +437,8 @@ class ModelManagerController extends Controller {
 
 export {
     ModelManagerController,
+    CheckpointInputView,
     MultiLoraInputView,
+    MultiLycorisInputView,
     MultiInversionInputView
 };

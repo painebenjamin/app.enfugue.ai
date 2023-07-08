@@ -509,6 +509,108 @@ class InvocationController extends Controller {
     }
 
     /**
+     * @return array<object> Optional lycoris when not using preconfigured models
+     */
+    get lycoris() {
+        return this.kwargs.lycoris || [];
+    }
+
+    /**
+     * @param array<object> The new value of lycoris for when not using preconfigured models
+     */
+    set lycoris(newLycoris) {
+        if(!isEquivalent(this.lycoris, newLycoris)) {
+            this.publish("engineLycorisChange", newLycoris);
+        }
+        this.kwargs.lycoris = newLycoris;
+    }
+
+    /**
+     * @return string Optional refiner when not using preconfigured models
+     */
+    get refiner() {
+        return this.kwargs.refiner || null;
+    }
+
+    /**
+     * @param array<object> The new value of refiner for when not using preconfigured models
+     */
+    set refiner(newRefiner) {
+        if(this.refiner !== newRefiner) {
+            this.publish("engineRefinerChange", newRefiner);
+        }
+        this.kwargs.refiner = newRefiner;
+    }
+    
+    /**
+     * @return float The strength of the refiner when using SDXL
+     */
+    get refinerStrength() {
+        return this.kwargs.refiner_strength || 0.3;
+    }
+
+    /**
+     * @param float the new denoising strength to use when refining with SDXL
+     */
+    set refinerStrength(newRefinerStrength) {
+        if(this.refinerStrength !== newRefinerStrength) {
+            this.publish("engineRefinerStrengthChange", newRefinerStrength);
+        }
+        this.kwargs.refiner_strength = newRefinerStrength;
+    }
+    
+    /**
+     * @return float The guidance scale of the refiner when using SDXL
+     */
+    get refinerGuidanceScale() {
+        return this.kwargs.refiner_guidance_scale || 5.0
+    }
+
+    /**
+     * @param float The new guidance scale of the refiner when using SDXL
+     */
+    set refinerGuidanceScale(newRefinerGuidanceScale) {
+        if(this.refinerGuidanceScale !== newRefinerGuidanceScale) {
+            this.publish("engineRefinerGuidanceScaleChange", newRefinerGuidanceScale);
+        }
+        this.kwargs.refiner_guidance_scale = newRefinerGuidanceScale;
+    }
+    
+    /**
+     * @return float The aesthetic score of the refiner when using SDXL
+     */
+    get refinerAestheticScore() {
+        return this.kwargs.refiner_aesthetic_score || 6.0
+    }
+
+    /**
+     * @param float The new aesthetic score
+     */
+    set refinerAestheticScore(newAestheticScore) {
+        if(this.refinerAestheticScore !== newAestheticScore) {
+            this.publish("engineAestheticScoreChange", newAestheticScore);
+        }
+        this.kwargs.refiner_aesthetic_score = newAestheticScore;
+    }
+    
+    /**
+     * @return float The negative aesthetic score of the refiner
+     */
+    get refinerNegativeAestheticScore() {
+        return this.kwargs.refiner_negative_aesthetic_score || 2.5;
+    }
+
+    /**
+     * @param float The new negative aesthetic score of the refiner
+     */
+    set refinerNegativeAestheticScore(newNegativeAestheticScore) {
+        if(this.refinerNegativeAestheticScore !== newNegativeAestheticScore) {
+            this.publish("engineNegativeAestheticScoreChange", newNegativeAestheticScore);
+        }
+        this.kwargs.refiner_negative_aesthetic_score = newNegativeAestheticScore;
+    }
+    
+    /**
      * On initialization, create DOM elements related to invocations.
      */
     async initialize() {

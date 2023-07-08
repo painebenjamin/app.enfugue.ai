@@ -442,10 +442,10 @@ class ModelPickerController extends Controller {
                     this.additionalWeightsFormView.hide();
                     try {
                         let fullModel = await this.model.DiffusionModel.query({name: selectedName}),
-                            tensorRTStatus = await fullModel.getTensorRTStatus();
-                        this.publish("modelPickerChange", fullModel);
+                            modelStatus = await fullModel.getStatus();
+                        this.publish("modelPickerChange", {...fullModel, ...{"status": modelStatus}});
                         this.formView.setTensorRTStatus(
-                            tensorRTStatus, 
+                            modelStatus,
                             () => this.showBuildTensorRT(fullModel)
                         );
                     } catch(e) {
@@ -453,6 +453,11 @@ class ModelPickerController extends Controller {
                         this.formView.setValues({"model": null});
                     }
                 } else {
+                    this.publish("modelPickerChange", {
+                        "status": {
+                            "xl": selectedName.toLowerCase().indexOf("xl") !== -1
+                        }
+                    });
                     this.additionalWeightsFormView.show();
                     this.formView.setTensorRTStatus({supported: false});
                 }

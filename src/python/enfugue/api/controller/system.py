@@ -250,7 +250,7 @@ class EnfugueAPISystemController(EnfugueAPIControllerBase):
         Gets a summary of files and filesize in the installation
         """
         sizes = {}
-        for dirname in ["cache", "checkpoint", "lora", "inversion", "other"]:
+        for dirname in ["cache", "checkpoint", "lora", "lycoris", "inversion", "other"]:
             directory = self.configuration.get(
                 f"enfugue.engine.{dirname}", os.path.join(self.engine_root, dirname)
             )
@@ -268,9 +268,12 @@ class EnfugueAPISystemController(EnfugueAPIControllerBase):
         """
         for dirname in request.parsed["directories"]:
             path = request.parsed["directories"][dirname]
-            if not os.path.exists(path) and not Path(path).is_relative_to(self.engine_root):
-                # If the user tries to pass a path that is not the default directory but doesn't exist, error
-                raise BadRequestError(f"Unknown directory {path}")
+            if not os.path.exists(path):
+                if Path(path).is_relative_to(self.engine_root):
+                    os.makedirs(path)
+                else:
+                    # If the user tries to pass a path that is not the default directory but doesn't exist, error
+                    raise BadRequestError(f"Unknown directory {path}")
             self.user_config[f"enfugue.engine.{dirname}"] = path  # Save config to database
             self.configuration[f"enfugue.engine.{dirname}"] = path  # Save config to memory
 
@@ -339,7 +342,7 @@ class EnfugueAPISystemController(EnfugueAPIControllerBase):
             f"enfugue.engine.{dirname}", os.path.join(self.engine_root, dirname)
         )
         if not os.path.exists(directory):
-            raise BadRequestError(f"Unknonwn directory {dirname}")
+            raise BadRequestError(f"Unknown directory {dirname}")
 
         path = os.path.join(directory, filename)
         with open(path, "wb") as handle:
@@ -358,7 +361,10 @@ class EnfugueAPISystemController(EnfugueAPIControllerBase):
         """
         path = os.path.realpath(os.path.abspath(request.parsed["directory"]))
         if not os.path.exists(path):
-            raise BadRequestError(f"Couldn't find directory {path}")
+            if Path(path).is_relative_to(self.engine_root):
+                os.makedirs(path)
+            else:
+                raise BadRequestError(f"Couldn't find directory {path}")
         self.user_config[f"enfugue.engine.{dirname}"] = path  # Save config to database
         self.configuration[f"enfugue.engine.{dirname}"] = path  # Save config to memory
 

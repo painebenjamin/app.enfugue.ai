@@ -1,4 +1,4 @@
-/** @module controller/sidebar/05-prompts */
+/** @module controller/sidebar/06-prompts */
 import { isEmpty } from "../../base/helpers.mjs";
 import { FormView } from "../../view/forms/base.mjs";
 import { TextInputView } from "../../view/forms/input.mjs";
