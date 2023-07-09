@@ -8,7 +8,12 @@ import {
     StringInputView, 
     SearchListInputListView
 } from "../../view/forms/input.mjs";
-import { MultiLoraInputView, MultiInversionInputView } from "./model-manager.mjs";
+import { 
+    CheckpointInputView,
+    MultiLoraInputView,
+    MultiLycorisInputView,
+    MultiInversionInputView
+} from "./model-manager.mjs";
 import { isEmpty, waitFor, createElementsFromString } from "../../base/helpers.mjs";
 import { ElementBuilder } from "../../base/builder.mjs";
 
@@ -66,7 +71,7 @@ class ModelPickerInputView extends SearchListInputView {
 /**
  * This form allows additional pipeline weights when using a checkpoint
  */
-class AdditionalWeightsFormView extends FormView {
+class AdditionalModelsFormView extends FormView {
     /**
      * @var string Custom CSS class
      */
@@ -86,12 +91,26 @@ class AdditionalWeightsFormView extends FormView {
      * @var object one fieldset describes all inputs
      */
     static fieldSets = {
-        "Additional Weights": {
+        "Additional Models": {
+            "refiner": {
+                "class": CheckpointInputView,
+                "label": "Refiner",
+                "config": {
+                    "tooltip": "Refiner models are a new concept introduced with SDXL that performs a secondary denoising after the initial pass that can add numerous details and remove artifacts."
+                }
+            },
             "lora": {
                 "class": MultiLoraInputView,
                 "label": "LoRA",
                 "config": {
                     "tooltip": "LoRA stands for <strong>Low Rank Adapation</strong>, it is a kind of fine-tuning that can perform very specific modifications to Stable Diffusion such as training an individual's appearance, new products that are not in Stable Diffusion's training set, etc."
+                }
+            },
+            "lycoris": {
+                "class": MultiLycorisInputView,
+                "label": "LyCORIS",
+                "config": {
+                    "tooltip": "LyCORIS stands for <strong>LoRA beYond Conventional methods, Other Rank adaptation Implementations for Stable diffusion</strong>, a novel means of performing low-rank adaptation introduced in early 2023."
                 }
             },
             "inversion": {
@@ -340,7 +359,7 @@ class ModelPickerController extends Controller {
      * Get state from the model picker
      */
     getState() {
-        return { "model": this.formView.values, "weights": this.additionalWeightsFormView.values };
+        return { "model": this.formView.values, "weights": this.additionalModelsFormView.values };
     }
 
     /**
@@ -358,7 +377,7 @@ class ModelPickerController extends Controller {
             this.formView.setValues(newState.model).then(() => this.formView.submit());
         }
         if (!isEmpty(newState.weights)) {
-            this.additionalWeightsFormView.setValues(newState.weights).then(() => this.additionalWeightsFormView.submit());
+            this.additionalModelsFormView.setValues(newState.weights).then(() => this.additionalModelsFormView.submit());
         }
     }
 
@@ -431,7 +450,7 @@ class ModelPickerController extends Controller {
         };
 
         this.formView = new ModelPickerFormView(this.config);
-        this.additionalWeightsFormView = new AdditionalWeightsFormView(this.config);
+        this.additionalModelsFormView = new AdditionalModelsFormView(this.config);
 
         this.formView.onSubmit(async (values) => {
             if (values.model) {
@@ -439,7 +458,7 @@ class ModelPickerController extends Controller {
                 this.engine.model = selectedName;
                 this.engine.modelType = selectedType;
                 if (selectedType === "model") {
-                    this.additionalWeightsFormView.hide();
+                    this.additionalModelsFormView.hide();
                     try {
                         let fullModel = await this.model.DiffusionModel.query({name: selectedName}),
                             modelStatus = await fullModel.getStatus();
@@ -458,7 +477,7 @@ class ModelPickerController extends Controller {
                             "xl": selectedName.toLowerCase().indexOf("xl") !== -1
                         }
                     });
-                    this.additionalWeightsFormView.show();
+                    this.additionalModelsFormView.show();
                     this.formView.setTensorRTStatus({supported: false});
                 }
             } else {
@@ -466,13 +485,15 @@ class ModelPickerController extends Controller {
             }
         });
         
-        this.additionalWeightsFormView.onSubmit(async (values) => {
+        this.additionalModelsFormView.onSubmit(async (values) => {
             this.engine.lora = values.lora;
+            this.engine.lycoris = values.lycoris;
+            this.engine.refiner = values.refiner;
             this.engine.inversion = values.inversion;
         });
 
         this.application.container.appendChild(await this.formView.render());
-        this.application.container.appendChild(await this.additionalWeightsFormView.render());
+        this.application.container.appendChild(await this.additionalModelsFormView.render());
 
         this.subscribe("invocationError", (payload) => {
             console.error(payload);

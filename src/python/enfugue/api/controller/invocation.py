@@ -42,16 +42,6 @@ class EnfugueAPIInvocationController(EnfugueAPIControllerBase):
         invocation in the queue.
         """
         # Get details about model
-        model, refiner, size, lora, lycoris, inversion, model_prompt, model_negative_prompt = (
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-        )
         model_name = request.parsed.pop("model", None)
         refiner_name = request.parsed.pop("refiner", None)
         model_type = request.parsed.pop("model_type", None)
@@ -68,7 +58,7 @@ class EnfugueAPIInvocationController(EnfugueAPIControllerBase):
                         model_name,
                     )
                 ),
-                "refiner": None if refiner is None else os.path.abspath(
+                "refiner": None if refiner_name is None else os.path.abspath(
                     os.path.join(
                         self.configuration.get(
                             "enfugue.engine.checkpoint", os.path.join(self.engine_root, "checkpoint")

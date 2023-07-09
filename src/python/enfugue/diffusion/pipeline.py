@@ -15,6 +15,7 @@ from typing import (
     cast,
 )
 
+import os
 import PIL
 import PIL.Image
 import math
@@ -618,10 +619,6 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         """
         name, ext = os.path.splitext(os.path.basename(weights_path))
         if ext == ".safetensors":
-            checkpoint = {}
-            with safetensors.safe_open(weights_path, framework="pt", device="cpu") as f:
-                for key in f.keys:
-                    checkpoint[key] = f.get_tensors(key)
             state_dict = safetensors.torch.load_file(weights_path, device="cpu")
         else:
             state_dict = torch.load(checkpoint_path, map_location="cpu")

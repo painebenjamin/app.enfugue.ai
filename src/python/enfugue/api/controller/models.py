@@ -304,15 +304,18 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
 
         for existing_lora in model.lora:
             self.database.delete(existing_lora)
+        
+        for existing_lycoris in model.lycoris:
+            self.database.delete(existing_lycoris)
 
         for existing_inversion in model.inversion:
             self.database.delete(existing_inversion)
 
         refiner = request.parsed.get("refiner", None)
-        if refiner is None and model.refiner is not None:
+        if refiner is None and model.refiner:
             self.database.delete(model.refiner)
         elif refiner is not None:
-            if model.refiner is None:
+            if not model.refiner:
                 self.database.add(
                     self.orm.DiffusionModelRefiner(
                         diffusion_model_name=model_name,
@@ -329,6 +332,12 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
                 diffusion_model_name=model.name, model=lora["model"], weight=lora["weight"]
             )
             self.database.add(new_lora)
+        
+        for lycoris in request.parsed.get("lycoris", []):
+            new_lycoris = self.orm.DiffusionModelLycoris(
+                diffusion_model_name=model.name, model=lycoris["model"], weight=lycoris["weight"]
+            )
+            self.database.add(new_lycoris)
 
         for inversion in request.parsed.get("inversion", []):
             new_inversion = self.orm.DiffusionModelInversion(

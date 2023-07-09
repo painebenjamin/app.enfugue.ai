@@ -620,6 +620,7 @@ enfugue-node-editor.image-editor enfugue-node-canvas enfugue-toolbar-item::after
 
 .field-container.checkpoint-input-view,
 .field-container.multi-lora-input-view,
+.field-container.multi-lycoris-input-view,
 .field-container.multi-inversion-input-view,
 .field-container.upscale-methods-input-view,
 .field-container.upscale-diffusion-prompt-input-view,
@@ -636,11 +637,13 @@ fieldset.field-set-prompts .field-container {
     margin-bottom: 1em;
 }
 
-.field-container.multi-lora-input-view legend {
+.field-container.multi-lora-input-view legend,
+.field-container.multi-lycoris-input-view legend {
     display: none;
 }
 
-.field-container.multi-lora-input-view form .field-container {
+.field-container.multi-lora-input-view form .field-container,
+.field-container.multi-lycoris-input-view form .field-container {
     flex-basis: 100%;
 }
 

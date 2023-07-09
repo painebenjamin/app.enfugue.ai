@@ -621,9 +621,6 @@ class DiffusionPlan:
             else:
                 scales = [self.outscale]
             for j, scale in enumerate(scales):
-                pipeline.offload_pipeline()
-                pipeline.offload_refiner()
-
                 def get_item_for_scale(item: Any) -> Any:
                     if not isinstance(item, list):
                         return item
@@ -639,16 +636,22 @@ class DiffusionPlan:
                         logger.debug(f"Image {i} had NSFW content, not upscaling.")
                         continue
 
-                    upscale = get_item_for_scale(self.upscale)
+                    upscale = get_item_for_scale(self.upscale).lower()
                     logger.debug(f"Upscaling sample {i} by {scale} using {upscale}")
 
                     if upscale == "esrgan":
+                        pipeline.offload_pipeline()
+                        pipeline.offload_refiner()
                         image = pipeline.upscaler.esrgan(image, tile=pipeline.size, outscale=scale)
                     elif upscale == "esrganime":
+                        pipeline.offload_pipeline()
+                        pipeline.offload_refiner()
                         image = pipeline.upscaler.esrgan(
                             image, tile=pipeline.size, outscale=scale, anime=True
                         )
                     elif upscale == "gfpgan":
+                        pipeline.offload_pipeline()
+                        pipeline.offload_refiner()
                         image = pipeline.upscaler.gfpgan(image, tile=pipeline.size, outscale=scale)
                     elif upscale in PIL_INTERPOLATION:
                         width, height = image.size
@@ -905,7 +908,7 @@ class DiffusionPlan:
             "model": self.model,
             "refiner": self.refiner,
             "lora": self.lora,
-            "lyrcoris": self.lycoris,
+            "lycoris": self.lycoris,
             "inversion": self.inversion,
             "width": self.width,
             "height": self.height,

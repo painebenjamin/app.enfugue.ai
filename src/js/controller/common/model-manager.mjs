@@ -229,13 +229,6 @@ class ModelForm extends FormView {
             }
         }
     };
-
-    /**
-     * @var object Conditions for display of fields
-     */
-    static fieldSetConditions = {
-        "Refiner": (values) => !isEmpty(values.checkpoint) && values.checkpoint.toLowerCase().indexOf("xl") !== -1
-    };
 };
 
 /**
@@ -296,9 +289,11 @@ class ModelManagerController extends Controller {
         
         // Add the 'Edit' button
         this.tableView.addButton("Edit", "fa-solid fa-edit", async (row) => {
+            console.log(row);
             let modelValues = row.getAttributes();
             modelValues.checkpoint = modelValues.model;
             modelValues.lora = isEmpty(row.lora) ? [] : row.lora.map((lora) => lora.getAttributes());
+            modelValues.lycoris = isEmpty(row.lycoris) ? [] : row.lycoris.map((lycoris) => lycoris.getAttributes());
             modelValues.inversion = isEmpty(row.inversion) ? [] : row.inversion.map((inversion) => inversion.model);
             modelValues.refiner = isEmpty(row.refiner) ? null : row.refiner[0].model;
 

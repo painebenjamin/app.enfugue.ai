@@ -30,7 +30,8 @@ class RefiningForm extends FormView {
                     "minimum": 0.0,
                     "maximum": 1.0,
                     "step": 0.01,
-                    "value": 0.3
+                    "value": 0.3,
+                    "tooltip": "When using a refiner, this will control how much of the original image is kept, and how much of it is replaced with refined content. A value of 1.0 represents total destruction of the first image."
                 }
             },
             "refinerGuidanceScale": {
@@ -40,7 +41,8 @@ class RefiningForm extends FormView {
                     "minimum": 0.0,
                     "maximum": 100.0,
                     "step": 0.01,
-                    "value": 5.0
+                    "value": 5.0,
+                    "tooltip": "When using a refiner, this will control how closely to follow the guidance of the model. Low values can result in soft details, whereas high values can result in high-contrast ones."
                 }
             },
             "refinerAestheticScore": {
@@ -50,7 +52,8 @@ class RefiningForm extends FormView {
                     "minimum": 0.0,
                     "maximum": 100.0,
                     "step": 0.01,
-                    "value": 6.0
+                    "value": 6.0,
+                    "tooltip": "Aesthetic scores are assigned to images in SDXL refinement; this controls the positive score."
                 }
             },
             "refinerNegativeAestheticScore": {
@@ -60,7 +63,8 @@ class RefiningForm extends FormView {
                     "minimum": 0.0,
                     "maximum": 100.0,
                     "step": 0.01,
-                    "value": 2.5
+                    "value": 2.5,
+                    "tooltip": "Aesthetic scores are assigned to images in SDXL refinement; this controls the negative score."
                 }
             }
         }
@@ -112,15 +116,7 @@ class RefiningController extends Controller {
             this.engine.refinerAestheticScore = values.refinerAestheticScore;
             this.engine.refinerNegativeAestheticScore = values.refinerNegativeAestheticScore;
         });
-        this.refiningForm.hide();
         this.application.sidebar.addChild(this.refiningForm);
-        this.subscribe("modelPickerChange", (newModel) => {
-            if (newModel.status.xl) {
-                this.refiningForm.show();
-            } else {
-                this.refiningForm.hide();
-            }
-        });
     }
 }
 

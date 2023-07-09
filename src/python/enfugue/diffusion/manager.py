@@ -325,6 +325,18 @@ class DiffusionPipelineManager:
         path = os.path.realpath(path)
         check_make_directory(path)
         return path
+    
+    @property
+    def engine_lycoris_dir(self) -> str:
+        """
+        Gets where lycoris are downloaded in.
+        """
+        path = self.configuration.get("enfugue.engine.lycoris", "~/.cache/enfugue/lycoris")
+        if path.startswith("~"):
+            path = os.path.expanduser(path)
+        path = os.path.realpath(path)
+        check_make_directory(path)
+        return path
 
     @property
     def engine_inversion_dir(self) -> str:
@@ -457,11 +469,20 @@ class DiffusionPipelineManager:
         return path
     
     @property
+    def refiner_tensorrt_clip_key(self) -> str:
+        """
+        Gets the CLIP key for the current configuration.
+        """
+        return DiffusionPipelineManager.get_tensorrt_clip_key(
+            size=self.size,
+        )
+    
+    @property
     def refiner_tensorrt_clip_dir(self) -> str:
         """
         Gets where the tensorrt CLIP engine will be stored.
         """
-        path = os.path.join(self.refiner_tensorrt_dir, "clip", self.model_tensorrt_clip_key)
+        path = os.path.join(self.refiner_tensorrt_dir, "clip", self.refiner_tensorrt_clip_key)
         check_make_directory(path)
         metadata_path = os.path.join(path, "metadata.json")
         if not os.path.exists(metadata_path):
@@ -525,13 +546,25 @@ class DiffusionPipelineManager:
         if not os.path.exists(metadata_path):
             self.write_tensorrt_metadata(metadata_path)
         return path
+
+    @property
+    def refiner_tensorrt_unet_key(self) -> str:
+        """
+        Gets the UNET key for the current configuration.
+        """
+        return DiffusionPipelineManager.get_tensorrt_unet_key(
+            size=self.size,
+            lora=[],
+            lycoris=[],
+            inversion=[]
+        )
     
     @property
     def refiner_tensorrt_unet_dir(self) -> str:
         """
         Gets where the tensorrt UNET engine will be stored for the refiner.
         """
-        path = os.path.join(self.refiner_tensorrt_dir, "unet", self.model_tensorrt_unet_key)
+        path = os.path.join(self.refiner_tensorrt_dir, "unet", self.refiner_tensorrt_unet_key)
         check_make_directory(path)
         metadata_path = os.path.join(path, "metadata.json")
         if not os.path.exists(metadata_path):
@@ -599,13 +632,25 @@ class DiffusionPipelineManager:
         return path
     
     @property
+    def refiner_tensorrt_controlled_unet_key(self) -> str:
+        """
+        Gets the UNET key for the current configuration.
+        """
+        return DiffusionPipelineManager.get_tensorrt_controlled_unet_key(
+            size=self.size,
+            lora=[],
+            lycoris=[],
+            inversion=[]
+        )
+
+    @property
     def refiner_tensorrt_controlled_unet_dir(self) -> str:
         """
         Gets where the tensorrt Controlled UNet engine will be stored for the refiner.
         TODO: determine if this should exist.
         """
         path = os.path.join(
-            self.refiner_tensorrt_dir, "controlledunet", self.model_tensorrt_controlled_unet_key
+            self.refiner_tensorrt_dir, "controlledunet", self.refiner_ensorrt_controlled_unet_key
         )
         check_make_directory(path)
         metadata_path = os.path.join(path, "metadata.json")
@@ -627,7 +672,7 @@ class DiffusionPipelineManager:
     @property
     def model_tensorrt_controlnet_key(self) -> str:
         """
-        Gets the UNET key for the current configuration.
+        Gets the controlnet key for the current configuration.
         """
         return DiffusionPipelineManager.get_tensorrt_controlnet_key(
             size=self.size,
@@ -651,12 +696,24 @@ class DiffusionPipelineManager:
         return path
     
     @property
+    def refiner_tensorrt_controlnet_key(self) -> str:
+        """
+        Gets the controlnet key for the current configuration.
+        """
+        return DiffusionPipelineManager.get_tensorrt_controlnet_key(
+            size=self.size,
+            controlnet=""
+            if self.controlnet is None
+            else getattr(self.controlnet.config, "_name_or_path", ""),
+        )
+
+    @property
     def refiner_tensorrt_controlnet_dir(self) -> str:
         """
         Gets where the tensorrt controlnet engine will be stored for the refiner.
         """
         path = os.path.join(
-            self.refiner_tensorrt_dir, "controlnet", self.model_tensorrt_controlnet_key
+            self.refiner_tensorrt_dir, "controlnet", self.refiner_tensorrt_controlnet_key
         )
         check_make_directory(path)
         metadata_path = os.path.join(path, "metadata.json")
@@ -692,13 +749,20 @@ class DiffusionPipelineManager:
         if not os.path.exists(metadata_path):
             self.write_tensorrt_metadata(metadata_path)
         return path
+
+    @property
+    def refiner_tensorrt_vae_key(self) -> str:
+        """
+        Gets the UNET key for the current configuration.
+        """
+        return DiffusionPipelineManager.get_tensorrt_vae_key(size=self.size)
     
     @property
     def refiner_tensorrt_vae_dir(self) -> str:
         """
         Gets where the tensorrt VAE engine will be stored for the refiner.
         """
-        path = os.path.join(self.refiner_tensorrt_dir, "vae", self.model_tensorrt_vae_key)
+        path = os.path.join(self.refiner_tensorrt_dir, "vae", self.refiner_tensorrt_vae_key)
         check_make_directory(path)
         metadata_path = os.path.join(path, "metadata.json")
         if not os.path.exists(metadata_path):
@@ -773,6 +837,39 @@ class DiffusionPipelineManager:
                 Engine.get_engine_path(self.model_tensorrt_unet_dir)
             )
         return trt_ready
+    
+    @property
+    def refiner_tensorrt_is_ready(self) -> bool:
+        """
+        Checks to determine if Tensor RT is ready based on the existence of engines for the refiner
+        """
+        if not self.tensorrt_is_supported:
+            return False
+        from enfugue.diffusion.rt.engine import Engine
+
+        trt_ready = True
+        if "vae" in self.TENSORRT_STAGES:
+            trt_ready = trt_ready and os.path.exists(
+                Engine.get_engine_path(self.refiner_tensorrt_vae_dir)
+            )
+        if "clip" in self.TENSORRT_STAGES:
+            trt_ready = trt_ready and os.path.exists(
+                Engine.get_engine_path(self.refiner_tensorrt_clip_dir)
+            )
+        if self.controlnet is not None or self.TENSORRT_ALWAYS_USE_CONTROLLED_UNET:
+            if "unet" in self.TENSORRT_STAGES:
+                trt_ready = trt_ready and os.path.exists(
+                    Engine.get_engine_path(self.refiner_tensorrt_controlled_unet_dir)
+                )
+            if "controlnet" in self.TENSORRT_STAGES:
+                trt_ready = trt_ready and os.path.exists(
+                    Engine.get_engine_path(self.refiner_tensorrt_controlnet_dir)
+                )
+        elif "unet" in self.TENSORRT_STAGES:
+            trt_ready = trt_ready and os.path.exists(
+                Engine.get_engine_path(self.refiner_tensorrt_unet_dir)
+            )
+        return trt_ready
 
     @property
     def build_tensorrt(self) -> bool:
@@ -802,6 +899,13 @@ class DiffusionPipelineManager:
         Gets the ultimate decision on whether the tensorrt pipeline should be used.
         """
         return (self.tensorrt_is_ready or self.build_tensorrt) and self.tensorrt_is_enabled
+    
+    @property
+    def refiner_use_tensorrt(self) -> bool:
+        """
+        Gets the ultimate decision on whether the tensorrt pipeline should be used for the refiner/
+        """
+        return (self.refiner_tensorrt_is_ready or self.build_tensorrt) and self.tensorrt_is_enabled
 
     @property
     def refiner_switch_mode(self) -> Optional[Literal["offload", "unload"]]:
@@ -889,6 +993,20 @@ class DiffusionPipelineManager:
         Gets the pipeline class to use.
         """
         if self.use_tensorrt:
+            from enfugue.diffusion.rt.pipeline import EnfugueTensorRTStableDiffusionPipeline
+
+            return EnfugueTensorRTStableDiffusionPipeline
+        else:
+            from enfugue.diffusion.pipeline import EnfugueStableDiffusionPipeline
+
+            return EnfugueStableDiffusionPipeline
+    
+    @property
+    def refiner_pipeline_class(self) -> Type:
+        """
+        Gets the pipeline class to use.
+        """
+        if self.refiner_use_tensorrt:
             from enfugue.diffusion.rt.pipeline import EnfugueTensorRTStableDiffusionPipeline
 
             return EnfugueTensorRTStableDiffusionPipeline
@@ -1061,6 +1179,11 @@ class DiffusionPipelineManager:
         else:
             lora = [(new_lora, 1)]
 
+        for i, (model, weight) in enumerate(lora):
+            if not os.path.isabs(model):
+                model = os.path.join(self.engine_lora_dir, model)
+            lora[i] = (model, weight)
+
         if getattr(self, "_lora", []) != lora:
             logger.debug("Unloading pipeline due to change in LoRA")
             self.unload_pipeline()
@@ -1107,6 +1230,11 @@ class DiffusionPipelineManager:
             lycoris = [new_lycoris]
         else:
             lycoris = [(new_lycoris, 1)]
+        
+        for i, (model, weight) in enumerate(lycoris):
+            if not os.path.isabs(model):
+                model = os.path.join(self.engine_lycoris_dir, model)
+            lycoris[i] = (model, weight)
 
         if getattr(self, "_lycoris", []) != lycoris:
             logger.debug("Unloading pipeline due to change in LyCORIS")
@@ -1433,7 +1561,7 @@ class DiffusionPipelineManager:
                 "controlnet": None # TODO: investigate
             }
 
-            if self.use_tensorrt:
+            if self.refiner_use_tensorrt:
                 if "unet" in self.TENSORRT_STAGES:
                     if self.controlnet is None and not self.TENSORRT_ALWAYS_USE_CONTROLLED_UNET:
                         kwargs["unet_engine_dir"] = self.refiner_tensorrt_unet_dir
@@ -1456,7 +1584,7 @@ class DiffusionPipelineManager:
                 logger.debug(
                     f"Initializing refiner pipeline from diffusers cache directory at {self.refiner_diffusers_cache_dir}. Arguments are {kwargs}"
                 )
-                refiner_pipeline = self.pipeline_class.from_pretrained(
+                refiner_pipeline = self.refiner_pipeline_class.from_pretrained(
                     self.refiner_diffusers_cache_dir,
                     #controlnet=controlnet,
                     safety_checker=None,
@@ -1468,7 +1596,7 @@ class DiffusionPipelineManager:
                 logger.debug(
                     f"Initializing refiner pipeline from diffusers cache directory at {self.refiner_diffusers_cache_dir}. Arguments are {kwargs}"
                 )
-                refiner_pipeline = self.pipeline_class.from_pretrained(
+                refiner_pipeline = self.refiner_pipeline_class.from_pretrained(
                     self.refiner_diffusers_cache_dir,
                     safety_checker=None,
                     text_encoder=None,
@@ -1480,7 +1608,7 @@ class DiffusionPipelineManager:
                 logger.debug(
                     f"Initializing refiner pipeline from checkpoint at {self.refiner}. Arguments are {kwargs}"
                 )
-                refiner_pipeline = self.pipeline_class.from_ckpt(
+                refiner_pipeline = self.refiner_pipeline_class.from_ckpt(
                     self.refiner,
                     num_in_channels=4,
                     load_safety_checker=False,

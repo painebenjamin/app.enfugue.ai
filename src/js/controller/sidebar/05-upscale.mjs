@@ -52,9 +52,9 @@ class UpscaleMethodInputView extends SelectInputView {
         "esrganime": "ESRGANime",
         "gfpgan": "GFPGAN",
         "lanczos": "Lanczos",
-        "Bicubic": "Bicubic",
-        "Bilinear": "Bilinear",
-        "Nearest": "Nearest"
+        "bicubic": "Bicubic",
+        "bilinear": "Bilinear",
+        "nearest": "Nearest"
     };
     
     /**
