@@ -5,6 +5,7 @@ from sqlalchemy import Column, String, Integer, Float
 __all__ = [
     "DiffusionModel",
     "DiffusionModelRefiner",
+    "DiffusionModelInpainter",
     "DiffusionModelDefaultConfiguration",
     "DiffusionModelLora",
     "DiffusionModelLycoris",
@@ -30,6 +31,16 @@ class DiffusionModelRefiner(EnfugueObjectBase):
     model = Column(String(256), nullable=False)
 
     diffusion_model = DiffusionModel.Relationship(backref="refiner", uselist=False)
+
+class DiffusionModelInpainter(EnfugueObjectBase):
+    __tablename__ = "model_inpainter"
+    
+    diffusion_model_name = Column(
+        DiffusionModel.ForeignKey("name", ondelete="CASCADE", onupdate="CASCADE"), primary_key=True, unique=True
+    )
+    model = Column(String(256), nullable=False)
+
+    diffusion_model = DiffusionModel.Relationship(backref="inpainter", uselist=False)
 
 class DiffusionModelDefaultConfiguration(EnfugueObjectBase):
     __tablename__ = "model_default_configuration"

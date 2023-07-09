@@ -614,9 +614,15 @@ class SearchListInputView extends EnumerableInputView {
                 clearTimeout(this.searchDebounceTimer);
                 clearInterval(this.repositionInterval);
             }
+            if (this.listInputInput === true) {
+                // blur was due to clicking on the list input, don't trigger setting closest
+                return;
+            }
             if (this.constructor.setClosestOnBlur) {
-                let searchValue = strip(this.stringInput.getValue()).toLowerCase();
+                let searchValue = strip(this.stringInput.getValue()).toLowerCase(),
+                    triggerChange = false;
                 if (isEmpty(searchValue)) {
+                    triggerChange = !isEmpty(this.value);
                     this.value = null;
                 } else {
                     let options = await this.getOptions(),
@@ -626,19 +632,29 @@ class SearchListInputView extends EnumerableInputView {
                             jaroWinkler(options[b].toLowerCase(), searchValue) -
                             jaroWinkler(options[a].toLowerCase(), searchValue)
                     );
+                    triggerChange = this.value !== optionValues[0];
                     this.value = optionValues[0];
                     this.stringInput.setValue(options[this.value], false);
+                }
+                if (triggerChange) {
+                    this.changed();
                 }
             }
         });
 
         this.listInput = new this.constructor.listInputClass(config, "list", {options: () => this.getOptions()});
+        this.listInput.onMouseDown(async () => {
+            this.listInputInput = true;
+        });
+        this.listInput.onMouseUp(async () => {
+            this.listInputInput = false;
+        });
         this.listInput.onChange(async () => {
             let options = await this.getOptions(),
                 value = this.listInput.getValue();
             this.value = value;
             if (this.constructor.populateSearchOnSet) {
-                this.stringInput.setValue(options[value]);
+                this.stringInput.setValue(options[value], false);
             }
             if (this.constructor.hideListOnChange) {
                 clearTimeout(this.searchDebounceTimer);
@@ -860,12 +876,12 @@ class SearchListInputView extends EnumerableInputView {
         return node;
     }
 
-    async changed() {
+    async changed(e) {
         let changeTime = (new Date()).getTime();
         if (this.lastChange !== undefined && changeTime - this.lastChange < this.constructor.debounceChangeThreshold) {
             return;
         }
-        await super.changed();
+        await super.changed(e);
         this.lastChange = changeTime;
     }
 }

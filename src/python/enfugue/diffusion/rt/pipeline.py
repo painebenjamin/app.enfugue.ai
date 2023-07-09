@@ -1,4 +1,5 @@
 import torch
+import traceback
 import tensorrt as trt
 
 from typing import Optional, List, Dict, Iterator, Any, Union, Tuple
@@ -239,7 +240,7 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
             enable_preview=self.build_preview_features,
         )
 
-        self_built = True
+        self._built = True
         return self
 
     def create_latents(

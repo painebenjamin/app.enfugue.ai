@@ -42,6 +42,7 @@ Configuration.model = {
     invocation: {
         width: 512,
         height: 512,
+        engineSize: 512,
         chunkingSize: 64,
         chunkingBlur: 64,
         guidanceScale: 7.5,

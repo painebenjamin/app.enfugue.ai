@@ -14,9 +14,33 @@ def main() -> None:
         manager = DiffusionPipelineManager()
         
         # Base plan
-        manager.seed = 12345
-        plan = DiffusionPlan.from_nodes(prompt="A happy looking puppy", upscale_diffusion_guidance_scale=10.0)
-        plan.execute(manager)["images"][0].save(os.path.join(save_dir, "./puppy-plan.png"))
+        manager.seed = 123456
+        #plan = DiffusionPlan.from_nodes(prompt="A happy looking puppy", upscale_diffusion_guidance_scale=10.0)
+        #plan.execute(manager)["images"][0].save(os.path.join(save_dir, "./puppy-plan.png"))
+
+        # Inpainting + region prompt + background removal
+        plan = DiffusionPlan.from_nodes(
+            prompt="A cat and dog laying on a couch",
+            nodes=[
+                {
+                    "x": 0,
+                    "y": 128,
+                    "w": 256,
+                    "h": 256,
+                    "prompt": "A golden retriever laying down",
+                    "remove_background": True
+                },
+                {
+                    "x": 256,
+                    "y": 128,
+                    "w": 256,
+                    "h": 256,
+                    "prompt": "A cat laying down",
+                    "remove_background": True
+                }
+            ]
+        )
+        plan.execute(manager)["images"][0].save(os.path.join(save_dir, "./puppy-kitty-inpaint.png"))
 
         # Upscale
         plan.outscale = 2

@@ -1,4 +1,4 @@
-/** @module controller/sidebar/02-tweaks */
+/** @module controller/sidebar/03-tweaks */
 import { isEmpty } from "../../base/helpers.mjs";
 import { FormView } from "../../view/forms/base.mjs";
 import { Controller } from "../base.mjs";

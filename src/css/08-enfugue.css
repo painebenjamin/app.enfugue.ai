@@ -813,7 +813,7 @@ ul.model-picker-list-input-view > li > span {
     justify-content: space-between;
 }
 
-.additional-weights-form-view {
+.model-configuration-form-view {
     position: absolute;
     top: 75px;
     left: 35px;
@@ -824,16 +824,16 @@ ul.model-picker-list-input-view > li > span {
     transition: opacity 0.25s ease-in-out;
 }
 
-.additional-weights-form-view:hover {
+.model-configuration-form-view:hover {
     opacity: 1;
 }
 
-.additional-weights-form-view legend {
+.model-configuration-form-view legend {
     flex-direction: row-reverse;
     justify-content: flex-end;
 }
 
-.additional-weights-form-view legend::after {
+.model-configuration-form-view legend::after {
     margin-right: 10px;
 }
 

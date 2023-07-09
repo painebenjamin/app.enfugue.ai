@@ -1,4 +1,4 @@
-/** @module controlletr/sidebar/03-generation */
+/** @module controlletr/sidebar/04-generation */
 import { isEmpty } from "../../base/helpers.mjs";
 import { FormView } from "../../view/forms/base.mjs";
 import { NumberInputView, FloatInputView } from "../../view/forms/input.mjs";

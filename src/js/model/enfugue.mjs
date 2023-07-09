@@ -12,7 +12,7 @@ class DiffusionModel extends ModelObject {
     static alwaysInclude = true;
     static apiRoot = "models";
     static apiScope = ["name"];
-    static apiInclude = ["refiner", "lora", "lycoris", "inversion"];
+    static apiInclude = ["refiner", "inpainter", "lora", "lycoris", "inversion"];
 
     getStatus() {
         return this.queryModel("get", `${this.url}/status`);
@@ -20,6 +20,7 @@ class DiffusionModel extends ModelObject {
 };
 
 class DiffusionModelRefiner extends ModelObject {};
+class DiffusionModelInpainter extends ModelObject {};
 class DiffusionModelInversion extends ModelObject {};
 class DiffusionModelLora extends ModelObject {};
 class DiffusionModelLycoris extends ModelObject {};
@@ -47,6 +48,7 @@ class EnfugueModel extends Model {
     static modelObjects = [
         DiffusionModel,
         DiffusionModelRefiner,
+        DiffusionModelInpainter,
         DiffusionModelInversion,
         DiffusionModelLora,
         DiffusionModelLycoris,

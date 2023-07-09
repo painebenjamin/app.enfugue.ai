@@ -217,7 +217,7 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
     @handlers.methods("GET")
     @handlers.format()
     @handlers.secured("DiffusionModel", "read")
-    def get_model_tensorrt_status(
+    def get_model_status(
         self, request: Request, response: Response, model_name: str
     ) -> Dict[str, Any]:
         """
@@ -231,7 +231,7 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         if not model:
             raise NotFoundError(f"No model named {model_name}")
 
-        return DiffusionPipelineManager.get_status(
+        main_model_status = DiffusionPipelineManager.get_status(
             self.engine_root,
             model.model,
             model.size,
@@ -239,6 +239,44 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
             [(lycoris.model, lycoris.weight) for lycoris in model.lycoris],
             [inversion.model for inversion in model.inversion],
         )
+
+        if model.inpainter:
+            inpainter_model = model.inpainter[0].model
+            inpainter_model_status = DiffusionPipelineManager.get_status(
+                self.engine_root,
+                model.inpainter[0].model,
+                model.size,
+            )
+        else:
+            model_name, ext = os.path.splitext(model.model)
+            inpainter_model = f"{model_name}-inpainting{ext}"
+            inpainter_model_status = DiffusionPipelineManager.get_status(
+                self.engine_root,
+                inpainter_model,
+                model.size,
+            )
+        
+        if model.refiner:
+            refiner_model = model.refiner[0].model
+            refiner_model_status = DiffusionPipelineManager.get_status(
+                self.engine_root,
+                refiner_model,
+                model.size,
+            )
+        else:
+            refiner_model = None
+            refiner_model_status = None
+
+        return {
+            "model": model.model,
+            "refiner": refiner_model,
+            "inpainter": inpainter_model,
+            "tensorrt": {
+                "base": main_model_status,
+                "inpainter": inpainter_model_status,
+                "refiner": refiner_model_status
+            }
+        }
 
     @handlers.path("^/api/models/(?P<model_name>[^\/]+)/tensorrt/(?P<network_name>[^\/]+)$")
     @handlers.methods("POST")
@@ -313,7 +351,7 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
 
         refiner = request.parsed.get("refiner", None)
         if refiner is None and model.refiner:
-            self.database.delete(model.refiner)
+            self.database.delete(model.refiner[0])
         elif refiner is not None:
             if not model.refiner:
                 self.database.add(
@@ -323,7 +361,21 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
                     )
                 )
             else:
-                model.refiner.model = refiner
+                model.refiner[0].model = refiner
+        
+        inpainter = request.parsed.get("inpainter", None)
+        if inpainter is None and model.inpainter:
+            self.database.delete(model.inpainter[0])
+        elif inpainter is not None:
+            if not model.inpainter:
+                self.database.add(
+                    self.orm.DiffusionModelInpainter(
+                        diffusion_model_name=model_name,
+                        model=inpainter,
+                    )
+                )
+            else:
+                model.inpainter[0].model = inpainter
 
         self.database.commit()
 
@@ -372,6 +424,8 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
             self.database.delete(inversion)
         if model.refiner:
             self.database.delete(model.refiner)
+        if model.inpainter:
+            self.database.delete(model.inpainter)
 
         self.database.commit()
         self.database.delete(model)
@@ -401,6 +455,13 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
                     diffusion_model_name=new_model.name, model=refiner
                 )
                 self.database.add(new_refiner)
+                self.database.commit()
+            inpainter = request.parsed.get("inpainter", None)
+            if inpainter:
+                new_inpainter = self.orm.DiffusionModelinpainter(
+                    diffusion_model_name=new_model.name, model=inpainter
+                )
+                self.database.add(new_inpainter)
                 self.database.commit()
             for lora in request.parsed.get("lora", []):
                 new_lora = self.orm.DiffusionModelLora(

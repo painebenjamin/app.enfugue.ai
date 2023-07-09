@@ -6,7 +6,8 @@ import { FormView } from "../../view/forms/base.mjs";
 import {
     SearchListInputView, 
     StringInputView, 
-    SearchListInputListView
+    SearchListInputListView,
+    NumberInputView
 } from "../../view/forms/input.mjs";
 import { 
     CheckpointInputView,
@@ -69,13 +70,13 @@ class ModelPickerInputView extends SearchListInputView {
 };
 
 /**
- * This form allows additional pipeline weights when using a checkpoint
+ * This form allows additional pipeline configuration when using a checkpoint
  */
-class AdditionalModelsFormView extends FormView {
+class ModelConfigurationFormView extends FormView {
     /**
      * @var string Custom CSS class
      */
-    static className = "additional-weights-form-view";
+    static className = "model-configuration-form-view";
 
     /**
      * @var boolean no submit button
@@ -91,12 +92,17 @@ class AdditionalModelsFormView extends FormView {
      * @var object one fieldset describes all inputs
      */
     static fieldSets = {
-        "Additional Models": {
-            "refiner": {
-                "class": CheckpointInputView,
-                "label": "Refiner",
+        "Adaptations and Modifications": {
+            "size": {
+                "class": NumberInputView,
+                "label": "Size",
                 "config": {
-                    "tooltip": "Refiner models are a new concept introduced with SDXL that performs a secondary denoising after the initial pass that can add numerous details and remove artifacts."
+                    "required": true,
+                    "value": 512,
+                    "min": 128,
+                    "max": 2047,
+                    "step": 8,
+                    "tooltip": "When using chunked diffusion, this is the size of the window (in pixels) that will be encoded, decoded or inferred at once. Set the chunking size to 0 in the sidebar to disable chunked diffusion and always try to process the entire image at once."
                 }
             },
             "lora": {
@@ -118,6 +124,22 @@ class AdditionalModelsFormView extends FormView {
                 "label": "Textual Inversion",
                 "config": {
                     "tooltip": "Textual Inversion is another kind of fine-tuning that teaches novel concepts to Stable Diffusion in a small number of images, which can be used to positively or negatively affect the impact of various prompts."
+                }
+            }
+        },
+        "Additional Models": {
+            "refiner": {
+                "label": "Refining Checkpoint",
+                "class": CheckpointInputView,
+                "config": {
+                    "tooltip": "Refining checkpoints were introduced with SDXL 0.9 - these are checkpoints specifically trained to improve detail, shapes, and generally improve the quality of images generated from the base model. These are optional, and do not need to be specifically-trained refinement checkpoints - you can try mixing and matching checkpoints for different styles, though you may wish to ensure the related checkpoints were trained on the same size images."
+                }
+            },
+            "inpainter": {
+                "label": "Inpainting Checkpoint",
+                "class": CheckpointInputView,
+                "config": {
+                    "tooltip": "An inpainting checkpoint if much like a regular Stable Diffusion checkpoint, but it additionally includes the ability to input which parts of the image can be changed and which cannot. This is used when you specifically request an image be inpainted, but is also used in many other situations in Enfugue; such as when you place an image on the canvas that doesn't cover the entire space, or use an image that has transparency in it (either before or after removing it's background.) When you don't select an inpainting checkpoint and request an inpainting operation, one will be created dynamically from the main checkpoint at runtime."
                 }
             }
         }
@@ -359,14 +381,20 @@ class ModelPickerController extends Controller {
      * Get state from the model picker
      */
     getState() {
-        return { "model": this.formView.values, "weights": this.additionalModelsFormView.values };
+        return {
+            "model": this.formView.values,
+            "modelConfig": this.modelConfigurationFormView.values
+        };
     }
 
     /**
      * Gets default state
      */
     getDefaultState() {
-        return { "model": null, "weights": null };
+        return {
+            "model": null, 
+            "modelConfig": null
+        };
     }
 
     /**
@@ -374,10 +402,14 @@ class ModelPickerController extends Controller {
      */
     setState(newState) {
         if (!isEmpty(newState.model)) {
-            this.formView.setValues(newState.model).then(() => this.formView.submit());
+            this.formView.setValues(newState.model).then(
+                () => this.formView.submit()
+            );
         }
-        if (!isEmpty(newState.weights)) {
-            this.additionalModelsFormView.setValues(newState.weights).then(() => this.additionalModelsFormView.submit());
+        if (!isEmpty(newState.modelConfig)) {
+            this.modelConfigurationFormView.setValues(newState.modelConfig).then(
+                () => this.modelConfigurationFormView.submit()
+            );
         }
     }
 
@@ -403,13 +435,21 @@ class ModelPickerController extends Controller {
      */
     async showBuildTensorRT(model) {
         let currentStatus = await model.getStatus(),
-            currentEngineBuildProcess = await this.getCurrentEngineBuildProcess();
-            console.log(currentStatus);
+            currentEngineBuildProcess = await this.getCurrentEngineBuildProcess(),
+            tensorRTStatus = {supported: false};
+
+        if (!isEmpty(currentStatus.tensorrt)) {
+            tensorRTStatus = currentStatus.tensorrt.base;
+            if (!isEmpty(currentStatus.tensorrt.inpainter)) {
+                tensorRTStatus.inpaint_unet_ready = currentStatus.tensorrt.inpainter.unet_ready;
+            }
+        }
+
         if (!isEmpty(currentEngineBuildProcess) && currentEngineBuildProcess.metadata.tensorrt_build.model === model.name) {
             currentStatus.building = currentEngineBuildProcess.metadata.tensorrt_build.network;
         }
         
-        let modelStatusView = new ModelTensorRTStatusView(this.config, currentStatus, (engine) => this.buildEngine(model.name, engine)),
+        let modelStatusView = new ModelTensorRTStatusView(this.config, tensorRTStatus, (engine) => this.buildEngine(model.name, engine)),
             modelWindow = await this.spawnWindow(
                 `${model.name} TensorRT Status`,
                 modelStatusView,
@@ -450,7 +490,7 @@ class ModelPickerController extends Controller {
         };
 
         this.formView = new ModelPickerFormView(this.config);
-        this.additionalModelsFormView = new AdditionalModelsFormView(this.config);
+        this.modelConfigurationFormView = new ModelConfigurationFormView(this.config);
 
         this.formView.onSubmit(async (values) => {
             if (values.model) {
@@ -458,13 +498,22 @@ class ModelPickerController extends Controller {
                 this.engine.model = selectedName;
                 this.engine.modelType = selectedType;
                 if (selectedType === "model") {
-                    this.additionalModelsFormView.hide();
+                    this.modelConfigurationFormView.hide();
                     try {
                         let fullModel = await this.model.DiffusionModel.query({name: selectedName}),
-                            modelStatus = await fullModel.getStatus();
-                        this.publish("modelPickerChange", {...fullModel, ...{"status": modelStatus}});
+                            modelStatus = await fullModel.getStatus(),
+                            tensorRTStatus = {supported: false};
+
+                        fullModel.status = modelStatus;
+                        this.publish("modelPickerChange", fullModel);
+                        if (!isEmpty(modelStatus.tensorrt)) {
+                            tensorRTStatus = modelStatus.tensorrt.base;
+                            if (!isEmpty(modelStatus.tensorrt.inpainter)) {
+                                tensorRTStatus.inpaint_unet_ready = modelStatus.tensorrt.inpainter.unet_ready;
+                            }
+                        }
                         this.formView.setTensorRTStatus(
-                            modelStatus,
+                            tensorRTStatus,
                             () => this.showBuildTensorRT(fullModel)
                         );
                     } catch(e) {
@@ -472,12 +521,7 @@ class ModelPickerController extends Controller {
                         this.formView.setValues({"model": null});
                     }
                 } else {
-                    this.publish("modelPickerChange", {
-                        "status": {
-                            "xl": selectedName.toLowerCase().indexOf("xl") !== -1
-                        }
-                    });
-                    this.additionalModelsFormView.show();
+                    this.modelConfigurationFormView.show();
                     this.formView.setTensorRTStatus({supported: false});
                 }
             } else {
@@ -485,15 +529,16 @@ class ModelPickerController extends Controller {
             }
         });
         
-        this.additionalModelsFormView.onSubmit(async (values) => {
+        this.modelConfigurationFormView.onSubmit(async (values) => {
+            this.engine.refiner = values.refiner;
+            this.engine.inpainter = values.inpainter;
             this.engine.lora = values.lora;
             this.engine.lycoris = values.lycoris;
-            this.engine.refiner = values.refiner;
             this.engine.inversion = values.inversion;
         });
 
         this.application.container.appendChild(await this.formView.render());
-        this.application.container.appendChild(await this.additionalModelsFormView.render());
+        this.application.container.appendChild(await this.modelConfigurationFormView.render());
 
         this.subscribe("invocationError", (payload) => {
             console.error(payload);

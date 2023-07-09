@@ -3,6 +3,7 @@ from enfugue.database.invocations import DiffusionInvocation
 from enfugue.database.config import ConfigurationItem
 from enfugue.database.models import (
     DiffusionModel,
+    DiffusionModelInpainter,
     DiffusionModelRefiner,
     DiffusionModelLora,
     DiffusionModelLycoris,
@@ -10,7 +11,7 @@ from enfugue.database.models import (
     DiffusionModelDefaultConfiguration
 )
 
-EnfugueObjectBase, DiffusionModel, DiffusionModelRefiner, DiffusionModelLora, DiffusionModelLycoris, DiffusionModelInversion, DiffusionInvocation, DiffusionModelDefaultConfiguration, ConfigurationItem # Silence importchecker
+EnfugueObjectBase, DiffusionModel, DiffusionModelRefiner, DiffusionModelInpainter, DiffusionModelLora, DiffusionModelLycoris, DiffusionModelInversion, DiffusionInvocation, DiffusionModelDefaultConfiguration, ConfigurationItem # Silence importchecker
 
 __all__ = [
     "EnfugueObjectBase",
@@ -18,6 +19,7 @@ __all__ = [
     "DiffusionInvocation",
     "DiffusionModel",
     "DiffusionModelRefiner",
+    "DiffusionModelInpainter",
     "DiffusionModelLora",
     "DiffusionModelLycoris",
     "DiffusionModelInversion",

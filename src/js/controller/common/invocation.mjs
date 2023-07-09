@@ -66,6 +66,23 @@ class InvocationController extends Controller {
     }
 
     /**
+     * @return The engine size when not using preconfigured models
+     */
+    get size() {
+        return this.kwargs.size || 512;
+    }
+    
+    /**
+     * @param int The engine size when not using preconfigured models
+     */
+    set size(newSize) {
+        if (this.size !== newSize) {
+            this.publish("engineSizeChange", newSize);
+        }
+        this.kwargs.size = newSize;
+    }
+
+    /**
      * @return The chunking size; i.e. how many pixels the rendering window moves by during multidiffusion.
      */
     get chunkingSize() {

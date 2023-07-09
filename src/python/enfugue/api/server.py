@@ -197,6 +197,19 @@ class EnfugueAPIServerBase(
             )
         else:
             refiner = None
+        inpainter = diffusion_model.inpainter
+        if inpainter:
+            inpainter = os.path.abspath(
+                os.path.join(
+                    self.configuration.get(
+                        "enfugue.engine.checkpoint",
+                        os.path.join(self.manager.engine_root_dir, "checkpoint"),
+                    ),
+                    inpainter[0].model
+                ),
+            )
+        else:
+            inpainter = None
         lora = [
             (
                 os.path.abspath(
@@ -243,6 +256,7 @@ class EnfugueAPIServerBase(
         plan_kwargs: Dict[str, Any] = {
             "model": model,
             "refiner": refiner,
+            "inpainter": inpainter,
             "size": size,
             "lora": lora,
             "lycoris": lycoris,

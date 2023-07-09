@@ -222,11 +222,13 @@ class DiffusionPipelineManager:
         """
         Sets the base engine size in pixels.
         """
+        logger.critical(f"Setting size to {new_size}: {traceback.format_stack()}")
         if hasattr(self, "_size") and self._size != new_size:
             if self.tensorrt_is_ready:
                 logger.debug("Unloading pipeline due to change in engine size.")
                 self.unload_pipeline()
             elif hasattr(self, "_pipeline"):
+                logger.debug("Setting pipline engine size in-place.")
                 self._pipeline.engine_size = new_size
         self._size = new_size
 
@@ -379,6 +381,15 @@ class DiffusionPipelineManager:
         path = os.path.join(self.engine_tensorrt_dir, self.refiner_name)
         check_make_directory(path)
         return path
+    
+    @property
+    def inpainter_tensorrt_dir(self) -> str:
+        """
+        Gets where tensorrt engines will be built per inpainter.
+        """
+        path = os.path.join(self.engine_tensorrt_dir, self.inpainter_name)
+        check_make_directory(path)
+        return path
 
     @property
     def engine_diffusers_dir(self) -> str:
@@ -407,6 +418,15 @@ class DiffusionPipelineManager:
         Gets where the diffusers cache will be for the current refiner.
         """
         path = os.path.join(self.engine_diffusers_dir, self.refiner_name)
+        check_make_directory(path)
+        return path
+    
+    @property
+    def inpainter_diffusers_dir(self) -> str:
+        """
+        Gets where the diffusers cache will be for the current inpainter.
+        """
+        path = os.path.join(self.engine_diffusers_dir, self.inpainter_name)
         check_make_directory(path)
         return path
 
@@ -489,6 +509,27 @@ class DiffusionPipelineManager:
             self.write_tensorrt_metadata(metadata_path)
         return path
 
+    @property
+    def inpainter_tensorrt_clip_key(self) -> str:
+        """
+        Gets the CLIP key for the current configuration.
+        """
+        return DiffusionPipelineManager.get_tensorrt_clip_key(
+            size=self.size,
+        )
+    
+    @property
+    def inpainter_tensorrt_clip_dir(self) -> str:
+        """
+        Gets where the tensorrt CLIP engine will be stored.
+        """
+        path = os.path.join(self.inpainter_tensorrt_dir, "clip", self.inpainter_tensorrt_clip_key)
+        check_make_directory(path)
+        metadata_path = os.path.join(path, "metadata.json")
+        if not os.path.exists(metadata_path):
+            self.write_tensorrt_metadata(metadata_path)
+        return path
+
     @staticmethod
     def get_tensorrt_unet_key(
         size: int,
@@ -565,6 +606,30 @@ class DiffusionPipelineManager:
         Gets where the tensorrt UNET engine will be stored for the refiner.
         """
         path = os.path.join(self.refiner_tensorrt_dir, "unet", self.refiner_tensorrt_unet_key)
+        check_make_directory(path)
+        metadata_path = os.path.join(path, "metadata.json")
+        if not os.path.exists(metadata_path):
+            self.write_tensorrt_metadata(metadata_path)
+        return path
+    
+    @property
+    def inpainter_tensorrt_unet_key(self) -> str:
+        """
+        Gets the UNET key for the current configuration.
+        """
+        return DiffusionPipelineManager.get_tensorrt_unet_key(
+            size=self.size,
+            lora=[],
+            lycoris=[],
+            inversion=[]
+        )
+    
+    @property
+    def inpainter_tensorrt_unet_dir(self) -> str:
+        """
+        Gets where the tensorrt UNET engine will be stored for the inpainter.
+        """
+        path = os.path.join(self.inpainter_tensorrt_dir, "unet", self.inpainter_tensorrt_unet_key)
         check_make_directory(path)
         metadata_path = os.path.join(path, "metadata.json")
         if not os.path.exists(metadata_path):
@@ -657,70 +722,7 @@ class DiffusionPipelineManager:
         if not os.path.exists(metadata_path):
             self.write_tensorrt_metadata(metadata_path)
         return path
-
-    @staticmethod
-    def get_tensorrt_controlnet_key(size: int, controlnet: str, **kwargs: Any) -> str:
-        """
-        Uses hashlib to generate the unique key for the controlnet engine.
-        controlnet must be rebuilt for each:
-            1. Model
-            2. Dimension
-            3. ControlNet
-        """
-        return md5("-".join([str(size), controlnet]).encode("utf-8")).hexdigest()
-
-    @property
-    def model_tensorrt_controlnet_key(self) -> str:
-        """
-        Gets the controlnet key for the current configuration.
-        """
-        return DiffusionPipelineManager.get_tensorrt_controlnet_key(
-            size=self.size,
-            controlnet=""
-            if self.controlnet is None
-            else getattr(self.controlnet.config, "_name_or_path", ""),
-        )
-
-    @property
-    def model_tensorrt_controlnet_dir(self) -> str:
-        """
-        Gets where the tensorrt controlnet engine will be stored.
-        """
-        path = os.path.join(
-            self.model_tensorrt_dir, "controlnet", self.model_tensorrt_controlnet_key
-        )
-        check_make_directory(path)
-        metadata_path = os.path.join(path, "metadata.json")
-        if not os.path.exists(metadata_path):
-            self.write_tensorrt_metadata(metadata_path)
-        return path
     
-    @property
-    def refiner_tensorrt_controlnet_key(self) -> str:
-        """
-        Gets the controlnet key for the current configuration.
-        """
-        return DiffusionPipelineManager.get_tensorrt_controlnet_key(
-            size=self.size,
-            controlnet=""
-            if self.controlnet is None
-            else getattr(self.controlnet.config, "_name_or_path", ""),
-        )
-
-    @property
-    def refiner_tensorrt_controlnet_dir(self) -> str:
-        """
-        Gets where the tensorrt controlnet engine will be stored for the refiner.
-        """
-        path = os.path.join(
-            self.refiner_tensorrt_dir, "controlnet", self.refiner_tensorrt_controlnet_key
-        )
-        check_make_directory(path)
-        metadata_path = os.path.join(path, "metadata.json")
-        if not os.path.exists(metadata_path):
-            self.write_tensorrt_metadata(metadata_path)
-        return path
-
     @staticmethod
     def get_tensorrt_vae_key(size: int, **kwargs: Any) -> str:
         """
@@ -763,6 +765,25 @@ class DiffusionPipelineManager:
         Gets where the tensorrt VAE engine will be stored for the refiner.
         """
         path = os.path.join(self.refiner_tensorrt_dir, "vae", self.refiner_tensorrt_vae_key)
+        check_make_directory(path)
+        metadata_path = os.path.join(path, "metadata.json")
+        if not os.path.exists(metadata_path):
+            self.write_tensorrt_metadata(metadata_path)
+        return path
+
+    @property
+    def inpainter_tensorrt_vae_key(self) -> str:
+        """
+        Gets the UNET key for the current configuration.
+        """
+        return DiffusionPipelineManager.get_tensorrt_vae_key(size=self.size)
+    
+    @property
+    def inpainter_tensorrt_vae_dir(self) -> str:
+        """
+        Gets where the tensorrt VAE engine will be stored for the inpainter.
+        """
+        path = os.path.join(self.inpainter_tensorrt_dir, "vae", self.inpainter_tensorrt_vae_key)
         check_make_directory(path)
         metadata_path = os.path.join(path, "metadata.json")
         if not os.path.exists(metadata_path):
@@ -870,6 +891,30 @@ class DiffusionPipelineManager:
                 Engine.get_engine_path(self.refiner_tensorrt_unet_dir)
             )
         return trt_ready
+    
+    @property
+    def inpainter_tensorrt_is_ready(self) -> bool:
+        """
+        Checks to determine if Tensor RT is ready based on the existence of engines for the inpainter
+        """
+        if not self.tensorrt_is_supported:
+            return False
+        from enfugue.diffusion.rt.engine import Engine
+
+        trt_ready = True
+        if "vae" in self.TENSORRT_STAGES:
+            trt_ready = trt_ready and os.path.exists(
+                Engine.get_engine_path(self.inpainter_tensorrt_vae_dir)
+            )
+        if "clip" in self.TENSORRT_STAGES:
+            trt_ready = trt_ready and os.path.exists(
+                Engine.get_engine_path(self.inpainter_tensorrt_clip_dir)
+            )
+        if "unet" in self.TENSORRT_STAGES:
+            trt_ready = trt_ready and os.path.exists(
+                Engine.get_engine_path(self.inpainter_tensorrt_unet_dir)
+            )
+        return trt_ready
 
     @property
     def build_tensorrt(self) -> bool:
@@ -906,22 +951,29 @@ class DiffusionPipelineManager:
         Gets the ultimate decision on whether the tensorrt pipeline should be used for the refiner/
         """
         return (self.refiner_tensorrt_is_ready or self.build_tensorrt) and self.tensorrt_is_enabled
+    
+    @property
+    def inpainter_use_tensorrt(self) -> bool:
+        """
+        Gets the ultimate decision on whether the tensorrt pipeline should be used for the inpainter/
+        """
+        return (self.inpainter_tensorrt_is_ready or self.build_tensorrt) and self.tensorrt_is_enabled
 
     @property
-    def refiner_switch_mode(self) -> Optional[Literal["offload", "unload"]]:
+    def pipeline_switch_mode(self) -> Optional[Literal["offload", "unload"]]:
         """
-        Defines how to switch to refiners.
+        Defines how to switch to pipelines.
         """
-        if not hasattr(self, "_refiner_switch_mode"):
-            self._refiner_switch_mode = self.configuration.get("enfugue.refiner.switch", "offload")
-        return self._refiner_switch_mode
+        if not hasattr(self, "_pipeline_switch_mode"):
+            self._pipeline_switch_mode = self.configuration.get("enfugue.pipeline.switch", "offload")
+        return self._pipeline_switch_mode
 
-    @refiner_switch_mode.setter
-    def refiner_switch_mode(self, mode: Optional[Literal["offload", "unload"]]) -> None:
+    @pipeline_switch_mode.setter
+    def pipeline_switch_mode(self, mode: Optional[Literal["offload", "unload"]]) -> None:
         """
-        Changes how refiners get switched.
+        Changes how pipelines get switched.
         """
-        self._refiner_switch_mode = mode
+        self._pipeline_switch_mode = mode
 
     @property
     def refiner_strength(self) -> float:
@@ -1016,6 +1068,20 @@ class DiffusionPipelineManager:
             return EnfugueStableDiffusionPipeline
 
     @property
+    def inpainter_pipeline_class(self) -> Type:
+        """
+        Gets the pipeline class to use.
+        """
+        if self.inpainter_use_tensorrt:
+            from enfugue.diffusion.rt.pipeline import EnfugueTensorRTStableDiffusionPipeline
+
+            return EnfugueTensorRTStableDiffusionPipeline
+        else:
+            from enfugue.diffusion.pipeline import EnfugueStableDiffusionPipeline
+
+            return EnfugueStableDiffusionPipeline
+
+    @property
     def model(self) -> str:
         """
         Gets the configured model.
@@ -1099,6 +1165,49 @@ class DiffusionPipelineManager:
         if self.refiner is None:
             return None
         return os.path.splitext(os.path.basename(self.refiner))[0]
+
+    @property
+    def has_inpainter(self) -> bool:
+        """
+        Returns true if the inpainter is set.
+        """
+        return self.inpainter is not None
+
+    @property
+    def inpainter(self) -> Optional[str]:
+        """
+        Gets the configured inpainter.
+        """
+        if not hasattr(self, "_inpainter"):
+            self._inpainter = self.configuration.get("enfugue.inpainter", None)
+        return self._inpainter
+
+    @inpainter.setter
+    def inpainter(self, new_inpainter: Optional[str]) -> None:
+        """
+        Sets a new inpainter. Destroys the inpainter pipelline.
+        """
+        if new_inpainter is None:
+            self._inpainter = None
+            return
+        if new_inpainter.startswith("http"):
+            new_inpainter = self.check_download_checkpoint(new_inpainter)
+        elif not os.path.isabs(new_inpainter):
+            new_inpainter = os.path.join(self.engine_checkpoints_dir, new_inpainter)
+        new_inpainter_name, _ = os.path.splitext(os.path.basename(new_inpainter))
+        if self.inpainter_name != new_inpainter_name:
+            logger.debug("Unloading inpainter pipeline due to change in inpainter model")
+            self.unload_inpainter()
+        self._inpainter = new_inpainter
+
+    @property
+    def inpainter_name(self) -> Optional[str]:
+        """
+        Gets just the basename of the inpainter
+        """
+        if self.inpainter is None:
+            return None
+        return os.path.splitext(os.path.basename(self.inpainter))[0]
 
     @property
     def dtype(self) -> torch.dtype:
@@ -1282,64 +1391,6 @@ class DiffusionPipelineManager:
         return [os.path.splitext(os.path.basename(inversion))[0] for inversion in self.inversion]
 
     @property
-    def inpainting(self) -> bool:
-        """
-        Returns true if the model is an inpainting model.
-        """
-        return "inpaint" in self.model
-
-    @inpainting.setter
-    def inpainting(self, new_inpainting: bool) -> None:
-        """
-        Sets whether or not we are inpainting.
-
-        We trade efficiency for ease-of-use here; we just keep a model named `-inpainting`
-        for any model.
-        """
-        if self.inpainting != new_inpainting:
-            logger.debug("Unloading pipeline to change inpainting status")
-            self.unload_pipeline()
-
-            current_checkpoint_path = self.model
-            default_checkpoint_name, _ = os.path.splitext(os.path.basename(DEFAULT_MODEL))
-            default_inpainting_name, _ = os.path.splitext(
-                os.path.basename(DEFAULT_INPAINTING_MODEL)
-            )
-            checkpoint_name, ext = os.path.splitext(os.path.basename(current_checkpoint_path))
-
-            if default_checkpoint_name == checkpoint_name and new_inpainting:
-                logger.info(f"Switching to default inpainting checkpoint")
-                self.model = self.check_download_checkpoint(DEFAULT_INPAINTING_MODEL)
-            elif default_inpainting_name == checkpoint_name and not new_inpainting:
-                logger.info(f"Switching to default model")
-                self.model = self.check_download_checkpoint(DEFAULT_MODEL)
-            else:
-                target_checkpoint_name = checkpoint_name
-
-                if new_inpainting:
-                    target_checkpoint_name += "-inpainting"
-                else:
-                    target_checkpoint_name = target_checkpoint_name[:-11]
-                target_checkpoint_path = os.path.join(
-                    os.path.dirname(current_checkpoint_path), f"{target_checkpoint_name}{ext}"
-                )
-                if not os.path.exists(target_checkpoint_path):
-                    if not new_inpainting:
-                        raise NotImplementedError(
-                            "Creating a non-inpainting checkpoint from an inpainting one is not yet supported."
-                        )
-                    logger.info(f"Creating inpainting checkpoint from {current_checkpoint_path}")
-                    self.create_inpainting_checkpoint(
-                        current_checkpoint_path, target_checkpoint_path
-                    )
-                logger.info(
-                    "Switching to {0}inpainting checkpoint at {1}".format(
-                        "" if new_inpainting else "non-", target_checkpoint_path
-                    )
-                )
-                self.model = target_checkpoint_path
-
-    @property
     def model_diffusers_cache_dir(self) -> Optional[str]:
         """
         Ggets where the diffusers cache directory is saved for this model, if there is any.
@@ -1374,6 +1425,24 @@ class DiffusionPipelineManager:
         Gets whether or not the diffusers cache exists.
         """
         return self.refiner_diffusers_cache_dir is not None
+    
+    @property
+    def inpainter_diffusers_cache_dir(self) -> Optional[str]:
+        """
+        Ggets where the diffusers cache directory is saved for this inpainter, if there is any.
+        """
+        if os.path.exists(os.path.join(self.inpainter_diffusers_dir, "model_index.json")):
+            return self.inpainter_diffusers_dir
+        elif os.path.exists(os.path.join(self.inpainter_tensorrt_dir, "model_index.json")):
+            return self.inpainter_tensorrt_dir
+        return None
+
+    @property
+    def inpainter_engine_cache_exists(self) -> bool:
+        """
+        Gets whether or not the diffusers cache exists.
+        """
+        return self.inpainter_diffusers_cache_dir is not None
     
     @property
     def always_cache(self) -> bool:
@@ -1433,6 +1502,27 @@ class DiffusionPipelineManager:
                 num_in_channels=4
             ).to(torch_dtype=self.dtype)
             pipe.save_pretrained(self.refiner_diffusers_dir)
+            del pipe
+            torch.cuda.empty_cache()
+            self.stop_keepalive()
+
+    def check_create_inpainter_engine_cache(self) -> None:
+        """
+        Converts a .safetensor file to diffusers cache
+        """
+        if not self.inpainter_engine_cache_exists:
+            from diffusers.pipelines.stable_diffusion.convert_from_ckpt import (
+                download_from_original_stable_diffusion_ckpt,
+            )
+
+            self.start_keepalive()
+            _, ext = os.path.splitext(self.inpainter)
+            pipe = download_from_original_stable_diffusion_ckpt(
+                checkpoint_path=self.inpainter,
+                from_safetensors=ext == ".safetensors",
+                num_in_channels=4
+            ).to(torch_dtype=self.dtype)
+            pipe.save_pretrained(self.inpainter_diffusers_dir)
             del pipe
             torch.cuda.empty_cache()
             self.stop_keepalive()
@@ -1507,7 +1597,7 @@ class DiffusionPipelineManager:
                 )
                 pipeline = self.pipeline_class.from_ckpt(
                     self.model,
-                    num_in_channels=9 if self.inpainting else 4,
+                    num_in_channels=4,
                     controlnet=controlnet,
                     **kwargs
                 )
@@ -1635,6 +1725,106 @@ class DiffusionPipelineManager:
         else:
             logger.debug("Refiner pipeline delete called, but no refiner pipeline present. This is not an error.")
 
+    @property
+    def inpainter_pipeline(self) -> EnfugueStableDiffusionPipeline:
+        """
+        Instantiates the inpainter pipeline.
+        """
+        if not hasattr(self, "_inpainter_pipeline"):
+            if not self.inpainter:
+                current_checkpoint_path = self.model
+                default_checkpoint_name, _ = os.path.splitext(os.path.basename(DEFAULT_MODEL))
+                default_inpainting_name, _ = os.path.splitext(
+                    os.path.basename(DEFAULT_INPAINTING_MODEL)
+                )
+                checkpoint_name, ext = os.path.splitext(os.path.basename(current_checkpoint_path))
+
+                if default_checkpoint_name == checkpoint_name:
+                    self.inpainter = DEFAULT_INPAINTING_MODEL
+                else:
+                    target_checkpoint_name = f"{checkpoint_name}-inpainting"
+                    target_checkpoint_path = os.path.join(
+                        os.path.dirname(current_checkpoint_path), f"{target_checkpoint_name}{ext}"
+                    )
+                    if not os.path.exists(target_checkpoint_path):
+                        logger.info(f"Creating inpainting checkpoint from {current_checkpoint_path}")
+                        self.create_inpainting_checkpoint(
+                            current_checkpoint_path, target_checkpoint_path
+                        )
+                    self.inpainter = target_checkpoint_path
+            if self.inpainter.startswith("http"):
+                self.inpainter = self.check_download_checkpoint(self.inpainter)
+
+            kwargs = {
+                "cache_dir": self.engine_cache_dir,
+                "engine_size": self.size,
+                "chunking_size": self.chunking_size,
+                "torch_dtype": self.dtype,
+                "requires_safety_checker": self.safe,
+                "requires_aesthetic_score": False,
+                "controlnet": None,
+                "tokenizer_2": None,
+                "text_encoder_2": None
+            }
+
+            if self.inpainter_use_tensorrt:
+                if "unet" in self.TENSORRT_STAGES:
+                    kwargs["unet_engine_dir"] = self.inpainter_tensorrt_unet_dir
+                if "vae" in self.TENSORRT_STAGES:
+                    kwargs["vae_engine_dir"] = self.inpainter_tensorrt_vae_dir
+                if "clip" in self.TENSORRT_STAGES:
+                    kwargs["clip_engine_dir"] = self.inpainter_tensorrt_clip_dir
+                
+                self.check_create_inpainter_engine_cache()
+                if not self.safe:
+                    kwargs["safety_checker"] = None
+                logger.debug(
+                    f"Initializing inpainter pipeline from diffusers cache directory at {self.inpainter_diffusers_cache_dir}. Arguments are {kwargs}"
+                )
+                inpainter_pipeline = self.inpainter_pipeline_class.from_pretrained(
+                    self.inpainter_diffusers_cache_dir,
+                    **kwargs
+                )
+            elif self.inpainter_engine_cache_exists:
+                logger.debug(
+                    f"Initializing inpainter pipeline from diffusers cache directory at {self.inpainter_diffusers_cache_dir}. Arguments are {kwargs}"
+                )
+                if not self.safe:
+                    kwargs["safety_checker"] = None
+                inpainter_pipeline = self.inpainter_pipeline_class.from_pretrained(
+                    self.inpainter_diffusers_cache_dir,
+                    **kwargs
+                )
+            else:
+                logger.debug(
+                    f"Initializing inpainter pipeline from checkpoint at {self.inpainter}. Arguments are {kwargs}"
+                )
+                inpainter_pipeline = self.inpainter_pipeline_class.from_ckpt(
+                    self.inpainter,
+                    num_in_channels=9,
+                    load_safety_checker=self.safe,
+                    **kwargs
+                )
+                if self.always_cache:
+                    logger.debug("Saving pipeline to pretrained.")
+                    inpainter_pipeline.save_pretrained(self.inpainter_diffusers_cache_dir)
+            self._inpainter_pipeline = inpainter_pipeline.to(self.device)
+        return self._inpainter_pipeline
+
+    @inpainter_pipeline.deleter
+    def inpainter_pipeline(self) -> None:
+        """
+        Unloads the inpainter pipeline if present.
+        """
+        if hasattr(self, "_inpainter_pipeline"):
+            logger.debug("Deleting inpainter pipeline.")
+            del self._inpainter_pipeline
+            import torch
+
+            torch.cuda.empty_cache()
+        else:
+            logger.debug("inpainter pipeline delete called, but no inpainter pipeline present. This is not an error.")
+
     def unload_pipeline(self) -> None:
         """
         Calls the pipeline deleter.
@@ -1681,6 +1871,29 @@ class DiffusionPipelineManager:
         """
         if getattr(self, "_refiner_pipeline", None) is not None:
             self._refiner_pipeline = self._refiner_pipeline.to(self.device, torch_dtype=self.dtype)
+    
+    def unload_inpainter(self) -> None:
+        """
+        Calls the inpainter deleter.
+        """
+        del self.inpainter_pipeline
+
+    def offload_inpainter(self) -> None:
+        """
+        Offloads the pipeline to CPU if present.
+        """
+        if getattr(self, "_inpainter_pipeline", None) is not None:
+            import torch
+            logger.debug("Offloading inpainter to CPU")
+            self._inpainter_pipeline = self._inpainter_pipeline.to("cpu", torch_dtype=torch.float32)
+            torch.cuda.empty_cache()
+
+    def reload_inpainter(self) -> None:
+        """
+        Reloads the pipeline to the device if present.
+        """
+        if getattr(self, "_inpainter_pipeline", None) is not None:
+            self._inpainter_pipeline = self._inpainter_pipeline.to(self.device, torch_dtype=self.dtype)
 
     @property
     def upscaler(self) -> Upscaler:
@@ -1830,11 +2043,22 @@ class DiffusionPipelineManager:
         Will switch between inpainting and non-inpainting models
         """
         logger.debug(f"Calling pipeline with arguments {kwargs}")
+        inpainting = kwargs.get("mask", None) is not None
 
-        if kwargs.get("mask", None) is not None:
-            self.inpainting = True
+        if inpainting:
+            pipeline = self.inpainter_pipeline
+            if self.pipeline_switch_mode == "offload":
+                self.offload_pipeline()
+            elif self.pipeline_switch_mode == "unload":
+                self.unload_pipeline()
+            self.reload_inpainter()
         else:
-            self.inpainting = False
+            pipeline = self.pipeline
+            if self.pipeline_switch_mode == "offload":
+                self.offload_inpainter()
+            elif self.pipeline_switch_mode == "unload":
+                self.unload_inpainter()
+            self.reload_pipeline()
 
         called_width = kwargs.get("width", self.size)
         called_height = kwargs.get("height", self.size)
@@ -1857,16 +2081,22 @@ class DiffusionPipelineManager:
         else:
             self.tenssort_is_enabled = True
         
-        self.reload_pipeline()
-        result = self.pipeline(generator=self.generator, **kwargs)
+        result = pipeline(generator=self.generator, **kwargs)
+
         if self.refiner is not None:
             if "latent_callback" in kwargs:
                 kwargs["latent_callback"](result["images"])
-            if self.refiner_switch_mode == "offload":
-                self.offload_pipeline()
+            if self.pipeline_switch_mode == "offload":
+                if inpainting:
+                    self.offload_inpainter()
+                else:
+                    self.offload_pipeline()
                 self.reload_refiner()
-            elif self.refiner_switch_mode == "unload":
-                self.unload_pipeline()
+            elif self.pipeline_switch_mode == "unload":
+                if inpainting:
+                    self.unload_inpainter()
+                else:
+                    self.unload_pipeline()
             else:
                 logger.debug("Keeping pipeline in memory")
 
@@ -1890,9 +2120,9 @@ class DiffusionPipelineManager:
                     image=image,
                     **kwargs
                 )["images"][0]
-            if self.refiner_switch_mode == "offload":
+            if self.pipeline_switch_mode == "offload":
                 self.offload_refiner()
-            elif self.refiner_switch_mode == "unload":
+            elif self.pipeline_switch_mode == "unload":
                 self.unload_refiner()
             else:
                 logger.debug("Keeping refiner in memory")
@@ -1947,10 +2177,6 @@ class DiffusionPipelineManager:
         else:
             model = os.path.basename(model)
 
-        if model.endswith("-inpainting"):
-            # Look for the base model instead, we'll look for inpainting separately
-            model, _, _ = model.rpartition("-")
-
         model_dir = os.path.join(engine_root, "tensorrt", model)
         model_cache_dir = os.path.join(engine_root, "diffusers", model)
         model_index = os.path.join(model_dir, "model_index.json")
@@ -1959,24 +2185,11 @@ class DiffusionPipelineManager:
             if not os.path.exists(model_index):
                 model_index = None
         
-        inpaint_model_dir = os.path.join(engine_root, "tensorrt", f"{model}-inpainting")
-        inpaint_model_cache_dir = os.path.join(engine_root, "diffusers", f"{model}-inpainting")
-        inpaint_model_index = os.path.join(inpaint_model_dir, "model_index.json")
-        if not os.path.exists(inpaint_model_index):
-            inpaint_model_index = os.path.join(inpaint_model_cache_dir, "model_index.json")
-            if not os.path.exists(inpaint_model_index):
-                inpaint_model_index = None
-        
         if model_index is not None:
             # Cached model, get details
             model_is_sdxl = os.path.exists(os.path.join(os.path.dirname(model_index), "tokenizer_2"))
         else:
             model_is_sdxl = "xl" in model.lower()
-
-        if inpaint_model_index is not None:
-            inpaint_model_is_sdxl = os.path.join(os.path.dirname(inpaint_model_index), "tokenizer_2")
-        else:
-            inpaint_model_is_sdxl = model_is_sdxl
 
         if not tensorrt_is_supported or model_is_sdxl:
             return {
@@ -2012,10 +2225,10 @@ class DiffusionPipelineManager:
             lora_name, ext = os.path.splitext(os.path.basename(lora_path))
             lora_key.append((lora_name, lora_weight))
 
-        if lora is None:
-            lora = []
-        elif not isinstance(lora, list):
-            lora = [lora]
+        if lycoris is None:
+            lycoris = []
+        elif not isinstance(lycoris, list):
+            lycoris = [lycoris]
 
         lycoris_key = []
         for lycoris_part in lycoris:
@@ -2029,7 +2242,6 @@ class DiffusionPipelineManager:
         clip_ready = "clip" not in DiffusionPipelineManager.TENSORRT_STAGES
         vae_ready = "vae" not in DiffusionPipelineManager.TENSORRT_STAGES
         unet_ready = "unet" not in DiffusionPipelineManager.TENSORRT_STAGES
-        inpaint_unet_ready = unet_ready
         controlled_unet_ready = unet_ready
         controlnet_ready: Union[bool, Dict[str, bool]] = (
             "controlnet" not in DiffusionPipelineManager.TENSORRT_STAGES
@@ -2055,9 +2267,6 @@ class DiffusionPipelineManager:
             )
             unet_plan = os.path.join(model_dir, "unet", unet_key, "engine.plan")
             unet_ready = os.path.exists(unet_plan)
-
-            inpaint_unet_plan = os.path.join(inpaint_model_dir, "unet", unet_key, "engine.plan")
-            inpaint_unet_ready = os.path.exists(inpaint_unet_plan)
 
             controlled_unet_key = DiffusionPipelineManager.get_tensorrt_controlled_unet_key(
                 size, lora=lora_key, lycoris=lycoris_key, inversion=inversion_key
@@ -2099,7 +2308,6 @@ class DiffusionPipelineManager:
             "controlled_unet_ready": controlled_unet_ready,
             "vae_ready": vae_ready,
             "clip_ready": clip_ready,
-            "inpaint_unet_ready": inpaint_unet_ready,
             "ready": ready,
         }
 

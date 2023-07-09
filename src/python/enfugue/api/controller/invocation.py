@@ -44,6 +44,7 @@ class EnfugueAPIInvocationController(EnfugueAPIControllerBase):
         # Get details about model
         model_name = request.parsed.pop("model", None)
         refiner_name = request.parsed.pop("refiner", None)
+        inpainter_name = request.parsed.get("inpainter", None)
         model_type = request.parsed.pop("model_type", None)
         plan_kwargs: Dict[str, Any] = {}
         if model_name is not None and model_type == "model":
@@ -64,6 +65,14 @@ class EnfugueAPIInvocationController(EnfugueAPIControllerBase):
                             "enfugue.engine.checkpoint", os.path.join(self.engine_root, "checkpoint")
                         ),
                         refiner_name,
+                    )
+                ),
+                "inpainter": None if inpainter_name is None else os.path.abspath(
+                    os.path.join(
+                        self.configuration.get(
+                            "enfugue.engine.checkpoint", os.path.join(self.engine_root, "checkpoint")
+                        ),
+                        inpainter_name,
                     )
                 ),
                 "lora": [
@@ -106,7 +115,7 @@ class EnfugueAPIInvocationController(EnfugueAPIControllerBase):
                     for inversion in request.parsed.pop("inversion", [])
                 ],
             }
-        plan = DiffusionPlan.from_nodes(**{**plan_kwargs, **request.parsed})
+        plan = DiffusionPlan.from_nodes(**{**request.parsed, **plan_kwargs})
         return self.invoke(request.token.user.id, plan).format()
 
     @handlers.path("^/api/invocation$")

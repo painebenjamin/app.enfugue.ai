@@ -510,7 +510,13 @@ class FormView extends View {
                 fieldSetNode.hide();
             }
 
-            if (this.constructor.collapseFieldSets) {
+            if (
+                this.constructor.collapseFieldSets === true ||
+                (
+                    Array.isArray(this.constructor.collapseFieldSets) && 
+                    this.constructor.collapseFieldSets.indexOf(fieldSet) !== -1
+                )
+            ) {
                 fieldSetNode.addClass("collapsible collapsed");
                 legendNode.on("click", (e) => {
                     e.stopPropagation();

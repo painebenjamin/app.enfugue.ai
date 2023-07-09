@@ -1,4 +1,4 @@
-/** @module controller/sidebar/01-canvas */
+/** @module controller/sidebar/02-canvas */
 import { isEmpty } from "../../base/helpers.mjs";
 import { FormView } from "../../view/forms/base.mjs";
 import { NumberInputView } from "../../view/forms/input.mjs";

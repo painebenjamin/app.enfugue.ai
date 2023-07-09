@@ -1,4 +1,4 @@
-/** @module controlletr/sidebar/04-refining */
+/** @module controlletr/sidebar/05-refining */
 import { isEmpty } from "../../base/helpers.mjs";
 import { FormView } from "../../view/forms/base.mjs";
 import { NumberInputView, FloatInputView } from "../../view/forms/input.mjs";
@@ -116,7 +116,22 @@ class RefiningController extends Controller {
             this.engine.refinerAestheticScore = values.refinerAestheticScore;
             this.engine.refinerNegativeAestheticScore = values.refinerNegativeAestheticScore;
         });
+        this.refiningForm.hide();
         this.application.sidebar.addChild(this.refiningForm);
+        this.subscribe("modelPickerChange", (model) => {
+            if (isEmpty(model) || isEmpty(model.refiner)) {
+                this.refiningForm.hide();
+            } else {
+                this.refiningForm.show();
+            }
+        });
+        this.subscribe("engineRefinerChange", (refiner) => {
+            if (isEmpty(refiner)) {
+                this.refiningForm.hide();
+            } else {
+                this.refiningForm.show();
+            }
+        });
     }
 }
 

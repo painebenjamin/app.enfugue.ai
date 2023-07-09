@@ -446,6 +446,7 @@ class DiffusionPlan:
         size: Optional[int] = None,
         model: Optional[str] = None,
         refiner: Optional[str] = None,
+        inpainter: Optional[str] = None,
         lora: Optional[
             Union[str, List[str], Tuple[str, float], List[Union[str, Tuple[str, float]]]]
         ] = None,
@@ -521,6 +522,7 @@ class DiffusionPlan:
         self.negative_prompt = negative_prompt
         self.model = model
         self.refiner = refiner
+        self.inpainter = inpainter
         self.lora = lora
         self.lycoris = lycoris
         self.inversion = inversion
@@ -757,6 +759,7 @@ class DiffusionPlan:
         """
         pipeline.model = self.model
         pipeline.refiner = self.refiner
+        pipeline.inpainter = self.inpainter
         pipeline.lora = self.lora
         pipeline.lycoris = self.lycoris
         pipeline.inversion = self.inversion
@@ -907,6 +910,7 @@ class DiffusionPlan:
         return {
             "model": self.model,
             "refiner": self.refiner,
+            "inpainter": self.inpainter,
             "lora": self.lora,
             "lycoris": self.lycoris,
             "inversion": self.inversion,
@@ -934,6 +938,7 @@ class DiffusionPlan:
         kwargs = {
             "model": plan_dict["model"],
             "refiner": plan_dict.get("refiner", None),
+            "inpainter": plan_dict.get("inpainter", None),
             "nodes": [
                 DiffusionNode.deserialize_dict(node_dict)
                 for node_dict in plan_dict.get("nodes", [])
@@ -1003,6 +1008,7 @@ class DiffusionPlan:
         size: Optional[int] = None,
         model: Optional[str] = None,
         refiner: Optional[str] = None,
+        inpainter: Optional[str] = None,
         lora: Optional[
             Union[str, List[str], Tuple[str, float], List[Union[str, Tuple[str, float]]]]
         ] = None,
@@ -1084,6 +1090,7 @@ class DiffusionPlan:
             size=size,
             model=model,
             refiner=refiner,
+            inpainter=inpainter,
             lora=lora,
             lycoris=lycoris,
             inversion=inversion,
@@ -1111,6 +1118,7 @@ class DiffusionPlan:
         size: Optional[int] = None,
         model: Optional[str] = None,
         refiner: Optional[str] = None,
+        inpainter: Optional[str] = None,
         lora: Optional[
             Union[str, List[str], Tuple[str, float], List[Union[str, Tuple[str, float]]]]
         ] = None,
@@ -1193,11 +1201,11 @@ class DiffusionPlan:
         """
         if kwargs:
             logger.warning(f"Plan `from_nodes` keyword arguments ignored: {kwargs}")
-        
         # First instantiate the plan
         plan = DiffusionPlan(
             model=model,
             refiner=refiner,
+            inpainter=inpainter,
             lora=lora,
             lycoris=lycoris,
             inversion=inversion,

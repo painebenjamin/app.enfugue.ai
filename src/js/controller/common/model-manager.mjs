@@ -175,7 +175,8 @@ class ModelForm extends FormView {
                 "class": StringInputView,
                 "label": "Name",
                 "config": {
-                    "required": true
+                    "required": true,
+                    "tooltip": "Give your model a name that describes what you want it to do - for example, if you're using a photorealistic model and use phrases related to central framing, bokeh focus and and saturated colors, you could call this configuration &ldquo;Product Photography.%rdquo;"
                 }
             }
         },
@@ -184,25 +185,48 @@ class ModelForm extends FormView {
                 "class": CheckpointInputView,
                 "label": "Checkpoint",
                 "config": {
-                    "required": true
+                    "required": true,
+                    "tooltip": "A &ldquo;checkpoint&rdquo; represents the state of the Stable Diffusion model at a given point in it's training. Generally, checkpoints are started from a particular version of the foundation Stable Diffusion model (1.5, 2.1, XL 1.0, etc.) and fine-tuned on a particular style or subject of imagery, though you can also use the foundation checkpoints on their own."
                 }
             },
+        },
+        "Adaptations and Modifications": {
             "lora": {
                 "class": MultiLoraInputView,
-                "label": "LoRA"
+                "label": "LoRA",
+                "config": {
+                    "tooltip": "LoRA stands for <strong>Low Rank Adapation</strong>, it is a kind of fine-tuning that can perform very specific modifications to Stable Diffusion such as training an individual's appearance, new products that are not in Stable Diffusion's training set, etc."
+                }
             },
             "lycoris": {
                 "class": MultiLycorisInputView,
-                "label": "LyCORIS"
+                "label": "LyCORIS",
+                "config": {
+                    "tooltip": "LyCORIS stands for <strong>LoRA beYond Conventional methods, Other Rank adaptation Implementations for Stable diffusion</strong>, a novel means of performing low-rank adaptation introduced in early 2023."
+                }
             },
             "inversion": {
                 "class": MultiInversionInputView,
-                "label": "Textual Inversions"
+                "label": "Textual Inversions",
+                "config": {
+                    "tooltip": "Textual Inversion is another kind of fine-tuning that teaches novel concepts to Stable Diffusion in a small number of images, which can be used to positively or negatively affect the impact of various prompts."
+                }
             }
         },
-        "Refiner": {
+        "Additional Models": {
             "refiner": {
-                "class": CheckpointInputView
+                "class": CheckpointInputView,
+                "label": "Refining Checkpoint",
+                "config": {
+                    "tooltip": "Refiner checkpoints were introduced with SDXL 0.9 - these are checkpoints specifically trained to improve detail, shapes, and generally improve the quality of images generated from the base model. These are optional, and do not need to be specifically-trained refinement checkpoints - you can try mixing and matching checkpoints for different styles, though you may wish to ensure the related checkpoints were trained on the same size images."
+                }
+            },
+            "inpainter": {
+                "class": CheckpointInputView,
+                "label": "Inpainting Checkpoint",
+                "config": {
+                    "tooltip": "An inpainting checkpoint if much like a regular Stable Diffusion checkpoint, but it additionally includes the ability to input which parts of the image can be changed and which cannot. This is used when you specifically request an image be inpainted, but is also used in many other situations in Enfugue; such as when you place an image on the canvas that doesn't cover the entire space, or use an image that has transparency in it (either before or after removing it's background.) When you don't select an inpainting checkpoint and request an inpainting operation, one will be created dynamically from the main checkpoint at runtime."
+                }
             }
         },
         "Engine": {
@@ -214,21 +238,28 @@ class ModelForm extends FormView {
                     "value": 512,
                     "min": 128,
                     "max": 2048,
-                    "step": 8
-                },
+                    "step": 8,
+                    "tooltip": "When using chunked diffusion, this is the size of the window (in pixels) that will be encoded, decoded or inferred at once. Set the chunking size to 0 in the sidebar to disable chunked diffusion and always try to process the entire image at once."
+                }
             }
         },
         "Prompts": {
             "prompt": {
                 "class": TextInputView,
-                "label": "Prompt"
+                "label": "Prompt",
+                "tooltip": "This prompt will be appended to every prompt you make when using this model. Use this field to add trigger words, style or quality phrases that you always want to be included."
             },
             "negative_prompt": {
                 "class": TextInputView,
-                "label": "Negative Prompt"
+                "label": "Negative Prompt",
+                "tooltip": "This prompt will be appended to every negative prompt you make when using this model. Use this field to add trigger words, style or quality phrases that you always want to be excluded."
             }
         }
     };
+
+    static collapseFieldSets = [
+        "Adaptations and Modifications", "Additional Models"
+    ];
 };
 
 /**
@@ -238,7 +269,7 @@ class NewModelInputView extends ButtonInputView {
     /**
      * @var string The value to display in the button
      */
-    static defaultValue = "New Model";
+    static defaultValue = "New Model Configuration";
 
     /**
      * @var string The class name for CSS
@@ -296,6 +327,7 @@ class ModelManagerController extends Controller {
             modelValues.lycoris = isEmpty(row.lycoris) ? [] : row.lycoris.map((lycoris) => lycoris.getAttributes());
             modelValues.inversion = isEmpty(row.inversion) ? [] : row.inversion.map((inversion) => inversion.model);
             modelValues.refiner = isEmpty(row.refiner) ? null : row.refiner[0].model;
+            modelValues.inpainter = isEmpty(row.inpainter) ? null : row.inpainter[0].model;
 
             let modelForm = new ModelForm(this.config, deepClone(modelValues)),
                 modelWindow;
