@@ -126,10 +126,35 @@ class CanvasController extends Controller {
             this.engine.width = values.width;
             this.engine.height = values.height;
             this.engine.chunkingSize = values.chunkingSize
+            this.engine.chunkingBlur = values.chunkingBlur;
         });
 
         // Add form to sidebar
         this.application.sidebar.addChild(this.canvasForm);
+        
+        // Subscribe to model changes to look for defaults
+        this.subscribe("modelPickerChange", (newModel) => {
+            if (!isEmpty(newModel)) {
+                let defaultConfig = newModel.defaultConfiguration,
+                    canvasConfig = {};
+                
+                if (!isEmpty(defaultConfig.width)) {
+                    canvasConfig.width = defaultConfig.width;
+                }
+                if (!isEmpty(defaultConfig.height)) {
+                    canvasConfig.height = defaultConfig.height;
+                }
+                if (!isEmpty(defaultConfig.chunking_size)) {
+                    canvasConfig.chunkingSize = defaultConfig.chunking_size;
+                }
+                if (!isEmpty(defaultConfig.chunking_blur)) {
+                    canvasConfig.chunkingBlur = defaultConfig.chunking_blur;
+                }
+                if (!isEmpty(canvasConfig)) {
+                    this.canvasForm.setValues(canvasConfig);
+                }
+            }
+        });
     }
 }
 

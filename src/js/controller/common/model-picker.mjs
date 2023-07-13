@@ -395,6 +395,7 @@ class ModelPickerController extends Controller {
      */
     setState(newState) {
         if (!isEmpty(newState.model)) {
+            this.formView.suppressDefaults = true;
             this.formView.setValues(newState.model).then(
                 () => this.formView.submit()
             );
@@ -486,6 +487,8 @@ class ModelPickerController extends Controller {
         this.modelConfigurationFormView = new ModelConfigurationFormView(this.config);
 
         this.formView.onSubmit(async (values) => {
+            let suppressDefaults = this.formView.suppressDefaults;
+            this.formView.suppressDefaults = false;
             if (values.model) {
                 let [selectedType, selectedName] = values.model.split("/");
                 this.engine.model = selectedName;
@@ -498,6 +501,10 @@ class ModelPickerController extends Controller {
                             tensorRTStatus = {supported: false};
 
                         fullModel.status = modelStatus;
+                        if (suppressDefaults) {
+                            fullModel._relationships.config = null;
+                        }
+
                         this.publish("modelPickerChange", fullModel);
                         if (!isEmpty(modelStatus.tensorrt)) {
                             tensorRTStatus = modelStatus.tensorrt.base;
@@ -512,6 +519,7 @@ class ModelPickerController extends Controller {
                     } catch(e) {
                         // Reset
                         this.formView.setValues({"model": null});
+                        console.error(e);
                     }
                 } else {
                     this.modelConfigurationFormView.show();

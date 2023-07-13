@@ -444,40 +444,41 @@ enfugue-node-editor.image-editor enfugue-invocation-sample-chooser enfugue-invoc
     max-height: 100px;
 }
 
-enfugue-node-editor.image-editor enfugue-invocation-stop {
+enfugue-engine-stop {
     display: block;
     text-transform: uppercase;
     position: absolute;
-    right: 5px;
-    top: 5px;
-    width: 40px;
-    height: 40px;
-    border-radius: 80px;
-    line-height: 40px;
+    right: 0px;
+    top: 0px;
+    height: 35px;
+    padding: 0 10px;
+    line-height: 35px;
     text-align: center;
     color: white;
     font-size: 11px;
     background-color: var(--theme-color-primary);
-    filter: grayscale(100%);
+    background-image: linear-gradient(to top, rgba(0,0,0,0.3) 10%, rgba(255,255,255,0.1) 90%);
+    z-index: 6;
     opacity: 0;
     pointer-events: none;
     cursor: not-allowed;
     transition: all 0.25s ease-in-out;
+    filter: grayscale(100%);
 }
 
-enfugue-node-editor.image-editor enfugue-invocation-stop.ready {
+enfugue-engine-stop.ready {
     cursor: pointer;
     opacity: 1;
     pointer-events: all;
-    filter: grayscale(50%);
-}
-
-enfugue-node-editor.image-editor enfugue-invocation-stop.ready:hover {
-    filter: grayscale(25%);
-}
-
-enfugue-node-editor.image-editor enfugue-invocation-stop.ready:active {
     filter: grayscale(0%);
+}
+
+enfugue-engine-stop.ready:hover {
+    background-color: var(--theme-color-secondary);
+}
+
+enfugue-engine-stop.ready:active {
+    background-image: linear-gradient(to bottom, rgba(0,0,0,0.3) 10%, rgba(255,255,255,0.1) 90%);
 }
 
 enfugue-node-editor.image-editor enfugue-invocation-loading {
@@ -627,6 +628,8 @@ enfugue-node-editor.image-editor enfugue-node-canvas enfugue-toolbar-item::after
 .field-container.upscale-diffusion-negative-prompt-input-view,
 .field-container.upscale-diffusion-guidance-scale-input-view,
 .field-container.upscale-diffusion-steps-input-view,
+.field-container.scheduler-input-view,
+.field-container.multi-diffusion-scheduler-input-view,
 fieldset.field-set-prompts .field-container,
 fieldset.field-set-directories .field-container,
 fieldset.field-set-engine .field-container
@@ -902,13 +905,14 @@ enfugue-log-glance-view {
     position: absolute;
     display: block;
     right: 300px;
-    bottom: 60px;
-    width: 300px;
+    top: 40px;
+    max-width: 450px;
+    width: calc((100vw - 340px) / 2);
     padding: 0 5px 5px 0;
     opacity: 0.5;
-    transition: all 0.25s ease-in-out;
+    transition: opacity 0.25s ease-in-out;
     overflow: hidden;
-    z-index: 5;
+    z-index: 4;
 }
 
 enfugue-log-glance-view:hover {

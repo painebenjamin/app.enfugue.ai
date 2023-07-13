@@ -77,12 +77,14 @@ class Invocation:
         if self.results is not None:
             raise IOError("Invocation already completed.")
         try:
+            start_comm = datetime.datetime.now()
             last_intermediate = self.engine.last_intermediate(self.id)
             if last_intermediate is not None:
                 for key in ["step", "total", "images", "rate"]:
                     if key in last_intermediate:
                         setattr(self, f"last_{key}", last_intermediate[key])
                 self.last_intermediate_time = datetime.datetime.now()
+            end_comm = (datetime.datetime.now() - start_comm).total_seconds()
             try:
                 result = self.engine.wait(self.id, timeout=0.1)
             except TimeoutError:

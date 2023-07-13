@@ -217,6 +217,57 @@ class DiffusionPipelineManager:
         if hasattr(self, "_generator"):
             delattr(self, "_generator")
 
+    def get_scheduler_class(self, scheduler: Optional[Literal["ddim", "ddpm", "deis", "dpmsm", "dpmss", "heun", "dpmd", "adpmd", "dpmsde", "unipc", "lmsd", "pndm", "eds", "eads"]]) -> None:
+        """
+        Sets the scheduler class
+        """
+        if not scheduler:
+            return None
+        elif scheduler == "ddim":
+            from diffusers.schedulers import DDIMScheduler
+            return DDIMScheduler
+        elif scheduler == "ddpm":
+            from diffusers.schedulers import DDPMScheduler
+            return DDPMScheduler
+        elif scheduler == "deis":
+            from diffusers.schedulers import DEISMultistepScheduler
+            return DEISMultistepScheduler
+        elif scheduler == "dpmsm":
+            from diffusers.schedulers import DPMSolverMultistepScheduler
+            return DPMSolverMultistepScheduler
+        elif scheduler == "dpmss":
+            from diffusers.schedulers import DPMSolverSinglestepScheduler
+            return DPMSolverSinglestepScheduler
+        elif scheduler == "heun":
+            from diffusers.schedulers import HeunDiscreteScheduler
+            return HeunDiscreteScheduler
+        elif scheduler == "dpmd":
+            from diffusers.schedulers import KDPM2DiscreteScheduler
+            return KDPM2DiscreteScheduler
+        elif scheduler == "adpmd":
+            from diffusers.schedulers import KDPM2AncestralDiscreteScheduler
+            return KDPM2AncestralDiscreteScheduler
+        elif scheduler == "dpmsde":
+            from diffusers.schedulers import DPMSolverSDEScheduler
+            return DPMSolverSDEScheduler
+        elif scheduler == "unipc":
+            from diffusers.schedulers import UniPCMultistepScheduler
+            return UniPCMultistepScheduler
+        elif scheduler == "lmsd":
+            from diffusers.schedulers import LMSDiscreteScheduler
+            return LMSDiscreteScheduler
+        elif scheduler == "pndm":
+            from diffusers.schedulers import PNDMScheduler
+            return PNDMScheduler
+        elif scheduler == "eds":
+            from diffusers.schedulers import EulerDiscreteScheduler
+            return EulerDiscreteScheduler
+        elif scheduler == "eads":
+            from diffusers.schedulers import EulerAncestralDiscreteScheduler
+            return EulerAncestralDiscreteScheduler
+        else:
+            raise ValueError(f"Unknown scheduler {scheduler}")
+
     @property
     def scheduler(self) -> Optional[KarrasDiffusionSchedulers]:
         """
@@ -236,55 +287,10 @@ class DiffusionPipelineManager:
                 delattr(self, "_scheduler")
                 self.unload_pipeline("returning to default scheduler")
             return
-        elif new_scheduler == "ddim":
-            from diffusers.schedulers import DDIMScheduler
-            scheduler_class = DDIMScheduler
-        elif new_scheduler == "ddpm":
-            from diffusers.schedulers import DDPMScheduler
-            scheduler_class = DDPMScheduler
-        elif new_scheduler == "deis":
-            from diffusers.schedulers import DEISMultistepScheduler
-            scheduler_class = DEISMultistepScheduler
-        elif new_scheduler == "dpmsm":
-            from diffusers.schedulers import DPMSolverMultistepScheduler
-            scheduler_class = DPMSolverMultistepScheduler
-        elif new_scheduler == "dpmss":
-            from diffusers.schedulers import DPMSolverSinglestepScheduler
-            scheduler_class = DPMSolverSinglestepScheduler
-        elif new_scheduler == "heun":
-            from diffusers.schedulers import HeunDiscreteScheduler
-            scheduler_class = HeunDiscreteScheduler
-        elif new_scheduler == "dpmd":
-            from diffusers.schedulers import KDPM2DiscreteScheduler
-            scheduler_class = KDPM2DiscreteScheduler
-        elif new_scheduler == "adpmd":
-            from diffusers.schedulers import KDPM2AncestralDiscreteScheduler
-            scheduler_class = KDPM2AncestralDiscreteScheduler
-        elif new_scheduler == "dpmsde":
-            from diffusers.schedulers import DPMSolverSDEScheduler
-            scheduler_class = DPMSolverSDEScheduler
-        elif new_scheduler == "unipc":
-            from diffusers.schedulers import UniPCMultistepScheduler
-            scheduler_class = UniPCMultistepScheduler
-        elif new_scheduler == "lmsd":
-            from diffusers.schedulers import LMSDiscreteScheduler
-            scheduler_class = LMSDiscreteScheduler
-        elif new_scheduler == "pndm":
-            from diffusers.schedulers import PNDMScheduler
-            scheduler_class = PNDMScheduler
-        elif new_scheduler == "eds":
-            from diffusers.schedulers import EulerDiscreteScheduler
-            scheduler_class = EulerDiscreteScheduler
-        elif new_scheduler == "eads":
-            from diffusers.schedulers import EulerAncestralDiscreteScheduler
-            scheduler_class = EulerAncestralDiscreteScheduler
-        else:
-            raise ValueError(f"Unknown scheduler {new_scheduler}")
-
+        scheduler_class = self.get_scheduler_class(new_scheduler)
         if not hasattr(self, "_scheduler") or self._scheduler is not scheduler_class:
             logger.debug(f"Changing to scheduler {scheduler_class.__name__} ({new_scheduler})")
             self._scheduler = scheduler_class
-
         if hasattr(self, "_pipeline"):
             logger.debug(f"Hot-swapping pipeline scheduler.")
             self._pipeline.scheduler = self.scheduler.from_config(self._pipeline.scheduler_config)
@@ -294,6 +300,39 @@ class DiffusionPipelineManager:
         if hasattr(self, "_refiner_pipeline"):
             logger.debug(f"Hot-swapping refiner pipeline scheduler.")
             self._refiner_pipeline.scheduler = self.scheduler.from_config(self._refiner_pipeline.scheduler_config)
+
+    @property
+    def multi_scheduler(self) -> Optional[KarrasDiffusionSchedulers]:
+        """
+        Gets the multi-diffusion scheduler class to instantiate.
+        """
+        if not hasattr(self, "_multi_scheduler"):
+            return None
+        return self._multi_scheduler
+    
+    @multi_scheduler.setter
+    def multi_scheduler(self, new_multi_scheduler: Optional[Literal["ddim", "ddpm", "deis", "dpmsm", "dpmss", "eds", "eads"]]) -> None:
+        """
+        Sets the multi_scheduler class
+        """
+        if not new_multi_scheduler:
+            if hasattr(self, "_multi_scheduler"):
+                delattr(self, "_multi_scheduler")
+                self.unload_pipeline("returning to default multi_scheduler")
+            return
+        multi_scheduler_class = self.get_scheduler_class(new_multi_scheduler)
+        if not hasattr(self, "_multi_scheduler") or self._multi_scheduler is not multi_scheduler_class:
+            logger.debug(f"Changing to multi_scheduler {multi_scheduler_class.__name__} ({new_multi_scheduler})")
+            self._multi_scheduler = multi_scheduler_class
+        if hasattr(self, "_pipeline"):
+            logger.debug(f"Hot-swapping pipeline multi_scheduler.")
+            self._pipeline.multi_scheduler = self.multi_scheduler.from_config(self._pipeline.multi_scheduler_config)
+        if hasattr(self, "_inpainter_pipeline"):
+            logger.debug(f"Hot-swapping inpainter pipeline multi_scheduler.")
+            self._inpainter_pipeline.multi_scheduler = self.multi_scheduler.from_config(self._inpainter_pipeline.multi_scheduler_config)
+        if hasattr(self, "_refiner_pipeline"):
+            logger.debug(f"Hot-swapping refiner pipeline multi_scheduler.")
+            self._refiner_pipeline.multi_scheduler = self.multi_scheduler.from_config(self._refiner_pipeline.multi_scheduler_config)
 
     def get_vae(self, vae: Optional[str] = None) -> Optional[AutoencoderKL]:
         """
@@ -351,13 +390,14 @@ class DiffusionPipelineManager:
         existing_vae = getattr(self, "_vae", None)
 
         if (
-            (existing_vae is None and new_vae is not None)
-            or (existing_vae is not None and new_vae is None)
-            or (existing_vae is not None and self.vae_name != new_vae)
+            (not existing_vae and new_vae)
+            or (existing_vae and not new_vae)
+            or (existing_vae and new_vae and self.vae_name != new_vae)
         ):
             if not new_vae:
                 self._vae_name = None  # type: ignore
                 self._vae = None
+
                 self.unload_pipeline("VAE resetting to default")
                 self.unload_refiner("VAE resetting to default")
                 self.unload_inpainter("VAE resetting to default")
@@ -1856,6 +1896,8 @@ class DiffusionPipelineManager:
             # load scheduler
             if self.scheduler is not None:
                 pipeline.scheduler = self.scheduler.from_config(pipeline.scheduler_config)
+            if self.multi_scheduler is not None:
+                pipeline.multi_scheduler = self.multi_scheduler.from_config(pipeline.scheduler_config)
             self._pipeline = pipeline.to(self.device)
         return self._pipeline
 
@@ -1960,6 +2002,8 @@ class DiffusionPipelineManager:
             # load scheduler
             if self.scheduler is not None:
                 refiner_pipeline.scheduler = self.scheduler.from_config(refiner_pipeline.scheduler_config)
+            if self.multi_scheduler is not None:
+                refiner_pipeline.multi_scheduler = self.multi_scheduler.from_config(refiner_pipeline.scheduler_config)
             self._refiner_pipeline = refiner_pipeline.to(self.device)
         return self._refiner_pipeline
 
@@ -2069,6 +2113,8 @@ class DiffusionPipelineManager:
             # load scheduler
             if self.scheduler is not None:
                 inpainter_pipeline.scheduler = self.scheduler.from_config(inpainter_pipeline.scheduler_config)
+            if self.multi_scheduler is not None:
+                inpainter_pipeline.multi_scheduler = self.multi_scheduler.from_config(inpainter_pipeline.scheduler_config)
             self._inpainter_pipeline = inpainter_pipeline.to(self.device)
         return self._inpainter_pipeline
 
@@ -2340,6 +2386,7 @@ class DiffusionPipelineManager:
         inpainting = kwargs.get("mask", None) is not None
 
         if inpainting:
+            size = self.inpainter_size
             pipeline = self.inpainter_pipeline
             if self.pipeline_switch_mode == "offload":
                 self.offload_pipeline()
@@ -2347,6 +2394,7 @@ class DiffusionPipelineManager:
                 self.unload_pipeline("switching to inpainting")
             self.reload_inpainter()
         else:
+            size = self.size
             pipeline = self.pipeline
             if self.pipeline_switch_mode == "offload":
                 self.offload_inpainter()
@@ -2354,20 +2402,21 @@ class DiffusionPipelineManager:
                 self.unload_inpainter("switching from inpainting")
             self.reload_pipeline()
 
-        called_width = kwargs.get("width", self.size)
-        called_height = kwargs.get("height", self.size)
+        called_width = kwargs.get("width", size)
+        called_height = kwargs.get("height", size)
         chunk_size = kwargs.get("chunking_size", self.chunking_size)
-        if called_width < self.size:
+
+        if called_width < size:
             self.tensorrt_is_enabled = False
             logger.info(
-                f"Width ({called_width}) less than configured width ({self.size}), disabling TensorRT"
+                f"Width ({called_width}) less than configured width ({size}), disabling TensorRT"
             )
-        elif called_height < self.size:
+        elif called_height < size:
             logger.info(
-                f"Height ({called_height}) less than configured height ({self.size}), disabling TensorRT"
+                f"Height ({called_height}) less than configured height ({size}), disabling TensorRT"
             )
             self.tensorrt_is_enabled = False
-        elif (called_width != self.size or called_height != self.size) and not chunk_size:
+        elif (called_width != size or called_height != size) and not chunk_size:
             logger.info(
                 f"Dimensions do not match size of engine and chunking is disabled, disabling TensorRT"
             )

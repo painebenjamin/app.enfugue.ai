@@ -12,10 +12,23 @@ class DiffusionModel extends ModelObject {
     static alwaysInclude = true;
     static apiRoot = "models";
     static apiScope = ["name"];
-    static apiInclude = ["refiner", "inpainter", "lora", "lycoris", "inversion", "scheduler", "vae"];
+    static apiInclude = ["refiner", "inpainter", "lora", "lycoris", "inversion", "scheduler", "vae", "config"];
 
     getStatus() {
         return this.queryModel("get", `${this.url}/status`);
+    }
+
+    /**
+     * Turns the included config into an object.
+     */
+    get defaultConfiguration() {
+        let config = {};
+        if (Array.isArray(this.config)) {
+            for (let configurationPart of this.config) {
+                config[configurationPart.configuration_key] = configurationPart.configuration_value;
+            }
+        }
+        return config;
     }
 };
 
@@ -26,6 +39,7 @@ class DiffusionModelInpainter extends ModelObject {};
 class DiffusionModelInversion extends ModelObject {};
 class DiffusionModelLora extends ModelObject {};
 class DiffusionModelLycoris extends ModelObject {};
+class DiffusionModelDefaultConfiguration extends ModelObject {};
 
 class DiffusionInvocation extends ModelObject {
     static apiRoot = "invocation-history";
@@ -53,6 +67,7 @@ class EnfugueModel extends Model {
         DiffusionModelInpainter,
         DiffusionModelInversion,
         DiffusionModelScheduler,
+        DiffusionModelDefaultConfiguration,
         DiffusionModelVAE,
         DiffusionModelLora,
         DiffusionModelLycoris,

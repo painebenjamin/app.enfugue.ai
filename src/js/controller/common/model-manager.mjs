@@ -57,7 +57,8 @@ class VAEInputView extends SelectInputView {
      */
     static defaultOptions = {
         "ema": "EMA 560000",
-        "mse": "MSE 840000"
+        "mse": "MSE 840000",
+        "xl": "SDXL"
     };
     
     /**
@@ -104,6 +105,40 @@ class SchedulerInputView extends SelectInputView {
      * @var string The tooltip
      */
     static tooltip = "Schedulers control how an image is denoiser over the course of the inference steps. Schedulers can have small effects, such as creating 'sharper' or 'softer' images, or drastically change the way images are constructed. Experimentation is encouraged, if additional information is sought, search <strong>Diffusers Schedulers</strong> in your search engine of choice.";
+    
+    /**
+     * @var string Default text
+     */
+    static placeholder = "Default";
+
+    /**
+     * @var bool Allow null
+     */
+    static allowEmpty = true;
+};
+
+
+/**
+ * Limit options for multidiffusion scheduler
+ */
+class MultiDiffusionSchedulerInputView extends SelectInputView {
+    /**
+     * @var object Option values and labels
+     */
+    static defaultOptions = {
+        "ddim": "DDIM: Denoising Diffusion Implicit Models (Recommended)",
+        "eds": "Euler Discrete Scheduler (Recommended)",
+        "ddpm": "DDPM: Denoising Diffusion Probabilistic Models (Blurrier)",
+        "eads": "Euler Ancestral Discrete Scheduler (Blurrier)",
+        "deis": "DEIS: Diffusion Exponential Integrator Sampler (Distorted)",
+        "dpmsm": "DPM-Solver++ Multi-Step (Distorted)",
+        "dpmss": "DPM-Solver++ Single-Step (Distorted)",
+    };
+
+    /**
+     * @var string The tooltip
+     */
+    static tooltip = "During chunked diffusion (also called multi-diffusion or sliced diffusion,) each denoising step is performed multiple times over different windows of the image. This necessitates that the scheduler be capable of stepping backward as well as forward, and not all schedulers were designed with this in mind. The schedulers in this list are supported during multi-diffusion, but only two are recommended: DDIM, which is the default scheduler for SD 1.5, and Euler Discrete, which is the default scheduler for SDXL.";
     
     /**
      * @var string Default text
@@ -398,6 +433,10 @@ class ModelForm extends FormView {
                 "class": SchedulerInputView,
                 "label": "Scheduler"
             },
+            "multi_scheduler": {
+                "class": MultiDiffusionSchedulerInputView,
+                "label": "Multi-Diffusion Scheduler"
+            },
             "width": {
                 "label": "Width",
                 "class": NumberInputView,
@@ -406,7 +445,7 @@ class ModelForm extends FormView {
                     "min": 128,
                     "max": 4096,
                     "step": 8,
-                    "value" null
+                    "value": null
                 }
             },
             "height": {
@@ -417,7 +456,7 @@ class ModelForm extends FormView {
                     "min": 128,
                     "max": 4096,
                     "step": 8,
-                    "value" null
+                    "value": null
                 }
             },
             "chunking_size": {
@@ -443,7 +482,7 @@ class ModelForm extends FormView {
                 }
             },
             "inference_steps": {
-                "label": "Inference Steps"
+                "label": "Inference Steps",
                 "class": NumberInputView,
                 "config": {
                     "tooltip": "How many steps to take during primary inference, larger values take longer to process but can produce better results.",
@@ -497,7 +536,7 @@ class ModelForm extends FormView {
                 }
             },
             "refiner_negative_aesthetic_score": {
-                "label": "Refiner Negative Aesthetic Score",
+                "label": "Negative Aesthetic Score",
                 "class": NumberInputView,
                 "config": {
                     "tooltip": "Aesthetic scores are assigned to images in SDXL refinement; this controls the negative score.",
@@ -575,16 +614,38 @@ class ModelManagerController extends Controller {
         
         // Add the 'Edit' button
         this.tableView.addButton("Edit", "fa-solid fa-edit", async (row) => {
-            console.log(row);
             let modelValues = row.getAttributes();
             modelValues.checkpoint = modelValues.model;
             modelValues.lora = isEmpty(row.lora) ? [] : row.lora.map((lora) => lora.getAttributes());
             modelValues.lycoris = isEmpty(row.lycoris) ? [] : row.lycoris.map((lycoris) => lycoris.getAttributes());
             modelValues.inversion = isEmpty(row.inversion) ? [] : row.inversion.map((inversion) => inversion.model);
-            modelValues.refiner = isEmpty(row.refiner) ? null : row.refiner[0].model;
-            modelValues.inpainter = isEmpty(row.inpainter) ? null : row.inpainter[0].model;
-            modelValues.scheduler = isEmpty(row.scheduler) ? null : row.scheduler[0].name;
             modelValues.vae = isEmpty(row.vae) ? null : row.vae[0].name;
+
+            if (!isEmpty(row.refiner)) {
+                modelValues.refiner = row.refiner[0].model;
+                modelValues.refiner_size = row.refiner[0].size;
+            }
+            
+            if (!isEmpty(row.inpainter)) {
+                modelValues.inpainter = row.inpainter[0].model;
+                modelValues.inpainter_size = row.inpainter[0].size;
+            }
+
+            if (!isEmpty(row.config)) {
+                for (let defaultConfig of row.config) {
+                    modelValues[defaultConfig.configuration_key] = defaultConfig.configuration_value;
+                }
+            }
+
+            if (!isEmpty(row.scheduler)) {
+                for (let scheduler of row.scheduler) {
+                    if (scheduler.context === "multi_diffusion") {
+                        modelValues.multi_scheduler = scheduler.name;
+                    } else {
+                        modelValues.scheduler = scheduler.name;
+                    }
+                }
+            }
 
             let modelForm = new ModelForm(this.config, deepClone(modelValues)),
                 modelWindow;
@@ -742,5 +803,6 @@ export {
     RefinerEngineSizeInputView,
     InpainterEngineSizeInputView,
     VAEInputView,
-    SchedulerInputView
+    SchedulerInputView,
+    MultiDiffusionSchedulerInputView
 };

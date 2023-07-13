@@ -102,6 +102,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         scheduler: KarrasDiffusionSchedulers,
         safety_checker: StableDiffusionSafetyChecker,
         feature_extractor: CLIPImageProcessor,
+        multi_scheduler: Optional[KarrasDiffusionSchedulers] = None,
         requires_safety_checker: bool = True,
         force_zeros_for_empty_prompt: bool = True,
         requires_aesthetic_score: bool = False,
@@ -139,6 +140,14 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
         # Add an image processor for later
         self.image_processor = VaeImageProcessor(vae_scale_factor=self.vae_scale_factor)
+
+        # Add multi-diffusion scheduler which can be changed
+        if multi_scheduler:
+            self.multi_scheduler = multi_scheduler
+            self.multi_scheduler_config = dict(**multi_scheduler.config)
+        else:
+            self.multi_scheduler = scheduler
+            self.multi_scheduler_config = dict(**self.scheduler_config)
 
         # Register other networks
         self.register_modules(
@@ -821,6 +830,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         dtype: torch.dtype,
         device: Union[str, torch.device],
         generator: Optional[torch.Generator] = None,
+        scheduler: Optional[KarrasDiffusionSchedulers] = None,
     ) -> torch.Tensor:
         """
         Creates random latents of a particular shape and type.
@@ -833,7 +843,9 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         )
         logger.debug(f"Creating random latents of shape {shape} and type {dtype}")
         random_latents = randn_tensor(shape, generator=generator, device=device, dtype=dtype)
-        return random_latents * self.scheduler.init_noise_sigma
+        if scheduler is None:
+            scheduler = self.scheduler
+        return random_latents * scheduler.init_noise_sigma
 
     def encode_image_unchunked(
             self, image: torch.Tensor, dtype: torch.dtype, generator: Optional[torch.Generator] = None
@@ -934,6 +946,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         device: Union[str, torch.device],
         generator: Optional[torch.Generator] = None,
         progress_callback: Optional[Callable[[], None]] = None,
+        scheduler: Optional[KarrasDiffusionSchedulers] = None,
     ) -> torch.Tensor:
         """
         Prepares latents from an image, adding initial noise for img2img inference
@@ -958,7 +971,9 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         noise = randn_tensor(shape, generator=generator, device=device, dtype=dtype)
 
         # add noise in accordance with timesteps
-        return self.scheduler.add_noise(init_latents, noise, timestep)
+        if scheduler is None:
+            scheduler = self.scheduler
+        return scheduler.add_noise(init_latents, noise, timestep)
 
     def prepare_mask_latents(
         self,
@@ -1013,7 +1028,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         return mask, latents
 
     def get_timesteps(
-        self, num_inference_steps: int, strength: float, device: str
+        self, num_inference_steps: int, strength: float, device: str, use_multi_scheduler: bool = False
     ) -> Tuple[torch.Tensor, int]:
         """
         Gets the original timesteps from the scheduler based on strength when doing img2img
@@ -1021,7 +1036,11 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         init_timestep = min(int(num_inference_steps * strength), num_inference_steps)
 
         t_start = max(num_inference_steps - init_timestep, 0)
-        timesteps = self.scheduler.timesteps[t_start * self.scheduler.order :]
+        if use_multi_scheduler:
+            scheduler = self.multi_scheduler
+        else:
+            scheduler = self.scheduler
+        timesteps = scheduler.timesteps[t_start * self.scheduler.order :]
 
         return timesteps, num_inference_steps - t_start
 
@@ -1423,7 +1442,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         chunks = self.get_chunks(height, width)
         num_chunks = len(chunks)
 
-        if num_chunks == 1:
+        if num_chunks <= 1:
             return self.denoise_unchunked(
                 height=height,
                 width=width,
@@ -1448,7 +1467,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             )
 
         num_steps = len(timesteps)
-        num_warmup_steps = num_steps - num_inference_steps * self.scheduler.order
+        num_warmup_steps = num_steps - num_inference_steps * self.multi_scheduler.order
 
         latent_width = width // self.vae_scale_factor
         latent_height = height // self.vae_scale_factor
@@ -1484,7 +1503,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     if do_classifier_free_guidance
                     else latents_for_view
                 )
-                latent_model_input = self.scheduler.scale_model_input(latent_model_input, t)
+                latent_model_input = self.multi_scheduler.scale_model_input(latent_model_input, t)
 
                 # Get controlnet input if configured
                 if control_image is not None:
@@ -1529,7 +1548,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     )
 
                 # compute the previous noisy sample x_t -> x_t-1
-                denoised_latents = self.scheduler.step(
+                denoised_latents = self.multi_scheduler.step(
                     noise_pred,
                     t,
                     latents_for_view,
@@ -1573,7 +1592,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 and i % latent_callback_steps == 0
                 and (
                     i == num_steps - 1
-                    or ((i + 1) > num_warmup_steps and (i + 1) % self.scheduler.order == 0)
+                    or ((i + 1) > num_warmup_steps and (i + 1) % self.multi_scheduler.order == 0)
                 )
             ):
                 latent_callback_value = latents
@@ -1635,7 +1654,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             self.vae.to(dtype=torch.float32)
             latents = latents.to(dtype=torch.float32)
 
-        if total_steps == 1:
+        if total_steps <= 1:
             result = self.decode_latents_unchunked(latents, device)
             if progress_callback is not None:
                 progress_callback()
@@ -1818,19 +1837,27 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
         device = self._execution_device
         do_classifier_free_guidance = guidance_scale > 1.0
+        
+        # Calculate chunks
+        num_chunks = max(1, len(self.get_chunks(height, width)))
 
-        self.scheduler.set_timesteps(num_inference_steps, device=device)
+        if num_chunks > 1:
+            logger.debug(f"Using multi-scheduler {type(self.multi_scheduler).__name__}")
+            scheduler = self.multi_scheduler
+        else:
+            logger.debug(f"Using base scheduler {type(self.scheduler).__name__}")
+            scheduler = self.scheduler
+
+        scheduler.set_timesteps(num_inference_steps, device=device)
         if image and not mask:
             timesteps, num_inference_steps = self.get_timesteps(
-                num_inference_steps, strength, device
+                num_inference_steps, strength, device, num_chunks > 1
             )
         else:
-            timesteps = self.scheduler.timesteps
+            timesteps = scheduler.timesteps
 
         batch_size *= num_images_per_prompt
-
-        # Calculate chunks
-        num_chunks = len(self.get_chunks(height, width))
+        num_scheduled_inference_steps = len(timesteps)
 
         # Calculate total steps
         chunked_steps = 1
@@ -1840,14 +1867,14 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         if mask is not None:
             chunked_steps += 1
         if latent_callback is not None and latent_callback_steps is not None:
-            chunked_steps += num_inference_steps // latent_callback_steps
+            chunked_steps += num_scheduled_inference_steps // latent_callback_steps
         
-        overall_num_steps = num_chunks * (num_inference_steps + chunked_steps)
+        overall_num_steps = num_chunks * (num_scheduled_inference_steps + chunked_steps)
+        logger.debug(f"Calculated overall steps to be {overall_num_steps} ({num_chunks} chunks, {num_inference_steps} steps, {num_scheduled_inference_steps} scheduled steps)")
         step_complete = self.get_step_complete_callback(overall_num_steps, progress_callback)
 
         with self.get_runtime_context(batch_size, device):
             # Base runtime has no context, but extensions do
-
             if self.is_sdxl:
                 prompt_embeds, negative_prompt_embeds, pooled_prompt_embeds, negative_pooled_prompt_embeds = self.encode_prompt(
                     prompt,
@@ -1927,6 +1954,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                         prompt_embeds.dtype,
                         device,
                         generator,
+                        scheduler=scheduler
                     )
 
                 prepared_mask, prepared_image_latents = self.prepare_mask_latents(
@@ -1966,10 +1994,11 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     device,
                     generator,
                     progress_callback=step_complete,
+                    scheduler=scheduler
                 )
             elif latents:
                 # Running the pipeline on existing latents, add some noise
-                prepared_latents = latents.to(device) * self.self.scheduler.init_noise_sigma
+                prepared_latents = latents.to(device) * scheduler.init_noise_sigma
             else:
                 # Create random latents for the whole unet
                 prepared_latents = self.create_latents(
@@ -1980,6 +2009,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     prompt_embeds.dtype,
                     device,
                     generator,
+                    scheduler=scheduler
                 )
 
             # Look for controlnet and conditioning image

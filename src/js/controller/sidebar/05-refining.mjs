@@ -122,6 +122,24 @@ class RefiningController extends Controller {
             if (isEmpty(model) || isEmpty(model.refiner)) {
                 this.refiningForm.hide();
             } else {
+                let defaultConfig = model.defaultConfiguration,
+                    refiningConfig = {};
+                
+                if (!isEmpty(defaultConfig.refiner_strength)) {
+                    refiningConfig.refinerStrength = defaultConfig.refiner_strength;
+                }
+                if (!isEmpty(defaultConfig.refiner_guidance_scale)) {
+                    refiningConfig.refinerGuidanceScale = defaultConfig.refiner_guidance_scale;
+                }
+                if (!isEmpty(defaultConfig.refiner_aesthetic_score)) {
+                    refiningConfig.refinerAestheticScore = defaultConfig.refiner_aesthetic_score;
+                }
+                if (!isEmpty(defaultConfig.refiner_negative_aesthetic_score)) {
+                    refiningConfig.refinerNegativeAestheticScore = defaultConfig.refiner_negative_aesthetic_score;
+                }
+                if (!isEmpty(refiningConfig)) {
+                    this.refiningForm.setValues(refiningConfig);
+                }
                 this.refiningForm.show();
             }
         });

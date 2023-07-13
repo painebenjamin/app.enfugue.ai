@@ -44,6 +44,7 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         scheduler: KarrasDiffusionSchedulers,
         safety_checker: StableDiffusionSafetyChecker,
         feature_extractor: CLIPImageProcessor,
+        multi_scheduler: Optional[KarrasDiffusionSchedulers] = None,
         requires_safety_checker: bool = True,
         force_zeros_for_empty_prompt: bool = True,
         requires_aesthetic_score: bool = False,
@@ -74,6 +75,7 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
             scheduler=scheduler,
             safety_checker=safety_checker,
             feature_extractor=feature_extractor,
+            multi_scheduler=multi_scheduler,
             requires_safety_checker=requires_safety_checker,
             force_zeros_for_empty_prompt=force_zeros_for_empty_prompt,
             requires_aesthetic_score=requires_aesthetic_score,
@@ -252,6 +254,7 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         dtype: Union[str, torch.dtype],
         device: Union[str, torch.device],
         generator: Optional[torch.Generator] = None,
+        scheduler: Optional[KarrasDiffusionSchedulers] = None,
     ) -> torch.Tensor:
         """
         Override to change to float32
@@ -264,6 +267,7 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
             torch.float32,
             device,
             generator,
+            scheduler=scheduler
         )
 
     def encode_prompt(

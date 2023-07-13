@@ -6,6 +6,7 @@ import {
     waitFor,
     createEvent
 } from "../base/helpers.mjs";
+import { Session } from "../base/session.mjs";
 import { Publisher } from "../base/publisher.mjs";
 import { TooltipHelper } from "../common/tooltip.mjs";
 import { MenuView, SidebarView, ToolbarView } from "../view/menu.mjs";
@@ -23,6 +24,7 @@ import { InvocationController } from "../controller/common/invocation.mjs";
 import { ModelPickerController } from "../controller/common/model-picker.mjs";
 import { ModelManagerController } from "../controller/common/model-manager.mjs";
 import { DownloadsController } from "../controller/common/downloads.mjs";
+import { AnimationsController } from "../controller/common/animations.mjs";
 import { LogsController } from "../controller/common/logs.mjs";
 import { AnnouncementsController } from "../controller/common/announcements.mjs";
 import { HistoryDatabase } from "../common/history.mjs";
@@ -158,14 +160,12 @@ class Application {
      */
     async initialize() {
         this.tooltips = new TooltipHelper();
-        this.container = document.querySelector(
-            this.config.view.applicationContainer
-        );
+        this.container = document.querySelector(this.config.view.applicationContainer);
         if (isEmpty(this.container)) {
             console.error(`Couldn't find application configuration using selector ${this.config.view.applicationContainer}, abandoning initialization.`);
             return;
         }
-
+        this.session = Session.getScope("enfugue");
         this.model = new Model(this.config);
         this.menu = new MenuView(this.config);
         this.sidebar = new SidebarView(this.config);
@@ -183,8 +183,9 @@ class Application {
         this.container.appendChild(await this.notifications.render());
         
         await this.startAnimations();
-        await this.registerModelControllers();
         await this.registerDownloadsControllers();
+        await this.registerAnimationsControllers();
+        await this.registerModelControllers();
         await this.registerInvocationControllers();
         await this.registerMenuControllers();
         await this.registerSidebarControllers();
@@ -228,7 +229,9 @@ class Application {
             console.warn("Can't find header logo, not binding animations.");
             return;
         }
+        this.animations = true;
         window.addEventListener("mousemove", (e) => {
+            if (this.animations === false) return;
             let [x, y] = [
                     e.clientX / window.innerWidth,
                     e.clientY / window.innerHeight
@@ -248,6 +251,28 @@ class Application {
             }
             headerLogo.style.textShadow = textShadowParts.join(",");
         });
+    }
+
+    /**
+     * Turns on animations
+     */
+    async enableAnimations() {
+        if (this.animations) return;
+        this.animations = true;
+        this.session.setItem("animations", true);
+        document.body.classList.remove("no-animations");
+        this.publish("animationsEnabled");
+    }
+
+    /**
+     * Turns off animations
+     */
+    async disableAnimations() {
+        if (!this.animations) return;
+        this.animations = false;
+        this.session.setItem("animations", false);
+        document.body.classList.add("no-animations");
+        this.publish("animationsDisabled");
     }
 
     /**
@@ -274,6 +299,14 @@ class Application {
     async registerInvocationControllers() {
         this.engine = new InvocationController(this);
         await this.engine.initialize();
+    }
+
+    /**
+     * Creates the animation manager (enable/disable animations.)
+     */
+    async registerAnimationsControllers() {
+        this.animation = new AnimationsController(this);
+        await this.animation.initialize();
     }
 
     /**
@@ -391,13 +424,6 @@ class Application {
                 status
             ),
             statusViewNode = await statusView.getNode();
-
-        statusView.onStatusClicked(async () => {
-            if (await this.confirm("Stop engine and terminate any active invocations?")) {
-                await this.model.post("/invocation/stop");
-                this.notifications.push("info", "Stopped", "Engine successfully terminated.");
-            }
-        });
 
         triggerStateChange(status.status);
         header.appendChild(statusViewNode.render());

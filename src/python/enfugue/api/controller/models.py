@@ -22,6 +22,19 @@ __all__ = ["EnfugueAPIModelsController"]
 class EnfugueAPIModelsController(EnfugueAPIControllerBase):
     handlers = UserExtensionHandlerRegistry()
 
+    MODEL_DEFAULT_FIELDS = [
+        "width",
+        "height",
+        "chunking_size",
+        "chunking_blur",
+        "inference_steps",
+        "guidance_scale",
+        "refiner_denoising_strength",
+        "refiner_guidance_scale",
+        "refiner_aesthetic_score",
+        "refiner_negative_aesthetic_score",
+    ]
+
     @handlers.path("^/api/checkpoints$")
     @handlers.methods("GET")
     @handlers.format()
@@ -349,63 +362,69 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         for existing_inversion in model.inversion:
             self.database.delete(existing_inversion)
 
+        for existing_scheduler in model.scheduler:
+            self.database.delete(existing_scheduler)
+
+        for existing_refiner in model.refiner:
+            self.database.delete(existing_refiner)
+
+        for existing_inpainter in model.inpainter:
+            self.database.delete(existing_inpainter)
+
+        for existing_config in model.config:
+            self.database.delete(existing_config)
+
+        for existing_vae in model.vae:
+            elf.database.delete(existing_vae)
+
+
         refiner = request.parsed.get("refiner", None)
-        if refiner is None and model.refiner:
-            self.database.delete(model.refiner[0])
-        elif refiner is not None:
-            if not model.refiner:
-                self.database.add(
-                    self.orm.DiffusionModelRefiner(
-                        diffusion_model_name=model_name,
-                        model=refiner,
-                    )
+        if refiner:
+            self.database.add(
+                self.orm.DiffusionModelRefiner(
+                    diffusion_model_name=model_name,
+                    model=refiner,
+                    size = request.parsed.get("refiner_size", None)
                 )
-            else:
-                model.refiner[0].model = refiner
+            )
         
         inpainter = request.parsed.get("inpainter", None)
-        if inpainter is None and model.inpainter:
-            self.database.delete(model.inpainter[0])
-        elif inpainter is not None:
-            if not model.inpainter:
-                self.database.add(
-                    self.orm.DiffusionModelInpainter(
-                        diffusion_model_name=model_name,
-                        model=inpainter,
-                    )
+        if inpainter:
+            self.database.add(
+                self.orm.DiffusionModelInpainter(
+                    diffusion_model_name=model_name,
+                    model=inpainter,
+                    size = request.parsed.get("inpainter_size", None)
                 )
-            else:
-                model.inpainter[0].model = inpainter
+            )
 
         scheduler = request.parsed.get("scheduler", None)
-        if scheduler is None and model.scheduler:
-            self.database.delete(model.scheduler[0])
-        elif scheduler is not None:
-            if not model.scheduler:
-                self.database.add(
-                    self.orm.DiffusionModelScheduler(
-                        diffusion_model_name=model_name,
-                        name=scheduler,
-                    )
+        if scheduler:
+            self.database.add(
+                self.orm.DiffusionModelScheduler(
+                    diffusion_model_name=model_name,
+                    name=scheduler,
                 )
-            else:
-                model.scheduler[0].name = scheduler
+            )
+        
+        multi_scheduler = request.parsed.get("multi_scheduler", None)
+        if multi_scheduler:
+            self.database.add(
+                self.orm.DiffusionModelScheduler(
+                    diffusion_model_name=model_name,
+                    name=multi_scheduler,
+                    context="multi_diffusion"
+                )
+            )
         
         vae = request.parsed.get("vae", None)
-        if vae is None and model.vae:
-            self.database.delete(model.vae[0])
-        elif vae is not None:
-            if not model.vae:
-                self.database.add(
-                    self.orm.DiffusionModelVAE(
-                        diffusion_model_name=model_name,
-                        name=vae,
-                    )
+        if vae:
+            self.database.add(
+                self.orm.DiffusionModelVAE(
+                    diffusion_model_name=model_name,
+                    name=vae,
                 )
-            else:
-                model.vae[0].name = vae
-
-        self.database.commit()
+            )
 
         for lora in request.parsed.get("lora", []):
             new_lora = self.orm.DiffusionModelLora(
@@ -425,6 +444,14 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
                 model=inversion,
             )
             self.database.add(new_inversion)
+            
+        for field_name in self.MODEL_DEFAULT_FIELDS:
+            field_value = request.parsed.get(field_name, None)
+            if field_value:
+                new_config = self.orm.DiffusionModelDefaultConfiguration(
+                    diffusion_model_name=model.name, configuration_key=field_name, configuration_value=field_value
+                )
+                self.database.add(new_config)
 
         self.database.commit()
         return model
@@ -456,6 +483,8 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
             self.database.delete(scheduler)
         for vae in model.vae:
             self.database.delete(vae)
+        for config in model.config:
+            self.database.delete(config)
 
         self.database.commit()
         self.database.delete(model)
@@ -482,14 +511,14 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
             refiner = request.parsed.get("refiner", None)
             if refiner:
                 new_refiner = self.orm.DiffusionModelRefiner(
-                    diffusion_model_name=new_model.name, model=refiner
+                    diffusion_model_name=new_model.name, model=refiner, size=request.parsed.get("refiner_size", None)
                 )
                 self.database.add(new_refiner)
                 self.database.commit()
             inpainter = request.parsed.get("inpainter", None)
             if inpainter:
                 new_inpainter = self.orm.DiffusionModelInpainter(
-                    diffusion_model_name=new_model.name, model=inpainter
+                    diffusion_model_name=new_model.name, model=inpainter, size=request.parsed.get("inpainter_size", None)
                 )
                 self.database.add(new_inpainter)
                 self.database.commit()
@@ -499,6 +528,13 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
                     diffusion_model_name=new_model.name, name=scheduler
                 )
                 self.database.add(new_scheduler)
+                self.database.commit()
+            multi_scheduler = request.parsed.get("multi_scheduler", None)
+            if multi_scheduler:
+                new_multi_scheduler = self.orm.DiffusionModelScheduler(
+                    diffusion_model_name=new_model.name, name=multi_scheduler, context="multi_diffusion"
+                )
+                self.database.add(new_multi_scheduler)
                 self.database.commit()
             vae = request.parsed.get("vae", None)
             if vae:
@@ -525,6 +561,14 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
                 )
                 self.database.add(new_inversion)
                 self.database.commit()
+            for field_name in self.MODEL_DEFAULT_FIELDS:
+                field_value = request.parsed.get(field_name, None)
+                if field_values:
+                    new_config = self.orm.DiffusionModelDefaultConfiguration(
+                        diffusion_model_name=new_model.name, configuration_key=field_name, configuration_value=field_value
+                    )
+                    self.database.add(new_config)
+                    self.database.commit()
             return new_model
         except KeyError as ex:
             raise BadRequestError(f"Missing required parameter {ex}")

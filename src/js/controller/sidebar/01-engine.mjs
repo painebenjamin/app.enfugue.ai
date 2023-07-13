@@ -31,7 +31,8 @@ class EngineForm extends FormView {
                 "label": "Engine Size",
                 "class": EngineSizeInputView,
                 "config": {
-                    "required": true
+                    "required": false,
+                    "value": null
                 }
             },
             "refinerSize": {
@@ -80,7 +81,7 @@ class EngineController extends Controller {
     getDefaultState() {
         return {
             "engine": {
-                "size": this.application.config.model.invocation.defaultEngineSize,
+                "size": null,
                 "refinerSize": null,
                 "inpainterSize": null
             }

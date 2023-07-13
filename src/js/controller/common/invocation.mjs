@@ -11,7 +11,7 @@ const E = new ElementBuilder({
     "invocationRemaining": "enfugue-invocation-remaining",
     "invocationSampleChooser": "enfugue-invocation-sample-chooser",
     "invocationSample": "enfugue-invocation-sample",
-    "invocationStop": "enfugue-invocation-stop"
+    "engineStop": "enfugue-engine-stop"
 });
 
 /**
@@ -686,13 +686,30 @@ class InvocationController extends Controller {
     }
     
     /**
-     * @param str Set the scheduler
+     * @param str Set the new scheduler
      */
     set scheduler(newScheduler) {
         if (this.scheduler !== newScheduler) {
             this.publish("engineSchedulerChange");
         }
         this.kwargs.scheduler = newScheduler;
+    }
+
+    /**
+     * @return str The multi-diffusion scheduler, if set
+     */
+    get multiScheduler() {
+        return this.kwargs.multi_scheduler || null;
+    }
+    
+    /**
+     * @param str Set the new scheduler for multi-diffusion
+     */
+    set multiScheduler(newScheduler) {
+        if (this.multiScheduler !== newScheduler) {
+            this.publish("engineMultiDiffusionSchedulerChange");
+        }
+        this.kwargs.multi_scheduler = newScheduler;
     }
 
     /**
@@ -723,8 +740,18 @@ class InvocationController extends Controller {
             E.invocationRemaining().hide()
         );
         this.invocationSampleChooser = E.invocationSampleChooser().hide();
-        this.invocationStop = E.invocationStop().content("Stop").on("click", () => { this.stopInvocation() });
-        (await this.images.getNode()).append(this.loadingBar).append(this.invocationSampleChooser).append(this.invocationStop);
+        this.engineStop = E.engineStop().content("Stop Engine").on("click", () => { this.stopEngine() });
+        (await this.images.getNode()).append(this.loadingBar).append(this.invocationSampleChooser);
+        this.application.container.appendChild(await this.engineStop.render());
+        this.subscribe("engineReady", () => {
+            this.enableStop();
+        });
+        this.subscribe("engineBusy", () => {
+            this.enableStop();
+        });
+        this.subscribe("engineIdle", () => {
+            this.disableStop();
+        });
     }
 
     /**
@@ -732,6 +759,20 @@ class InvocationController extends Controller {
      */
     hideSampleChooser() {
         this.invocationSampleChooser.hide();
+    }
+
+    /**
+     * Enables the engine stopper.
+     */
+    enableStop() {
+        this.engineStop.addClass("ready");
+    }
+    
+    /**
+     * Disbles the engine stopper.
+     */
+    disableStop() {
+        this.engineStop.removeClass("ready");
     }
 
     /**
@@ -754,8 +795,7 @@ class InvocationController extends Controller {
             null, 
             invocationPayload
         );
-
-        this.invocationStop.addClass("ready");
+        this.enableStop();
         if (!isEmpty(result.uuid)) {
             if (detached) {
                 let invocationName = invocationPayload.prompt.substring(0, this.constructor.truncatePromptLength);
@@ -770,7 +810,6 @@ class InvocationController extends Controller {
                 );
             } else {
                 await this.canvasInvocation(result.uuid);
-                this.invocationStop.removeClass("ready");
             }
         }
     }
@@ -778,17 +817,21 @@ class InvocationController extends Controller {
     /**
      * Stops the engine.
      */
-    async stopInvocation() {
-        if (!this.invocationStop.hasClass("ready")) return;
-        try {
-            await this.application.model.post("/invocation/stop");
-            this.invocationStop.removeClass("ready");
-            this.notify("info", "Stopped", "Successfully stopped engine.");
-        } catch(e) {
-            let errorMessage = `${e}`;
-            if (!isEmpty(e.detail)) errorMessage = e.detail;
-            else if (!isEmpty(e.title)) errorMessage = e.title;
-            this.notify("error", "Error", `Received an error when stopping. The engine may still be stopped, wait a moment and check again. ${errorMessage}`);
+    async stopEngine() {
+        if (!this.engineStop.hasClass("ready")) {
+            return;
+        }
+        if (await this.confirm("Stop engine and terminate any active invocations?")) {
+            try {
+                await this.application.model.post("/invocation/stop");
+                this.disableStop();
+                this.notify("info", "Stopped", "Successfully stopped engine.");
+            } catch(e) {
+                let errorMessage = `${e}`;
+                if (!isEmpty(e.detail)) errorMessage = e.detail;
+                else if (!isEmpty(e.title)) errorMessage = e.title;
+                this.notify("error", "Error", `Received an error when stopping. The engine may still be stopped, wait a moment and check again. ${errorMessage}`);
+            }
         }
     }
 
@@ -818,25 +861,11 @@ class InvocationController extends Controller {
             lastDuration,
             lastStepDeltaTime,
             lastTotalDeltaTime = start,
-            getEstimatedDurationRemaining = () => {
-                let averageStepsPerMillisecond = lastStep/(lastStepDeltaTime-lastTotalDeltaTime),
-                    currentStepsPerMillisecond = isEmpty(lastRate) ? averageStepsPerMillisecond : lastRate / 1000,
-                    weightedStepsPerMillisecond = (currentStepsPerMillisecond * 0.75) + (averageStepsPerMillisecond * 0.25),
-                    millisecondsRemainingAtDelta = (lastTotal-lastStep)/weightedStepsPerMillisecond,
-                    millisecondsRemainingNow = millisecondsRemainingAtDelta-((new Date()).getTime()-lastStepDeltaTime);
-
-                if (isNaN(millisecondsRemainingNow)) {
-                    millisecondsRemainingNow = Infinity;
-                }
-                
-                onEstimatedDuration(millisecondsRemainingNow, lastStep, lastTotal, lastRate, lastDuration);
-                return millisecondsRemainingNow;
-            },
             getInterval = (invokeResult) => {
                 if (invokeResult.status === "queued") {
                     return queuedInterval;
                 }
-                return Math.min(Math.max(initialInterval, getEstimatedDurationRemaining() / 2), queuedInterval);
+                return initialInterval;
             },
             checkInvocationTimer,
             checkInvocation = async () => {
@@ -867,6 +896,7 @@ class InvocationController extends Controller {
                 if (invokeResult.rate !== lastRate) {
                     lastRate = invokeResult.rate;
                 }
+
                 lastDuration = invokeResult.duration;
                 if (!isEmpty(invokeResult.images)) {
                     let imagePaths = invokeResult.images.map((imageName) => `/api/invocation/${imageName}`),
@@ -878,6 +908,15 @@ class InvocationController extends Controller {
                     onError();
                     return;
                 } else if (invokeResult.status !== "completed") {
+                    let averageStepsPerMillisecond = lastStep/(lastStepDeltaTime-lastTotalDeltaTime),
+                        currentStepsPerMillisecond = isEmpty(lastRate) ? averageStepsPerMillisecond : lastRate / 1000,
+                        weightedStepsPerMillisecond = (currentStepsPerMillisecond * 0.75) + (averageStepsPerMillisecond * 0.25),
+                        millisecondsRemainingAtDelta = (lastTotal-lastStep)/weightedStepsPerMillisecond,
+                        millisecondsRemainingNow = millisecondsRemainingAtDelta-((new Date()).getTime()-lastStepDeltaTime);
+                    if (isNaN(millisecondsRemainingNow)) {
+                        millisecondsRemainingNow = Infinity;
+                    }
+                    onEstimatedDuration(millisecondsRemainingNow, lastStep, lastTotal, lastRate, lastDuration);
                     checkInvocationTimer = setTimeout(
                         checkInvocation,
                         getInterval(invokeResult)

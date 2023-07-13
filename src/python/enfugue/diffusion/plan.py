@@ -292,14 +292,16 @@ class DiffusionStep:
         ):
             image_width, image_height = self.width, self.height
 
+        pipeline_size = pipeline.size if mask is None else pipeline.inpainter_size
+
         if image_width is None or image_height is None:
             logger.warning("No known invocation size, defaulting to engine size")
-            image_width, image_height = pipeline.size, pipeline.size
+            image_width, image_height = pipeline_size, pipeline_size
 
-        if image_width is not None and image_width < pipeline.size:
-            image_scale = pipeline.size / image_width
-        if image_height is not None and image_height < pipeline.size:
-            image_scale = max(image_scale, pipeline.size / image_height)
+        if image_width is not None and image_width < pipeline_size:
+            image_scale = pipeline_size / image_width
+        if image_height is not None and image_height < pipeline_size:
+            image_scale = max(image_scale, pipeline_size / image_height)
 
         if image_scale > MAX_IMAGE_SCALE or not self.scale_to_model_size:
             # Refuse it's too oblong. We'll just calculate at the appropriate size.
@@ -457,6 +459,7 @@ class DiffusionPlan:
         ] = None,
         inversion: Optional[Union[str, List[str]]] = None,
         scheduler: Optional[Literal["ddim", "ddpm", "deis", "dpmsm", "dpmss", "heun", "dpmd", "adpmd", "dpmsde", "unipc", "lmsd", "pndm", "eds", "eads"]] = None,
+        multi_scheduler: Optional[Literal["ddim", "ddpm", "deis", "dpmsm", "dpmss", "eds", "eads"]] = None,
         vae: Optional[Literal["ema", "mse"]] = None,
         width: Optional[int] = None,
         height: Optional[int] = None,
@@ -533,6 +536,7 @@ class DiffusionPlan:
         self.lycoris = lycoris
         self.inversion = inversion
         self.scheduler = scheduler
+        self.multi_scheduler = multi_scheduler
         self.vae = vae
         self.width = width if width is not None else self.size
         self.height = height if height is not None else self.size
@@ -773,6 +777,7 @@ class DiffusionPlan:
         pipeline.inversion = self.inversion
         pipeline.size = self.size
         pipeline.scheduler = self.scheduler
+        pipeline.multi_scheduler = self.multi_scheduler
         pipeline.vae = self.vae
         pipeline.refiner_size = self.refiner_size
         pipeline.inpainter_size = self.inpainter_size
@@ -927,6 +932,7 @@ class DiffusionPlan:
             "lycoris": self.lycoris,
             "inversion": self.inversion,
             "scheduler": self.scheduler,
+            "multi_scheduler": self.multi_scheduler,
             "vae": self.vae,
             "width": self.width,
             "height": self.height,
@@ -969,6 +975,7 @@ class DiffusionPlan:
             "lycoris",
             "inversion",
             "scheduler",
+            "multi_scheduler",
             "vae",
             "width",
             "height",
@@ -1039,6 +1046,7 @@ class DiffusionPlan:
         ] = None,
         inversion: Optional[Union[str, List[str]]] = None,
         scheduler: Optional[Literal["ddim", "ddpm", "deis", "dpmsm", "dpmss", "heun", "dpmd", "adpmd", "dpmsde", "unipc", "lmsd", "pndm", "eds", "eads"]] = None,
+        multi_scheduler: Optional[Literal["ddim", "ddpm", "deis", "dpmsm", "dpmss", "eds", "eads"]] = None,
         vae: Optional[Literal["ema", "mse"]] = None,
         seed: Optional[int] = None,
         outscale: Optional[int] = 1,
@@ -1121,6 +1129,7 @@ class DiffusionPlan:
             lycoris=lycoris,
             inversion=inversion,
             scheduler=scheduler,
+            multi_scheduler=multi_scheduler,
             vae=vae,
             seed=seed,
             width=width,
@@ -1157,6 +1166,7 @@ class DiffusionPlan:
         ] = None,
         inversion: Optional[Union[str, List[str]]] = None,
         scheduler: Optional[Literal["ddim", "ddpm", "deis", "dpmsm", "dpmss", "heun", "dpmd", "adpmd", "dpmsde", "unipc", "lmsd", "pndm", "eds", "eads"]] = None,
+        multi_scheduler: Optional[Literal["ddim", "ddpm", "deis", "dpmsm", "dpmss", "eds", "eads"]] = None,
         vae: Optional[Literal["ema", "mse"]] = None,
         model_prompt: Optional[str] = None,
         model_negative_prompt: Optional[str] = None,
@@ -1242,6 +1252,7 @@ class DiffusionPlan:
             lycoris=lycoris,
             inversion=inversion,
             scheduler=scheduler,
+            multi_scheduler=multi_scheduler,
             vae=vae,
             samples=samples,
             size=size,

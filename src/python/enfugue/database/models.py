@@ -53,7 +53,8 @@ class DiffusionModelScheduler(EnfugueObjectBase):
         DiffusionModel.ForeignKey("name", ondelete="CASCADE", onupdate="CASCADE"), primary_key=True, unique=True
     )
     name = Column(String(256), nullable=False)
-    
+    context = Column(String(256), nullable=True)
+
     diffusion_model = DiffusionModel.Relationship(backref="scheduler", uselist=False)
 
 class DiffusionModelVAE(EnfugueObjectBase):
