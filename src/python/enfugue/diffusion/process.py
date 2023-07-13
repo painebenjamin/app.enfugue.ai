@@ -322,7 +322,9 @@ class DiffusionEngineProcess(Process):
                         )
                     elif instruction_action in ["exit", "stop"]:
                         logger.debug("Exiting process")
-                        self.pipemanager.unload_pipeline()
+                        self.pipemanager.unload_inpainter("exiting")
+                        self.pipemanager.unload_refiner("exiting")
+                        self.pipemanager.unload_pipeline("exiting")
                         self.pipemanager.unload_upscaler()
                         return
                     elif instruction_action in ["invoke", "plan"]:

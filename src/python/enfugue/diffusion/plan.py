@@ -444,6 +444,8 @@ class DiffusionPlan:
         prompt: Optional[str] = None,  # Global
         negative_prompt: Optional[str] = None,  # Global
         size: Optional[int] = None,
+        refiner_size: Optional[int] = None,
+        inpainter_size: Optional[int] = None,
         model: Optional[str] = None,
         refiner: Optional[str] = None,
         inpainter: Optional[str] = None,
@@ -454,6 +456,8 @@ class DiffusionPlan:
             Union[str, List[str], Tuple[str, float], List[Union[str, Tuple[str, float]]]]
         ] = None,
         inversion: Optional[Union[str, List[str]]] = None,
+        scheduler: Optional[Literal["ddim", "ddpm", "deis", "dpmsm", "dpmss", "heun", "dpmd", "adpmd", "dpmsde", "unipc", "lmsd", "pndm", "eds", "eads"]] = None,
+        vae: Optional[Literal["ema", "mse"]] = None,
         width: Optional[int] = None,
         height: Optional[int] = None,
         image_callback_steps: Optional[int] = DEFAULT_IMAGE_CALLBACK_STEPS,
@@ -518,6 +522,8 @@ class DiffusionPlan:
         self.size = size if size is not None else (
             1024 if model is not None and "xl" in model.lower() else 512
         )
+        self.inpainter_size = inpainter_size
+        self.refiner_size = refiner_size
         self.prompt = prompt
         self.negative_prompt = negative_prompt
         self.model = model
@@ -526,6 +532,8 @@ class DiffusionPlan:
         self.lora = lora
         self.lycoris = lycoris
         self.inversion = inversion
+        self.scheduler = scheduler
+        self.vae = vae
         self.width = width if width is not None else self.size
         self.height = height if height is not None else self.size
         self.image = image
@@ -764,6 +772,10 @@ class DiffusionPlan:
         pipeline.lycoris = self.lycoris
         pipeline.inversion = self.inversion
         pipeline.size = self.size
+        pipeline.scheduler = self.scheduler
+        pipeline.vae = self.vae
+        pipeline.refiner_size = self.refiner_size
+        pipeline.inpainter_size = self.inpainter_size
         if self.build_tensorrt:
             pipeline.build_tensorrt = True
 
@@ -914,9 +926,13 @@ class DiffusionPlan:
             "lora": self.lora,
             "lycoris": self.lycoris,
             "inversion": self.inversion,
+            "scheduler": self.scheduler,
+            "vae": self.vae,
             "width": self.width,
             "height": self.height,
             "size": self.size,
+            "inpainter_size": self.inpainter_size,
+            "refiner_size": self.refiner_size,
             "seed": self.seed,
             "prompt": self.prompt,
             "negative_prompt": self.negative_prompt,
@@ -937,8 +953,6 @@ class DiffusionPlan:
         """
         kwargs = {
             "model": plan_dict["model"],
-            "refiner": plan_dict.get("refiner", None),
-            "inpainter": plan_dict.get("inpainter", None),
             "nodes": [
                 DiffusionNode.deserialize_dict(node_dict)
                 for node_dict in plan_dict.get("nodes", [])
@@ -946,10 +960,16 @@ class DiffusionPlan:
         }
 
         for arg in [
+            "refiner",
+            "inpainter",
             "size",
+            "refiner_size",
+            "inpainter_size",
             "lora",
             "lycoris",
             "inversion",
+            "scheduler",
+            "vae",
             "width",
             "height",
             "image_callback_steps",
@@ -1006,6 +1026,8 @@ class DiffusionPlan:
     def upscale_image(
         image: PIL.Image,
         size: Optional[int] = None,
+        refiner_size: Optional[int] = None,
+        inpainter_size: Optional[int] = None,
         model: Optional[str] = None,
         refiner: Optional[str] = None,
         inpainter: Optional[str] = None,
@@ -1016,6 +1038,8 @@ class DiffusionPlan:
             Union[str, List[str], Tuple[str, float], List[Union[str, Tuple[str, float]]]]
         ] = None,
         inversion: Optional[Union[str, List[str]]] = None,
+        scheduler: Optional[Literal["ddim", "ddpm", "deis", "dpmsm", "dpmss", "heun", "dpmd", "adpmd", "dpmsde", "unipc", "lmsd", "pndm", "eds", "eads"]] = None,
+        vae: Optional[Literal["ema", "mse"]] = None,
         seed: Optional[int] = None,
         outscale: Optional[int] = 1,
         upscale: Optional[
@@ -1088,12 +1112,16 @@ class DiffusionPlan:
         ]
         return DiffusionPlan.from_nodes(
             size=size,
+            refiner_size=refiner_size,
+            inpainter_size=inpainter_size,
             model=model,
             refiner=refiner,
             inpainter=inpainter,
             lora=lora,
             lycoris=lycoris,
             inversion=inversion,
+            scheduler=scheduler,
+            vae=vae,
             seed=seed,
             width=width,
             height=height,
@@ -1116,6 +1144,8 @@ class DiffusionPlan:
     @staticmethod
     def from_nodes(
         size: Optional[int] = None,
+        refiner_size: Optional[int] = None,
+        inpainter_size: Optional[int] = None,
         model: Optional[str] = None,
         refiner: Optional[str] = None,
         inpainter: Optional[str] = None,
@@ -1126,6 +1156,8 @@ class DiffusionPlan:
             Union[str, List[str], Tuple[str, float], List[Union[str, Tuple[str, float]]]]
         ] = None,
         inversion: Optional[Union[str, List[str]]] = None,
+        scheduler: Optional[Literal["ddim", "ddpm", "deis", "dpmsm", "dpmss", "heun", "dpmd", "adpmd", "dpmsde", "unipc", "lmsd", "pndm", "eds", "eads"]] = None,
+        vae: Optional[Literal["ema", "mse"]] = None,
         model_prompt: Optional[str] = None,
         model_negative_prompt: Optional[str] = None,
         samples: int = 1,
@@ -1209,8 +1241,12 @@ class DiffusionPlan:
             lora=lora,
             lycoris=lycoris,
             inversion=inversion,
+            scheduler=scheduler,
+            vae=vae,
             samples=samples,
             size=size,
+            refiner_size=refiner_size,
+            inpainter_size=inpainter_size,
             seed=seed,
             width=width,
             height=height,

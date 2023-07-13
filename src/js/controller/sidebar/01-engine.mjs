@@ -2,13 +2,11 @@
 import { isEmpty } from "../../base/helpers.mjs";
 import { FormView } from "../../view/forms/base.mjs";
 import { Controller } from "../base.mjs";
-import { 
-    NumberInputView, 
-    FloatInputView,
-    CheckboxInputView
-} from "../../view/forms/input.mjs";
-
-let defaultEngineSize = 512;
+import {
+    EngineSizeInputView,
+    RefinerEngineSizeInputView,
+    InpainterEngineSizeInputView
+} from "../common/model-manager.mjs";
 
 /**
  * The forms that allow for engine configuration when not using preconfigured models
@@ -25,20 +23,31 @@ class EngineForm extends FormView {
     static collapseFieldSets = true;
 
     /**
-     * @var object The tweak fields
+     * @var object The field sets for the form
      */
     static fieldSets = {
         "Engine": {
             "size": {
-                "label": "Size",
-                "class": NumberInputView,
+                "label": "Engine Size",
+                "class": EngineSizeInputView,
                 "config": {
-                    "required": true,
-                    "value": defaultEngineSize,
-                    "min": 128,
-                    "max": 2048,
-                    "step": 8,
-                    "tooltip": "When using chunked diffusion, this is the size of the window (in pixels) that will be encoded, decoded or inferred at once. Set the chunking size to 0 in the sidebar to disable chunked diffusion and always try to process the entire image at once."
+                    "required": true
+                }
+            },
+            "refinerSize": {
+                "label": "Refining Engine Size",
+                "class": RefinerEngineSizeInputView,
+                "config": {
+                    "required": false,
+                    "value": null
+                }
+            },
+            "inpainterSize": {
+                "label": "Inpainting Engine Size",
+                "class": InpainterEngineSizeInputView,
+                "config": {
+                    "required": false,
+                    "value": null
                 }
             }
         }
@@ -71,7 +80,9 @@ class EngineController extends Controller {
     getDefaultState() {
         return {
             "engine": {
-                "size": defaultEngineSize
+                "size": this.application.config.model.invocation.defaultEngineSize,
+                "refinerSize": null,
+                "inpainterSize": null
             }
         }
     };
@@ -80,24 +91,39 @@ class EngineController extends Controller {
      * On initialization, append the engine form
      */
     async initialize() {
-        // Set defaults
-        defaultEngineSize = this.application.config.model.invocation.defaultEngineSize;
-        
         // Builds form
         this.engineForm = new EngineForm(this.config);
+
+        // Bind submit
         this.engineForm.onSubmit(async (values) => {
             this.engine.size = values.size;
+            this.engine.refinerSize = values.refinerSize;
+            this.engine.inpainterSize = values.inpainterSize;
         });
 
         // Add to sidebar
         this.application.sidebar.addChild(this.engineForm);
 
-        // Bind events to listen for when to show
+        // Bind events to listen for when to show form and fields
         this.subscribe("engineModelTypeChange", (newType) => {
             if (isEmpty(newType) || newType === "checkpoint") {
                 this.engineForm.show();
             } else {
                 this.engineForm.hide();
+            }
+        });
+        this.subscribe("engineRefinerChange", (newRefiner) => {
+            if (isEmpty(newRefiner)) {
+                this.engineForm.removeClass("show-refiner");
+            } else {
+                this.engineForm.addClass("show-refiner");
+            }
+        });
+        this.subscribe("engineInpainterChange", (newInpainter) => {
+            if (isEmpty(newInpainter)) {
+                this.engineForm.removeClass("show-inpainter");
+            } else {
+                this.engineForm.addClass("show-inpainter");
             }
         });
         this.subscribe("engineModelChange", (newModel) => {

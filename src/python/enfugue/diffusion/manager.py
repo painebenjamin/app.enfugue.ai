@@ -19,6 +19,9 @@ from enfugue.util import logger, check_download, check_make_directory
 from enfugue.diffusion.constants import (
     DEFAULT_MODEL,
     DEFAULT_INPAINTING_MODEL,
+    VAE_EMA,
+    VAE_MSE,
+    VAE_XL,
     CONTROLNET_CANNY,
     CONTROLNET_MLSD,
     CONTROLNET_HED,
@@ -31,10 +34,19 @@ __all__ = ["DiffusionPipelineManager"]
 
 if TYPE_CHECKING:
     from diffusers.models import ControlNetModel
+    from diffusers.schedulers.scheduling_utils import KarrasDiffusionSchedulers
     from enfugue.diffusion.upscale import Upscaler
     from enfugue.diffusion.pipeline import EnfugueStableDiffusionPipeline
     from enfugue.diffusion.edge.detect import EdgeDetector
 
+def redact(kwargs: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Redacts prompts from logs to encourage log sharing for troubleshooting.
+    """
+    return dict([
+        (key, value if key not in ["prompt", "negative_prompt"] else "***")
+        for key, value in kwargs.items()
+    ])
 
 class KeepaliveThread(threading.Thread):
     """
@@ -110,8 +122,7 @@ class DiffusionPipelineManager:
         """
         if val != getattr(self, "_safe", None):
             self._safe = val
-            logger.debug(f"Unloading pipeline due to change in safety checking.")
-            self.unload_pipeline()
+            self.unload_pipeline("safety checking enabled or disabled")
 
     @property
     def device(self) -> torch.device:
@@ -207,6 +218,178 @@ class DiffusionPipelineManager:
             delattr(self, "_generator")
 
     @property
+    def scheduler(self) -> Optional[KarrasDiffusionSchedulers]:
+        """
+        Gets the scheduler class to instantiate.
+        """
+        if not hasattr(self, "_scheduler"):
+            return None
+        return self._scheduler
+    
+    @scheduler.setter
+    def scheduler(self, new_scheduler: Optional[Literal["ddim", "ddpm", "deis", "dpmsm", "dpmss", "heun", "dpmd", "adpmd", "dpmsde", "unipc", "lmsd", "pndm", "eds", "eads"]]) -> None:
+        """
+        Sets the scheduler class
+        """
+        if not new_scheduler:
+            if hasattr(self, "_scheduler"):
+                delattr(self, "_scheduler")
+                self.unload_pipeline("returning to default scheduler")
+            return
+        elif new_scheduler == "ddim":
+            from diffusers.schedulers import DDIMScheduler
+            scheduler_class = DDIMScheduler
+        elif new_scheduler == "ddpm":
+            from diffusers.schedulers import DDPMScheduler
+            scheduler_class = DDPMScheduler
+        elif new_scheduler == "deis":
+            from diffusers.schedulers import DEISMultistepScheduler
+            scheduler_class = DEISMultistepScheduler
+        elif new_scheduler == "dpmsm":
+            from diffusers.schedulers import DPMSolverMultistepScheduler
+            scheduler_class = DPMSolverMultistepScheduler
+        elif new_scheduler == "dpmss":
+            from diffusers.schedulers import DPMSolverSinglestepScheduler
+            scheduler_class = DPMSolverSinglestepScheduler
+        elif new_scheduler == "heun":
+            from diffusers.schedulers import HeunDiscreteScheduler
+            scheduler_class = HeunDiscreteScheduler
+        elif new_scheduler == "dpmd":
+            from diffusers.schedulers import KDPM2DiscreteScheduler
+            scheduler_class = KDPM2DiscreteScheduler
+        elif new_scheduler == "adpmd":
+            from diffusers.schedulers import KDPM2AncestralDiscreteScheduler
+            scheduler_class = KDPM2AncestralDiscreteScheduler
+        elif new_scheduler == "dpmsde":
+            from diffusers.schedulers import DPMSolverSDEScheduler
+            scheduler_class = DPMSolverSDEScheduler
+        elif new_scheduler == "unipc":
+            from diffusers.schedulers import UniPCMultistepScheduler
+            scheduler_class = UniPCMultistepScheduler
+        elif new_scheduler == "lmsd":
+            from diffusers.schedulers import LMSDiscreteScheduler
+            scheduler_class = LMSDiscreteScheduler
+        elif new_scheduler == "pndm":
+            from diffusers.schedulers import PNDMScheduler
+            scheduler_class = PNDMScheduler
+        elif new_scheduler == "eds":
+            from diffusers.schedulers import EulerDiscreteScheduler
+            scheduler_class = EulerDiscreteScheduler
+        elif new_scheduler == "eads":
+            from diffusers.schedulers import EulerAncestralDiscreteScheduler
+            scheduler_class = EulerAncestralDiscreteScheduler
+        else:
+            raise ValueError(f"Unknown scheduler {new_scheduler}")
+
+        if not hasattr(self, "_scheduler") or self._scheduler is not scheduler_class:
+            logger.debug(f"Changing to scheduler {scheduler_class.__name__} ({new_scheduler})")
+            self._scheduler = scheduler_class
+
+        if hasattr(self, "_pipeline"):
+            logger.debug(f"Hot-swapping pipeline scheduler.")
+            self._pipeline.scheduler = self.scheduler.from_config(self._pipeline.scheduler_config)
+        if hasattr(self, "_inpainter_pipeline"):
+            logger.debug(f"Hot-swapping inpainter pipeline scheduler.")
+            self._inpainter_pipeline.scheduler = self.scheduler.from_config(self._inpainter_pipeline.scheduler_config)
+        if hasattr(self, "_refiner_pipeline"):
+            logger.debug(f"Hot-swapping refiner pipeline scheduler.")
+            self._refiner_pipeline.scheduler = self.scheduler.from_config(self._refiner_pipeline.scheduler_config)
+
+    def get_vae(self, vae: Optional[str] = None) -> Optional[AutoencoderKL]:
+        """
+        Loads the VAE
+        """
+        if vae is None:
+            return None
+        from diffusers.models import AutoencoderKL
+        expected_vae_location = os.path.join(
+            self.engine_cache_dir, "models--" + vae.replace("/", "--")
+        )
+
+        if not os.path.exists(expected_vae_location):
+            logger.info(
+                f"VAE {vae} does not exist in cache directory {self.engine_cache_dir}, it will be downloaded."
+            )
+
+        self.start_keepalive()
+        result = AutoencoderKL.from_pretrained(
+            vae,
+            torch_dtype=self.dtype,
+            cache_dir=self.engine_cache_dir,
+        )
+        self.stop_keepalive()
+        return result.to(device=self.device)
+
+    @property
+    def vae(self) -> Optional[AutoencoderKL]:
+        """
+        Gets the configured VAE (or none.)
+        """
+        if not hasattr(self, "_vae"):
+            self._vae = self.get_vae(self.vae_name)
+        return self._vae
+
+    @vae.setter
+    def vae(
+        self,
+        new_vae: Optional[Literal["ema", "mse", "xl"]],
+    ) -> None:
+        """
+        Sets a new vae.
+        """
+        pretrained_path = None
+        if new_vae == "ema":
+            pretrained_path = VAE_EMA
+        elif new_vae == "mse":
+            pretrained_path = VAE_MSE
+        elif new_vae == "xl":
+            pretrained_path = VAE_XL
+
+        if pretrained_path is None and new_vae:
+            logger.error(f"Unsupported VAE {new_vae}")
+
+        existing_vae = getattr(self, "_vae", None)
+
+        if (
+            (existing_vae is None and new_vae is not None)
+            or (existing_vae is not None and new_vae is None)
+            or (existing_vae is not None and self.vae_name != new_vae)
+        ):
+            if not new_vae:
+                self._vae_name = None  # type: ignore
+                self._vae = None
+                self.unload_pipeline("VAE resetting to default")
+                self.unload_refiner("VAE resetting to default")
+                self.unload_inpainter("VAE resetting to default")
+            else:
+                self._vae_name = new_vae
+                self._vae = self.get_vae(pretrained_path)
+                if self.tensorrt_is_ready and "vae" in self.TENSORRT_STAGES:
+                    self.unload_pipeline("VAE changing")
+                elif hasattr(self, "_pipeline"):
+                    logger.debug(f"Hot-swapping pipeline VAE to {new_vae}")
+                    self._pipeline.vae = self._vae
+                if self.refiner_tensorrt_is_ready and "vae" in self.TENSORRT_STAGES:
+                    self.unload_refiner("VAE changing")
+                elif hasattr(self, "_refiner_pipeline"):
+                    logger.debug(f"Hot-swapping refiner pipeline VAE to {new_vae}")
+                    self._refiner_pipeline.vae = self._vae
+                if self.inpainter_tensorrt_is_ready and "vae" in self.TENSORRT_STAGES:
+                    self.unload_inpainter("VAE changing")
+                elif hasattr(self, "_inpainter_pipeline"):
+                    logger.debug(f"Hot-swapping inpainter pipeline VAE to {new_vae}")
+                    self._inpainter_pipeline.vae = self._vae
+
+    @property
+    def vae_name(self) -> Optional[str]:
+        """
+        Gets the name of the VAE, if one was set.
+        """
+        if not hasattr(self, "_vae_name"):
+            self._vae_name = self.configuration.get("enfugue.vae", None)
+        return self._vae_name
+
+    @property
     def size(self) -> int:
         """
         Gets the base engine size in pixels when chunking (default always.)
@@ -222,15 +405,75 @@ class DiffusionPipelineManager:
         """
         Sets the base engine size in pixels.
         """
-        logger.critical(f"Setting size to {new_size}: {traceback.format_stack()}")
         if hasattr(self, "_size") and self._size != new_size:
             if self.tensorrt_is_ready:
-                logger.debug("Unloading pipeline due to change in engine size.")
-                self.unload_pipeline()
+                self.unload_pipeline("engine size changed")
             elif hasattr(self, "_pipeline"):
-                logger.debug("Setting pipline engine size in-place.")
+                logger.debug("Setting pipeline engine size in-place.")
                 self._pipeline.engine_size = new_size
         self._size = new_size
+
+    @property
+    def refiner_size(self) -> int:
+        """
+        Gets the refiner engine size in pixels when chunking (default always.)
+        """
+        if not hasattr(self, "_refiner_size"):
+            return self.size
+        return self._refiner_size
+
+    @refiner_size.setter
+    def refiner_size(self, new_refiner_size: Optional[int]) -> None:
+        """
+        Sets the refiner engine size in pixels.
+        """
+        if new_refiner_size is None:
+            if hasattr(self, "_refiner_size"):
+                if self._refiner_size != self.size and self.refiner_tensorrt_is_ready:
+                    self.unload_refiner("engine size changed")
+                elif hasattr(self, "_refiner_pipeline"):
+                    logger.debug("Setting refiner engine size in-place.")
+                    self._refiner_pipeline.engine_size = self.size
+                delattr(self, "_refiner_size")
+        elif hasattr(self, "_refiner_size") and self._refiner_size != new_refiner_size:
+            if self.refiner_tensorrt_is_ready:
+                self.unload_refiner("engine size changed")
+            elif hasattr(self, "_refiner_pipeline"):
+                logger.debug("Setting refiner engine size in-place.")
+                self._refiner_pipeline.engine_size = new_refiner_size
+        if new_refiner_size is not None:
+            self._refiner_size = new_refiner_size
+
+    @property
+    def inpainter_size(self) -> int:
+        """
+        Gets the inpainter engine size in pixels when chunking (default always.)
+        """
+        if not hasattr(self, "_inpainter_size"):
+            return self.size
+        return self._inpainter_size
+
+    @inpainter_size.setter
+    def inpainter_size(self, new_inpainter_size: Optional[int]) -> None:
+        """
+        Sets the inpainter engine size in pixels.
+        """
+        if new_inpainter_size is None:
+            if hasattr(self, "_inpainter_size"):
+                if self._inpainter_size != self.size and self.inpainter_tensorrt_is_ready:
+                    self.unload_inpainter("engine size changed")
+                elif hasattr(self, "_inpainter_pipeline"):
+                    logger.debug("Setting inpainter engine size in-place.")
+                    self._inpainter_pipeline.engine_size = self.size
+                delattr(self, "_inpainter_size")
+        elif hasattr(self, "_inpainter_size") and self._inpainter_size != new_inpainter_size:
+            if self.inpainter_tensorrt_is_ready:
+                self.unload_inpainter("engine size changed")
+            elif hasattr(self, "_inpainter_pipeline"):
+                logger.debug("Setting inpainter engine size in-place.")
+                self._inpainter_pipeline.engine_size = new_inpainter_size
+        if new_inpainter_size is not None:
+            self._inpainter_size = new_inpainter_size
 
     @property
     def chunking_size(self) -> int:
@@ -822,8 +1065,7 @@ class DiffusionPipelineManager:
         Disables or enables TensorRT.
         """
         if new_enabled != self.tensorrt_is_enabled and self.tensorrt_is_ready:
-            logger.debug("Unloading pipeline due to enabling/disabling TensorRT")
-            self.unload_pipeline()
+            self.unload_pipeline("TensorRT enabled or disabled")
         self._tensorrt_enabled = new_enabled
 
     @property
@@ -866,6 +1108,8 @@ class DiffusionPipelineManager:
         """
         if not self.tensorrt_is_supported:
             return False
+        if self.refiner is None:
+            return False
         from enfugue.diffusion.rt.engine import Engine
 
         trt_ready = True
@@ -898,6 +1142,8 @@ class DiffusionPipelineManager:
         Checks to determine if Tensor RT is ready based on the existence of engines for the inpainter
         """
         if not self.tensorrt_is_supported:
+            return False
+        if self.inpainter is None:
             return False
         from enfugue.diffusion.rt.engine import Engine
 
@@ -935,8 +1181,7 @@ class DiffusionPipelineManager:
         """
         self._build_tensorrt = new_build
         if not self.tensorrt_is_ready and self.tensorrt_is_supported:
-            logger.debug("Unloading pipeline to prepare for TensorRT build")
-            self.unload_pipeline()
+            self.unload_pipeline("preparing for TensorRT build")
 
     @property
     def use_tensorrt(self) -> bool:
@@ -1103,17 +1348,7 @@ class DiffusionPipelineManager:
             new_model = os.path.join(self.engine_checkpoints_dir, new_model)
         new_model_name, _ = os.path.splitext(os.path.basename(new_model))
         if self.model_name != new_model_name:
-            logger.debug("Unloading pipeline due to change in model")
-            self.unload_pipeline()
-        if "xl" in new_model_name.lower():
-            if self.size < 1024:
-                self.last_non_xl_size = self.size
-                logger.info("Loaded stable diffusion XL checkpoint, going to 1024 engine size")
-                self.size = 1024
-        elif self.size == 1024 and hasattr(self, "last_non_xl_size"):
-            logger.info("Loaded off stable diffusion XL checkpoint, going to last size {self.last_non_xl_size}")
-            self.size = self.last_non_xl_size
-            del self.last_non_xl_size
+            self.unload_pipeline("model changed")
         self._model = new_model
 
     @property
@@ -1153,8 +1388,7 @@ class DiffusionPipelineManager:
             new_refiner = os.path.join(self.engine_checkpoints_dir, new_refiner)
         new_refiner_name, _ = os.path.splitext(os.path.basename(new_refiner))
         if self.refiner_name != new_refiner_name:
-            logger.debug("Unloading refiner pipeline due to change in refiner model")
-            self.unload_refiner()
+            self.unload_refiner("model changed")
         self._refiner = new_refiner
 
     @property
@@ -1196,8 +1430,7 @@ class DiffusionPipelineManager:
             new_inpainter = os.path.join(self.engine_checkpoints_dir, new_inpainter)
         new_inpainter_name, _ = os.path.splitext(os.path.basename(new_inpainter))
         if self.inpainter_name != new_inpainter_name:
-            logger.debug("Unloading inpainter pipeline due to change in inpainter model")
-            self.unload_inpainter()
+            self.unload_inpainter("model changed")
         self._inpainter = new_inpainter
 
     @property
@@ -1248,8 +1481,9 @@ class DiffusionPipelineManager:
             )
 
         if getattr(self, "_torch_dtype", new_dtype) != new_dtype:
-            logger.debug("Unloading pipeline due to change in data type")
-            self.unload_pipeline()
+            self.unload_pipeline("data type changed")
+            self.unload_refiner("data type changed")
+            self.unload_inpainter("data type changed")
 
         self._torch_dtype = new_dtype
 
@@ -1269,8 +1503,7 @@ class DiffusionPipelineManager:
         """
         if new_lora is None:
             if hasattr(self, "_lora") and len(self._lora) > 0:
-                logger.debug("Unloading pipeline due to change in LoRA")
-                self.unload_pipeline()
+                self.unload_pipeline("LoRA changed")
             self._lora: List[Tuple[str, float]] = []
             return
 
@@ -1294,8 +1527,7 @@ class DiffusionPipelineManager:
             lora[i] = (model, weight)
 
         if getattr(self, "_lora", []) != lora:
-            logger.debug("Unloading pipeline due to change in LoRA")
-            self.unload_pipeline()
+            self.unload_pipeline("LoRA changed")
             self._lora = lora
 
     @property
@@ -1321,8 +1553,7 @@ class DiffusionPipelineManager:
         """
         if new_lycoris is None:
             if hasattr(self, "_lycoris") and len(self._lycoris) > 0:
-                logger.debug("Unloading pipeline due to change in LyCORIS")
-                self.unload_pipeline()
+                self.unload_pipeline("LyCORIS changed")
             self._lycoris: List[Tuple[str, float]] = []
             return
 
@@ -1346,8 +1577,7 @@ class DiffusionPipelineManager:
             lycoris[i] = (model, weight)
 
         if getattr(self, "_lycoris", []) != lycoris:
-            logger.debug("Unloading pipeline due to change in LyCORIS")
-            self.unload_pipeline()
+            self.unload_pipeline("LyCORIS changed")
             self._lycoris = lycoris
 
     @property
@@ -1371,16 +1601,14 @@ class DiffusionPipelineManager:
         """
         if new_inversion is None:
             if hasattr(self, "_inversion") and len(self._inversion) > 0:
-                logger.debug("Unloading pipeline due to change in inversion")
-                self.unload_pipeline()
+                self.unload_pipeline("Textual Inversions changed")
             self._inversion: List[str] = []
             return
 
         if not isinstance(new_inversion, list):
             new_inversion = [new_inversion]
         if getattr(self, "_inversion", []) != new_inversion:
-            logger.debug("Unloading pipeline due to change in inversion")
-            self.unload_pipeline()
+            self.unload_pipeline("Textual Inversions changed")
             self._inversion = new_inversion
 
     @property
@@ -1543,8 +1771,13 @@ class DiffusionPipelineManager:
                 "chunking_size": self.chunking_size,
                 "requires_safety_checker": self.safe,
                 "torch_dtype": self.dtype,
+                "cache_dir": self.engine_cache_dir 
             }
+            vae = self.vae # Load into memory here
             controlnet = self.controlnet # Load into memory here
+
+            if vae is not None:
+                kwargs["vae"] = vae
 
             if self.use_tensorrt:
                 if "unet" in self.TENSORRT_STAGES:
@@ -1592,6 +1825,11 @@ class DiffusionPipelineManager:
                 )
             else:
                 kwargs["load_safety_checker"] = self.safe
+                if self.vae_name is not None:
+                    if self.vae_name == "mse":
+                        kwargs["vae_path"] = VAE_MSE
+                    elif self.vae_name == "ema":
+                        kwargs["vae_path"] = VAE_EMA
                 logger.debug(
                     f"Initializing pipeline from checkpoint at {self.model}. Arguments are {kwargs}"
                 )
@@ -1614,6 +1852,10 @@ class DiffusionPipelineManager:
                 for inversion in self.inversion:
                     logger.debug(f"Adding textual inversion {inversion} to pipeline")
                     pipeline.load_textual_inversion(inversion)
+            
+            # load scheduler
+            if self.scheduler is not None:
+                pipeline.scheduler = self.scheduler.from_config(pipeline.scheduler_config)
             self._pipeline = pipeline.to(self.device)
         return self._pipeline
 
@@ -1625,6 +1867,8 @@ class DiffusionPipelineManager:
         if hasattr(self, "_pipeline"):
             logger.debug("Deleting pipeline.")
             del self._pipeline
+            if hasattr(self, "_pipeline_is_offloaded"):
+                del self._pipeline_is_offloaded
             import torch
 
             torch.cuda.empty_cache()
@@ -1643,13 +1887,17 @@ class DiffusionPipelineManager:
 
             kwargs = {
                 "cache_dir": self.engine_cache_dir,
-                "engine_size": self.size,
+                "engine_size": self.refiner_size,
                 "chunking_size": self.chunking_size,
                 "torch_dtype": self.dtype,
                 "requires_safety_checker": False,
                 "requires_aesthetic_score": True,
                 "controlnet": None # TODO: investigate
             }
+            
+            vae = self.vae # Load into memory here
+            if vae is not None:
+                kwargs["vae"] = vae
 
             if self.refiner_use_tensorrt:
                 if "unet" in self.TENSORRT_STAGES:
@@ -1708,6 +1956,10 @@ class DiffusionPipelineManager:
                 if self.always_cache:
                     logger.debug("Saving pipeline to pretrained.")
                     refiner_pipeline.save_pretrained(self.refiner_diffusers_cache_dir)
+            
+            # load scheduler
+            if self.scheduler is not None:
+                refiner_pipeline.scheduler = self.scheduler.from_config(refiner_pipeline.scheduler_config)
             self._refiner_pipeline = refiner_pipeline.to(self.device)
         return self._refiner_pipeline
 
@@ -1719,6 +1971,8 @@ class DiffusionPipelineManager:
         if hasattr(self, "_refiner_pipeline"):
             logger.debug("Deleting refiner pipeline.")
             del self._refiner_pipeline
+            if hasattr(self, "_refiner_pipeline_is_offloaded"):
+                del self._refiner_pipeline_is_offloaded
             import torch
 
             torch.cuda.empty_cache()
@@ -1757,15 +2011,19 @@ class DiffusionPipelineManager:
 
             kwargs = {
                 "cache_dir": self.engine_cache_dir,
-                "engine_size": self.size,
+                "engine_size": self.inpainter_size,
                 "chunking_size": self.chunking_size,
                 "torch_dtype": self.dtype,
                 "requires_safety_checker": self.safe,
                 "requires_aesthetic_score": False,
                 "controlnet": None,
                 "tokenizer_2": None,
-                "text_encoder_2": None
+                "text_encoder_2": None,
             }
+            
+            vae = self.vae # Load into memory here
+            if vae is not None:
+                kwargs["vae"] = vae
 
             if self.inpainter_use_tensorrt:
                 if "unet" in self.TENSORRT_STAGES:
@@ -1806,8 +2064,11 @@ class DiffusionPipelineManager:
                     **kwargs
                 )
                 if self.always_cache:
-                    logger.debug("Saving pipeline to pretrained.")
+                    logger.debug("Saving inpainter pipeline to pretrained cache.")
                     inpainter_pipeline.save_pretrained(self.inpainter_diffusers_cache_dir)
+            # load scheduler
+            if self.scheduler is not None:
+                inpainter_pipeline.scheduler = self.scheduler.from_config(inpainter_pipeline.scheduler_config)
             self._inpainter_pipeline = inpainter_pipeline.to(self.device)
         return self._inpainter_pipeline
 
@@ -1819,80 +2080,114 @@ class DiffusionPipelineManager:
         if hasattr(self, "_inpainter_pipeline"):
             logger.debug("Deleting inpainter pipeline.")
             del self._inpainter_pipeline
+            if hasattr(self, "_inpainter_pipeline_is_offloaded"):
+                del self._inpainter_pipeline_is_offloaded
             import torch
-
             torch.cuda.empty_cache()
-        else:
-            logger.debug("inpainter pipeline delete called, but no inpainter pipeline present. This is not an error.")
 
-    def unload_pipeline(self) -> None:
+    @property
+    def pipeline_is_offloaded(self) -> bool:
+        """
+        Returns true if the pipeline has been sent to CPU.
+        """
+        return hasattr(self, "_pipeline") and getattr(self, "_pipeline_is_offloaded", False)
+
+    def unload_pipeline(self, reason: str) -> None:
         """
         Calls the pipeline deleter.
         """
-        del self.pipeline
+        if hasattr(self, "_pipeline"):
+            logger.debug(f"Unloading pipeline for reason \"{reason}\"")
+            del self.pipeline
 
     def offload_pipeline(self) -> None:
         """
         Offloads the pipeline to CPU if present.
         """
-        if getattr(self, "_pipeline", None) is not None:
+        if hasattr(self, "_pipeline") and not self.pipeline_is_offloaded:
             import torch
             logger.debug("Offloading pipeline to CPU.")
             self._pipeline = self._pipeline.to("cpu", torch_dtype=torch.float32)
+            self._pipeline_is_offloaded = True
             torch.cuda.empty_cache()
 
     def reload_pipeline(self) -> None:
         """
         Reloads the pipeline to the device if present.
         """
-        if getattr(self, "_pipeline", None) is not None:
+        if self.pipeline_is_offloaded:
             logger.debug("Reloading pipeline from CPU.")
             self._pipeline = self._pipeline.to(self.device, torch_dtype=self.dtype)
+            self._pipeline_is_offloaded = False
 
-    def unload_refiner(self) -> None:
+    @property
+    def refiner_is_offloaded(self) -> bool:
+        """
+        Returns true if the refiner has been sent to CPU.
+        """
+        return hasattr(self, "_refiner_pipeline") and getattr(self, "_refiner_pipeline_is_offloaded", False)
+
+    def unload_refiner(self, reason: str) -> None:
         """
         Calls the refiner deleter.
         """
-        del self.refiner_pipeline
+        if hasattr(self, "_refiner_pipeline"):
+            logger.debug(f"Unloading refiner pipeline for reason \"{reason}\"")
+            del self.refiner_pipeline
 
     def offload_refiner(self) -> None:
         """
         Offloads the pipeline to CPU if present.
         """
-        if getattr(self, "_refiner_pipeline", None) is not None:
+        if hasattr(self, "_refiner_pipeline") and not self.refiner_is_offloaded:
             import torch
             logger.debug("Offloading refiner to CPU")
             self._refiner_pipeline = self._refiner_pipeline.to("cpu", torch_dtype=torch.float32)
+            self._refiner_pipeline_is_offloaded = True
             torch.cuda.empty_cache()
 
     def reload_refiner(self) -> None:
         """
         Reloads the pipeline to the device if present.
         """
-        if getattr(self, "_refiner_pipeline", None) is not None:
+        if self.refiner_is_offloaded:
+            logger.debug("Reloading refiner from CPU")
             self._refiner_pipeline = self._refiner_pipeline.to(self.device, torch_dtype=self.dtype)
+            self._refiner_pipeline_is_offloaded = False
+
+    @property
+    def inpainter_is_offloaded(self) -> bool:
+        """
+        Returns true if the inpainter has been sent to CPU.
+        """
+        return hasattr(self, "_inpainter_pipeline") and getattr(self, "_inpainter_pipeline_is_offloaded", False)
     
-    def unload_inpainter(self) -> None:
+    def unload_inpainter(self, reason: str) -> None:
         """
         Calls the inpainter deleter.
         """
-        del self.inpainter_pipeline
+        if hasattr(self, "_inpainter_pipeline"):
+            logger.debug(f"Unloading inpainter pipeline for reason \"{reason}\"")
+            del self.inpainter_pipeline
 
     def offload_inpainter(self) -> None:
         """
         Offloads the pipeline to CPU if present.
         """
-        if getattr(self, "_inpainter_pipeline", None) is not None:
+        if hasattr(self, "_inpainter_pipeline") and not self.inpainter_is_offloaded:
             import torch
             logger.debug("Offloading inpainter to CPU")
             self._inpainter_pipeline = self._inpainter_pipeline.to("cpu", torch_dtype=torch.float32)
+            self._inpainter_pipeline_is_offloaded = True
             torch.cuda.empty_cache()
 
     def reload_inpainter(self) -> None:
         """
         Reloads the pipeline to the device if present.
         """
-        if getattr(self, "_inpainter_pipeline", None) is not None:
+        if self.inpainter_is_offloaded:
+            logger.debug("Reloading inpainter from CPU")
+            self._inpainter_pipeline_is_offloaded = False
             self._inpainter_pipeline = self._inpainter_pipeline.to(self.device, torch_dtype=self.dtype)
 
     @property
@@ -1944,7 +2239,7 @@ class DiffusionPipelineManager:
         from diffusers.models import ControlNetModel
 
         expected_controlnet_location = os.path.join(
-            self.engine_cache_dir, controlnet.replace("/", "--")
+            self.engine_cache_dir, "models--" + controlnet.replace("/", "--")
         )
 
         if not os.path.exists(expected_controlnet_location):
@@ -2001,8 +2296,7 @@ class DiffusionPipelineManager:
             or (existing_controlnet is not None and new_controlnet is None)
             or (existing_controlnet is not None and self.controlnet_name != new_controlnet)
         ):
-            logger.debug("Unloading pipeline due to change in ControlNet.")
-            self.unload_pipeline()
+            self.unload_pipeline("ControlNet")
             if new_controlnet is not None:
                 self._controlnet_name = new_controlnet
                 self._controlnet = self.get_controlnet(pretrained_path)
@@ -2042,7 +2336,7 @@ class DiffusionPipelineManager:
         Passes an invocation down to the pipeline, doing whatever it needs to do to initialize it.
         Will switch between inpainting and non-inpainting models
         """
-        logger.debug(f"Calling pipeline with arguments {kwargs}")
+        logger.debug(f"Calling pipeline with arguments {redact(kwargs)}")
         inpainting = kwargs.get("mask", None) is not None
 
         if inpainting:
@@ -2050,14 +2344,14 @@ class DiffusionPipelineManager:
             if self.pipeline_switch_mode == "offload":
                 self.offload_pipeline()
             elif self.pipeline_switch_mode == "unload":
-                self.unload_pipeline()
+                self.unload_pipeline("switching to inpainting")
             self.reload_inpainter()
         else:
             pipeline = self.pipeline
             if self.pipeline_switch_mode == "offload":
                 self.offload_inpainter()
             elif self.pipeline_switch_mode == "unload":
-                self.unload_inpainter()
+                self.unload_inpainter("switching from inpainting")
             self.reload_pipeline()
 
         called_width = kwargs.get("width", self.size)
@@ -2081,51 +2375,57 @@ class DiffusionPipelineManager:
         else:
             self.tenssort_is_enabled = True
         
-        result = pipeline(generator=self.generator, **kwargs)
+        if inpainting:
+            result = self.inpainter_pipeline(generator=self.generator, **kwargs)
+        else:
+            result = self.pipeline(generator=self.generator, **kwargs)
 
         if self.refiner is not None:
-            if "latent_callback" in kwargs:
-                kwargs["latent_callback"](result["images"])
-            if self.pipeline_switch_mode == "offload":
-                if inpainting:
-                    self.offload_inpainter()
-                else:
-                    self.offload_pipeline()
-                self.reload_refiner()
-            elif self.pipeline_switch_mode == "unload":
-                if inpainting:
-                    self.unload_inpainter()
-                else:
-                    self.unload_pipeline()
+            if refiner_strength is not None and refiner_strength <= 0:
+                logger.debug("Refinement strength is zero, not refining.")
             else:
-                logger.debug("Keeping pipeline in memory")
+                if "latent_callback" in kwargs:
+                    kwargs["latent_callback"](result["images"])
+                if self.pipeline_switch_mode == "offload":
+                    if inpainting:
+                        self.offload_inpainter()
+                    else:
+                        self.offload_pipeline()
+                    self.reload_refiner()
+                elif self.pipeline_switch_mode == "unload":
+                    if inpainting:
+                        self.unload_inpainter("switching to refining")
+                    else:
+                        self.unload_pipeline("switching to refining")
+                else:
+                    logger.debug("Keeping pipeline in memory")
 
-            for i, image in enumerate(result["images"]):
-                is_nsfw = "nsfw_content_detected" in result and result["nsfw_content_detected"][i]
-                if is_nsfw:
-                    logger.info(f"Result {i} has NSFW content, not refining.")
-                    continue
-                kwargs.pop("image", None) # Remove any previous image
-                kwargs.pop("mask", None) # Remove any previous mask
-                kwargs.pop("latent_callback", None) # Remove latent callbacks
+                for i, image in enumerate(result["images"]):
+                    is_nsfw = "nsfw_content_detected" in result and result["nsfw_content_detected"][i]
+                    if is_nsfw:
+                        logger.info(f"Result {i} has NSFW content, not refining.")
+                        continue
+                    kwargs.pop("image", None) # Remove any previous image
+                    kwargs.pop("mask", None) # Remove any previous mask
+                    kwargs.pop("latent_callback", None) # Remove latent callbacks
 
-                kwargs["strength"] = refiner_strength if refiner_strength else self.refiner_strength
-                kwargs["guidance_scale"] = refiner_guidance_scale if refiner_guidance_scale else self.refiner_guidance_scale
-                kwargs["aesthetic_score"] = refiner_aesthetic_score if refiner_aesthetic_score else self.refiner_aesthetic_score
-                kwargs["negative_aesthetic_score"] = refiner_negative_aesthetic_score if refiner_negative_aesthetic_score else self.refiner_negative_aesthetic_score
-                
-                logger.debug(f"Refining result {i} with arguments {kwargs}")
-                result["images"][i] = self.refiner_pipeline(
-                    generator=self.generator,
-                    image=image,
-                    **kwargs
-                )["images"][0]
-            if self.pipeline_switch_mode == "offload":
-                self.offload_refiner()
-            elif self.pipeline_switch_mode == "unload":
-                self.unload_refiner()
-            else:
-                logger.debug("Keeping refiner in memory")
+                    kwargs["strength"] = refiner_strength if refiner_strength else self.refiner_strength
+                    kwargs["guidance_scale"] = refiner_guidance_scale if refiner_guidance_scale else self.refiner_guidance_scale
+                    kwargs["aesthetic_score"] = refiner_aesthetic_score if refiner_aesthetic_score else self.refiner_aesthetic_score
+                    kwargs["negative_aesthetic_score"] = refiner_negative_aesthetic_score if refiner_negative_aesthetic_score else self.refiner_negative_aesthetic_score
+                    
+                    logger.debug(f"Refining result {i} with arguments {kwargs}")
+                    result["images"][i] = self.refiner_pipeline(
+                        generator=self.generator,
+                        image=image,
+                        **kwargs
+                    )["images"][0]
+                if self.pipeline_switch_mode == "offload":
+                    self.offload_refiner()
+                elif self.pipeline_switch_mode == "unload":
+                    self.unload_refiner("unloading for next inference")
+                else:
+                    logger.debug("Keeping refiner in memory")
 
         self.tensorrt_is_enabled = True
         return result

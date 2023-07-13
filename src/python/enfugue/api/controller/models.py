@@ -377,6 +377,34 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
             else:
                 model.inpainter[0].model = inpainter
 
+        scheduler = request.parsed.get("scheduler", None)
+        if scheduler is None and model.scheduler:
+            self.database.delete(model.scheduler[0])
+        elif scheduler is not None:
+            if not model.scheduler:
+                self.database.add(
+                    self.orm.DiffusionModelScheduler(
+                        diffusion_model_name=model_name,
+                        name=scheduler,
+                    )
+                )
+            else:
+                model.scheduler[0].name = scheduler
+        
+        vae = request.parsed.get("vae", None)
+        if vae is None and model.vae:
+            self.database.delete(model.vae[0])
+        elif vae is not None:
+            if not model.vae:
+                self.database.add(
+                    self.orm.DiffusionModelVAE(
+                        diffusion_model_name=model_name,
+                        name=vae,
+                    )
+                )
+            else:
+                model.vae[0].name = vae
+
         self.database.commit()
 
         for lora in request.parsed.get("lora", []):
@@ -422,10 +450,12 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
             self.database.delete(lycoris)
         for inversion in model.inversion:
             self.database.delete(inversion)
-        if model.refiner:
-            self.database.delete(model.refiner)
-        if model.inpainter:
-            self.database.delete(model.inpainter)
+        for refiner in model.refiner:
+            self.database.delete(refiner)
+        for scheduler in model.scheduler:
+            self.database.delete(scheduler)
+        for vae in model.vae:
+            self.database.delete(vae)
 
         self.database.commit()
         self.database.delete(model)
@@ -458,10 +488,24 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
                 self.database.commit()
             inpainter = request.parsed.get("inpainter", None)
             if inpainter:
-                new_inpainter = self.orm.DiffusionModelinpainter(
+                new_inpainter = self.orm.DiffusionModelInpainter(
                     diffusion_model_name=new_model.name, model=inpainter
                 )
                 self.database.add(new_inpainter)
+                self.database.commit()
+            scheduler = request.parsed.get("scheduler", None)
+            if scheduler:
+                new_scheduler = self.orm.DiffusionModelScheduler(
+                    diffusion_model_name=new_model.name, name=scheduler
+                )
+                self.database.add(new_scheduler)
+                self.database.commit()
+            vae = request.parsed.get("vae", None)
+            if vae:
+                new_vae = self.orm.DiffusionModelVAE(
+                    diffusion_model_name=new_model.name, name=vae
+                )
+                self.database.add(new_vae)
                 self.database.commit()
             for lora in request.parsed.get("lora", []):
                 new_lora = self.orm.DiffusionModelLora(

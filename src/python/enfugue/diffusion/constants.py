@@ -1,6 +1,9 @@
 __all__ = [
     "DEFAULT_MODEL",
     "DEFAULT_INPAINTING_MODEL",
+    "VAE_EMA",
+    "VAE_MSE",
+    "VAE_XL",
     "CONTROLNET_CANNY",
     "CONTROLNET_MLSD",
     "CONTROLNET_HED",
@@ -9,10 +12,12 @@ __all__ = [
     "CONTR0LNET_INPAINT",
 ]
 
-DEFAULT_MODEL = (
-    "https://huggingface.co/runwayml/stable-diffusion-v1-5/resolve/main/v1-5-pruned.ckpt"
-)
+DEFAULT_MODEL = "https://huggingface.co/runwayml/stable-diffusion-v1-5/resolve/main/v1-5-pruned.ckpt"
 DEFAULT_INPAINTING_MODEL = "https://huggingface.co/runwayml/stable-diffusion-inpainting/resolve/main/sd-v1-5-inpainting.ckpt"
+
+VAE_EMA = "stabilityai/sd-vae-ft-ema"
+VAE_MSE = "stabilityai/sd-vae-ft-mse"
+VAE_XL = "stabilityai/sdxl-vae"
 
 CONTROLNET_CANNY = "lllyasviel/sd-controlnet-canny"
 CONTROLNET_MLSD = "lllyasviel/control_v11p_sd15_mlsd"

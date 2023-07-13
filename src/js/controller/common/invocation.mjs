@@ -560,6 +560,23 @@ class InvocationController extends Controller {
     }
     
     /**
+     * @return int Optional refining engine size when not using preconfigured models
+     */
+    get refinerSize() {
+        return this.kwargs.refiner_size || null;
+    }
+
+    /**
+     * @param int Optional inpainting engine size when not using preconfigured models
+     */
+    set refinerSize(newRefinerSize) {
+        if(this.refinerSize !== newRefinerSize) {
+            this.publish("engineRefinerSizeChange", newRefinerSize);
+        }
+        this.kwargs.refiner_size = newRefinerSize;
+    }
+
+    /**
      * @return float The strength of the refiner when using SDXL
      */
     get refinerStrength() {
@@ -625,6 +642,74 @@ class InvocationController extends Controller {
             this.publish("engineNegativeAestheticScoreChange", newNegativeAestheticScore);
         }
         this.kwargs.refiner_negative_aesthetic_score = newNegativeAestheticScore;
+    }
+    
+    /**
+     * @return string Optional inpainter when not using preconfigured models
+     */
+    get inpainter() {
+        return this.kwargs.inpainter || null;
+    }
+
+    /**
+     * @param array<object> The new value of inpainter for when not using preconfigured models
+     */
+    set inpainter(newInpainter) {
+        if(this.inpainter !== newInpainter) {
+            this.publish("engineInpainterChange", newInpainter);
+        }
+        this.kwargs.inpainter = newInpainter;
+    }
+    
+    /**
+     * @return int Optional inpainting engine size when not using preconfigured models
+     */
+    get inpainterSize() {
+        return this.kwargs.inpainter_size || null;
+    }
+
+    /**
+     * @param int Optional inpainting engine size when not using preconfigured models
+     */
+    set inpainterSize(newInpainterSize) {
+        if(this.inpainterSize !== newInpainterSize) {
+            this.publish("engineInpainterSizeChange", newInpainterSize);
+        }
+        this.kwargs.inpainter_size = newInpainterSize;
+    }
+
+    /**
+     * @return str The scheduler, if set
+     */
+    get scheduler() {
+        return this.kwargs.scheduler || null;
+    }
+    
+    /**
+     * @param str Set the scheduler
+     */
+    set scheduler(newScheduler) {
+        if (this.scheduler !== newScheduler) {
+            this.publish("engineSchedulerChange");
+        }
+        this.kwargs.scheduler = newScheduler;
+    }
+
+    /**
+     * @return str The vae, if set
+     */
+    get vae() {
+        return this.kwargs.vae || null;
+    }
+    
+    /**
+     * @param str Set the vae
+     */
+    set vae(newVae) {
+        if (this.vae !== newVae) {
+            this.publish("engineVaeChange");
+        }
+        this.kwargs.vae = newVae;
     }
     
     /**

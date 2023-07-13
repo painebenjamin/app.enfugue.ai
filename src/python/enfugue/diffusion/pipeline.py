@@ -105,6 +105,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         requires_safety_checker: bool = True,
         force_zeros_for_empty_prompt: bool = True,
         requires_aesthetic_score: bool = False,
+        vae_fp32: bool = False,
         engine_size: int = 512,
         chunking_size: int = 32,
         chunking_blur: int = 64,
@@ -119,6 +120,9 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             feature_extractor,
             requires_safety_checker,
         )
+        # Save scheduler config for hotswapping
+        self.scheduler_config = {**dict(scheduler.config)}
+
         # Enfugue engine settings
         self.engine_size = engine_size
         self.chunking_size = chunking_size
@@ -163,13 +167,13 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
     def from_ckpt(
         cls,
         checkpoint_path: str,
-        cache_dir: str,
         prediction_type: Optional[str] = None,
         image_size: int = 512,
         scheduler_type: Literal[
             "pndm", "lms", "heun", "euler", "euler-ancestral", "dpm", "ddim"
         ] = "ddim",
         vae_path: Optional[str] = None,
+        cache_dir: Optional[str] = None,
         load_safety_checker: bool = True,
         torch_dtype: Optional[torch.dtype] = None,
         upcast_attention: Optional[bool] = None,
@@ -346,7 +350,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             vae = AutoencoderKL(**vae_config)
             vae.load_state_dict(converted_vae_checkpoint)
         else:
-            vae = AutoencoderKL.from_pretrained(vae_path)
+            vae = AutoencoderKL.from_pretrained(vae_path, cache_dir=cache_dir)
 
         if load_safety_checker:
             safety_checker = StableDiffusionSafetyChecker.from_pretrained(
@@ -364,12 +368,12 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             logger.debug("Using Stable Diffusion v1 pipeline.")
             text_model = convert_ldm_clip_checkpoint(checkpoint)
             tokenizer = CLIPTokenizer.from_pretrained("openai/clip-vit-large-patch14")
+            kwargs["text_encoder_2"] = None
+            kwargs["tokenizer_2"] = None
             pipe = cls(
                 vae=vae,
                 text_encoder=text_model,
-                text_encoder_2=None,
                 tokenizer=tokenizer,
-                tokenizer_2=None,
                 unet=unet,
                 scheduler=scheduler,
                 safety_checker=safety_checker,
@@ -2090,7 +2094,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 if self.is_sdxl:
                     # make sure the VAE is in float32 mode, as it overflows in float16
                     self.vae.to(dtype=torch.float32)
-
+                if self.is_sdxl:
                     use_torch_2_0_or_xformers = self.vae.decoder.mid_block.attentions[0].processor in [
                         AttnProcessor2_0,
                         XFormersAttnProcessor,
@@ -2105,11 +2109,13 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                         self.vae.decoder.mid_block.to(prepared_latents.dtype)
                     else:
                         prepared_latents = prepared_latents.float()
-
+                
                 prepared_latents = self.decode_latents(
                     prepared_latents, device=device, progress_callback=step_complete
                 )
 
+                if self.is_sdxl:
+                    self.vae.to(dtype=prepared_latents.dtype)
         if output_type == "latent":
             output = prepared_latents
         else:

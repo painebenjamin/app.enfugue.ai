@@ -15,8 +15,8 @@ def main() -> None:
         
         # Base plan
         manager.seed = 123456
-        #plan = DiffusionPlan.from_nodes(prompt="A happy looking puppy", upscale_diffusion_guidance_scale=10.0)
-        #plan.execute(manager)["images"][0].save(os.path.join(save_dir, "./puppy-plan.png"))
+        plan = DiffusionPlan.from_nodes(prompt="A happy looking puppy", upscale_diffusion_guidance_scale=10.0)
+        plan.execute(manager)["images"][0].save(os.path.join(save_dir, "./puppy-plan.png"))
 
         # Inpainting + region prompt + background removal
         plan = DiffusionPlan.from_nodes(
@@ -60,7 +60,11 @@ def main() -> None:
             outscale=2,
             upscale="esrgan",
             upscale_diffusion=True,
-            upscale_diffusion_guidance_scale=10.0
+            upscale_diffusion_guidance_scale=10.0,
+            upscale_diffusion_strength=0.2,
+            upscale_diffusion_steps=40,
+            upscale_diffusion_chunking_size=256,
+            upscale_diffusion_chunking_blur=256,
         )
         plan.execute(manager)["images"][0].save(os.path.join(save_dir, "./puppy-plan-upscale-solo.png"))
 

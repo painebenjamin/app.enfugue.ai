@@ -51,6 +51,7 @@ dependencies:
     - onnxruntime-gpu==1.12.1
     - onnx-graphsurgeon==0.3.26
     - pyarrow>=12.0.1,<13
+    - torchsde>=0.2.5,<0.3
     - enfugue
     - git+https://github.com/CompVis/taming-transformers.git@master#egg=taming-transformers
     - git+https://github.com/openai/CLIP.git@main#egg=clip

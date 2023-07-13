@@ -186,6 +186,7 @@ class EnfugueAPIServerBase(
         size = diffusion_model.size
         refiner = diffusion_model.refiner
         if refiner:
+            refiner_size = refiner[0].size
             refiner = os.path.abspath(
                 os.path.join(
                     self.configuration.get(
@@ -196,9 +197,10 @@ class EnfugueAPIServerBase(
                 ),
             )
         else:
-            refiner = None
+            refiner, refiner_size = None, None
         inpainter = diffusion_model.inpainter
         if inpainter:
+            inpainter_size = inpainter[0].size
             inpainter = os.path.abspath(
                 os.path.join(
                     self.configuration.get(
@@ -209,7 +211,17 @@ class EnfugueAPIServerBase(
                 ),
             )
         else:
-            inpainter = None
+            inpainter, inpainter_size = None, None
+        scheduler = diffusion_model.scheduler
+        if scheduler:
+            scheduler = scheduler[0].name
+        else:
+            scheduler = None
+        vae = diffusion_model.vae
+        if vae:
+            vae = diffusion_model.vae[0].name
+        else:
+            vae = None
         lora = [
             (
                 os.path.abspath(
@@ -256,11 +268,15 @@ class EnfugueAPIServerBase(
         plan_kwargs: Dict[str, Any] = {
             "model": model,
             "refiner": refiner,
+            "refiner_size": refiner_size,
             "inpainter": inpainter,
+            "inpainter_size": inpainter_size,
             "size": size,
             "lora": lora,
             "lycoris": lycoris,
             "inversion": inversion,
+            "scheduler": scheduler,
+            "vae": vae
         }
 
         if include_prompts:

@@ -11,9 +11,140 @@ import {
     FormInputView,
     RepeatableInputView,
     SearchListInputView,
-    ButtonInputView
+    ButtonInputView,
+    SelectInputView
 } from "../../view/forms/input.mjs";
 import { isEmpty, deepClone } from "../../base/helpers.mjs";
+
+let defaultEngineSize = 512;
+
+/**
+ * Engine size input
+ */
+class EngineSizeInputView extends NumberInputView {
+    /**
+     * @var int Minimum pixel size
+     */
+    static min = 128;
+
+    /**
+     * @var int Maximum pixel size
+     */
+    static max = 2048;
+
+    /**
+     * @var int Multiples of 8
+     */
+    static step = 8;
+
+    /**
+     * @var int The default value
+     */
+    static defaultValue = defaultEngineSize;
+    
+    /**
+     * @var string The tooltip to display to the user
+     */
+    static tooltip = "When using chunked diffusion, this is the size of the window (in pixels) that will be encoded, decoded or inferred at once. Set the chunking size to 0 in the sidebar to disable chunked diffusion and always try to process the entire image at once.";
+};
+
+/**
+ * VAE Input View
+ */
+class VAEInputView extends SelectInputView {
+    /**
+     * @var object Option values and labels
+     */
+    static defaultOptions = {
+        "ema": "EMA 560000",
+        "mse": "MSE 840000"
+    };
+    
+    /**
+     * @var string Default text
+     */
+    static placeholder = "Default";
+
+    /**
+     * @var bool Allow null
+     */
+    static allowEmpty = true;
+
+    /**
+     * @var string Tooltip to display
+     */
+    static tooltip = "Variational Autoencoders are the model that translates images between pixel space - images that you can see - and latent space - images that the AI model understands. In general you do not need to select a particular VAE model, but you may find slight differences in sharpness of resulting images.";
+};
+
+/**
+ * Scheduler Input View
+ */
+class SchedulerInputView extends SelectInputView {
+    /**
+     * @var object Option values and labels
+     */
+    static defaultOptions = {
+        "ddim": "DDIM: Denoising Diffusion Implicit Models",
+        "ddpm": "DDPM: Denoising Diffusion Probabilistic Models",
+        "deis": "DEIS: Diffusion Exponential Integrator Sampler",
+        "dpmsm": "DPM-Solver++ Multi-Step",
+        "dpmss": "DPM-Solver++ Single-Step",
+        "heun": "Heun Discrete Scheduler",
+        "dpmd": "DPM Discrete Scheduler",
+        "adpmd": "DPM Ancestral Discrete Scheduler",
+        "dpmsde": "DPM Solver SDE Scheduler",
+        "unipc": "UniPC: Predictor (UniP) and Corrector (UniC)",
+        "lmsd": "LMS: Linear Multi-Step Discrete Scheduler",
+        "pndm": "PNDM: Pseudo Numerical Methods for Diffusion Models",
+        "eds": "Euler Discrete Scheduler",
+        "eads": "Euler Ancestral Discrete Scheduler",
+    };
+
+    /**
+     * @var string The tooltip
+     */
+    static tooltip = "Schedulers control how an image is denoiser over the course of the inference steps. Schedulers can have small effects, such as creating 'sharper' or 'softer' images, or drastically change the way images are constructed. Experimentation is encouraged, if additional information is sought, search <strong>Diffusers Schedulers</strong> in your search engine of choice.";
+    
+    /**
+     * @var string Default text
+     */
+    static placeholder = "Default";
+
+    /**
+     * @var bool Allow null
+     */
+    static allowEmpty = true;
+};
+
+/**
+ * Add text for inpainter engine size
+ */
+class InpainterEngineSizeInputView extends EngineSizeInputView {
+    /**
+     * @var string The tooltip to display to the user
+     */
+    static tooltip = "This engine size functions the same as the base engine size, but only applies when inpainting.\n\n" + EngineSizeInputView.tooltip;
+
+    /**
+     * @var ?int no default value
+     */
+    static defaultValue = null;
+};
+
+/**
+ * Add text for refiner engine size
+ */
+class RefinerEngineSizeInputView extends EngineSizeInputView {
+    /**
+     * @var string The tooltip to display to the user
+     */
+    static tooltip = "This engine size functions the same as the base engine size, but only applies when refining.\n\n" + EngineSizeInputView.tooltip;
+
+    /**
+     * @var ?int no default value
+     */
+    static defaultValue = null;
+};
 
 /**
  * Inversion input - will be populated at init.
@@ -214,6 +345,10 @@ class ModelForm extends FormView {
             }
         },
         "Additional Models": {
+            "vae": {
+                "class": VAEInputView,
+                "label": "VAE"
+            },
             "refiner": {
                 "class": CheckpointInputView,
                 "label": "Refining Checkpoint",
@@ -231,16 +366,19 @@ class ModelForm extends FormView {
         },
         "Engine": {
             "size": {
-                "class": NumberInputView,
+                "class": EngineSizeInputView,
                 "label": "Size",
                 "config": {
                     "required": true,
-                    "value": 512,
-                    "min": 128,
-                    "max": 2048,
-                    "step": 8,
-                    "tooltip": "When using chunked diffusion, this is the size of the window (in pixels) that will be encoded, decoded or inferred at once. Set the chunking size to 0 in the sidebar to disable chunked diffusion and always try to process the entire image at once."
                 }
+            },
+            "refiner_size": {
+                "class": RefinerEngineSizeInputView,
+                "label": "Refiner Size"
+            },
+            "inpainter_size": {
+                "class": InpainterEngineSizeInputView,
+                "label": "Inpainter Size"
             }
         },
         "Prompts": {
@@ -254,11 +392,128 @@ class ModelForm extends FormView {
                 "label": "Negative Prompt",
                 "tooltip": "This prompt will be appended to every negative prompt you make when using this model. Use this field to add trigger words, style or quality phrases that you always want to be excluded."
             }
+        },
+        "Additional Defaults": {
+            "scheduler": {
+                "class": SchedulerInputView,
+                "label": "Scheduler"
+            },
+            "width": {
+                "label": "Width",
+                "class": NumberInputView,
+                "config": {
+                    "tooltip": "The width of the canvas in pixels.",
+                    "min": 128,
+                    "max": 4096,
+                    "step": 8,
+                    "value" null
+                }
+            },
+            "height": {
+                "label": "Height",
+                "class": NumberInputView,
+                "config": {
+                    "tooltip": "The height of the canvas in pixels.",
+                    "min": 128,
+                    "max": 4096,
+                    "step": 8,
+                    "value" null
+                }
+            },
+            "chunking_size": {
+                "label": "Chunk Size",
+                "class": NumberInputView,
+                "config": {
+                    "tooltip": "<p>The number of pixels to move the frame when doing chunked diffusion.</p><p>When this number is greater than 0, the engine will only ever process a square in the size of the configured model size at once. After each square, the frame will be moved by this many pixels along either the horizontal or vertical axis, and then the image is re-diffused. When this number is 0, chunking is disabled, and the entire canvas will be diffused at once.</p><p>Disabling this (setting it to 0) can have varying visual results, but a guaranteed result is drastically increased VRAM usage for large images. A low number can produce more detailed results, but can be noisy, and takes longer to process. A high number is faster to process, but can have poor results especially along frame boundaries. The recommended value is set by default.</p>",
+                    "min": 0,
+                    "max": 2048,
+                    "step": 8,
+                    "value": null
+                }
+            },
+            "chunking_blur": {
+                "label": "Chunk Blur",
+                "class": NumberInputView,
+                "config": {
+                    "tooltip": "The number of pixels to feather along the edge of the frame when blending chunked diffusions together. Low numbers can produce less blurry but more noisy results, and can potentially result in visible breaks in the frame. High numbers can help blend frames, but produce blurrier results. The recommended value is set by default.",
+                    "min": 0,
+                    "max": 2048,
+                    "step": 8,
+                    "value": null
+                }
+            },
+            "inference_steps": {
+                "label": "Inference Steps"
+                "class": NumberInputView,
+                "config": {
+                    "tooltip": "How many steps to take during primary inference, larger values take longer to process but can produce better results.",
+                    "min": 0,
+                    "step": 1,
+                    "value": null
+                }
+            },
+            "guidance_scale": {
+                "label": "Guidance Scale",
+                "class": NumberInputView,
+                "config": {
+                    "tooltip": "How closely to follow the text prompt; high values result in high-contrast images closely adhering to your text, low values result in low-contrast images with more randomness.",
+                    "min": 0,
+                    "max": 100,
+                    "step": 0.01,
+                    "value": null
+                }
+            },
+            "refiner_denoising_strength": {
+                "label": "Refiner Denoising Strength",
+                "class": NumberInputView,
+                "config": {
+                    "tooltip": "When using a refiner, this will control how much of the original image is kept, and how much of it is replaced with refined content. A value of 1.0 represents total destruction of the first image.",
+                    "min": 0.0,
+                    "max": 1.0,
+                    "step": 0.01,
+                    "value": null
+                }
+            },
+            "refiner_guidance_scale": {
+                "label": "Refiner Guidance Scale",
+                "class": NumberInputView,
+                "config": {
+                    "tooltip": "When using a refiner, this will control how closely to follow the guidance of the model. Low values can result in soft details, whereas high values can result in high-contrast ones.",
+                    "min": 0,
+                    "max": 100,
+                    "step": 0.01,
+                    "value": null
+                }
+            },
+            "refiner_aesthetic_score": {
+                "label": "Refiner Aesthetic Score",
+                "class": NumberInputView,
+                "config": {
+                    "tooltip": "Aesthetic scores are assigned to images in SDXL refinement; this controls the positive score.",
+                    "min": 0.0,
+                    "max": 100.0,
+                    "step": 0.01,
+                    "value": null
+                }
+            },
+            "refiner_negative_aesthetic_score": {
+                "label": "Refiner Negative Aesthetic Score",
+                "class": NumberInputView,
+                "config": {
+                    "tooltip": "Aesthetic scores are assigned to images in SDXL refinement; this controls the negative score.",
+                    "min": 0.0,
+                    "max": 100.0,
+                    "step": 0.01,
+                    "value": null
+                }
+            }
         }
     };
 
     static collapseFieldSets = [
-        "Adaptations and Modifications", "Additional Models"
+        "Adaptations and Modifications",
+        "Additional Models",
+        "Additional Defaults"
     ];
 };
 
@@ -328,10 +583,24 @@ class ModelManagerController extends Controller {
             modelValues.inversion = isEmpty(row.inversion) ? [] : row.inversion.map((inversion) => inversion.model);
             modelValues.refiner = isEmpty(row.refiner) ? null : row.refiner[0].model;
             modelValues.inpainter = isEmpty(row.inpainter) ? null : row.inpainter[0].model;
+            modelValues.scheduler = isEmpty(row.scheduler) ? null : row.scheduler[0].name;
+            modelValues.vae = isEmpty(row.vae) ? null : row.vae[0].name;
 
             let modelForm = new ModelForm(this.config, deepClone(modelValues)),
                 modelWindow;
-    
+            
+            modelForm.onChange(async (updatedValues) => {
+                if (!isEmpty(modelForm.values.refiner)) {
+                    modelForm.addClass("show-refiner");
+                } else {
+                    modelForm.removeClass("show-refiner");
+                }
+                if (!isEmpty(modelForm.values.inpainter)) {
+                    modelForm.addClass("show-inpainter");
+                } else {
+                    modelForm.removeClass("show-inpainter");
+                }
+            });
             modelForm.onSubmit(async (updatedValues) => {
                 try {
                     await this.model.put(`/models/${row.name}`, null, null, updatedValues);
@@ -455,6 +724,7 @@ class ModelManagerController extends Controller {
      * On initialization, set option getters.
      */
     async initialize() {
+        defaultEngineSize = this.application.config.model.invocation.defaultEngineSize;
         LoraInputView.defaultOptions = async () => this.model.get("/lora");
         LycorisInputView.defaultOptions = async () => this.model.get("/lycoris");
         CheckpointInputView.defaultOptions = async () => this.model.get("/checkpoints");
@@ -467,5 +737,10 @@ export {
     CheckpointInputView,
     MultiLoraInputView,
     MultiLycorisInputView,
-    MultiInversionInputView
+    MultiInversionInputView,
+    EngineSizeInputView,
+    RefinerEngineSizeInputView,
+    InpainterEngineSizeInputView,
+    VAEInputView,
+    SchedulerInputView
 };

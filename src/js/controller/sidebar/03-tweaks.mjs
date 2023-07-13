@@ -7,6 +7,7 @@ import {
     FloatInputView,
     CheckboxInputView
 } from "../../view/forms/input.mjs";
+import { SchedulerInputView } from "../common/model-manager.mjs";
 
 let defaultGuidanceScale = 7.5,
     defaultInferenceSteps = 50;
@@ -50,6 +51,10 @@ class TweaksForm extends FormView {
                     "value": defaultInferenceSteps,
                     "tooltip": "How many steps to take during primary inference, larger values take longer to process but can produce better results."
                 }
+            },
+            "scheduler": {
+                "label": "Scheduler",
+                "class": SchedulerInputView
             }
         }
     };
@@ -82,7 +87,8 @@ class TweaksController extends Controller {
         return {
             "tweaks": {
                 "guidanceScale": defaultGuidanceScale,
-                "inferenceSteps": defaultInferenceSteps
+                "inferenceSteps": defaultInferenceSteps,
+                "scheduler": null
             }
         }
     }
@@ -100,6 +106,7 @@ class TweaksController extends Controller {
         this.tweaksForm.onSubmit(async (values) => {
             this.engine.guidanceScale = values.guidanceScale;
             this.engine.inferenceSteps = values.inferenceSteps;
+            this.engine.scheduler = values.scheduler;
         });
 
         // Add to sidebar

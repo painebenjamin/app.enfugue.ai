@@ -510,6 +510,10 @@ textarea {
     font-family: var(--body-font), sans-serif;
 }
 
+select {
+    padding: 9px 5px;
+}
+
 option {
     font-family: var(--body-font), sans-serif;
 }

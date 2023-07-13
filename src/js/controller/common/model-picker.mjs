@@ -10,6 +10,7 @@ import {
     NumberInputView
 } from "../../view/forms/input.mjs";
 import { 
+    VAEInputView,
     CheckpointInputView,
     MultiLoraInputView,
     MultiLycorisInputView,
@@ -93,18 +94,6 @@ class ModelConfigurationFormView extends FormView {
      */
     static fieldSets = {
         "Adaptations and Modifications": {
-            "size": {
-                "class": NumberInputView,
-                "label": "Size",
-                "config": {
-                    "required": true,
-                    "value": 512,
-                    "min": 128,
-                    "max": 2047,
-                    "step": 8,
-                    "tooltip": "When using chunked diffusion, this is the size of the window (in pixels) that will be encoded, decoded or inferred at once. Set the chunking size to 0 in the sidebar to disable chunked diffusion and always try to process the entire image at once."
-                }
-            },
             "lora": {
                 "class": MultiLoraInputView,
                 "label": "LoRA",
@@ -128,6 +117,10 @@ class ModelConfigurationFormView extends FormView {
             }
         },
         "Additional Models": {
+            "vae": {
+                "label": "VAE",
+                "class": VAEInputView
+            },
             "refiner": {
                 "label": "Refining Checkpoint",
                 "class": CheckpointInputView,
@@ -535,6 +528,7 @@ class ModelPickerController extends Controller {
             this.engine.lora = values.lora;
             this.engine.lycoris = values.lycoris;
             this.engine.inversion = values.inversion;
+            this.engine.vae = values.vae;
         });
 
         this.application.container.appendChild(await this.formView.render());

@@ -115,6 +115,10 @@ class EnfugueAPIInvocationController(EnfugueAPIControllerBase):
                     for inversion in request.parsed.pop("inversion", [])
                 ],
             }
+        # Always take passed scheduler
+        scheduler = request.parsed.pop("scheduler", None)
+        if scheduler is not None:
+            plan_kwargs["scheduler"] = scheduler
         plan = DiffusionPlan.from_nodes(**{**request.parsed, **plan_kwargs})
         return self.invoke(request.token.user.id, plan).format()
 

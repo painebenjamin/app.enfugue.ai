@@ -51,6 +51,7 @@ install_requires = [
     "pystray>=0.19,<0.24",
     "pydantic==1.10.10",
     "html2text==2020.1.16",
+    "torchsde>=0.2.5,<0.3",
     "taming-transformers",
     "clip",
     "latent-diffusion",

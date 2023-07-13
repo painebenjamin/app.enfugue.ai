@@ -6,6 +6,8 @@ __all__ = [
     "DiffusionModel",
     "DiffusionModelRefiner",
     "DiffusionModelInpainter",
+    "DiffusionModelVAE",
+    "DiffusionModelScheduler",
     "DiffusionModelDefaultConfiguration",
     "DiffusionModelLora",
     "DiffusionModelLycoris",
@@ -29,6 +31,7 @@ class DiffusionModelRefiner(EnfugueObjectBase):
         DiffusionModel.ForeignKey("name", ondelete="CASCADE", onupdate="CASCADE"), primary_key=True, unique=True
     )
     model = Column(String(256), nullable=False)
+    size = Column(Integer, nullable=True)
 
     diffusion_model = DiffusionModel.Relationship(backref="refiner", uselist=False)
 
@@ -39,8 +42,28 @@ class DiffusionModelInpainter(EnfugueObjectBase):
         DiffusionModel.ForeignKey("name", ondelete="CASCADE", onupdate="CASCADE"), primary_key=True, unique=True
     )
     model = Column(String(256), nullable=False)
+    size = Column(Integer, nullable=True)
 
     diffusion_model = DiffusionModel.Relationship(backref="inpainter", uselist=False)
+
+class DiffusionModelScheduler(EnfugueObjectBase):
+    __tablename__ = "model_scheduler"
+
+    diffusion_model_name = Column(
+        DiffusionModel.ForeignKey("name", ondelete="CASCADE", onupdate="CASCADE"), primary_key=True, unique=True
+    )
+    name = Column(String(256), nullable=False)
+    
+    diffusion_model = DiffusionModel.Relationship(backref="scheduler", uselist=False)
+
+class DiffusionModelVAE(EnfugueObjectBase):
+    __tablename__ = "model_vae"
+
+    diffusion_model_name = Column(
+        DiffusionModel.ForeignKey("name", ondelete="CASCADE", onupdate="CASCADE"), primary_key=True, unique=True
+    )
+    name = Column(String(256), nullable=False)
+    diffusion_model = DiffusionModel.Relationship(backref="vae", uselist=False)
 
 class DiffusionModelDefaultConfiguration(EnfugueObjectBase):
     __tablename__ = "model_default_configuration"
