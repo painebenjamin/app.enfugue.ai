@@ -1,5 +1,4 @@
 import torch
-import traceback
 import tensorrt as trt
 
 from typing import Optional, List, Dict, Iterator, Any, Union, Tuple
@@ -272,7 +271,7 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
 
     def encode_prompt(
         self,
-        prompt: str,
+        prompt: Optional[str],
         device: torch.device,
         num_images_per_prompt: int=1,
         do_classifier_free_guidance: bool=False,
@@ -280,7 +279,10 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         prompt_embeds: Optional[torch.Tensor]=None,
         negative_prompt_embeds: Optional[torch.Tensor]=None,
         lora_scale: Optional[float]=None,
-    ) -> torch.Tensor:
+    ) -> Union[
+        torch.Tensor,
+        Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]
+    ]:
         """
         Encodes the prompt into text encoder hidden states.
         Args:
@@ -412,7 +414,7 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
                 cross_attention_kwargs=cross_attention_kwargs,
                 added_cond_kwargs=added_cond_kwargs,
                 down_block_additional_residuals=down_block_additional_residuals,
-                mid_block_additional_residual=mid_block_additional_residuals
+                mid_block_additional_residual=mid_block_additional_residual
             )
 
         timestep_float = timestep.float() if timestep.dtype != torch.float32 else timestep

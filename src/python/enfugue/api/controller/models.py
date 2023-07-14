@@ -375,7 +375,7 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
             self.database.delete(existing_config)
 
         for existing_vae in model.vae:
-            elf.database.delete(existing_vae)
+            self.database.delete(existing_vae)
 
 
         refiner = request.parsed.get("refiner", None)
@@ -563,7 +563,7 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
                 self.database.commit()
             for field_name in self.MODEL_DEFAULT_FIELDS:
                 field_value = request.parsed.get(field_name, None)
-                if field_values:
+                if field_value:
                     new_config = self.orm.DiffusionModelDefaultConfiguration(
                         diffusion_model_name=new_model.name, configuration_key=field_name, configuration_value=field_value
                     )

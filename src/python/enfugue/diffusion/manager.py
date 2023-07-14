@@ -33,7 +33,7 @@ from enfugue.diffusion.constants import (
 __all__ = ["DiffusionPipelineManager"]
 
 if TYPE_CHECKING:
-    from diffusers.models import ControlNetModel
+    from diffusers.models import ControlNetModel, AutoencoderKL
     from diffusers.schedulers.scheduling_utils import KarrasDiffusionSchedulers
     from enfugue.diffusion.upscale import Upscaler
     from enfugue.diffusion.pipeline import EnfugueStableDiffusionPipeline
@@ -100,6 +100,13 @@ class DiffusionPipelineManager:
     DEFAULT_SIZE = 512
 
     _keepalive_thread: KeepaliveThread
+    _scheduler: KarrasDiffusionSchedulers
+    _multi_scheduler: KarrasDiffusionSchedulers
+    _pipeline: EnfugueStableDiffusionPipeline
+    _refiner_pipeline: EnfugueStableDiffusionPipeline
+    _inpainter_pipeline: EnfugueStableDiffusionPipeline
+    _refiner_size: int
+    _inpainter_size: int
 
     def __init__(self, configuration: Optional[APIConfiguration] = None) -> None:
         self.configuration = APIConfiguration()
@@ -217,7 +224,7 @@ class DiffusionPipelineManager:
         if hasattr(self, "_generator"):
             delattr(self, "_generator")
 
-    def get_scheduler_class(self, scheduler: Optional[Literal["ddim", "ddpm", "deis", "dpmsm", "dpmss", "heun", "dpmd", "adpmd", "dpmsde", "unipc", "lmsd", "pndm", "eds", "eads"]]) -> None:
+    def get_scheduler_class(self, scheduler: Optional[Literal["ddim", "ddpm", "deis", "dpmsm", "dpmss", "heun", "dpmd", "adpmd", "dpmsde", "unipc", "lmsd", "pndm", "eds", "eads"]]) -> KarrasDiffusionSchedulers:
         """
         Sets the scheduler class
         """
@@ -265,8 +272,7 @@ class DiffusionPipelineManager:
         elif scheduler == "eads":
             from diffusers.schedulers import EulerAncestralDiscreteScheduler
             return EulerAncestralDiscreteScheduler
-        else:
-            raise ValueError(f"Unknown scheduler {scheduler}")
+        raise ValueError(f"Unknown scheduler {scheduler}")
 
     @property
     def scheduler(self) -> Optional[KarrasDiffusionSchedulers]:
@@ -293,13 +299,13 @@ class DiffusionPipelineManager:
             self._scheduler = scheduler_class
         if hasattr(self, "_pipeline"):
             logger.debug(f"Hot-swapping pipeline scheduler.")
-            self._pipeline.scheduler = self.scheduler.from_config(self._pipeline.scheduler_config)
+            self._pipeline.scheduler = self.scheduler.from_config(self._pipeline.scheduler_config) # type: ignore
         if hasattr(self, "_inpainter_pipeline"):
             logger.debug(f"Hot-swapping inpainter pipeline scheduler.")
-            self._inpainter_pipeline.scheduler = self.scheduler.from_config(self._inpainter_pipeline.scheduler_config)
+            self._inpainter_pipeline.scheduler = self.scheduler.from_config(self._inpainter_pipeline.scheduler_config) # type: ignore
         if hasattr(self, "_refiner_pipeline"):
             logger.debug(f"Hot-swapping refiner pipeline scheduler.")
-            self._refiner_pipeline.scheduler = self.scheduler.from_config(self._refiner_pipeline.scheduler_config)
+            self._refiner_pipeline.scheduler = self.scheduler.from_config(self._refiner_pipeline.scheduler_config) # type: ignore
 
     @property
     def multi_scheduler(self) -> Optional[KarrasDiffusionSchedulers]:
@@ -326,13 +332,13 @@ class DiffusionPipelineManager:
             self._multi_scheduler = multi_scheduler_class
         if hasattr(self, "_pipeline"):
             logger.debug(f"Hot-swapping pipeline multi_scheduler.")
-            self._pipeline.multi_scheduler = self.multi_scheduler.from_config(self._pipeline.multi_scheduler_config)
+            self._pipeline.multi_scheduler = self.multi_scheduler.from_config(self._pipeline.multi_scheduler_config) # type: ignore
         if hasattr(self, "_inpainter_pipeline"):
             logger.debug(f"Hot-swapping inpainter pipeline multi_scheduler.")
-            self._inpainter_pipeline.multi_scheduler = self.multi_scheduler.from_config(self._inpainter_pipeline.multi_scheduler_config)
+            self._inpainter_pipeline.multi_scheduler = self.multi_scheduler.from_config(self._inpainter_pipeline.multi_scheduler_config) # type: ignore
         if hasattr(self, "_refiner_pipeline"):
             logger.debug(f"Hot-swapping refiner pipeline multi_scheduler.")
-            self._refiner_pipeline.multi_scheduler = self.multi_scheduler.from_config(self._refiner_pipeline.multi_scheduler_config)
+            self._refiner_pipeline.multi_scheduler = self.multi_scheduler.from_config(self._refiner_pipeline.multi_scheduler_config) # type: ignore
 
     def get_vae(self, vae: Optional[str] = None) -> Optional[AutoencoderKL]:
         """
@@ -661,6 +667,8 @@ class DiffusionPipelineManager:
         """
         Gets where tensorrt engines will be built per refiner.
         """
+        if not self.refiner_name:
+            raise ValueError("No refiner set")
         path = os.path.join(self.engine_tensorrt_dir, self.refiner_name)
         check_make_directory(path)
         return path
@@ -670,6 +678,8 @@ class DiffusionPipelineManager:
         """
         Gets where tensorrt engines will be built per inpainter.
         """
+        if not self.inpainter_name:
+            raise ValueError("No inpainter set")
         path = os.path.join(self.engine_tensorrt_dir, self.inpainter_name)
         check_make_directory(path)
         return path
@@ -700,6 +710,8 @@ class DiffusionPipelineManager:
         """
         Gets where the diffusers cache will be for the current refiner.
         """
+        if not self.refiner_name:
+            raise ValueError("No refiner set")
         path = os.path.join(self.engine_diffusers_dir, self.refiner_name)
         check_make_directory(path)
         return path
@@ -709,6 +721,8 @@ class DiffusionPipelineManager:
         """
         Gets where the diffusers cache will be for the current inpainter.
         """
+        if not self.inpainter_name:
+            raise ValueError("No inpainter set")
         path = os.path.join(self.engine_diffusers_dir, self.inpainter_name)
         check_make_directory(path)
         return path
@@ -778,6 +792,9 @@ class DiffusionPipelineManager:
         """
         return DiffusionPipelineManager.get_tensorrt_clip_key(
             size=self.size,
+            lora=[],
+            lycoris=[],
+            inversion=[]
         )
     
     @property
@@ -799,6 +816,9 @@ class DiffusionPipelineManager:
         """
         return DiffusionPipelineManager.get_tensorrt_clip_key(
             size=self.size,
+            lora=[],
+            lycoris=[],
+            inversion=[]
         )
     
     @property
@@ -998,7 +1018,7 @@ class DiffusionPipelineManager:
         TODO: determine if this should exist.
         """
         path = os.path.join(
-            self.refiner_tensorrt_dir, "controlledunet", self.refiner_ensorrt_controlled_unet_key
+            self.refiner_tensorrt_dir, "controlledunet", self.refiner_tensorrt_controlled_unet_key
         )
         check_make_directory(path)
         metadata_path = os.path.join(path, "metadata.json")
@@ -1131,10 +1151,6 @@ class DiffusionPipelineManager:
                 trt_ready = trt_ready and os.path.exists(
                     Engine.get_engine_path(self.model_tensorrt_controlled_unet_dir)
                 )
-            if "controlnet" in self.TENSORRT_STAGES:
-                trt_ready = trt_ready and os.path.exists(
-                    Engine.get_engine_path(self.model_tensorrt_controlnet_dir)
-                )
         elif "unet" in self.TENSORRT_STAGES:
             trt_ready = trt_ready and os.path.exists(
                 Engine.get_engine_path(self.model_tensorrt_unet_dir)
@@ -1165,10 +1181,6 @@ class DiffusionPipelineManager:
             if "unet" in self.TENSORRT_STAGES:
                 trt_ready = trt_ready and os.path.exists(
                     Engine.get_engine_path(self.refiner_tensorrt_controlled_unet_dir)
-                )
-            if "controlnet" in self.TENSORRT_STAGES:
-                trt_ready = trt_ready and os.path.exists(
-                    Engine.get_engine_path(self.refiner_tensorrt_controlnet_dir)
                 )
         elif "unet" in self.TENSORRT_STAGES:
             trt_ready = trt_ready and os.path.exists(
@@ -1727,8 +1739,8 @@ class DiffusionPipelineManager:
         """
         Returns true if this is SDXL (based on name)
         """
-        if self.engine_cache_exists:
-            return os.path.exists(os.path.join(self.model_diffusers_cache_dir, "text_encoder_2"))
+        if self.model_diffusers_cache_dir is not None:
+            return os.path.exists(os.path.join(self.model_diffusers_cache_dir, "text_encoder_2")) # type: ignore[arg-type]
         return "xl" in self.model_name.lower()
 
     def check_create_engine_cache(self) -> None:
@@ -1757,7 +1769,7 @@ class DiffusionPipelineManager:
         """
         Converts a .safetensor file to diffusers cache
         """
-        if not self.refiner_engine_cache_exists:
+        if not self.refiner_engine_cache_exists and self.refiner:
             from diffusers.pipelines.stable_diffusion.convert_from_ckpt import (
                 download_from_original_stable_diffusion_ckpt,
             )
@@ -1778,7 +1790,7 @@ class DiffusionPipelineManager:
         """
         Converts a .safetensor file to diffusers cache
         """
-        if not self.inpainter_engine_cache_exists:
+        if not self.inpainter_engine_cache_exists and self.inpainter:
             from diffusers.pipelines.stable_diffusion.convert_from_ckpt import (
                 download_from_original_stable_diffusion_ckpt,
             )
@@ -1819,7 +1831,7 @@ class DiffusionPipelineManager:
             if vae is not None:
                 kwargs["vae"] = vae
 
-            if self.use_tensorrt:
+            if self.use_tensorrt and self.model_diffusers_cache_dir is not None:
                 if "unet" in self.TENSORRT_STAGES:
                     if self.controlnet is None and not self.TENSORRT_ALWAYS_USE_CONTROLLED_UNET:
                         kwargs["unet_engine_dir"] = self.model_tensorrt_unet_dir
@@ -1827,8 +1839,6 @@ class DiffusionPipelineManager:
                         kwargs[
                             "controlled_unet_engine_dir"
                         ] = self.model_tensorrt_controlled_unet_dir
-                if "controlnet" in self.TENSORRT_STAGES and self.controlnet is not None:
-                    kwargs["controlnet_engine_dir"] = self.model_tensorrt_controlnet_dir
                 if "vae" in self.TENSORRT_STAGES:
                     kwargs["vae_engine_dir"] = self.model_tensorrt_vae_dir
                 if "clip" in self.TENSORRT_STAGES:
@@ -1848,7 +1858,7 @@ class DiffusionPipelineManager:
                     controlnet=controlnet,
                     **kwargs
                 )
-            elif self.engine_cache_exists:
+            elif self.model_diffusers_cache_dir is not None:
                 if not self.safe:
                     kwargs["safety_checker"] = None
                 if not os.path.exists(os.path.join(self.model_diffusers_cache_dir, "tokenizer_2")):
@@ -1922,6 +1932,8 @@ class DiffusionPipelineManager:
         """
         Instantiates the refiner pipeline.
         """
+        if not self.refiner:
+            raise ValueError("No refiner set")
         if not hasattr(self, "_refiner_pipeline"):
             if self.refiner.startswith("http"):
                 # Base refiner, make sure it's downloaded here
@@ -2433,8 +2445,8 @@ class DiffusionPipelineManager:
             if refiner_strength is not None and refiner_strength <= 0:
                 logger.debug("Refinement strength is zero, not refining.")
             else:
-                if "latent_callback" in kwargs:
-                    kwargs["latent_callback"](result["images"])
+                if kwargs.get("latent_callback", None) is not None:
+                    kwargs["latent_callback"](result["images"]) # type: ignore
                 if self.pipeline_switch_mode == "offload":
                     if inpainting:
                         self.offload_inpainter()
@@ -2449,8 +2461,8 @@ class DiffusionPipelineManager:
                 else:
                     logger.debug("Keeping pipeline in memory")
 
-                for i, image in enumerate(result["images"]):
-                    is_nsfw = "nsfw_content_detected" in result and result["nsfw_content_detected"][i]
+                for i, image in enumerate(result["images"]): # type: ignore
+                    is_nsfw = "nsfw_content_detected" in result and result["nsfw_content_detected"][i] # type: ignore
                     if is_nsfw:
                         logger.info(f"Result {i} has NSFW content, not refining.")
                         continue
@@ -2464,11 +2476,11 @@ class DiffusionPipelineManager:
                     kwargs["negative_aesthetic_score"] = refiner_negative_aesthetic_score if refiner_negative_aesthetic_score else self.refiner_negative_aesthetic_score
                     
                     logger.debug(f"Refining result {i} with arguments {kwargs}")
-                    result["images"][i] = self.refiner_pipeline(
+                    result["images"][i] = self.refiner_pipeline( # type: ignore
                         generator=self.generator,
                         image=image,
                         **kwargs
-                    )["images"][0]
+                        )["images"][0] # type: ignore
                 if self.pipeline_switch_mode == "offload":
                     self.offload_refiner()
                 elif self.pipeline_switch_mode == "unload":
@@ -2528,8 +2540,8 @@ class DiffusionPipelineManager:
 
         model_dir = os.path.join(engine_root, "tensorrt", model)
         model_cache_dir = os.path.join(engine_root, "diffusers", model)
-        model_index = os.path.join(model_dir, "model_index.json")
-        if not os.path.exists(model_index):
+        model_index: Optional[str] = os.path.join(model_dir, "model_index.json")
+        if not os.path.exists(model_index): # type: ignore
             model_index = os.path.join(model_cache_dir, "model_index.json")
             if not os.path.exists(model_index):
                 model_index = None
@@ -2592,9 +2604,6 @@ class DiffusionPipelineManager:
         vae_ready = "vae" not in DiffusionPipelineManager.TENSORRT_STAGES
         unet_ready = "unet" not in DiffusionPipelineManager.TENSORRT_STAGES
         controlled_unet_ready = unet_ready
-        controlnet_ready: Union[bool, Dict[str, bool]] = (
-            "controlnet" not in DiffusionPipelineManager.TENSORRT_STAGES
-        )
 
         if not clip_ready:
             clip_key = DiffusionPipelineManager.get_tensorrt_clip_key(
@@ -2625,28 +2634,9 @@ class DiffusionPipelineManager:
             )
             controlled_unet_ready = os.path.exists(controlled_unet_plan)
 
-        if not controlnet_ready:
-            if controlnet is None:
-                controlnet_ready = True
-            else:
-                controlnet_ready = {}
-                if not isinstance(controlnet, list):
-                    controlnet = [controlnet]
-                for controlnet_name in controlnet:
-                    controlnet_key = DiffusionPipelineManager.get_tensorrt_controlnet_key(
-                        size, controlnet=controlnet_name
-                    )
-                    controlnet_plan = os.path.join(
-                        model_dir, "controlnet", controlnet_key, "engine.plan"
-                    )
-                    controlnet_ready[controlnet_name] = os.path.exists(controlnet_plan)
-
         ready = clip_ready and vae_ready
         if controlnet is not None or DiffusionPipelineManager.TENSORRT_ALWAYS_USE_CONTROLLED_UNET:
             ready = ready and controlled_unet_ready
-            if isinstance(controlnet_ready, dict):
-                for name in controlnet_ready:
-                    ready = ready and controlnet_ready[name]
         else:
             ready = ready and unet_ready
 

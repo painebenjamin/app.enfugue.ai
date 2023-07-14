@@ -49,6 +49,7 @@ from diffusers.models import (
     UNet2DConditionModel,
     ControlNetModel
 )
+from diffusers.loaders import LoraLoaderMixin
 from diffusers.models.attention_processor import (
     AttnProcessor2_0,
     LoRAAttnProcessor2_0,
@@ -176,13 +177,13 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
     def from_ckpt(
         cls,
         checkpoint_path: str,
+        cache_dir: str,
         prediction_type: Optional[str] = None,
         image_size: int = 512,
         scheduler_type: Literal[
             "pndm", "lms", "heun", "euler", "euler-ancestral", "dpm", "ddim"
         ] = "ddim",
         vae_path: Optional[str] = None,
-        cache_dir: Optional[str] = None,
         load_safety_checker: bool = True,
         torch_dtype: Optional[torch.dtype] = None,
         upcast_attention: Optional[bool] = None,
@@ -244,10 +245,10 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         original_config = OmegaConf.load(original_config_file)
         
         if num_in_channels is not None:
-            if "unet_config" in original_config["model"]["params"]:
+            if "unet_config" in original_config["model"]["params"]: # type: ignore
                 # SD 1 or 2
                 original_config["model"]["params"]["unet_config"]["params"]["in_channels"] = num_in_channels  # type: ignore
-            elif "network_config" in original_config["model"]["params"]:
+            elif "network_config" in original_config["model"]["params"]: # type: ignore
                 # SDXL
                 original_config["model"]["params"]["network_config"]["params"]["in_channels"] = num_in_channels  # type: ignore
 
@@ -440,7 +441,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
     def encode_prompt(
         self,
-        prompt: str,
+        prompt: Optional[str],
         device: torch.device,
         num_images_per_prompt: int = 1,
         do_classifier_free_guidance: bool=False,
@@ -460,13 +461,6 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         # function of text encoder can correctly access it
         if lora_scale is not None and isinstance(self, LoraLoaderMixin):
             self._lora_scale = lora_scale
-
-        if prompt is not None and isinstance(prompt, str):
-            batch_size = 1
-        elif prompt is not None and isinstance(prompt, list):
-            batch_size = len(prompt)
-        else:
-            batch_size = prompt_embeds.shape[0]
 
         # Define tokenizers and text encoders
         # We can tell what kind of pipeline we're doing here using this matrix:
@@ -522,14 +516,14 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 )
 
                 if self.is_sdxl:
-                    pooled_prompt_embeds = prompt_embeds[0]
-                    prompt_embeds = prompt_embeds.hidden_states[-2]
+                    pooled_prompt_embeds = prompt_embeds[0] # type: ignore
+                    prompt_embeds = prompt_embeds.hidden_states[-2] # type: ignore
                 else:
-                    prompt_embeds = prompt_embeds[0].to(dtype=self.text_encoder.dtype, device=device)
+                    prompt_embeds = prompt_embeds[0].to(dtype=self.text_encoder.dtype, device=device) # type: ignore
 
-                bs_embed, seq_len, _ = prompt_embeds.shape
+                bs_embed, seq_len, _ = prompt_embeds.shape # type: ignore
                 # duplicate text embeddings for each generation per prompt, using mps friendly method
-                prompt_embeds = prompt_embeds.repeat(1, num_images_per_prompt, 1)
+                prompt_embeds = prompt_embeds.repeat(1, num_images_per_prompt, 1) # type: ignore
                 prompt_embeds = prompt_embeds.view(bs_embed * num_images_per_prompt, seq_len, -1)
                 
                 if self.is_sdxl:
@@ -540,14 +534,14 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         # get unconditional embeddings for classifier free guidance
         zero_out_negative_prompt = negative_prompt is None and self.config.force_zeros_for_empty_prompt
         if self.is_sdxl and do_classifier_free_guidance and negative_prompt_embeds is None and zero_out_negative_prompt:
-            negative_prompt_embeds = torch.zeros_like(prompt_embeds)
+            negative_prompt_embeds = torch.zeros_like(prompt_embeds) # type: ignore
             negative_pooled_prompt_embeds = torch.zeros_like(pooled_prompt_embeds)
         elif do_classifier_free_guidance and negative_prompt_embeds is None:
             uncond_tokens: List[str] = [negative_prompt or ""]
             negative_prompt_embeds_list = []
 
             for tokenizer, text_encoder in zip(tokenizers, text_encoders):
-                max_length = prompt_embeds.shape[1]
+                max_length = prompt_embeds.shape[1] # type: ignore
                 uncond_input = tokenizer(
                     uncond_tokens,
                     padding="max_length",
@@ -569,27 +563,25 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
                 if self.is_sdxl:
                     # We are only ALWAYS interested in the pooled output of the final text encoder
-                    negative_pooled_prompt_embeds = negative_prompt_embeds[0]
-                    negative_prompt_embeds = negative_prompt_embeds.hidden_states[-2]
+                    negative_pooled_prompt_embeds = negative_prompt_embeds[0] # type: ignore
+                    negative_prompt_embeds = negative_prompt_embeds.hidden_states[-2] # type: ignore
                 else:
-                    negative_prompt_embeds = negative_prompt_embeds[0]
+                    negative_prompt_embeds = negative_prompt_embeds[0] # type: ignore
 
                 if do_classifier_free_guidance:
                     # duplicate unconditional embeddings for each generation per prompt, using mps friendly method
-                    seq_len = negative_prompt_embeds.shape[1]
+                    seq_len = negative_prompt_embeds.shape[1] # type: ignore
 
-                    negative_prompt_embeds = negative_prompt_embeds.to(dtype=text_encoder.dtype, device=device)
+                    negative_prompt_embeds = negative_prompt_embeds.to(dtype=text_encoder.dtype, device=device) # type: ignore
 
                     negative_prompt_embeds = negative_prompt_embeds.repeat(1, num_images_per_prompt, 1)
-                    negative_prompt_embeds = negative_prompt_embeds.view(
-                        batch_size * num_images_per_prompt, seq_len, -1
-                    )
+                    negative_prompt_embeds = negative_prompt_embeds.view(num_images_per_prompt, seq_len, -1)
 
                     # For classifier free guidance, we need to do two forward passes.
                     # Here we concatenate the unconditional and text embeddings into a single batch
                     # to avoid doing two forward passes
                     if not self.is_sdxl:
-                        prompt_embeds = torch.cat([negative_prompt_embeds, prompt_embeds])
+                        prompt_embeds = torch.cat([negative_prompt_embeds, prompt_embeds]) # type: ignore
                 if self.is_sdxl:
                     negative_prompt_embeds_list.append(negative_prompt_embeds)
             if self.is_sdxl:
@@ -602,8 +594,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             negative_pooled_prompt_embeds = negative_pooled_prompt_embeds.repeat(1, num_images_per_prompt).view(
                 bs_embed * num_images_per_prompt, -1
             )
-            return prompt_embeds, negative_prompt_embeds, pooled_prompt_embeds, negative_pooled_prompt_embeds
-        return prompt_embeds
+            return prompt_embeds, negative_prompt_embeds, pooled_prompt_embeds, negative_pooled_prompt_embeds # type: ignore
+        return prompt_embeds # type: ignore
 
     @contextmanager
     def get_runtime_context(
@@ -634,7 +626,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         if ext == ".safetensors":
             state_dict = safetensors.torch.load_file(weights_path, device="cpu")
         else:
-            state_dict = torch.load(checkpoint_path, map_location="cpu")
+            state_dict = torch.load(weights_path, map_location="cpu")
 
         while "state_dict" in state_dict:
             state_dict = state_dict["state_dict"]
@@ -1052,7 +1044,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         dtype: torch.dtype,
         aesthetic_score: Optional[float] = None,
         negative_aesthetic_score: Optional[float] = None,
-    ) -> torch.Tensor:
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Gets added time embedding vectors for SDXL
         """
@@ -1087,11 +1079,11 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 f"Model expects an added time embedding vector of length {expected_add_embed_dim}, but a vector of {passed_add_embed_dim} was created. The model has an incorrect config. Please check `unet.config.time_embedding_type` and `text_encoder_2.config.projection_dim`."
             )
 
-        add_time_ids = torch.tensor([add_time_ids], dtype=dtype)
+        add_time_ids = torch.tensor([add_time_ids], dtype=dtype) # type: ignore
         if add_neg_time_ids is not None:
-            add_neg_time_ids = torch.tensor([add_neg_time_ids], dtype=dtype)
+            add_neg_time_ids = torch.tensor([add_neg_time_ids], dtype=dtype) # type: ignore
 
-        return add_time_ids, add_neg_time_ids
+        return add_time_ids, add_neg_time_ids # type: ignore
 
     def predict_noise_residual(
         self,
@@ -1757,7 +1749,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
     @torch.no_grad()
     def __call__(
         self,
-        prompt: Optional[Union[str, List[str]]] = None,
+        prompt: Optional[str] = None,
+        negative_prompt: Optional[str] = None,
         image: Optional[Union[PIL.Image.Image, str]] = None,
         mask: Optional[Union[PIL.Image.Image, str]] = None,
         control_image: Optional[Union[PIL.Image.Image, str]] = None,
@@ -1769,7 +1762,6 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         num_inference_steps: int = 50,
         guidance_scale: float = 7.5,
         conditioning_scale: float = 1.0,
-        negative_prompt: Optional[Union[str, List[str]]] = None,
         num_images_per_prompt: int = 1,
         eta: float = 0.0,
         generator: Optional[torch.Generator] = None,
@@ -1818,10 +1810,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         output_nsfw: Optional[List[bool]] = None
 
         # 2. Define call parameters
-        if prompt is not None and isinstance(prompt, str):
+        if prompt is not None:
             batch_size = 1
-        elif prompt is not None and isinstance(prompt, list):
-            batch_size = len(prompt)
         elif prompt_embeds:
             batch_size = prompt_embeds.shape[0]
         else:
@@ -1894,7 +1884,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     negative_prompt,
                     prompt_embeds=prompt_embeds,
                     negative_prompt_embeds=negative_prompt_embeds,
-                )
+                    ) # type: ignore
                 pooled_prompt_embeds = None
                 negative_prompt_embeds = None
                 negative_pooled_prompt_embeds = None
@@ -1938,6 +1928,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 # Disable chunking
                 logger.debug(f"{width}x{height} is smaller than is chunkable, disabling.")
                 self.chunking_size = 0
+
+            prompt_embeds = cast(torch.Tensor, prompt_embeds)
 
             if prepared_image is not None and prepared_mask is not None:
                 # Running the pipeline on an image with a mask
@@ -2057,6 +2049,9 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
             # 7. Prepared added time IDs and embeddings (SDXL)
             if self.is_sdxl:
+                negative_prompt_embeds = cast(torch.Tensor, negative_prompt_embeds)
+                pooled_prompt_embeds = cast(torch.Tensor, pooled_prompt_embeds)
+                negative_pooled_prompt_embeds = cast(torch.Tensor, negative_pooled_prompt_embeds)
                 add_text_embeds = pooled_prompt_embeds
                 if do_classifier_free_guidance:
                     prompt_embeds = torch.cat([negative_prompt_embeds, prompt_embeds], dim=0)

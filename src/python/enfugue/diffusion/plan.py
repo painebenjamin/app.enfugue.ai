@@ -700,6 +700,22 @@ class DiffusionPlan:
                             logger.debug(f"Image {i} had NSFW content, not upscaling.")
                             continue
                         
+                        width, height = image.size
+                        kwargs = {
+                            "width": width,
+                            "height": height,
+                            "image": image,
+                            "num_images_per_prompt": 1,
+                            "prompt": get_item_for_scale(self.upscale_diffusion_prompt),
+                            "negative_prompt": get_item_for_scale(self.upscale_diffusion_negative_prompt),
+                            "strength": get_item_for_scale(self.upscale_diffusion_strength),
+                            "num_inference_steps": get_item_for_scale(self.upscale_diffusion_steps),
+                            "guidance_scale": get_item_for_scale(self.upscale_diffusion_guidance_scale),
+                            "chunking_size": self.upscale_diffusion_chunking_size,
+                            "chunking_blur": self.upscale_diffusion_chunking_blur,
+                            "progress_callback": progress_callback,
+                        }
+                        
                         upscale_controlnet = get_item_for_scale(self.upscale_diffusion_controlnet)
                         if upscale_controlnet is not None:
                             logger.debug(f"Enabling {upscale_controlnet} for upscale diffusion")
@@ -725,25 +741,7 @@ class DiffusionPlan:
                         else:
                             pipeline.reload_pipeline() # If we didn't change controlnet, then pipeline is still on CPU
                             upscale_pipeline = pipeline.pipeline
-                        width, height = image.size
-                        kwargs = {
-                            "width": width,
-                            "height": height,
-                            "image": image,
-                            "num_images_per_prompt": 1,
-                            "prompt": get_item_for_scale(self.upscale_diffusion_prompt),
-                            "negative_prompt": get_item_for_scale(
-                                self.upscale_diffusion_negative_prompt
-                            ),
-                            "strength": get_item_for_scale(self.upscale_diffusion_strength),
-                            "num_inference_steps": get_item_for_scale(self.upscale_diffusion_steps),
-                            "guidance_scale": get_item_for_scale(
-                                self.upscale_diffusion_guidance_scale
-                            ),
-                            "chunking_size": self.upscale_diffusion_chunking_size,
-                            "chunking_blur": self.upscale_diffusion_chunking_blur,
-                            "progress_callback": progress_callback,
-                        }
+                        
                         if self.upscale_diffusion_scale_chunking_size:
                             # Max out at half of the frame size or we get discontinuities
                             kwargs["chunking_size"] = min(
@@ -1109,13 +1107,24 @@ class DiffusionPlan:
         if kwargs:
             logger.warning(f"Plan `upscale_image` keyword arguments ignored: {kwargs}")
         width, height = image.size
-        nodes = [
+        nodes: List[NodeDict] = [
             {
                 "image": image,
                 "w": width,
                 "h": height,
                 "x": 0,
-                "y": 0
+                "y": 0,
+                "fit": None,
+                "anchor": None,
+                "infer": False,
+                "inpaint": False,
+                "control": False,
+                "controlnet": None,
+                "prompt": None,
+                "negative_prompt": None,
+                "strength": None,
+                "conditioning_scale": None,
+                "mask": None
             }
         ]
         return DiffusionPlan.from_nodes(
@@ -1401,10 +1410,10 @@ class DiffusionPlan:
             node_inference_steps: Optional[int] = node_dict.get("inference_steps", None)  # type: ignore[assignment]
             node_guidance_scale: Optional[float] = node_dict.get("guidance_scale", None)  # type: ignore[assignment]
             
-            node_refiner_strength: Optional[float] = node_dict.get("refiner_strength", None)
-            node_refiner_guidance_scale: Optional[float] = node_dict.get("refiner_guidance_scale", None)
-            node_refiner_aesthetic_score: Optional[float] = node_dict.get("refiner_aesthetic_score", None)
-            node_refiner_negative_aesthetic_score: Optional[float] = node_dict.get("refiner_negative_aesthetic_score", None)
+            node_refiner_strength: Optional[float] = node_dict.get("refiner_strength", None) # type: ignore[assignment]
+            node_refiner_guidance_scale: Optional[float] = node_dict.get("refiner_guidance_scale", None) # type: ignore[assignment]
+            node_refiner_aesthetic_score: Optional[float] = node_dict.get("refiner_aesthetic_score", None) # type: ignore[assignment]
+            node_refiner_negative_aesthetic_score: Optional[float] = node_dict.get("refiner_negative_aesthetic_score", None) # type: ignore[assignment]
 
             node_prompt_tokens = TokenMerger()
             node_negative_prompt_tokens = TokenMerger()
