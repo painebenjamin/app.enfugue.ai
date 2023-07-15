@@ -96,7 +96,7 @@ class CLIP(BaseModel):
         self.check_dims(batch_size, image_height, image_width)
         return torch.zeros(batch_size, self.text_maxlen, dtype=torch.int32, device=self.device)
 
-    def optimize(self, onnx_graph: ONNXModel) -> ONNXModel:
+    def optimize(self, onnx_graph: str) -> ONNXModel:
         return Optimizer.run(
             onnx_graph,
             select_inputs=[0],

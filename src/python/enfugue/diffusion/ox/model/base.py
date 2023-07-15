@@ -105,7 +105,7 @@ class BaseModel:
         """
         raise NotImplementedError()
 
-    def optimize(self, onnx_graph: ONNXModel) -> ONNXModel:
+    def optimize(self, onnx_graph: str) -> ONNXModel:
         """
         Runs the optimizer, returning the optimized version.
         """
