@@ -1061,6 +1061,13 @@ export let stripHTML = (text) => {
 };
 
 /**
+ * Cleans HTML elements from a string.
+ */
+export let cleanHTML = (text) => {
+    return text.replace("<", "&lt;").replace(">", "&gt;");
+};
+
+/**
  * Turns an HTML string into a set of document elements
  */
 export let createElementsFromString = (text) => {

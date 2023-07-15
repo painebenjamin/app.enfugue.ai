@@ -212,7 +212,7 @@ fieldset .field-container {
     display: flex;
     flex-flow: column-reverse nowrap;
     align-items: stretch;
-    flex-basis: 100px;
+    flex-basis: 110px;
     flex-grow: 1;
 }
 
@@ -508,6 +508,10 @@ textarea {
     transition: all 0.25s ease-in-out;
     outline: none;
     font-family: var(--body-font), sans-serif;
+}
+
+select {
+    padding: 9px 5px;
 }
 
 option {

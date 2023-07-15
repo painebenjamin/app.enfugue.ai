@@ -724,8 +724,8 @@ form.model-picker {
     left: 40px;
     top: 35px;
     padding: 5px 0 0 5px;
-    width: 500px;
-    max-width: calc(100vw - 400px);
+    max-width: 500px;
+    width: calc((100vw - 350px) / 2);
     z-index: 3;
     display: flex;
     flex-flow: row nowrap;
@@ -813,27 +813,27 @@ ul.model-picker-list-input-view > li > span {
     justify-content: space-between;
 }
 
-.additional-weights-form-view {
+.model-configuration-form-view {
     position: absolute;
     top: 75px;
     left: 35px;
-    width: 520px;
-    max-width: calc(100vw - 380px);
+    max-width: 520px;
+    width: calc((100vw - 330px) / 2);
     z-index: 4;
     opacity: 0.5;
     transition: opacity 0.25s ease-in-out;
 }
 
-.additional-weights-form-view:hover {
+.model-configuration-form-view:hover {
     opacity: 1;
 }
 
-.additional-weights-form-view legend {
+.model-configuration-form-view legend {
     flex-direction: row-reverse;
     justify-content: flex-end;
 }
 
-.additional-weights-form-view legend::after {
+.model-configuration-form-view legend::after {
     margin-right: 10px;
 }
 
@@ -855,7 +855,7 @@ ul.model-picker-list-input-view > li > span {
 enfugue-status {
     display: flex;
     height: 100%;
-    padding: 0 5px 0 50px;
+    padding: 0 5px 0 5px;
     flex-flow: row nowrap;
     align-items: center;
     justify-content: space-between;
@@ -987,9 +987,12 @@ enfugue-download-status {
     text-align: center;
     line-height: 22px;
     background-color: rgba(0,0,0,0.6);
-    color: rgba(255,255,255,0.8);
+    color: var(--lightest-color);
     margin-left: auto;
-    margin-right: -40px;
+}
+
+enfugue-download-status i {
+    opacity: 1.0 !important;
 }
 
 enfugue-download-count {

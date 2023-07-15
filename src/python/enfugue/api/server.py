@@ -174,33 +174,93 @@ class EnfugueAPIServerBase(
         if not diffusion_model:
             raise NotFoundError(f"Unknown diffusion model {model_name}")
 
-        model = os.path.join(
-            self.configuration.get(
-                "enfugue.engine.checkpoint",
-                os.path.join(self.manager.engine_root_dir, "checkpoint"),
-            ),
-            diffusion_model.model,
+        model = os.path.abspath(
+            os.path.join(
+                self.configuration.get(
+                    "enfugue.engine.checkpoint",
+                    os.path.join(self.manager.engine_root_dir, "checkpoint"),
+                ),
+                diffusion_model.model,
+            )
         )
         size = diffusion_model.size
-        lora = [
-            (
+        refiner = diffusion_model.refiner
+        if refiner:
+            refiner_size = refiner[0].size
+            refiner = os.path.abspath(
                 os.path.join(
                     self.configuration.get(
-                        "enfugue.engine.lora", os.path.join(self.manager.engine_root_dir, "lora")
+                        "enfugue.engine.checkpoint",
+                        os.path.join(self.manager.engine_root_dir, "checkpoint"),
                     ),
-                    lora.model,
+                    refiner[0].model
                 ),
-                float(lora.weight),
+            )
+        else:
+            refiner, refiner_size = None, None
+        inpainter = diffusion_model.inpainter
+        if inpainter:
+            inpainter_size = inpainter[0].size
+            inpainter = os.path.abspath(
+                os.path.join(
+                    self.configuration.get(
+                        "enfugue.engine.checkpoint",
+                        os.path.join(self.manager.engine_root_dir, "checkpoint"),
+                    ),
+                    inpainter[0].model
+                ),
+            )
+        else:
+            inpainter, inpainter_size = None, None
+        scheduler, multi_scheduler = None, None
+        if diffusion_model.scheduler:
+            for scheduler in diffusion_model.scheduler:
+                if scheduler.context == "multi_diffusion":
+                    multi_scheduler = scheduler.name
+                else:
+                    scheduler = scheduler.name
+        vae = diffusion_model.vae
+        if vae:
+            vae = diffusion_model.vae[0].name
+        else:
+            vae = None
+        lora = [
+            (
+                os.path.abspath(
+                    os.path.join(
+                        self.configuration.get(
+                            "enfugue.engine.lora", os.path.join(self.manager.engine_root_dir, "lora")
+                        ),
+                        lora.model,
+                    )
+                ),
+                float(lora.weight)
             )
             for lora in diffusion_model.lora
         ]
-        inversion = [
-            os.path.join(
-                self.configuration.get(
-                    "enfugue.engine.inversion",
-                    os.path.join(self.manager.engine_root_dir, "inversion"),
+        lycoris = [
+            (
+                os.path.abspath(
+                    os.path.join(
+                        self.configuration.get(
+                            "enfugue.engine.lycoris", os.path.join(self.manager.engine_root_dir, "lycoris")
+                        ),
+                        lycoris.model,
+                    )
                 ),
-                inversion.model,
+                float(lycoris.weight),
+            )
+            for lycoris in diffusion_model.lycoris
+        ]
+        inversion = [
+            os.path.abspath(
+                os.path.join(
+                    self.configuration.get(
+                        "enfugue.engine.inversion",
+                        os.path.join(self.manager.engine_root_dir, "inversion"),
+                    ),
+                    inversion.model,
+                )
             )
             for inversion in diffusion_model.inversion
         ]
@@ -209,9 +269,17 @@ class EnfugueAPIServerBase(
 
         plan_kwargs: Dict[str, Any] = {
             "model": model,
+            "refiner": refiner,
+            "refiner_size": refiner_size,
+            "inpainter": inpainter,
+            "inpainter_size": inpainter_size,
             "size": size,
             "lora": lora,
+            "lycoris": lycoris,
             "inversion": inversion,
+            "scheduler": scheduler,
+            "multi_scheduler": multi_scheduler,
+            "vae": vae
         }
 
         if include_prompts:
@@ -301,7 +369,7 @@ class EnfugueAPIServerBase(
             is_initialized = self.user_config.get("enfugue.initialized", False)
             if not is_initialized:
                 directories = {}
-                for dirname in ["cache", "checkpoint", "lora", "inversion", "other", "tensorrt"]:
+                for dirname in ["cache", "checkpoint", "lora", "lycoris", "inversion", "other", "tensorrt"]:
                     directories[dirname] = self.configuration.get(
                         f"enfugue.engine.{dirname}", os.path.join(self.engine_root, dirname)
                     )

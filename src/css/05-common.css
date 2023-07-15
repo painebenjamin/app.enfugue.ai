@@ -496,7 +496,6 @@
     width: auto;
 }
 
-
 .tiny {
     font-size: 0.5em;
 }
@@ -521,6 +520,12 @@ sup.tiny {
     font-size: 3em;
 }
 
+.no-animations,
+.no-animations *,
+.no-animations *::before,
+.no-animations *::after {
+    animation-name: none !important;
+}
 
 @media (max-width: 768px) {
     .half {

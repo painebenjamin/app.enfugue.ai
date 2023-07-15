@@ -76,6 +76,7 @@ class EnfugueAPIDownloadsController(EnfugueAPIControllerBase):
             "checkpoint": "Checkpoint",
             "inversion": "TextualInversion",
             "lora": "LORA",
+            "lycoris": "LoCon",
             "controlnet": "Controlnet",
             "poses": "Poses",
             "hypernetwork": "Hypetnetwork",
@@ -83,7 +84,7 @@ class EnfugueAPIDownloadsController(EnfugueAPIControllerBase):
         }.get(lookup, None)
 
         if lookup_type is None:
-            raise BadRequestError(f"Unknown lookup type {lookup_type}")
+            raise BadRequestError(f"Unknown lookup type {lookup}")
 
         query = request.params.get("query", None)
 

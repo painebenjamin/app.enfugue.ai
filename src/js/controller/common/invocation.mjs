@@ -11,7 +11,7 @@ const E = new ElementBuilder({
     "invocationRemaining": "enfugue-invocation-remaining",
     "invocationSampleChooser": "enfugue-invocation-sample-chooser",
     "invocationSample": "enfugue-invocation-sample",
-    "invocationStop": "enfugue-invocation-stop"
+    "engineStop": "enfugue-engine-stop"
 });
 
 /**
@@ -63,6 +63,23 @@ class InvocationController extends Controller {
             this.publish("engineHeightChange", newHeight);
         }
         this.kwargs.height = newHeight;
+    }
+
+    /**
+     * @return The engine size when not using preconfigured models
+     */
+    get size() {
+        return this.kwargs.size || 512;
+    }
+    
+    /**
+     * @param int The engine size when not using preconfigured models
+     */
+    set size(newSize) {
+        if (this.size !== newSize) {
+            this.publish("engineSizeChange", newSize);
+        }
+        this.kwargs.size = newSize;
     }
 
     /**
@@ -509,6 +526,210 @@ class InvocationController extends Controller {
     }
 
     /**
+     * @return array<object> Optional lycoris when not using preconfigured models
+     */
+    get lycoris() {
+        return this.kwargs.lycoris || [];
+    }
+
+    /**
+     * @param array<object> The new value of lycoris for when not using preconfigured models
+     */
+    set lycoris(newLycoris) {
+        if(!isEquivalent(this.lycoris, newLycoris)) {
+            this.publish("engineLycorisChange", newLycoris);
+        }
+        this.kwargs.lycoris = newLycoris;
+    }
+
+    /**
+     * @return string Optional refiner when not using preconfigured models
+     */
+    get refiner() {
+        return this.kwargs.refiner || null;
+    }
+
+    /**
+     * @param array<object> The new value of refiner for when not using preconfigured models
+     */
+    set refiner(newRefiner) {
+        if(this.refiner !== newRefiner) {
+            this.publish("engineRefinerChange", newRefiner);
+        }
+        this.kwargs.refiner = newRefiner;
+    }
+    
+    /**
+     * @return int Optional refining engine size when not using preconfigured models
+     */
+    get refinerSize() {
+        return this.kwargs.refiner_size || null;
+    }
+
+    /**
+     * @param int Optional inpainting engine size when not using preconfigured models
+     */
+    set refinerSize(newRefinerSize) {
+        if(this.refinerSize !== newRefinerSize) {
+            this.publish("engineRefinerSizeChange", newRefinerSize);
+        }
+        this.kwargs.refiner_size = newRefinerSize;
+    }
+
+    /**
+     * @return float The strength of the refiner when using SDXL
+     */
+    get refinerStrength() {
+        return this.kwargs.refiner_strength || 0.3;
+    }
+
+    /**
+     * @param float the new denoising strength to use when refining with SDXL
+     */
+    set refinerStrength(newRefinerStrength) {
+        if(this.refinerStrength !== newRefinerStrength) {
+            this.publish("engineRefinerStrengthChange", newRefinerStrength);
+        }
+        this.kwargs.refiner_strength = newRefinerStrength;
+    }
+    
+    /**
+     * @return float The guidance scale of the refiner when using SDXL
+     */
+    get refinerGuidanceScale() {
+        return this.kwargs.refiner_guidance_scale || 5.0
+    }
+
+    /**
+     * @param float The new guidance scale of the refiner when using SDXL
+     */
+    set refinerGuidanceScale(newRefinerGuidanceScale) {
+        if(this.refinerGuidanceScale !== newRefinerGuidanceScale) {
+            this.publish("engineRefinerGuidanceScaleChange", newRefinerGuidanceScale);
+        }
+        this.kwargs.refiner_guidance_scale = newRefinerGuidanceScale;
+    }
+    
+    /**
+     * @return float The aesthetic score of the refiner when using SDXL
+     */
+    get refinerAestheticScore() {
+        return this.kwargs.refiner_aesthetic_score || 6.0
+    }
+
+    /**
+     * @param float The new aesthetic score
+     */
+    set refinerAestheticScore(newAestheticScore) {
+        if(this.refinerAestheticScore !== newAestheticScore) {
+            this.publish("engineAestheticScoreChange", newAestheticScore);
+        }
+        this.kwargs.refiner_aesthetic_score = newAestheticScore;
+    }
+    
+    /**
+     * @return float The negative aesthetic score of the refiner
+     */
+    get refinerNegativeAestheticScore() {
+        return this.kwargs.refiner_negative_aesthetic_score || 2.5;
+    }
+
+    /**
+     * @param float The new negative aesthetic score of the refiner
+     */
+    set refinerNegativeAestheticScore(newNegativeAestheticScore) {
+        if(this.refinerNegativeAestheticScore !== newNegativeAestheticScore) {
+            this.publish("engineNegativeAestheticScoreChange", newNegativeAestheticScore);
+        }
+        this.kwargs.refiner_negative_aesthetic_score = newNegativeAestheticScore;
+    }
+    
+    /**
+     * @return string Optional inpainter when not using preconfigured models
+     */
+    get inpainter() {
+        return this.kwargs.inpainter || null;
+    }
+
+    /**
+     * @param array<object> The new value of inpainter for when not using preconfigured models
+     */
+    set inpainter(newInpainter) {
+        if(this.inpainter !== newInpainter) {
+            this.publish("engineInpainterChange", newInpainter);
+        }
+        this.kwargs.inpainter = newInpainter;
+    }
+    
+    /**
+     * @return int Optional inpainting engine size when not using preconfigured models
+     */
+    get inpainterSize() {
+        return this.kwargs.inpainter_size || null;
+    }
+
+    /**
+     * @param int Optional inpainting engine size when not using preconfigured models
+     */
+    set inpainterSize(newInpainterSize) {
+        if(this.inpainterSize !== newInpainterSize) {
+            this.publish("engineInpainterSizeChange", newInpainterSize);
+        }
+        this.kwargs.inpainter_size = newInpainterSize;
+    }
+
+    /**
+     * @return str The scheduler, if set
+     */
+    get scheduler() {
+        return this.kwargs.scheduler || null;
+    }
+    
+    /**
+     * @param str Set the new scheduler
+     */
+    set scheduler(newScheduler) {
+        if (this.scheduler !== newScheduler) {
+            this.publish("engineSchedulerChange");
+        }
+        this.kwargs.scheduler = newScheduler;
+    }
+
+    /**
+     * @return str The multi-diffusion scheduler, if set
+     */
+    get multiScheduler() {
+        return this.kwargs.multi_scheduler || null;
+    }
+    
+    /**
+     * @param str Set the new scheduler for multi-diffusion
+     */
+    set multiScheduler(newScheduler) {
+        if (this.multiScheduler !== newScheduler) {
+            this.publish("engineMultiDiffusionSchedulerChange");
+        }
+        this.kwargs.multi_scheduler = newScheduler;
+    }
+
+    /**
+     * @return str The vae, if set
+     */
+    get vae() {
+        return this.kwargs.vae || null;
+    }
+    
+    /**
+     * @param str Set the vae
+     */
+    set vae(newVae) {
+        if (this.vae !== newVae) {
+            this.publish("engineVaeChange");
+        }
+        this.kwargs.vae = newVae;
+    }
+    
+    /**
      * On initialization, create DOM elements related to invocations.
      */
     async initialize() {
@@ -519,8 +740,18 @@ class InvocationController extends Controller {
             E.invocationRemaining().hide()
         );
         this.invocationSampleChooser = E.invocationSampleChooser().hide();
-        this.invocationStop = E.invocationStop().content("Stop").on("click", () => { this.stopInvocation() });
-        (await this.images.getNode()).append(this.loadingBar).append(this.invocationSampleChooser).append(this.invocationStop);
+        this.engineStop = E.engineStop().content("Stop Engine").on("click", () => { this.stopEngine() });
+        (await this.images.getNode()).append(this.loadingBar).append(this.invocationSampleChooser);
+        this.application.container.appendChild(await this.engineStop.render());
+        this.subscribe("engineReady", () => {
+            this.enableStop();
+        });
+        this.subscribe("engineBusy", () => {
+            this.enableStop();
+        });
+        this.subscribe("engineIdle", () => {
+            this.disableStop();
+        });
     }
 
     /**
@@ -528,6 +759,20 @@ class InvocationController extends Controller {
      */
     hideSampleChooser() {
         this.invocationSampleChooser.hide();
+    }
+
+    /**
+     * Enables the engine stopper.
+     */
+    enableStop() {
+        this.engineStop.addClass("ready");
+    }
+    
+    /**
+     * Disbles the engine stopper.
+     */
+    disableStop() {
+        this.engineStop.removeClass("ready");
     }
 
     /**
@@ -550,8 +795,7 @@ class InvocationController extends Controller {
             null, 
             invocationPayload
         );
-
-        this.invocationStop.addClass("ready");
+        this.enableStop();
         if (!isEmpty(result.uuid)) {
             if (detached) {
                 let invocationName = invocationPayload.prompt.substring(0, this.constructor.truncatePromptLength);
@@ -566,7 +810,6 @@ class InvocationController extends Controller {
                 );
             } else {
                 await this.canvasInvocation(result.uuid);
-                this.invocationStop.removeClass("ready");
             }
         }
     }
@@ -574,17 +817,21 @@ class InvocationController extends Controller {
     /**
      * Stops the engine.
      */
-    async stopInvocation() {
-        if (!this.invocationStop.hasClass("ready")) return;
-        try {
-            await this.application.model.post("/invocation/stop");
-            this.invocationStop.removeClass("ready");
-            this.notify("info", "Stopped", "Successfully stopped engine.");
-        } catch(e) {
-            let errorMessage = `${e}`;
-            if (!isEmpty(e.detail)) errorMessage = e.detail;
-            else if (!isEmpty(e.title)) errorMessage = e.title;
-            this.notify("error", "Error", `Received an error when stopping. The engine may still be stopped, wait a moment and check again. ${errorMessage}`);
+    async stopEngine() {
+        if (!this.engineStop.hasClass("ready")) {
+            return;
+        }
+        if (await this.confirm("Stop engine and terminate any active invocations?")) {
+            try {
+                await this.application.model.post("/invocation/stop");
+                this.disableStop();
+                this.notify("info", "Stopped", "Successfully stopped engine.");
+            } catch(e) {
+                let errorMessage = `${e}`;
+                if (!isEmpty(e.detail)) errorMessage = e.detail;
+                else if (!isEmpty(e.title)) errorMessage = e.title;
+                this.notify("error", "Error", `Received an error when stopping. The engine may still be stopped, wait a moment and check again. ${errorMessage}`);
+            }
         }
     }
 
@@ -614,25 +861,11 @@ class InvocationController extends Controller {
             lastDuration,
             lastStepDeltaTime,
             lastTotalDeltaTime = start,
-            getEstimatedDurationRemaining = () => {
-                let averageStepsPerMillisecond = lastStep/(lastStepDeltaTime-lastTotalDeltaTime),
-                    currentStepsPerMillisecond = isEmpty(lastRate) ? averageStepsPerMillisecond : lastRate / 1000,
-                    weightedStepsPerMillisecond = (currentStepsPerMillisecond * 0.75) + (averageStepsPerMillisecond * 0.25),
-                    millisecondsRemainingAtDelta = (lastTotal-lastStep)/weightedStepsPerMillisecond,
-                    millisecondsRemainingNow = millisecondsRemainingAtDelta-((new Date()).getTime()-lastStepDeltaTime);
-
-                if (isNaN(millisecondsRemainingNow)) {
-                    millisecondsRemainingNow = Infinity;
-                }
-                
-                onEstimatedDuration(millisecondsRemainingNow, lastStep, lastTotal, lastRate, lastDuration);
-                return millisecondsRemainingNow;
-            },
             getInterval = (invokeResult) => {
                 if (invokeResult.status === "queued") {
                     return queuedInterval;
                 }
-                return Math.min(Math.max(initialInterval, getEstimatedDurationRemaining() / 2), queuedInterval);
+                return initialInterval;
             },
             checkInvocationTimer,
             checkInvocation = async () => {
@@ -663,6 +896,7 @@ class InvocationController extends Controller {
                 if (invokeResult.rate !== lastRate) {
                     lastRate = invokeResult.rate;
                 }
+
                 lastDuration = invokeResult.duration;
                 if (!isEmpty(invokeResult.images)) {
                     let imagePaths = invokeResult.images.map((imageName) => `/api/invocation/${imageName}`),
@@ -674,6 +908,15 @@ class InvocationController extends Controller {
                     onError();
                     return;
                 } else if (invokeResult.status !== "completed") {
+                    let averageStepsPerMillisecond = lastStep/(lastStepDeltaTime-lastTotalDeltaTime),
+                        currentStepsPerMillisecond = isEmpty(lastRate) ? averageStepsPerMillisecond : lastRate / 1000,
+                        weightedStepsPerMillisecond = (currentStepsPerMillisecond * 0.75) + (averageStepsPerMillisecond * 0.25),
+                        millisecondsRemainingAtDelta = (lastTotal-lastStep)/weightedStepsPerMillisecond,
+                        millisecondsRemainingNow = millisecondsRemainingAtDelta-((new Date()).getTime()-lastStepDeltaTime);
+                    if (isNaN(millisecondsRemainingNow)) {
+                        millisecondsRemainingNow = Infinity;
+                    }
+                    onEstimatedDuration(millisecondsRemainingNow, lastStep, lastTotal, lastRate, lastDuration);
                     checkInvocationTimer = setTimeout(
                         checkInvocation,
                         getInterval(invokeResult)

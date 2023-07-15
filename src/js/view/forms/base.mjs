@@ -200,7 +200,8 @@ class FormView extends View {
             let fieldContainer = E.div()
                 .class('field-container')
                 .content(errorNode, await inputView.getNode(), labelNode);
-            fieldContainer.addClass(kebabCase(inputView.constructor.name));
+            fieldContainer.addClass(kebabCase(inputView.constructor.name))
+                          .addClass(kebabCase(inputView.constructor.name)+"-"+kebabCase(fieldName));
             fieldSet.append(fieldContainer);
         }
 
@@ -510,7 +511,13 @@ class FormView extends View {
                 fieldSetNode.hide();
             }
 
-            if (this.constructor.collapseFieldSets) {
+            if (
+                this.constructor.collapseFieldSets === true ||
+                (
+                    Array.isArray(this.constructor.collapseFieldSets) && 
+                    this.constructor.collapseFieldSets.indexOf(fieldSet) !== -1
+                )
+            ) {
                 fieldSetNode.addClass("collapsible collapsed");
                 legendNode.on("click", (e) => {
                     e.stopPropagation();
@@ -540,10 +547,16 @@ class FormView extends View {
                     inputView = fieldInstance;
                     fieldContainer.addClass(
                         kebabCase(fieldInstance.constructor.name)
+                    ).addClass(
+                        kebabCase(fieldInstance.constructor.name)+"-"+kebabCase(fieldName)
                     );
                     fieldInstance.formParent = this;
                 } else {
-                    fieldContainer.addClass(kebabCase(fieldClass.name));
+                    fieldContainer.addClass(
+                        kebabCase(fieldClass.name)
+                    ).addClass(
+                        kebabCase(fieldClass.name)+"-"+kebabCase(fieldName)
+                    );
                     inputView = new fieldClass(this.config, fieldName, config);
                     inputView.onChange(() =>
                         this.inputChanged(fieldName, inputView)

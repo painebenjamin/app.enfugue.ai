@@ -7,7 +7,12 @@ from typing_extensions import Self
 from contextlib import contextmanager
 
 from polygraphy import cuda
-from transformers import CLIPImageProcessor, CLIPTextModel, CLIPTokenizer
+from transformers import (
+    CLIPImageProcessor,
+    CLIPTokenizer,
+    CLIPTextModel,
+    CLIPTextModelWithProjection,
+)
 
 from diffusers.schedulers import KarrasDiffusionSchedulers
 from diffusers.models import AutoencoderKL, UNet2DConditionModel, ControlNetModel
@@ -30,13 +35,18 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         self,
         vae: AutoencoderKL,
         text_encoder: CLIPTextModel,
+        text_encoder_2: Optional[CLIPTextModelWithProjection],
         tokenizer: CLIPTokenizer,
+        tokenizer_2: Optional[CLIPTokenizer],
         unet: UNet2DConditionModel,
         controlnet: Optional[ControlNetModel],
         scheduler: KarrasDiffusionSchedulers,
         safety_checker: StableDiffusionSafetyChecker,
         feature_extractor: CLIPImageProcessor,
+        multi_scheduler: Optional[KarrasDiffusionSchedulers] = None,
         requires_safety_checker: bool = True,
+        force_zeros_for_empty_prompt: bool = True,
+        requires_aesthetic_score: bool = False,
         engine_size: int = 512,  # Recommended even for machines that can handle more
         chunking_size: int = 32,
         chunking_blur: int = 64,
@@ -54,18 +64,23 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         onnx_opset: int = 17,
     ) -> None:
         super(EnfugueTensorRTStableDiffusionPipeline, self).__init__(
-            vae,
-            text_encoder,
-            tokenizer,
-            unet,
-            controlnet,
-            scheduler,
-            safety_checker,
-            feature_extractor,
-            requires_safety_checker,
-            engine_size,
-            chunking_size,
-            chunking_blur,
+            vae=vae,
+            text_encoder=text_encoder,
+            text_encoder_2=text_encoder_2,
+            tokenizer=tokenizer,
+            tokenizer_2=tokenizer_2,
+            unet=unet,
+            controlnet=controlnet,
+            scheduler=scheduler,
+            safety_checker=safety_checker,
+            feature_extractor=feature_extractor,
+            multi_scheduler=multi_scheduler,
+            requires_safety_checker=requires_safety_checker,
+            force_zeros_for_empty_prompt=force_zeros_for_empty_prompt,
+            requires_aesthetic_score=requires_aesthetic_score,
+            engine_size=engine_size,
+            chunking_size=chunking_size,
+            chunking_blur=chunking_blur
         )
 
         if self.controlnet is not None:
@@ -189,6 +204,11 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         """
         super().to(torch_device, silence_dtype_warnings=silence_dtype_warnings)
 
+        if torch_device == "cpu" or isinstance(torch_device, torch.device) and torch_device.type == "cpu":
+            return self
+        elif getattr(self, "_built", False):
+            return self
+
         # set device
         self.torch_device = self._execution_device
 
@@ -221,6 +241,7 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
             enable_preview=self.build_preview_features,
         )
 
+        self._built = True
         return self
 
     def create_latents(
@@ -232,6 +253,7 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         dtype: Union[str, torch.dtype],
         device: Union[str, torch.device],
         generator: Optional[torch.Generator] = None,
+        scheduler: Optional[KarrasDiffusionSchedulers] = None,
     ) -> torch.Tensor:
         """
         Override to change to float32
@@ -244,13 +266,23 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
             torch.float32,
             device,
             generator,
+            scheduler=scheduler
         )
 
     def encode_prompt(
         self,
-        prompt: Optional[Union[str, List[str]]] = None,
-        negative_prompt: Optional[Union[str, List[str]]] = None,
-    ) -> torch.Tensor:
+        prompt: Optional[str],
+        device: torch.device,
+        num_images_per_prompt: int=1,
+        do_classifier_free_guidance: bool=False,
+        negative_prompt: Optional[str]=None,
+        prompt_embeds: Optional[torch.Tensor]=None,
+        negative_prompt_embeds: Optional[torch.Tensor]=None,
+        lora_scale: Optional[float]=None,
+    ) -> Union[
+        torch.Tensor,
+        Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]
+    ]:
         """
         Encodes the prompt into text encoder hidden states.
         Args:
@@ -263,7 +295,13 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         """
         if "clip" not in self.engine:
             return super(EnfugueTensorRTStableDiffusionPipeline, self).encode_prompt(
-                prompt, negative_prompt
+                prompt=prompt,
+                device=device,
+                num_images_per_prompt=num_images_per_prompt,
+                do_classifier_free_guidance=do_classifier_free_guidance,
+                negative_prompt=negative_prompt,
+                prompt_embeds=prompt_embeds,
+                negative_prompt_embeds=negative_prompt_embeds
             )
 
         # Tokenize prompt
@@ -358,6 +396,7 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         timestep: torch.Tensor,
         embeddings: torch.Tensor,
         cross_attention_kwargs: Optional[Dict[str, Any]] = None,
+        added_cond_kwargs: Optional[Dict[str, Any]] = None,
         down_block_additional_residuals: Optional[List[torch.Tensor]] = None,
         mid_block_additional_residual: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
@@ -369,12 +408,13 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
             engine_name = "unet"
         if engine_name not in self.engine:
             return super(EnfugueTensorRTStableDiffusionPipeline, self).predict_noise_residual(
-                latents,
-                timestep,
-                embeddings,
-                cross_attention_kwargs,
-                down_block_additional_residuals,
-                mid_block_additional_residual,
+                latents=latents,
+                timestep=timestep,
+                embeddings=embeddings,
+                cross_attention_kwargs=cross_attention_kwargs,
+                added_cond_kwargs=added_cond_kwargs,
+                down_block_additional_residuals=down_block_additional_residuals,
+                mid_block_additional_residual=mid_block_additional_residual
             )
 
         timestep_float = timestep.float() if timestep.dtype != torch.float32 else timestep

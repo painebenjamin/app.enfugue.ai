@@ -28,20 +28,21 @@ if TYPE_CHECKING:
 DEFAULT_SIZE = 512
 DEFAULT_IMAGE_CALLBACK_STEPS = 10
 DEFAULT_CONDITIONING_SCALE = 1.0
-DEFAULT_CHUNKING_SIZE = 64
-DEFAULT_CHUNKING_BLUR = 64
 DEFAULT_IMG2IMG_STRENGTH = 0.8
 DEFAULT_INFERENCE_STEPS = 50
 DEFAULT_GUIDANCE_SCALE = 7.5
 DEFAULT_UPSCALE_PROMPT = (
-    "highly detailed, ultra-detailed, intricate detail, high definition, HD, 4k, ultra high def"
+    "highly detailed, ultra-detailed, intricate detail, high definition, HD, 4k, 8k UHD"
 )
-DEFAULT_UPSCALE_NEGATIVE_PROMPT = "blurry, out-of-focus, ugly, pixelated, artifacts"
+DEFAULT_UPSCALE_NEGATIVE_PROMPT = ""
 DEFAULT_UPSCALE_DIFFUSION_STEPS = 100
 DEFAULT_UPSCALE_DIFFUSION_GUIDANCE_SCALE = 12
 DEFAULT_UPSCALE_DIFFUSION_STRENGTH = 0.2
-DEFAULT_UPSCALE_DIFFUSION_CHUNKING_SIZE = 64
-DEFAULT_UPSCALE_DIFFUSION_CHUNKING_BLUR = 64
+
+DEFAULT_REFINER_STRENGTH = 0.3
+DEFAULT_REFINER_GUIDANCE_SCALE = 5.0
+DEFAULT_AESTHETIC_SCORE = 6.0
+DEFAULT_NEGATIVE_AESTHETIC_SCORE = 2.5
 
 MODEL_PROMPT_WEIGHT = 0.2
 GLOBAL_PROMPT_STEP_WEIGHT = 0.4
@@ -104,6 +105,10 @@ class DiffusionStep:
         strength: Optional[float] = DEFAULT_IMG2IMG_STRENGTH,
         num_inference_steps: Optional[int] = DEFAULT_INFERENCE_STEPS,
         guidance_scale: Optional[float] = DEFAULT_GUIDANCE_SCALE,
+        refiner_strength: Optional[float] = DEFAULT_REFINER_STRENGTH,
+        refiner_guidance_scale: Optional[float] = DEFAULT_REFINER_GUIDANCE_SCALE,
+        refiner_aesthetic_score: Optional[float] = DEFAULT_AESTHETIC_SCORE,
+        refiner_negative_aesthetic_score: Optional[float] = DEFAULT_NEGATIVE_AESTHETIC_SCORE,
         remove_background: bool = False,
         process_control_image: bool = True,
         scale_to_model_size: bool = True,
@@ -126,6 +131,10 @@ class DiffusionStep:
         self.guidance_scale = (
             guidance_scale if guidance_scale is not None else DEFAULT_GUIDANCE_SCALE
         )
+        self.refiner_strength = refiner_strength if refiner_strength is not None else DEFAULT_REFINER_STRENGTH
+        self.refiner_guidance_scale = refiner_guidance_scale if refiner_guidance_scale is not None else DEFAULT_REFINER_GUIDANCE_SCALE
+        self.refiner_aesthetic_score = refiner_aesthetic_score if refiner_aesthetic_score is not None else DEFAULT_AESTHETIC_SCORE
+        self.refiner_negative_aesthetic_score = refiner_negative_aesthetic_score if refiner_negative_aesthetic_score is not None else DEFAULT_NEGATIVE_AESTHETIC_SCORE
         self.remove_background = remove_background
         self.process_control_image = process_control_image
         self.scale_to_model_size = scale_to_model_size
@@ -145,6 +154,10 @@ class DiffusionStep:
             "num_inference_steps": self.num_inference_steps,
             "guidance_scale": self.guidance_scale,
             "remove_background": self.remove_background,
+            "refiner_strength": self.refiner_strength,
+            "refiner_guidance_scale": self.refiner_guidance_scale,
+            "refiner_aesthetic_score": self.refiner_aesthetic_score,
+            "refiner_negative_aesthetic_score": self.refiner_negative_aesthetic_score,
             "process_control_image": self.process_control_image,
             "scale_to_model_size": self.scale_to_model_size,
         }
@@ -180,6 +193,10 @@ class DiffusionStep:
             "strength": self.strength,
             "num_inference_steps": self.num_inference_steps,
             "guidance_scale": self.guidance_scale,
+            "refiner_strength": self.refiner_strength,
+            "refiner_guidance_scale": self.refiner_guidance_scale,
+            "refiner_aesthetic_score": self.refiner_aesthetic_score,
+            "refiner_negative_aesthetic_score": self.refiner_negative_aesthetic_score,
         }
 
     def check_process_control_image(
@@ -275,13 +292,16 @@ class DiffusionStep:
         ):
             image_width, image_height = self.width, self.height
 
-        if image_width is None or image_height is None:
-            raise ValueError("No known invocation size.")
+        pipeline_size = pipeline.size if mask is None else pipeline.inpainter_size
 
-        if image_width is not None and image_width < pipeline.size:
-            image_scale = pipeline.size / image_width
-        if image_height is not None and image_height < pipeline.size:
-            image_scale = max(image_scale, pipeline.size / image_height)
+        if image_width is None or image_height is None:
+            logger.warning("No known invocation size, defaulting to engine size")
+            image_width, image_height = pipeline_size, pipeline_size
+
+        if image_width is not None and image_width < pipeline_size:
+            image_scale = pipeline_size / image_width
+        if image_height is not None and image_height < pipeline_size:
+            image_scale = max(image_scale, pipeline_size / image_height)
 
         if image_scale > MAX_IMAGE_SCALE or not self.scale_to_model_size:
             # Refuse it's too oblong. We'll just calculate at the appropriate size.
@@ -336,6 +356,10 @@ class DiffusionStep:
             "strength",
             "num_inference_steps",
             "guidance_scale",
+            "refiner_strength",
+            "refiner_guidance_scale",
+            "refiner_aesthetic_score",
+            "refiner_negative_aesthetic_score",
             "width",
             "height",
             "remove_background",
@@ -421,19 +445,29 @@ class DiffusionPlan:
         self,
         prompt: Optional[str] = None,  # Global
         negative_prompt: Optional[str] = None,  # Global
-        size: Optional[int] = DEFAULT_SIZE,
+        size: Optional[int] = None,
+        refiner_size: Optional[int] = None,
+        inpainter_size: Optional[int] = None,
         model: Optional[str] = None,
+        refiner: Optional[str] = None,
+        inpainter: Optional[str] = None,
         lora: Optional[
             Union[str, List[str], Tuple[str, float], List[Union[str, Tuple[str, float]]]]
         ] = None,
+        lycoris: Optional[
+            Union[str, List[str], Tuple[str, float], List[Union[str, Tuple[str, float]]]]
+        ] = None,
         inversion: Optional[Union[str, List[str]]] = None,
-        width: Optional[int] = DEFAULT_SIZE,
-        height: Optional[int] = DEFAULT_SIZE,
+        scheduler: Optional[Literal["ddim", "ddpm", "deis", "dpmsm", "dpmss", "heun", "dpmd", "adpmd", "dpmsde", "unipc", "lmsd", "pndm", "eds", "eads"]] = None,
+        multi_scheduler: Optional[Literal["ddim", "ddpm", "deis", "dpmsm", "dpmss", "eds", "eads"]] = None,
+        vae: Optional[Literal["ema", "mse"]] = None,
+        width: Optional[int] = None,
+        height: Optional[int] = None,
         image_callback_steps: Optional[int] = DEFAULT_IMAGE_CALLBACK_STEPS,
         nodes: List[DiffusionNode] = [],
         image: Optional[Union[str, PIL.Image.Image]] = None,
-        chunking_size: Optional[int] = DEFAULT_CHUNKING_SIZE,
-        chunking_blur: Optional[int] = DEFAULT_CHUNKING_BLUR,
+        chunking_size: Optional[int] = None,
+        chunking_blur: Optional[int] = None,
         samples: Optional[int] = 1,
         seed: Optional[int] = None,
         build_tensorrt: bool = False,
@@ -483,26 +517,36 @@ class DiffusionPlan:
                 List[Literal["canny", "tile", "mlsd", "hed", "scribble", "inpaint"]],
             ]
         ] = None,
-        upscale_diffusion_chunking_size: Optional[int] = DEFAULT_UPSCALE_DIFFUSION_CHUNKING_SIZE,
-        upscale_diffusion_chunking_blur: Optional[int] = DEFAULT_UPSCALE_DIFFUSION_CHUNKING_BLUR,
+        upscale_diffusion_chunking_size: Optional[int] = None,
+        upscale_diffusion_chunking_blur: Optional[int] = None,
         upscale_diffusion_scale_chunking_size: bool = True,
         upscale_diffusion_scale_chunking_blur: bool = True,
     ) -> None:
-        self.size = size if size is not None else DEFAULT_SIZE
+        self.size = size if size is not None else (
+            1024 if model is not None and "xl" in model.lower() else 512
+        )
+        self.inpainter_size = inpainter_size
+        self.refiner_size = refiner_size
         self.prompt = prompt
         self.negative_prompt = negative_prompt
         self.model = model
+        self.refiner = refiner
+        self.inpainter = inpainter
         self.lora = lora
+        self.lycoris = lycoris
         self.inversion = inversion
-        self.width = width if width is not None else DEFAULT_SIZE
-        self.height = height if height is not None else DEFAULT_SIZE
+        self.scheduler = scheduler
+        self.multi_scheduler = multi_scheduler
+        self.vae = vae
+        self.width = width if width is not None else self.size
+        self.height = height if height is not None else self.size
         self.image = image
         self.image_callback_steps = image_callback_steps
         self.chunking_size = (
-            chunking_size if chunking_size is not None else DEFAULT_CHUNKING_SIZE
+            chunking_size if chunking_size is not None else self.size // 8
         )  # Pass 0 to disable
         self.chunking_blur = (
-            chunking_blur if chunking_blur is not None else DEFAULT_CHUNKING_BLUR
+            chunking_blur if chunking_blur is not None else self.size // 8
         )  # Pass 0 to disable
         self.samples = samples if samples is not None else 1
         self.seed = seed
@@ -515,12 +559,12 @@ class DiffusionPlan:
         self.upscale_diffusion_chunking_size = (
             upscale_diffusion_chunking_size
             if upscale_diffusion_chunking_size is not None
-            else DEFAULT_UPSCALE_DIFFUSION_CHUNKING_SIZE
+            else self.size // 4
         )
         self.upscale_diffusion_chunking_blur = (
             upscale_diffusion_chunking_blur
             if upscale_diffusion_chunking_blur is not None
-            else DEFAULT_UPSCALE_DIFFUSION_CHUNKING_BLUR
+            else self.size // 4
         )
         self.upscale_diffusion_guidance_scale = (
             upscale_diffusion_guidance_scale
@@ -591,9 +635,6 @@ class DiffusionPlan:
             else:
                 scales = [self.outscale]
             for j, scale in enumerate(scales):
-                # Unload the pipeline to force buffers to refresh, saves VRAM but takes time
-                pipeline.unload_pipeline()
-
                 def get_item_for_scale(item: Any) -> Any:
                     if not isinstance(item, list):
                         return item
@@ -609,16 +650,22 @@ class DiffusionPlan:
                         logger.debug(f"Image {i} had NSFW content, not upscaling.")
                         continue
 
-                    upscale = get_item_for_scale(self.upscale)
+                    upscale = get_item_for_scale(self.upscale).lower()
                     logger.debug(f"Upscaling sample {i} by {scale} using {upscale}")
 
                     if upscale == "esrgan":
+                        pipeline.offload_pipeline()
+                        pipeline.offload_refiner()
                         image = pipeline.upscaler.esrgan(image, tile=pipeline.size, outscale=scale)
                     elif upscale == "esrganime":
+                        pipeline.offload_pipeline()
+                        pipeline.offload_refiner()
                         image = pipeline.upscaler.esrgan(
                             image, tile=pipeline.size, outscale=scale, anime=True
                         )
                     elif upscale == "gfpgan":
+                        pipeline.offload_pipeline()
+                        pipeline.offload_refiner()
                         image = pipeline.upscaler.gfpgan(image, tile=pipeline.size, outscale=scale)
                     elif upscale in PIL_INTERPOLATION:
                         width, height = image.size
@@ -637,16 +684,22 @@ class DiffusionPlan:
                     image_callback(images)
 
                 if self.upscale_diffusion:
-                    # Disable pipeline safety here, it gives many false positives when upscaling.
-                    # We'll re-enable it after.
-                    re_enable_safety = pipeline.safe
-                    pipeline.safe = False
+                    if self.refiner:
+                        # Refiners have safety disabled from the jump
+                        logger.debug("Using refiner for upscaling.")
+                        re_enable_safety = False
+                        pipeline.reload_refiner()
+                    else:
+                        # Disable pipeline safety here, it gives many false positives when upscaling.
+                        # We'll re-enable it after.
+                        logger.debug("Using base pipeline for upscaling.")
+                        re_enable_safety = pipeline.safe
+                        pipeline.safe = False
                     for i, image in enumerate(images):
                         if nsfw is not None and nsfw[i]:
                             logger.debug(f"Image {i} had NSFW content, not upscaling.")
                             continue
-                        # Prepare the pipeline again
-                        self.prepare_pipeline(pipeline)
+                        
                         width, height = image.size
                         kwargs = {
                             "width": width,
@@ -654,27 +707,15 @@ class DiffusionPlan:
                             "image": image,
                             "num_images_per_prompt": 1,
                             "prompt": get_item_for_scale(self.upscale_diffusion_prompt),
-                            "negative_prompt": get_item_for_scale(
-                                self.upscale_diffusion_negative_prompt
-                            ),
+                            "negative_prompt": get_item_for_scale(self.upscale_diffusion_negative_prompt),
                             "strength": get_item_for_scale(self.upscale_diffusion_strength),
                             "num_inference_steps": get_item_for_scale(self.upscale_diffusion_steps),
-                            "guidance_scale": get_item_for_scale(
-                                self.upscale_diffusion_guidance_scale
-                            ),
+                            "guidance_scale": get_item_for_scale(self.upscale_diffusion_guidance_scale),
                             "chunking_size": self.upscale_diffusion_chunking_size,
                             "chunking_blur": self.upscale_diffusion_chunking_blur,
                             "progress_callback": progress_callback,
                         }
-                        if self.upscale_diffusion_scale_chunking_size:
-                            # Max out at half of the frame size or we get discontinuities
-                            kwargs["chunking_size"] = min(
-                                self.upscale_diffusion_chunking_size * (j + 1), pipeline.size // 2
-                            )
-                        if self.upscale_diffusion_scale_chunking_blur:
-                            kwargs["chunking_blur"] = min(
-                                self.upscale_diffusion_chunking_blur * (j + 1), pipeline.size // 2
-                            )
+                        
                         upscale_controlnet = get_item_for_scale(self.upscale_diffusion_controlnet)
                         if upscale_controlnet is not None:
                             logger.debug(f"Enabling {upscale_controlnet} for upscale diffusion")
@@ -695,10 +736,29 @@ class DiffusionPlan:
                                 pipeline.controlnet = None
                         else:
                             pipeline.controlnet = None
-                        image = pipeline(**kwargs).images[0]
+                        if self.refiner:
+                            upscale_pipeline = pipeline.refiner_pipeline
+                        else:
+                            pipeline.reload_pipeline() # If we didn't change controlnet, then pipeline is still on CPU
+                            upscale_pipeline = pipeline.pipeline
+                        
+                        if self.upscale_diffusion_scale_chunking_size:
+                            # Max out at half of the frame size or we get discontinuities
+                            kwargs["chunking_size"] = min(
+                                self.upscale_diffusion_chunking_size * (j + 1), pipeline.size // 2
+                            )
+                        if self.upscale_diffusion_scale_chunking_blur:
+                            kwargs["chunking_blur"] = min(
+                                self.upscale_diffusion_chunking_blur * (j + 1), pipeline.size // 2
+                            )
+                        
+                        logger.debug(f"Upscaling sample {i} with arguments {kwargs}")
+                        image = upscale_pipeline(**kwargs).images[0]
                         images[i] = image
                     if re_enable_safety:
                         pipeline.safe = True
+                elif j >= len(scales) - 1:
+                    pipeline.reload_pipeline()
                 if j < len(scales) - 1 and image_callback is not None:
                     image_callback(images)
         return StableDiffusionPipelineOutput(images=images, nsfw_content_detected=nsfw)
@@ -708,9 +768,17 @@ class DiffusionPlan:
         Assigns pipeline-level variables.
         """
         pipeline.model = self.model
+        pipeline.refiner = self.refiner
+        pipeline.inpainter = self.inpainter
         pipeline.lora = self.lora
+        pipeline.lycoris = self.lycoris
         pipeline.inversion = self.inversion
         pipeline.size = self.size
+        pipeline.scheduler = self.scheduler
+        pipeline.multi_scheduler = self.multi_scheduler
+        pipeline.vae = self.vae
+        pipeline.refiner_size = self.refiner_size
+        pipeline.inpainter_size = self.inpainter_size
         if self.build_tensorrt:
             pipeline.build_tensorrt = True
 
@@ -856,11 +924,19 @@ class DiffusionPlan:
 
         return {
             "model": self.model,
+            "refiner": self.refiner,
+            "inpainter": self.inpainter,
             "lora": self.lora,
+            "lycoris": self.lycoris,
             "inversion": self.inversion,
+            "scheduler": self.scheduler,
+            "multi_scheduler": self.multi_scheduler,
+            "vae": self.vae,
             "width": self.width,
             "height": self.height,
             "size": self.size,
+            "inpainter_size": self.inpainter_size,
+            "refiner_size": self.refiner_size,
             "seed": self.seed,
             "prompt": self.prompt,
             "negative_prompt": self.negative_prompt,
@@ -888,9 +964,17 @@ class DiffusionPlan:
         }
 
         for arg in [
+            "refiner",
+            "inpainter",
             "size",
+            "refiner_size",
+            "inpainter_size",
             "lora",
+            "lycoris",
             "inversion",
+            "scheduler",
+            "multi_scheduler",
+            "vae",
             "width",
             "height",
             "image_callback_steps",
@@ -944,27 +1028,25 @@ class DiffusionPlan:
         return image
 
     @staticmethod
-    def from_nodes(
-        size: Optional[int] = DEFAULT_SIZE,
+    def upscale_image(
+        image: PIL.Image,
+        size: Optional[int] = None,
+        refiner_size: Optional[int] = None,
+        inpainter_size: Optional[int] = None,
         model: Optional[str] = None,
+        refiner: Optional[str] = None,
+        inpainter: Optional[str] = None,
         lora: Optional[
             Union[str, List[str], Tuple[str, float], List[Union[str, Tuple[str, float]]]]
         ] = None,
+        lycoris: Optional[
+            Union[str, List[str], Tuple[str, float], List[Union[str, Tuple[str, float]]]]
+        ] = None,
         inversion: Optional[Union[str, List[str]]] = None,
-        model_prompt: Optional[str] = None,
-        model_negative_prompt: Optional[str] = None,
-        samples: int = 1,
+        scheduler: Optional[Literal["ddim", "ddpm", "deis", "dpmsm", "dpmss", "heun", "dpmd", "adpmd", "dpmsde", "unipc", "lmsd", "pndm", "eds", "eads"]] = None,
+        multi_scheduler: Optional[Literal["ddim", "ddpm", "deis", "dpmsm", "dpmss", "eds", "eads"]] = None,
+        vae: Optional[Literal["ema", "mse"]] = None,
         seed: Optional[int] = None,
-        width: Optional[int] = DEFAULT_SIZE,
-        height: Optional[int] = DEFAULT_SIZE,
-        image_callback_steps: int = DEFAULT_IMAGE_CALLBACK_STEPS,
-        nodes: List[NodeDict] = [],
-        chunking_size: Optional[int] = DEFAULT_CHUNKING_SIZE,
-        chunking_blur: Optional[int] = DEFAULT_CHUNKING_BLUR,
-        prompt: Optional[str] = None,
-        negative_prompt: Optional[str] = None,
-        num_inference_steps: Optional[int] = DEFAULT_INFERENCE_STEPS,
-        guidance_scale: Optional[float] = DEFAULT_GUIDANCE_SCALE,
         outscale: Optional[int] = 1,
         upscale: Optional[
             Union[
@@ -1011,21 +1093,180 @@ class DiffusionPlan:
                 List[Literal["canny", "tile", "mlsd", "hed", "scribble", "inpaint"]],
             ]
         ] = None,
-        upscale_diffusion_chunking_size: Optional[int] = DEFAULT_UPSCALE_DIFFUSION_CHUNKING_SIZE,
-        upscale_diffusion_chunking_blur: Optional[int] = DEFAULT_UPSCALE_DIFFUSION_CHUNKING_BLUR,
+        upscale_diffusion_chunking_size: Optional[int] = None,
+        upscale_diffusion_chunking_blur: Optional[int] = None,
         upscale_diffusion_scale_chunking_size: bool = True,
         upscale_diffusion_scale_chunking_blur: bool = True,
+        **kwargs: Any
+    ) -> DiffusionPlan:
+        """
+        Generates a plan to upscale a single image
+        """
+        if not outscale or outscale < 1 or not upscale:
+            raise ValueError("Upscaling requires at least the outscale and upscale method.")
+        if kwargs:
+            logger.warning(f"Plan `upscale_image` keyword arguments ignored: {kwargs}")
+        width, height = image.size
+        nodes: List[NodeDict] = [
+            {
+                "image": image,
+                "w": width,
+                "h": height,
+                "x": 0,
+                "y": 0,
+                "fit": None,
+                "anchor": None,
+                "infer": False,
+                "inpaint": False,
+                "control": False,
+                "controlnet": None,
+                "prompt": None,
+                "negative_prompt": None,
+                "strength": None,
+                "conditioning_scale": None,
+                "mask": None
+            }
+        ]
+        return DiffusionPlan.from_nodes(
+            size=size,
+            refiner_size=refiner_size,
+            inpainter_size=inpainter_size,
+            model=model,
+            refiner=refiner,
+            inpainter=inpainter,
+            lora=lora,
+            lycoris=lycoris,
+            inversion=inversion,
+            scheduler=scheduler,
+            multi_scheduler=multi_scheduler,
+            vae=vae,
+            seed=seed,
+            width=width,
+            height=height,
+            upscale=upscale,
+            outscale=outscale,
+            upscale_iterative=upscale_iterative,
+            upscale_diffusion=upscale_diffusion,
+            upscale_diffusion_steps=upscale_diffusion_steps,
+            upscale_diffusion_guidance_scale=upscale_diffusion_guidance_scale,
+            upscale_diffusion_strength=upscale_diffusion_strength,
+            upscale_diffusion_controlnet=upscale_diffusion_controlnet,
+            upscale_diffusion_chunking_size=upscale_diffusion_chunking_size,
+            upscale_diffusion_chunking_blur=upscale_diffusion_chunking_blur,
+            upscale_diffusion_scale_chunking_size=upscale_diffusion_scale_chunking_size,
+            upscale_diffusion_scale_chunking_blur=upscale_diffusion_scale_chunking_blur,
+            nodes=nodes
+        )
+            
+
+    @staticmethod
+    def from_nodes(
+        size: Optional[int] = None,
+        refiner_size: Optional[int] = None,
+        inpainter_size: Optional[int] = None,
+        model: Optional[str] = None,
+        refiner: Optional[str] = None,
+        inpainter: Optional[str] = None,
+        lora: Optional[
+            Union[str, List[str], Tuple[str, float], List[Union[str, Tuple[str, float]]]]
+        ] = None,
+        lycoris: Optional[
+            Union[str, List[str], Tuple[str, float], List[Union[str, Tuple[str, float]]]]
+        ] = None,
+        inversion: Optional[Union[str, List[str]]] = None,
+        scheduler: Optional[Literal["ddim", "ddpm", "deis", "dpmsm", "dpmss", "heun", "dpmd", "adpmd", "dpmsde", "unipc", "lmsd", "pndm", "eds", "eads"]] = None,
+        multi_scheduler: Optional[Literal["ddim", "ddpm", "deis", "dpmsm", "dpmss", "eds", "eads"]] = None,
+        vae: Optional[Literal["ema", "mse"]] = None,
+        model_prompt: Optional[str] = None,
+        model_negative_prompt: Optional[str] = None,
+        samples: int = 1,
+        seed: Optional[int] = None,
+        width: Optional[int] = None,
+        height: Optional[int] = None,
+        image_callback_steps: int = DEFAULT_IMAGE_CALLBACK_STEPS,
+        nodes: List[NodeDict] = [],
+        chunking_size: Optional[int] = None,
+        chunking_blur: Optional[int] = None,
+        prompt: Optional[str] = None,
+        negative_prompt: Optional[str] = None,
+        num_inference_steps: Optional[int] = DEFAULT_INFERENCE_STEPS,
+        guidance_scale: Optional[float] = DEFAULT_GUIDANCE_SCALE,
+        refiner_strength: Optional[float] = DEFAULT_REFINER_STRENGTH,
+        refiner_guidance_scale: Optional[float] = DEFAULT_REFINER_GUIDANCE_SCALE,
+        refiner_aesthetic_score: Optional[float] = DEFAULT_AESTHETIC_SCORE,
+        refiner_negative_aesthetic_score: Optional[float] = DEFAULT_NEGATIVE_AESTHETIC_SCORE,
+        outscale: Optional[int] = 1,
+        upscale: Optional[
+            Union[
+                Literal[
+                    "esrgan",
+                    "esrganime",
+                    "gfpgan",
+                    "lanczos",
+                    "bilinear",
+                    "bicubic",
+                    "lanczos",
+                    "nearest",
+                ],
+                List[
+                    Literal[
+                        "esrgan",
+                        "esrganime",
+                        "gfpgan",
+                        "lanczos",
+                        "bilinear",
+                        "bicubic",
+                        "lanczos",
+                        "nearest",
+                    ]
+                ],
+            ]
+        ] = None,
+        upscale_diffusion: bool = False,
+        upscale_iterative: bool = False,
+        upscale_diffusion_steps: Optional[Union[int, List[int]]] = DEFAULT_UPSCALE_DIFFUSION_STEPS,
+        upscale_diffusion_guidance_scale: Optional[
+            Union[float, int, List[Union[float, int]]]
+        ] = DEFAULT_UPSCALE_DIFFUSION_GUIDANCE_SCALE,
+        upscale_diffusion_strength: Optional[
+            Union[float, List[float]]
+        ] = DEFAULT_UPSCALE_DIFFUSION_STRENGTH,
+        upscale_diffusion_prompt: Optional[Union[str, List[str]]] = DEFAULT_UPSCALE_PROMPT,
+        upscale_diffusion_negative_prompt: Optional[
+            Union[str, List[str]]
+        ] = DEFAULT_UPSCALE_NEGATIVE_PROMPT,
+        upscale_diffusion_controlnet: Optional[
+            Union[
+                Literal["canny", "tile", "mlsd", "hed", "scribble", "inpaint"],
+                List[Literal["canny", "tile", "mlsd", "hed", "scribble", "inpaint"]],
+            ]
+        ] = None,
+        upscale_diffusion_chunking_size: Optional[int] = None,
+        upscale_diffusion_chunking_blur: Optional[int] = None,
+        upscale_diffusion_scale_chunking_size: bool = True,
+        upscale_diffusion_scale_chunking_blur: bool = True,
+        **kwargs: Any
     ) -> DiffusionPlan:
         """
         Assembles a diffusion plan from step dictionaries.
         """
+        if kwargs:
+            logger.warning(f"Plan `from_nodes` keyword arguments ignored: {kwargs}")
         # First instantiate the plan
         plan = DiffusionPlan(
             model=model,
+            refiner=refiner,
+            inpainter=inpainter,
             lora=lora,
+            lycoris=lycoris,
             inversion=inversion,
+            scheduler=scheduler,
+            multi_scheduler=multi_scheduler,
+            vae=vae,
             samples=samples,
             size=size,
+            refiner_size=refiner_size,
+            inpainter_size=inpainter_size,
             seed=seed,
             width=width,
             height=height,
@@ -1114,6 +1355,10 @@ class DiffusionPlan:
                 negative_prompt=str(negative_prompt_tokens),
                 num_inference_steps=num_inference_steps,
                 guidance_scale=guidance_scale,
+                refiner_strength=refiner_strength,
+                refiner_guidance_scale=refiner_guidance_scale,
+                refiner_aesthetic_score=refiner_aesthetic_score,
+                refiner_negative_aesthetic_score=refiner_negative_aesthetic_score
             )
 
             plan.nodes = [DiffusionNode([(0, 0), (plan.width, plan.height)], step)]
@@ -1129,7 +1374,12 @@ class DiffusionPlan:
         # Using the diffusion canvas, assemble a multi-step plan
         for i, node_dict in enumerate(nodes):
             step = DiffusionStep(
-                num_inference_steps=num_inference_steps, guidance_scale=guidance_scale
+                num_inference_steps=num_inference_steps,
+                guidance_scale=guidance_scale,
+                refiner_strength=refiner_strength,
+                refiner_guidance_scale=refiner_guidance_scale,
+                refiner_aesthetic_score=refiner_aesthetic_score,
+                refiner_negative_aesthetic_score=refiner_negative_aesthetic_score
             )
 
             node_width = int(node_dict["w"])
@@ -1159,6 +1409,11 @@ class DiffusionPlan:
             node_remove_background = bool(node_dict.get("remove_background", False))
             node_inference_steps: Optional[int] = node_dict.get("inference_steps", None)  # type: ignore[assignment]
             node_guidance_scale: Optional[float] = node_dict.get("guidance_scale", None)  # type: ignore[assignment]
+            
+            node_refiner_strength: Optional[float] = node_dict.get("refiner_strength", None) # type: ignore[assignment]
+            node_refiner_guidance_scale: Optional[float] = node_dict.get("refiner_guidance_scale", None) # type: ignore[assignment]
+            node_refiner_aesthetic_score: Optional[float] = node_dict.get("refiner_aesthetic_score", None) # type: ignore[assignment]
+            node_refiner_negative_aesthetic_score: Optional[float] = node_dict.get("refiner_negative_aesthetic_score", None) # type: ignore[assignment]
 
             node_prompt_tokens = TokenMerger()
             node_negative_prompt_tokens = TokenMerger()
@@ -1223,6 +1478,10 @@ class DiffusionPlan:
                         prompt=str(node_prompt_tokens),
                         negative_prompt=str(node_negative_prompt_tokens),
                         guidance_scale=guidance_scale,
+                        refiner_strength=refiner_strength,
+                        refiner_guidance_scale=refiner_guidance_scale,
+                        refiner_aesthetic_score=refiner_aesthetic_score,
+                        refiner_negative_aesthetic_score=refiner_negative_aesthetic_score
                     )
                     step_image = inpaint_image_step
                 elif node_image_needs_outpainting and (node_infer or node_control):
@@ -1233,6 +1492,10 @@ class DiffusionPlan:
                         prompt=str(node_prompt_tokens),
                         negative_prompt=str(node_negative_prompt_tokens),
                         guidance_scale=guidance_scale,
+                        refiner_strength=refiner_strength,
+                        refiner_guidance_scale=refiner_guidance_scale,
+                        refiner_aesthetic_score=refiner_aesthetic_score,
+                        refiner_negative_aesthetic_score=refiner_negative_aesthetic_score
                     )
                     step_image = outpaint_image_step
                 else:
@@ -1273,9 +1536,17 @@ class DiffusionPlan:
                 step.num_inference_steps = node_inference_steps
             if node_guidance_scale:
                 step.guidance_scale = node_guidance_scale
+            if node_refiner_strength:
+                step.refiner_strength = node_refiner_strength
+            if node_refiner_guidance_scale:
+                step.refiner_guidance_scale = node_refiner_guidance_scale
+            if node_refiner_aesthetic_score:
+                step.refiner_aesthetic_score = node_refiner_aesthetic_score
+            if node_refiner_negative_aesthetic_score:
+                step.refiner_negative_aesthetic_score = node_refiner_negative_aesthetic_score
             if not node_scale_to_model_size:
                 step.scale_to_model_size = False
-
+            
             # Add step to plan
             plan.nodes.append(DiffusionNode(node_bounds, step))
 

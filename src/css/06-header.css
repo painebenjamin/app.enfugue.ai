@@ -46,14 +46,18 @@ header h1 {
     font-family: var(--body-font);
 }
 
-header .logout {
-    margin-right: 5px;
+header i {
     opacity: 0.5;
     cursor: pointer;
     transition: all 0.25s ease-in-out;
-    color: var(--light-color);
+    color: var(--lightest-color);
 }
 
-header .logout:hover {
+header i:hover {
     opacity: 1.0;
 }
+
+header i.logout {
+    margin-right: 5px;
+}
+

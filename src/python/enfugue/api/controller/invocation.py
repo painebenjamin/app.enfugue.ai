@@ -42,50 +42,84 @@ class EnfugueAPIInvocationController(EnfugueAPIControllerBase):
         invocation in the queue.
         """
         # Get details about model
-        model, size, lora, inversion, model_prompt, model_negative_prompt = (
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-        )
         model_name = request.parsed.pop("model", None)
+        refiner_name = request.parsed.pop("refiner", None)
+        inpainter_name = request.parsed.get("inpainter", None)
         model_type = request.parsed.pop("model_type", None)
         plan_kwargs: Dict[str, Any] = {}
         if model_name is not None and model_type == "model":
             plan_kwargs = self.get_plan_kwargs_from_model(model_name)
         elif model_name is not None and model_type == "checkpoint":
             plan_kwargs = {
-                "model": os.path.join(
-                    self.configuration.get(
-                        "enfugue.engine.checkpoint", os.path.join(self.engine_root, "checkpoint")
-                    ),
-                    model_name,
+                "model": os.path.abspath(
+                    os.path.join(
+                        self.configuration.get(
+                            "enfugue.engine.checkpoint", os.path.join(self.engine_root, "checkpoint")
+                        ),
+                        model_name,
+                    )
+                ),
+                "refiner": None if refiner_name is None else os.path.abspath(
+                    os.path.join(
+                        self.configuration.get(
+                            "enfugue.engine.checkpoint", os.path.join(self.engine_root, "checkpoint")
+                        ),
+                        refiner_name,
+                    )
+                ),
+                "inpainter": None if inpainter_name is None else os.path.abspath(
+                    os.path.join(
+                        self.configuration.get(
+                            "enfugue.engine.checkpoint", os.path.join(self.engine_root, "checkpoint")
+                        ),
+                        inpainter_name,
+                    )
                 ),
                 "lora": [
                     (
-                        os.path.join(
-                            self.configuration.get(
-                                "enfugue.engine.lora", os.path.join(self.engine_root, "lora")
-                            ),
-                            lora["model"],
+                        os.path.abspath(
+                            os.path.join(
+                                self.configuration.get(
+                                    "enfugue.engine.lora", os.path.join(self.engine_root, "lora")
+                                ),
+                                lora["model"],
+                            )
                         ),
                         float(lora["weight"]),
                     )
                     for lora in request.parsed.pop("lora", [])
                 ],
-                "inversion": [
-                    os.path.join(
-                        self.configuration.get(
-                            "enfugue.engine.inversion", os.path.join(self.engine_root, "inversion")
+                "lycoris": [
+                    (
+                        os.path.abspath(
+                            os.path.join(
+                                self.configuration.get(
+                                    "enfugue.engine.lycoris", os.path.join(self.engine_root, "lycoris")
+                                ),
+                                lycoris["model"],
+                            )
                         ),
-                        inversion,
+                        float(lycoris["weight"]),
+                    )
+                    for lycoris in request.parsed.pop("lycoris", [])
+                ],
+                "inversion": [
+                    os.path.abspath(
+                        os.path.join(
+                            self.configuration.get(
+                                "enfugue.engine.inversion", os.path.join(self.engine_root, "inversion")
+                            ),
+                            inversion,
+                        )
                     )
                     for inversion in request.parsed.pop("inversion", [])
                 ],
             }
-        plan = DiffusionPlan.from_nodes(**{**plan_kwargs, **request.parsed})
+        # Always take passed scheduler
+        scheduler = request.parsed.pop("scheduler", None)
+        if scheduler is not None:
+            plan_kwargs["scheduler"] = scheduler
+        plan = DiffusionPlan.from_nodes(**{**request.parsed, **plan_kwargs})
         return self.invoke(request.token.user.id, plan).format()
 
     @handlers.path("^/api/invocation$")

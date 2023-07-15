@@ -1,6 +1,6 @@
 /** @module controller/models/civitai */
 import { MenuController } from "../menu.mjs";
-import { isEmpty, humanSize, truncate } from "../../base/helpers.mjs";
+import { isEmpty, humanSize, truncate, cleanHTML } from "../../base/helpers.mjs";
 import { ElementBuilder } from "../../base/builder.mjs";
 import { View, ParentView, TabbedView } from "../../view/base.mjs";
 import { SimpleNotification } from "../../common/notify.mjs";
@@ -143,7 +143,7 @@ class CivitAIItemView extends View {
                             if (!isEmpty(image.meta) && !isEmpty(image.meta.prompt)) {
                                 if (!!navigator.clipboard) {
                                     // We can copy, bind clipboard write
-                                    node.data("tooltip", `${image.meta.prompt}<br /><em class='note'>Ctrl+Right Click to copy prompt.</em>`);
+                                    node.data("tooltip", `${cleanHTML(image.meta.prompt)}<br /><em class='note'>Ctrl+Right Click to copy prompt.</em>`);
                                     node.on("contextmenu", (e) => {
                                         if (e.ctrlKey) {
                                             e.preventDefault();
@@ -153,7 +153,7 @@ class CivitAIItemView extends View {
                                         }
                                     });
                                 } else {
-                                    node.data("tooltip", image.meta.prompt);
+                                    node.data("tooltip", cleanHTML(image.meta.prompt));
                                 }
                             }
                             return node;
@@ -425,6 +425,14 @@ class CivitAIBrowserView extends TabbedView {
                 config, 
                 (...args) => getCategoryData("lora", ...args),
                 (...args) => download("lora", ...args)
+            )
+        );
+        this.addTab(
+            "LyCORIS", 
+            new CivitAICategoryBrowserView(
+                config, 
+                (...args) => getCategoryData("lycoris", ...args),
+                (...args) => download("lycoris", ...args)
             )
         );
         this.addTab(

@@ -12,16 +12,34 @@ class DiffusionModel extends ModelObject {
     static alwaysInclude = true;
     static apiRoot = "models";
     static apiScope = ["name"];
-    static apiInclude = ["lora", "inversion"];
+    static apiInclude = ["refiner", "inpainter", "lora", "lycoris", "inversion", "scheduler", "vae", "config"];
 
-    getTensorRTStatus() {
-        return this.queryModel("get", `${this.url}/tensorrt`);
+    getStatus() {
+        return this.queryModel("get", `${this.url}/status`);
+    }
+
+    /**
+     * Turns the included config into an object.
+     */
+    get defaultConfiguration() {
+        let config = {};
+        if (Array.isArray(this.config)) {
+            for (let configurationPart of this.config) {
+                config[configurationPart.configuration_key] = configurationPart.configuration_value;
+            }
+        }
+        return config;
     }
 };
 
+class DiffusionModelRefiner extends ModelObject {};
+class DiffusionModelScheduler extends ModelObject {};
+class DiffusionModelVAE extends ModelObject {};
+class DiffusionModelInpainter extends ModelObject {};
 class DiffusionModelInversion extends ModelObject {};
-
 class DiffusionModelLora extends ModelObject {};
+class DiffusionModelLycoris extends ModelObject {};
+class DiffusionModelDefaultConfiguration extends ModelObject {};
 
 class DiffusionInvocation extends ModelObject {
     static apiRoot = "invocation-history";
@@ -45,8 +63,14 @@ class PermissionGroup extends ModelObject {};
 class EnfugueModel extends Model {
     static modelObjects = [
         DiffusionModel,
+        DiffusionModelRefiner,
+        DiffusionModelInpainter,
         DiffusionModelInversion,
+        DiffusionModelScheduler,
+        DiffusionModelDefaultConfiguration,
+        DiffusionModelVAE,
         DiffusionModelLora,
+        DiffusionModelLycoris,
         DiffusionInvocation,
         User,
         UserPermission,

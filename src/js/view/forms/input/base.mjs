@@ -63,19 +63,9 @@ class InputView extends View {
         this.onInputCallbacks = [];
         this.onFocusCallbacks = [];
         this.onBlurCallbacks = [];
-
-        if (!isEmpty(this.constructor.onChange)) {
-            this.onChange((e) => this.constructor.onChange(this, e));
-        }
-        if (!isEmpty(this.constructor.onInput)) {
-            this.onInput((e) => this.constructor.onInput(this, e));
-        }
-        if (!isEmpty(this.constructor.onFocus)) {
-            this.onFocus((e) => this.constructor.onFocus(this, e));
-        }
-        if (!isEmpty(this.constructor.onBlur)) {
-            this.onBlur((e) => this.constructor.onBlur(this, e));
-        }
+        this.onClickCallbacks = [];
+        this.onMouseUpCallbacks = [];
+        this.onMouseDownCallbacks = [];
     }
 
     /**
@@ -116,6 +106,33 @@ class InputView extends View {
     onBlur(callback) {
         this.onBlurCallbacks.push(callback);
     }
+    
+    /**
+     * Adds a callback to perform when the input is clicked.
+     *
+     * @param callable $callback The callback function.
+     */
+    onClick(callback) {
+        this.onClickCallbacks.push(callback);
+    }
+    
+    /**
+     * Adds a callback to perform when the input first has a mouse down.
+     *
+     * @param callable $callback The callback function.
+     */
+    onMouseDown(callback) {
+        this.onMouseDownCallbacks.push(callback);
+    }
+    
+    /**
+     * Adds a callback to perform when the input first has a mouse up.
+     *
+     * @param callable $callback The callback function.
+     */
+    onMouseUp(callback) {
+        this.onMouseUpCallbacks.push(callback);
+    }
 
     /**
      * Force focus on this input.
@@ -149,7 +166,7 @@ class InputView extends View {
     /**
      * Trigger onInput callbacks.
      *
-     * @param Event $e The change event. Optional.
+     * @param Event $e The input event.
      */
     inputted(e) {
         e.stopPropagation();
@@ -163,7 +180,7 @@ class InputView extends View {
     /**
      * Trigger onFocus callbacks.
      *
-     * @param Event $e The change event. Optional.
+     * @param Event $e The focus event.
      */
     focused(e) {
         e.stopPropagation();
@@ -176,13 +193,49 @@ class InputView extends View {
     /**
      * Trigger onBlur callbacks.
      *
-     * @param Event $e The change event. Optional.
+     * @param Event $e The blur event.
      */
     blurred(e) {
         e.stopPropagation();
         e.preventDefault();
         for (let blurCallback of this.onBlurCallbacks) {
             blurCallback(e);
+        }
+    }
+    
+    /**
+     * Trigger onClick callbacks.
+     *
+     * @param Event $e The click event.
+     */
+    clicked(e) {
+        e.stopPropagation();
+        for (let clickCallback of this.onClickCallbacks) {
+            clickCallback(e);
+        }
+    }
+    
+    /**
+     * Trigger onMouseUp callbacks.
+     *
+     * @param Event $e The mouseup event.
+     */
+    mouseUpped(e) {
+        e.stopPropagation();
+        for (let mouseUpCallback of this.onMouseUpCallbacks) {
+            mouseUpCallback(e);
+        }
+    }
+    
+    /**
+     * Trigger onMouseDown callbacks.
+     *
+     * @param Event $e The mouseup event.
+     */
+    mouseDowned(e) {
+        e.stopPropagation();
+        for (let mouseDownCallback of this.onMouseDownCallbacks) {
+            mouseDownCallback(e);
         }
     }
 
@@ -289,7 +342,9 @@ class InputView extends View {
             .on("input", (e) => this.inputted(e))
             .on("blur", (e) => this.blurred(e))
             .on("focus", (e) => this.focused(e))
-            .on("click,mouseup,mousedown", (e) => e.stopPropagation());
+            .on("click", (e) => this.clicked(e))
+            .on("mouseup", (e) => this.mouseUpped(e))
+            .on("mousedown", (e) => this.mouseDowned(e));
 
         if (this.constructor.tagName == "input") {
             node.type(this.constructor.inputType);

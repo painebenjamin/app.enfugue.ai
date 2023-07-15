@@ -22,6 +22,19 @@ __all__ = ["EnfugueAPIModelsController"]
 class EnfugueAPIModelsController(EnfugueAPIControllerBase):
     handlers = UserExtensionHandlerRegistry()
 
+    MODEL_DEFAULT_FIELDS = [
+        "width",
+        "height",
+        "chunking_size",
+        "chunking_blur",
+        "inference_steps",
+        "guidance_scale",
+        "refiner_denoising_strength",
+        "refiner_guidance_scale",
+        "refiner_aesthetic_score",
+        "refiner_negative_aesthetic_score",
+    ]
+
     @handlers.path("^/api/checkpoints$")
     @handlers.methods("GET")
     @handlers.format()
@@ -53,6 +66,22 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         if os.path.exists(lora_dir):
             lora = os.listdir(lora_dir)
         return lora
+    
+    @handlers.path("^/api/lycoris$")
+    @handlers.methods("GET")
+    @handlers.format()
+    @handlers.secured()
+    def get_lycoris(self, request: Request, response: Response) -> List[str]:
+        """
+        Gets installed lycoris/locon
+        """
+        lycoris = []
+        lycoris_dir = self.configuration.get(
+            "enfugue.engine.lycoris", os.path.join(self.engine_root, "lycoris")
+        )
+        if os.path.exists(lycoris_dir):
+            lycoris = os.listdir(lycoris_dir)
+        return lycoris
 
     @handlers.path("^/api/inversions$")
     @handlers.methods("GET")
@@ -96,10 +125,14 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
             if os.path.exists(engine_metadata_path):
                 engine_metadata = load_json(engine_metadata_path)
                 engine_lora = engine_metadata.get("lora", [])
+                engine_lycoris = engine_metadata.get("lycoris", [])
                 engine_inversion = engine_metadata.get("inversion", [])
 
                 engine_lora_dict: Dict[str, float] = dict(
                     [(str(part[0]), float(part[1])) for part in engine_lora]
+                )
+                engine_lycoris_dict: Dict[str, float] = dict(
+                    [(str(part[0]), float(part[1])) for part in engine_lycoris]
                 )
 
                 engine_size = engine_metadata.get("size", engine_size)
@@ -121,6 +154,7 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
                 for model in possible_models:
                     mismatched = False
                     matched_lora = []
+                    matched_lycoris = []
                     matched_inversion = []
                     for lora in model.lora:
                         lora_name, ext = os.path.splitext(lora.model)
@@ -129,6 +163,13 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
                             continue
                         else:
                             matched_lora.append(lora_name)
+                    for lycoris in model.lycoris:
+                        lycoris_name, ext = os.path.splitext(lycoris.model)
+                        if engine_lycoris_dict.get(lycoris_name, None) != lycoris.weight:
+                            mismatched = True
+                            continue
+                        else:
+                            matched_lycoris.append(lycoris_name)
                     for inversion in model.inversion:
                         inversion_name, ext = os.path.splitext(inversion.model)
                         if inversion_name not in engine_inversion:
@@ -138,6 +179,7 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
                             matched_inversion.append(inversion_name)
                     if (
                         len(matched_lora) == len(engine_lora_dict.keys())
+                        and len(matched_lycoris) == len(engine_lycoris_dict.keys())
                         and len(matched_inversion) == len(engine_inversion)
                         and not mismatched
                     ):
@@ -150,6 +192,7 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
                     "type": engine_type,
                     "model": engine_model,
                     "lora": engine_lora,
+                    "lycoris": engine_lycoris,
                     "inversion": engine_inversion,
                     "used": engine_used,
                     "used_by": list(set(engine_used_by)),
@@ -183,15 +226,15 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
             )
         shutil.rmtree(engine_dir)
 
-    @handlers.path("^/api/models/(?P<model_name>[^\/]+)/tensorrt$")
+    @handlers.path("^/api/models/(?P<model_name>[^\/]+)/status$")
     @handlers.methods("GET")
     @handlers.format()
     @handlers.secured("DiffusionModel", "read")
-    def get_model_tensorrt_status(
+    def get_model_status(
         self, request: Request, response: Response, model_name: str
     ) -> Dict[str, Any]:
         """
-        Gets TensorRT status for a particular model
+        Gets status for a particular model
         """
         model = (
             self.database.query(self.orm.DiffusionModel)
@@ -201,13 +244,52 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         if not model:
             raise NotFoundError(f"No model named {model_name}")
 
-        return DiffusionPipelineManager.get_tensorrt_status(
+        main_model_status = DiffusionPipelineManager.get_status(
             self.engine_root,
             model.model,
             model.size,
             [(lora.model, lora.weight) for lora in model.lora],
+            [(lycoris.model, lycoris.weight) for lycoris in model.lycoris],
             [inversion.model for inversion in model.inversion],
         )
+
+        if model.inpainter:
+            inpainter_model = model.inpainter[0].model
+            inpainter_model_status = DiffusionPipelineManager.get_status(
+                self.engine_root,
+                model.inpainter[0].model,
+                model.size,
+            )
+        else:
+            model_name, ext = os.path.splitext(model.model)
+            inpainter_model = f"{model_name}-inpainting{ext}"
+            inpainter_model_status = DiffusionPipelineManager.get_status(
+                self.engine_root,
+                inpainter_model,
+                model.size,
+            )
+        
+        if model.refiner:
+            refiner_model = model.refiner[0].model
+            refiner_model_status = DiffusionPipelineManager.get_status(
+                self.engine_root,
+                refiner_model,
+                model.size,
+            )
+        else:
+            refiner_model = None
+            refiner_model_status = None
+
+        return {
+            "model": model.model,
+            "refiner": refiner_model,
+            "inpainter": inpainter_model,
+            "tensorrt": {
+                "base": main_model_status,
+                "inpainter": inpainter_model_status,
+                "refiner": refiner_model_status
+            }
+        }
 
     @handlers.path("^/api/models/(?P<model_name>[^\/]+)/tensorrt/(?P<network_name>[^\/]+)$")
     @handlers.methods("POST")
@@ -273,17 +355,88 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
 
         for existing_lora in model.lora:
             self.database.delete(existing_lora)
+        
+        for existing_lycoris in model.lycoris:
+            self.database.delete(existing_lycoris)
 
         for existing_inversion in model.inversion:
             self.database.delete(existing_inversion)
 
-        self.database.commit()
+        for existing_scheduler in model.scheduler:
+            self.database.delete(existing_scheduler)
+
+        for existing_refiner in model.refiner:
+            self.database.delete(existing_refiner)
+
+        for existing_inpainter in model.inpainter:
+            self.database.delete(existing_inpainter)
+
+        for existing_config in model.config:
+            self.database.delete(existing_config)
+
+        for existing_vae in model.vae:
+            self.database.delete(existing_vae)
+
+
+        refiner = request.parsed.get("refiner", None)
+        if refiner:
+            self.database.add(
+                self.orm.DiffusionModelRefiner(
+                    diffusion_model_name=model_name,
+                    model=refiner,
+                    size = request.parsed.get("refiner_size", None)
+                )
+            )
+        
+        inpainter = request.parsed.get("inpainter", None)
+        if inpainter:
+            self.database.add(
+                self.orm.DiffusionModelInpainter(
+                    diffusion_model_name=model_name,
+                    model=inpainter,
+                    size = request.parsed.get("inpainter_size", None)
+                )
+            )
+
+        scheduler = request.parsed.get("scheduler", None)
+        if scheduler:
+            self.database.add(
+                self.orm.DiffusionModelScheduler(
+                    diffusion_model_name=model_name,
+                    name=scheduler,
+                )
+            )
+        
+        multi_scheduler = request.parsed.get("multi_scheduler", None)
+        if multi_scheduler:
+            self.database.add(
+                self.orm.DiffusionModelScheduler(
+                    diffusion_model_name=model_name,
+                    name=multi_scheduler,
+                    context="multi_diffusion"
+                )
+            )
+        
+        vae = request.parsed.get("vae", None)
+        if vae:
+            self.database.add(
+                self.orm.DiffusionModelVAE(
+                    diffusion_model_name=model_name,
+                    name=vae,
+                )
+            )
 
         for lora in request.parsed.get("lora", []):
             new_lora = self.orm.DiffusionModelLora(
                 diffusion_model_name=model.name, model=lora["model"], weight=lora["weight"]
             )
             self.database.add(new_lora)
+        
+        for lycoris in request.parsed.get("lycoris", []):
+            new_lycoris = self.orm.DiffusionModelLycoris(
+                diffusion_model_name=model.name, model=lycoris["model"], weight=lycoris["weight"]
+            )
+            self.database.add(new_lycoris)
 
         for inversion in request.parsed.get("inversion", []):
             new_inversion = self.orm.DiffusionModelInversion(
@@ -291,6 +444,14 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
                 model=inversion,
             )
             self.database.add(new_inversion)
+            
+        for field_name in self.MODEL_DEFAULT_FIELDS:
+            field_value = request.parsed.get(field_name, None)
+            if field_value:
+                new_config = self.orm.DiffusionModelDefaultConfiguration(
+                    diffusion_model_name=model.name, configuration_key=field_name, configuration_value=field_value
+                )
+                self.database.add(new_config)
 
         self.database.commit()
         return model
@@ -312,8 +473,18 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
 
         for lora in model.lora:
             self.database.delete(lora)
+        for lycoris in model.lycoris:
+            self.database.delete(lycoris)
         for inversion in model.inversion:
             self.database.delete(inversion)
+        for refiner in model.refiner:
+            self.database.delete(refiner)
+        for scheduler in model.scheduler:
+            self.database.delete(scheduler)
+        for vae in model.vae:
+            self.database.delete(vae)
+        for config in model.config:
+            self.database.delete(config)
 
         self.database.commit()
         self.database.delete(model)
@@ -337,11 +508,52 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
             )
             self.database.add(new_model)
             self.database.commit()
+            refiner = request.parsed.get("refiner", None)
+            if refiner:
+                new_refiner = self.orm.DiffusionModelRefiner(
+                    diffusion_model_name=new_model.name, model=refiner, size=request.parsed.get("refiner_size", None)
+                )
+                self.database.add(new_refiner)
+                self.database.commit()
+            inpainter = request.parsed.get("inpainter", None)
+            if inpainter:
+                new_inpainter = self.orm.DiffusionModelInpainter(
+                    diffusion_model_name=new_model.name, model=inpainter, size=request.parsed.get("inpainter_size", None)
+                )
+                self.database.add(new_inpainter)
+                self.database.commit()
+            scheduler = request.parsed.get("scheduler", None)
+            if scheduler:
+                new_scheduler = self.orm.DiffusionModelScheduler(
+                    diffusion_model_name=new_model.name, name=scheduler
+                )
+                self.database.add(new_scheduler)
+                self.database.commit()
+            multi_scheduler = request.parsed.get("multi_scheduler", None)
+            if multi_scheduler:
+                new_multi_scheduler = self.orm.DiffusionModelScheduler(
+                    diffusion_model_name=new_model.name, name=multi_scheduler, context="multi_diffusion"
+                )
+                self.database.add(new_multi_scheduler)
+                self.database.commit()
+            vae = request.parsed.get("vae", None)
+            if vae:
+                new_vae = self.orm.DiffusionModelVAE(
+                    diffusion_model_name=new_model.name, name=vae
+                )
+                self.database.add(new_vae)
+                self.database.commit()
             for lora in request.parsed.get("lora", []):
                 new_lora = self.orm.DiffusionModelLora(
                     diffusion_model_name=new_model.name, model=lora["model"], weight=lora["weight"]
                 )
                 self.database.add(new_lora)
+                self.database.commit()
+            for lycoris in request.parsed.get("lycoris", []):
+                new_lycoris = self.orm.DiffusionModelLycoris(
+                    diffusion_model_name=new_model.name, model=lycoris["model"], weight=lycoris["weight"]
+                )
+                self.database.add(new_lycoris)
                 self.database.commit()
             for inversion in request.parsed.get("inversion", []):
                 new_inversion = self.orm.DiffusionModelInversion(
@@ -349,6 +561,14 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
                 )
                 self.database.add(new_inversion)
                 self.database.commit()
+            for field_name in self.MODEL_DEFAULT_FIELDS:
+                field_value = request.parsed.get(field_name, None)
+                if field_value:
+                    new_config = self.orm.DiffusionModelDefaultConfiguration(
+                        diffusion_model_name=new_model.name, configuration_key=field_name, configuration_value=field_value
+                    )
+                    self.database.add(new_config)
+                    self.database.commit()
             return new_model
         except KeyError as ex:
             raise BadRequestError(f"Missing required parameter {ex}")

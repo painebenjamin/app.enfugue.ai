@@ -1,4 +1,4 @@
-/** @module controller/sidebar/01-canvas */
+/** @module controller/sidebar/02-canvas */
 import { isEmpty } from "../../base/helpers.mjs";
 import { FormView } from "../../view/forms/base.mjs";
 import { NumberInputView } from "../../view/forms/input.mjs";
@@ -126,42 +126,33 @@ class CanvasController extends Controller {
             this.engine.width = values.width;
             this.engine.height = values.height;
             this.engine.chunkingSize = values.chunkingSize
+            this.engine.chunkingBlur = values.chunkingBlur;
         });
 
         // Add form to sidebar
         this.application.sidebar.addChild(this.canvasForm);
-
-        // Subscribe to events
-        this.subscribe("modelPickerChange", async (newModel) => {
-            let currentEngineWidth = this.engine.width,
-                currentEngineHeight = this.engine.height,
-                dimensionsChanged = false,
-                widthInput = await this.canvasForm.getInputView("width"),
-                heightInput = await this.canvasForm.getInputView("height");
-            
-            widthInput.setMin(newModel.size);
-            heightInput.setMin(newModel.size);
-
-            if (currentEngineWidth < newModel.size) {
-                widthInput.setValue(newModel.size);
-                this.engine.width = newModel.size;
-                this.images.width = newModel.size;
-                dimensionsChanged = true;
-            } 
-            
-            if (currentEngineHeight < newModel.size) {
-                heightInput.setValue(newModel.size);
-                this.engine.height = newModel.size;
-                this.images.height = newModel.size;
-                dimensionsChanged = true;
-            }
-
-            if (dimensionsChanged) {
-                this.notify(
-                    "info", 
-                    "Dimensions Changed", 
-                    "The base model specifies a size larger than the current canvas, it has been modified to match."
-                );
+        
+        // Subscribe to model changes to look for defaults
+        this.subscribe("modelPickerChange", (newModel) => {
+            if (!isEmpty(newModel)) {
+                let defaultConfig = newModel.defaultConfiguration,
+                    canvasConfig = {};
+                
+                if (!isEmpty(defaultConfig.width)) {
+                    canvasConfig.width = defaultConfig.width;
+                }
+                if (!isEmpty(defaultConfig.height)) {
+                    canvasConfig.height = defaultConfig.height;
+                }
+                if (!isEmpty(defaultConfig.chunking_size)) {
+                    canvasConfig.chunkingSize = defaultConfig.chunking_size;
+                }
+                if (!isEmpty(defaultConfig.chunking_blur)) {
+                    canvasConfig.chunkingBlur = defaultConfig.chunking_blur;
+                }
+                if (!isEmpty(canvasConfig)) {
+                    this.canvasForm.setValues(canvasConfig);
+                }
             }
         });
     }
