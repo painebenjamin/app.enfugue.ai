@@ -25,7 +25,7 @@ install_requires = [
     "torch>=1.13.1,<2.0",
     "numpy>=1.24.3",
     "colored>=1.4,<1.5",
-    "diffusers>=0.16,<0.17",
+    "diffusers>=0.18,<0.19",
     "albumentations>=0.4.3,<0.5",
     "opencv-python>=4.7.0.72,<4.8",
     "pudb==2019.2",

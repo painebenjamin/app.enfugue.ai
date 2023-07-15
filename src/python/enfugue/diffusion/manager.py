@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import gc
 import os
 import time
 import torch
@@ -93,9 +94,6 @@ class DiffusionPipelineManager:
     ]  # TODO: Get others to work with multidiff (clip works but isnt worth it right now)
     TENSORRT_ALWAYS_USE_CONTROLLED_UNET = False  # TODO: Figure out if this is possible
 
-    PIPELINE_CLASS = "enfugue.diffusion.pipeline.EnfugueStableDiffusionPipeline"
-    TRT_PIPELINE_CLASS = "enfugue.diffusion.rt.pipeline.EnfugueTensorRTStableDiffusionPipeline"
-
     DEFAULT_CHUNK = 64
     DEFAULT_SIZE = 512
 
@@ -141,6 +139,22 @@ class DiffusionPipelineManager:
 
             self._device = get_optimal_device()
         return self._device
+
+    @device.setter
+    def device(self, new_device: Optional[Literal["cpu", "cuda", "dml", "mps"]]) -> None:
+        """
+        Changes the device.
+        """
+        if new_device is None:
+            from enfugue.diffusion.util import get_optimal_device
+            device = get_optimal_device()
+        elif new_device == "dml":
+            import torch_directml
+            device = torch_directml.device()
+        else:
+            import torch
+            device = torch.device(new_device)
+        self._device = device
 
     @property
     def seed(self) -> int:
@@ -644,7 +658,7 @@ class DiffusionPipelineManager:
     @property
     def engine_tensorrt_dir(self) -> str:
         """
-        Gets where TensorRT engines are downloaded to.
+        Gets where TensorRT engines are built.
         """
         path = self.configuration.get("enfugue.engine.tensorrt", "~/.cache/enfugue/tensorrt")
         if path.startswith("~"):
@@ -726,9 +740,52 @@ class DiffusionPipelineManager:
         path = os.path.join(self.engine_diffusers_dir, self.inpainter_name)
         check_make_directory(path)
         return path
+    
+    @property
+    def engine_onnx_dir(self) -> str:
+        """
+        Gets where ONNX models are built (when using DirectML)
+        """
+        path = self.configuration.get("enfugue.engine.onnx", "~/.cache/enfugue/onnx")
+        if path.startswith("~"):
+            path = os.path.expanduser(path)
+        path = os.path.realpath(path)
+        check_make_directory(path)
+        return path
+
+    @property
+    def model_onnx_dir(self) -> str:
+        """
+        Gets where the onnx cache will be for the current model.
+        """
+        path = os.path.join(self.engine_onnx_dir, self.model_name)
+        check_make_directory(path)
+        return path
+    
+    @property
+    def refiner_onnx_dir(self) -> str:
+        """
+        Gets where the onnx cache will be for the current refiner.
+        """
+        if not self.refiner_name:
+            raise ValueError("No refiner set")
+        path = os.path.join(self.engine_onnx_dir, self.refiner_name)
+        check_make_directory(path)
+        return path
+    
+    @property
+    def inpainter_onnx_dir(self) -> str:
+        """
+        Gets where the onnx cache will be for the current inpainter.
+        """
+        if not self.inpainter_name:
+            raise ValueError("No inpainter set")
+        path = os.path.join(self.engine_onnx_dir, self.inpainter_name)
+        check_make_directory(path)
+        return path
 
     @staticmethod
-    def get_tensorrt_clip_key(
+    def get_clip_key(
         size: int,
         lora: List[Tuple[str, float]],
         lycoris: List[Tuple[str, float]],
@@ -762,11 +819,11 @@ class DiffusionPipelineManager:
         ).hexdigest()
 
     @property
-    def model_tensorrt_clip_key(self) -> str:
+    def model_clip_key(self) -> str:
         """
         Gets the CLIP key for the current configuration.
         """
-        return DiffusionPipelineManager.get_tensorrt_clip_key(
+        return DiffusionPipelineManager.get_clip_key(
             size=self.size,
             lora=self.lora_names_weights,
             lycoris=self.lycoris_names_weights,
@@ -778,19 +835,31 @@ class DiffusionPipelineManager:
         """
         Gets where the tensorrt CLIP engine will be stored.
         """
-        path = os.path.join(self.model_tensorrt_dir, "clip", self.model_tensorrt_clip_key)
+        path = os.path.join(self.model_tensorrt_dir, "clip", self.model_clip_key)
         check_make_directory(path)
         metadata_path = os.path.join(path, "metadata.json")
         if not os.path.exists(metadata_path):
-            self.write_tensorrt_metadata(metadata_path)
+            self.write_model_metadata(metadata_path)
+        return path
+
+    @property
+    def model_onnx_clip_dir(self) -> str:
+        """
+        Gets where the onnx CLIP engine will be stored.
+        """
+        path = os.path.join(self.model_onnx_dir, "clip", self.model_clip_key)
+        check_make_directory(path)
+        metadata_path = os.path.join(path, "metadata.json")
+        if not os.path.exists(metadata_path):
+            self.write_model_metadata(metadata_path)
         return path
     
     @property
-    def refiner_tensorrt_clip_key(self) -> str:
+    def refiner_clip_key(self) -> str:
         """
         Gets the CLIP key for the current configuration.
         """
-        return DiffusionPipelineManager.get_tensorrt_clip_key(
+        return DiffusionPipelineManager.get_clip_key(
             size=self.size,
             lora=[],
             lycoris=[],
@@ -802,19 +871,31 @@ class DiffusionPipelineManager:
         """
         Gets where the tensorrt CLIP engine will be stored.
         """
-        path = os.path.join(self.refiner_tensorrt_dir, "clip", self.refiner_tensorrt_clip_key)
+        path = os.path.join(self.refiner_tensorrt_dir, "clip", self.refiner_clip_key)
         check_make_directory(path)
         metadata_path = os.path.join(path, "metadata.json")
         if not os.path.exists(metadata_path):
-            self.write_tensorrt_metadata(metadata_path)
+            self.write_model_metadata(metadata_path)
         return path
 
     @property
-    def inpainter_tensorrt_clip_key(self) -> str:
+    def refiner_onnx_clip_dir(self) -> str:
+        """
+        Gets where the onnx CLIP engine will be stored.
+        """
+        path = os.path.join(self.refiner_onnx_dir, "clip", self.refiner_clip_key)
+        check_make_directory(path)
+        metadata_path = os.path.join(path, "metadata.json")
+        if not os.path.exists(metadata_path):
+            self.write_model_metadata(metadata_path)
+        return path
+
+    @property
+    def inpainter_clip_key(self) -> str:
         """
         Gets the CLIP key for the current configuration.
         """
-        return DiffusionPipelineManager.get_tensorrt_clip_key(
+        return DiffusionPipelineManager.get_clip_key(
             size=self.size,
             lora=[],
             lycoris=[],
@@ -826,15 +907,27 @@ class DiffusionPipelineManager:
         """
         Gets where the tensorrt CLIP engine will be stored.
         """
-        path = os.path.join(self.inpainter_tensorrt_dir, "clip", self.inpainter_tensorrt_clip_key)
+        path = os.path.join(self.inpainter_tensorrt_dir, "clip", self.inpainter_clip_key)
         check_make_directory(path)
         metadata_path = os.path.join(path, "metadata.json")
         if not os.path.exists(metadata_path):
-            self.write_tensorrt_metadata(metadata_path)
+            self.write_model_metadata(metadata_path)
+        return path
+
+    @property
+    def inpainter_onnx_clip_dir(self) -> str:
+        """
+        Gets where the onnx CLIP engine will be stored.
+        """
+        path = os.path.join(self.inpainter_onnx_dir, "clip", self.inpainter_clip_key)
+        check_make_directory(path)
+        metadata_path = os.path.join(path, "metadata.json")
+        if not os.path.exists(metadata_path):
+            self.write_model_metadata(metadata_path)
         return path
 
     @staticmethod
-    def get_tensorrt_unet_key(
+    def get_unet_key(
         size: int,
         lora: List[Tuple[str, float]],
         lycoris: List[Tuple[str, float]],
@@ -868,11 +961,11 @@ class DiffusionPipelineManager:
         ).hexdigest()
 
     @property
-    def model_tensorrt_unet_key(self) -> str:
+    def model_unet_key(self) -> str:
         """
         Gets the UNET key for the current configuration.
         """
-        return DiffusionPipelineManager.get_tensorrt_unet_key(
+        return DiffusionPipelineManager.get_unet_key(
             size=self.size,
             lora=self.lora_names_weights,
             lycoris=self.lycoris_names_weights,
@@ -884,19 +977,31 @@ class DiffusionPipelineManager:
         """
         Gets where the tensorrt UNET engine will be stored.
         """
-        path = os.path.join(self.model_tensorrt_dir, "unet", self.model_tensorrt_unet_key)
+        path = os.path.join(self.model_tensorrt_dir, "unet", self.model_unet_key)
         check_make_directory(path)
         metadata_path = os.path.join(path, "metadata.json")
         if not os.path.exists(metadata_path):
-            self.write_tensorrt_metadata(metadata_path)
+            self.write_model_metadata(metadata_path)
         return path
 
     @property
-    def refiner_tensorrt_unet_key(self) -> str:
+    def model_onnx_unet_dir(self) -> str:
+        """
+        Gets where the onnx UNET engine will be stored.
+        """
+        path = os.path.join(self.model_onnx_dir, "unet", self.model_unet_key)
+        check_make_directory(path)
+        metadata_path = os.path.join(path, "metadata.json")
+        if not os.path.exists(metadata_path):
+            self.write_model_metadata(metadata_path)
+        return path
+
+    @property
+    def refiner_unet_key(self) -> str:
         """
         Gets the UNET key for the current configuration.
         """
-        return DiffusionPipelineManager.get_tensorrt_unet_key(
+        return DiffusionPipelineManager.get_unet_key(
             size=self.size,
             lora=[],
             lycoris=[],
@@ -908,19 +1013,31 @@ class DiffusionPipelineManager:
         """
         Gets where the tensorrt UNET engine will be stored for the refiner.
         """
-        path = os.path.join(self.refiner_tensorrt_dir, "unet", self.refiner_tensorrt_unet_key)
+        path = os.path.join(self.refiner_tensorrt_dir, "unet", self.refiner_unet_key)
         check_make_directory(path)
         metadata_path = os.path.join(path, "metadata.json")
         if not os.path.exists(metadata_path):
-            self.write_tensorrt_metadata(metadata_path)
+            self.write_model_metadata(metadata_path)
         return path
     
     @property
-    def inpainter_tensorrt_unet_key(self) -> str:
+    def refiner_onnx_unet_dir(self) -> str:
+        """
+        Gets where the onnx UNET engine will be stored for the refiner.
+        """
+        path = os.path.join(self.refiner_onnx_dir, "unet", self.refiner_unet_key)
+        check_make_directory(path)
+        metadata_path = os.path.join(path, "metadata.json")
+        if not os.path.exists(metadata_path):
+            self.write_model_metadata(metadata_path)
+        return path
+    
+    @property
+    def inpainter_unet_key(self) -> str:
         """
         Gets the UNET key for the current configuration.
         """
-        return DiffusionPipelineManager.get_tensorrt_unet_key(
+        return DiffusionPipelineManager.get_unet_key(
             size=self.size,
             lora=[],
             lycoris=[],
@@ -932,15 +1049,27 @@ class DiffusionPipelineManager:
         """
         Gets where the tensorrt UNET engine will be stored for the inpainter.
         """
-        path = os.path.join(self.inpainter_tensorrt_dir, "unet", self.inpainter_tensorrt_unet_key)
+        path = os.path.join(self.inpainter_tensorrt_dir, "unet", self.inpainter_unet_key)
         check_make_directory(path)
         metadata_path = os.path.join(path, "metadata.json")
         if not os.path.exists(metadata_path):
-            self.write_tensorrt_metadata(metadata_path)
+            self.write_model_metadata(metadata_path)
+        return path
+    
+    @property
+    def inpainter_onnx_unet_dir(self) -> str:
+        """
+        Gets where the onnx UNET engine will be stored for the inpainter.
+        """
+        path = os.path.join(self.inpainter_onnx_dir, "unet", self.inpainter_unet_key)
+        check_make_directory(path)
+        metadata_path = os.path.join(path, "metadata.json")
+        if not os.path.exists(metadata_path):
+            self.write_model_metadata(metadata_path)
         return path
 
     @staticmethod
-    def get_tensorrt_controlled_unet_key(
+    def get_controlled_unet_key(
         size: int,
         lora: List[Tuple[str, float]],
         lycoris: List[Tuple[str, float]],
@@ -974,11 +1103,11 @@ class DiffusionPipelineManager:
         ).hexdigest()
 
     @property
-    def model_tensorrt_controlled_unet_key(self) -> str:
+    def model_controlled_unet_key(self) -> str:
         """
         Gets the UNET key for the current configuration.
         """
-        return DiffusionPipelineManager.get_tensorrt_controlled_unet_key(
+        return DiffusionPipelineManager.get_controlled_unet_key(
             size=self.size,
             lora=self.lora_names_weights,
             lycoris=self.lycoris_names_weights,
@@ -991,20 +1120,34 @@ class DiffusionPipelineManager:
         Gets where the tensorrt Controlled UNet engine will be stored.
         """
         path = os.path.join(
-            self.model_tensorrt_dir, "controlledunet", self.model_tensorrt_controlled_unet_key
+            self.model_tensorrt_dir, "controlledunet", self.model_controlled_unet_key
         )
         check_make_directory(path)
         metadata_path = os.path.join(path, "metadata.json")
         if not os.path.exists(metadata_path):
-            self.write_tensorrt_metadata(metadata_path)
+            self.write_model_metadata(metadata_path)
+        return path
+
+    @property
+    def model_onnx_controlled_unet_dir(self) -> str:
+        """
+        Gets where the onnx Controlled UNet engine will be stored.
+        """
+        path = os.path.join(
+            self.model_onnx_dir, "controlledunet", self.model_controlled_unet_key
+        )
+        check_make_directory(path)
+        metadata_path = os.path.join(path, "metadata.json")
+        if not os.path.exists(metadata_path):
+            self.write_model_metadata(metadata_path)
         return path
     
     @property
-    def refiner_tensorrt_controlled_unet_key(self) -> str:
+    def refiner_controlled_unet_key(self) -> str:
         """
         Gets the UNET key for the current configuration.
         """
-        return DiffusionPipelineManager.get_tensorrt_controlled_unet_key(
+        return DiffusionPipelineManager.get_controlled_unet_key(
             size=self.size,
             lora=[],
             lycoris=[],
@@ -1018,16 +1161,31 @@ class DiffusionPipelineManager:
         TODO: determine if this should exist.
         """
         path = os.path.join(
-            self.refiner_tensorrt_dir, "controlledunet", self.refiner_tensorrt_controlled_unet_key
+            self.refiner_tensorrt_dir, "controlledunet", self.refiner_controlled_unet_key
         )
         check_make_directory(path)
         metadata_path = os.path.join(path, "metadata.json")
         if not os.path.exists(metadata_path):
-            self.write_tensorrt_metadata(metadata_path)
+            self.write_model_metadata(metadata_path)
+        return path
+
+    @property
+    def refiner_onnx_controlled_unet_dir(self) -> str:
+        """
+        Gets where the onnx Controlled UNet engine will be stored for the refiner.
+        TODO: determine if this should exist.
+        """
+        path = os.path.join(
+            self.refiner_onnx_dir, "controlledunet", self.refiner_controlled_unet_key
+        )
+        check_make_directory(path)
+        metadata_path = os.path.join(path, "metadata.json")
+        if not os.path.exists(metadata_path):
+            self.write_model_metadata(metadata_path)
         return path
     
     @staticmethod
-    def get_tensorrt_vae_key(size: int, **kwargs: Any) -> str:
+    def get_vae_key(size: int, **kwargs: Any) -> str:
         """
         Uses hashlib to generate the unique key for the VAE engine.
         VAE must be rebuilt for each:
@@ -1037,60 +1195,96 @@ class DiffusionPipelineManager:
         return md5(str(size).encode("utf-8")).hexdigest()
 
     @property
-    def model_tensorrt_vae_key(self) -> str:
+    def model_vae_key(self) -> str:
         """
         Gets the UNET key for the current configuration.
         """
-        return DiffusionPipelineManager.get_tensorrt_vae_key(size=self.size)
+        return DiffusionPipelineManager.get_vae_key(size=self.size)
 
     @property
     def model_tensorrt_vae_dir(self) -> str:
         """
         Gets where the tensorrt VAE engine will be stored.
         """
-        path = os.path.join(self.model_tensorrt_dir, "vae", self.model_tensorrt_vae_key)
+        path = os.path.join(self.model_tensorrt_dir, "vae", self.model_vae_key)
         check_make_directory(path)
         metadata_path = os.path.join(path, "metadata.json")
         if not os.path.exists(metadata_path):
-            self.write_tensorrt_metadata(metadata_path)
+            self.write_model_metadata(metadata_path)
         return path
 
     @property
-    def refiner_tensorrt_vae_key(self) -> str:
+    def model_onnx_vae_dir(self) -> str:
+        """
+        Gets where the onnx VAE engine will be stored.
+        """
+        path = os.path.join(self.model_onnx_dir, "vae", self.model_vae_key)
+        check_make_directory(path)
+        metadata_path = os.path.join(path, "metadata.json")
+        if not os.path.exists(metadata_path):
+            self.write_model_metadata(metadata_path)
+        return path
+
+    @property
+    def refiner_vae_key(self) -> str:
         """
         Gets the UNET key for the current configuration.
         """
-        return DiffusionPipelineManager.get_tensorrt_vae_key(size=self.size)
+        return DiffusionPipelineManager.get_vae_key(size=self.size)
     
     @property
     def refiner_tensorrt_vae_dir(self) -> str:
         """
         Gets where the tensorrt VAE engine will be stored for the refiner.
         """
-        path = os.path.join(self.refiner_tensorrt_dir, "vae", self.refiner_tensorrt_vae_key)
+        path = os.path.join(self.refiner_tensorrt_dir, "vae", self.refiner_vae_key)
         check_make_directory(path)
         metadata_path = os.path.join(path, "metadata.json")
         if not os.path.exists(metadata_path):
-            self.write_tensorrt_metadata(metadata_path)
+            self.write_model_metadata(metadata_path)
+        return path
+    
+    @property
+    def refiner_onnx_vae_dir(self) -> str:
+        """
+        Gets where the onnx VAE engine will be stored for the refiner.
+        """
+        path = os.path.join(self.refiner_onnx_dir, "vae", self.refiner_vae_key)
+        check_make_directory(path)
+        metadata_path = os.path.join(path, "metadata.json")
+        if not os.path.exists(metadata_path):
+            self.write_model_metadata(metadata_path)
         return path
 
     @property
-    def inpainter_tensorrt_vae_key(self) -> str:
+    def inpainter_vae_key(self) -> str:
         """
         Gets the UNET key for the current configuration.
         """
-        return DiffusionPipelineManager.get_tensorrt_vae_key(size=self.size)
+        return DiffusionPipelineManager.get_vae_key(size=self.size)
     
     @property
     def inpainter_tensorrt_vae_dir(self) -> str:
         """
         Gets where the tensorrt VAE engine will be stored for the inpainter.
         """
-        path = os.path.join(self.inpainter_tensorrt_dir, "vae", self.inpainter_tensorrt_vae_key)
+        path = os.path.join(self.inpainter_tensorrt_dir, "vae", self.inpainter_vae_key)
         check_make_directory(path)
         metadata_path = os.path.join(path, "metadata.json")
         if not os.path.exists(metadata_path):
-            self.write_tensorrt_metadata(metadata_path)
+            self.write_model_metadata(metadata_path)
+        return path
+    
+    @property
+    def inpainter_onnx_vae_dir(self) -> str:
+        """
+        Gets where the onnx VAE engine will be stored for the inpainter.
+        """
+        path = os.path.join(self.inpainter_onnx_dir, "vae", self.inpainter_vae_key)
+        check_make_directory(path)
+        metadata_path = os.path.join(path, "metadata.json")
+        if not os.path.exists(metadata_path):
+            self.write_model_metadata(metadata_path)
         return path
 
     @property
@@ -1245,16 +1439,25 @@ class DiffusionPipelineManager:
     @property
     def refiner_use_tensorrt(self) -> bool:
         """
-        Gets the ultimate decision on whether the tensorrt pipeline should be used for the refiner/
+        Gets the ultimate decision on whether the tensorrt pipeline should be used for the refiner.
         """
         return (self.refiner_tensorrt_is_ready or self.build_tensorrt) and self.tensorrt_is_enabled
     
     @property
     def inpainter_use_tensorrt(self) -> bool:
         """
-        Gets the ultimate decision on whether the tensorrt pipeline should be used for the inpainter/
+        Gets the ultimate decision on whether the tensorrt pipeline should be used for the inpainter.
         """
         return (self.inpainter_tensorrt_is_ready or self.build_tensorrt) and self.tensorrt_is_enabled
+
+    @property
+    def use_directml(self) -> bool:
+        """
+        Determine if directml should be used
+        """
+        import torch
+        from enfugue.diffusion.util import directml_available
+        return not torch.cuda.is_available() and directml_available()
 
     @property
     def pipeline_switch_mode(self) -> Optional[Literal["offload", "unload"]]:
@@ -1746,7 +1949,6 @@ class DiffusionPipelineManager:
     def check_create_engine_cache(self) -> None:
         """
         Converts a .ckpt file to the directory structure from diffusers
-            This ensures TRT compatibility
         """
         if not self.engine_cache_exists:
             from diffusers.pipelines.stable_diffusion.convert_from_ckpt import (
@@ -1758,11 +1960,12 @@ class DiffusionPipelineManager:
             pipe = download_from_original_stable_diffusion_ckpt(
                 checkpoint_path=self.model,
                 from_safetensors=ext == ".safetensors",
-                num_in_channels=9 if "inpaint" in self.model else 4,
+                num_in_channels=4,
             ).to(torch_dtype=self.dtype)
             pipe.save_pretrained(self.model_diffusers_dir)
             del pipe
             torch.cuda.empty_cache()
+            gc.collect()
             self.stop_keepalive()
     
     def check_create_refiner_engine_cache(self) -> None:
@@ -1784,6 +1987,7 @@ class DiffusionPipelineManager:
             pipe.save_pretrained(self.refiner_diffusers_dir)
             del pipe
             torch.cuda.empty_cache()
+            gc.collect()
             self.stop_keepalive()
 
     def check_create_inpainter_engine_cache(self) -> None:
@@ -1800,11 +2004,12 @@ class DiffusionPipelineManager:
             pipe = download_from_original_stable_diffusion_ckpt(
                 checkpoint_path=self.inpainter,
                 from_safetensors=ext == ".safetensors",
-                num_in_channels=4
+                num_in_channels=9
             ).to(torch_dtype=self.dtype)
             pipe.save_pretrained(self.inpainter_diffusers_dir)
             del pipe
             torch.cuda.empty_cache()
+            gc.collect()
             self.stop_keepalive()
 
     @property
@@ -1825,20 +2030,19 @@ class DiffusionPipelineManager:
                 "torch_dtype": self.dtype,
                 "cache_dir": self.engine_cache_dir 
             }
+
             vae = self.vae # Load into memory here
             controlnet = self.controlnet # Load into memory here
 
             if vae is not None:
                 kwargs["vae"] = vae
-
+            
             if self.use_tensorrt and self.model_diffusers_cache_dir is not None:
                 if "unet" in self.TENSORRT_STAGES:
                     if self.controlnet is None and not self.TENSORRT_ALWAYS_USE_CONTROLLED_UNET:
                         kwargs["unet_engine_dir"] = self.model_tensorrt_unet_dir
                     else:
-                        kwargs[
-                            "controlled_unet_engine_dir"
-                        ] = self.model_tensorrt_controlled_unet_dir
+                        kwargs["controlled_unet_engine_dir"] = self.model_tensorrt_controlled_unet_dir
                 if "vae" in self.TENSORRT_STAGES:
                     kwargs["vae_engine_dir"] = self.model_tensorrt_vae_dir
                 if "clip" in self.TENSORRT_STAGES:
@@ -1922,8 +2126,8 @@ class DiffusionPipelineManager:
             if hasattr(self, "_pipeline_is_offloaded"):
                 del self._pipeline_is_offloaded
             import torch
-
             torch.cuda.empty_cache()
+            gc.collect()
         else:
             logger.debug("Pipeline delete called, but no pipeline present. This is not an error.")
 
@@ -2032,6 +2236,7 @@ class DiffusionPipelineManager:
             import torch
 
             torch.cuda.empty_cache()
+            gc.collect()
         else:
             logger.debug("Refiner pipeline delete called, but no refiner pipeline present. This is not an error.")
 
@@ -2142,6 +2347,7 @@ class DiffusionPipelineManager:
                 del self._inpainter_pipeline_is_offloaded
             import torch
             torch.cuda.empty_cache()
+            gc.collect()
 
     @property
     def pipeline_is_offloaded(self) -> bool:
@@ -2168,6 +2374,7 @@ class DiffusionPipelineManager:
             self._pipeline = self._pipeline.to("cpu", torch_dtype=torch.float32)
             self._pipeline_is_offloaded = True
             torch.cuda.empty_cache()
+            gc.collect()
 
     def reload_pipeline(self) -> None:
         """
@@ -2203,6 +2410,7 @@ class DiffusionPipelineManager:
             self._refiner_pipeline = self._refiner_pipeline.to("cpu", torch_dtype=torch.float32)
             self._refiner_pipeline_is_offloaded = True
             torch.cuda.empty_cache()
+            gc.collect()
 
     def reload_refiner(self) -> None:
         """
@@ -2238,6 +2446,7 @@ class DiffusionPipelineManager:
             self._inpainter_pipeline = self._inpainter_pipeline.to("cpu", torch_dtype=torch.float32)
             self._inpainter_pipeline_is_offloaded = True
             torch.cuda.empty_cache()
+            gc.collect()
 
     def reload_inpainter(self) -> None:
         """
@@ -2270,6 +2479,7 @@ class DiffusionPipelineManager:
             import torch
 
             torch.cuda.empty_cache()
+            gc.collect()
 
     @property
     def edge_detector(self) -> EdgeDetector:
@@ -2491,7 +2701,7 @@ class DiffusionPipelineManager:
         self.tensorrt_is_enabled = True
         return result
 
-    def write_tensorrt_metadata(self, path: str) -> None:
+    def write_model_metadata(self, path: str) -> None:
         """
         Writes metadata for TensorRT to a json file
         """
@@ -2606,27 +2816,27 @@ class DiffusionPipelineManager:
         controlled_unet_ready = unet_ready
 
         if not clip_ready:
-            clip_key = DiffusionPipelineManager.get_tensorrt_clip_key(
+            clip_key = DiffusionPipelineManager.get_clip_key(
                 size, lora=lora_key, lycoris=lycoris_key, inversion=inversion_key
             )
             clip_plan = os.path.join(model_dir, "clip", clip_key, "engine.plan")
             clip_ready = os.path.exists(clip_plan)
 
         if not vae_ready:
-            vae_key = DiffusionPipelineManager.get_tensorrt_vae_key(
+            vae_key = DiffusionPipelineManager.get_vae_key(
                 size, lora=lora_key, lycoris=lycoris_key, inversion=inversion_key
             )
             vae_plan = os.path.join(model_dir, "vae", vae_key, "engine.plan")
             vae_ready = os.path.exists(vae_plan)
 
         if not unet_ready:
-            unet_key = DiffusionPipelineManager.get_tensorrt_unet_key(
+            unet_key = DiffusionPipelineManager.get_unet_key(
                 size, lora=lora_key, lycoris=lycoris_key, inversion=inversion_key
             )
             unet_plan = os.path.join(model_dir, "unet", unet_key, "engine.plan")
             unet_ready = os.path.exists(unet_plan)
 
-            controlled_unet_key = DiffusionPipelineManager.get_tensorrt_controlled_unet_key(
+            controlled_unet_key = DiffusionPipelineManager.get_controlled_unet_key(
                 size, lora=lora_key, lycoris=lycoris_key, inversion=inversion_key
             )
             controlled_unet_plan = os.path.join(
