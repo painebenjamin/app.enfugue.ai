@@ -1,0 +1,48 @@
+name: enfugue
+channels:
+  - pytorch
+  - defaults
+  - conda-forge
+dependencies:
+  - python=3.10.11
+  - pip=23.1.2
+  - pytorch=2.0.1
+  - torchvision
+  - numpy=1.24.3
+  - make=4.3
+  - pip:
+    - cheroot>=9.0.0
+    - nvidia-pyindex>=1.0.9
+    - pibble[cherrypy]>=0.6
+    - numpy>=1.24.3
+    - colored>=1.4,<1.5
+    - diffusers
+    - albumentations>=0.4.3,<0.5
+    - opencv-python>=4.7.0.72,<4.8
+    - pudb==2019.2
+    - invisible-watermark
+    - imageio>=2.9,<3.0
+    - imageio-ffmpeg>=0.4.2,<0.5
+    - pytorch-lightning
+    - omegaconf>=2.1.1,<2.2
+    - test-tube>=0.7.5,<0.8
+    - streamlit>=0.73,<0.74
+    - einops
+    - torch-fidelity
+    - transformers
+    - torchmetrics
+    - kornia>=0.6,<0.7
+    - polygraphy
+    - accelerate
+    - tqdm>=4.27
+    - safetensors
+    - realesrgan
+    - gfpgan
+    - backgroundremover
+    - torchsde
+    - git+https://github.com/CompVis/taming-transformers.git@master#egg=taming-transformers
+    - git+https://github.com/openai/CLIP.git@main#egg=clip
+    - git+https://github.com/CompVis/stable-diffusion.git@main#egg=latent-diffusion
+    - --extra-index-url https://download.pytorch.org/whl/rocm5.4.2/
+    - --extra-index-url https://pypi.ngc.nvidia.com
+    - torch==2.0.1+rocm5.4.2

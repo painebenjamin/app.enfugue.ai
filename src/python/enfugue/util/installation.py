@@ -125,7 +125,7 @@ def get_version() -> Version:
     try:
         return Version(version("enfugue"))
     except PackageNotFoundError:
-        return "development"
+        return Version("0.0.0")
 
 
 def get_versions() -> List[VersionDict]:
