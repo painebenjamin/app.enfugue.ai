@@ -853,6 +853,7 @@ ul.model-picker-list-input-view > li > span {
 }
 
 enfugue-status {
+    margin-left: 5px;
     display: flex;
     height: 100%;
     padding: 0 5px 0 5px;
@@ -989,6 +990,7 @@ enfugue-download-status {
     background-color: rgba(0,0,0,0.6);
     color: var(--lightest-color);
     margin-left: auto;
+    margin-right: 8px;
 }
 
 enfugue-download-status i {

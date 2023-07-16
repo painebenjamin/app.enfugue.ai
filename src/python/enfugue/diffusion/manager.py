@@ -2021,7 +2021,9 @@ class DiffusionPipelineManager:
             if self.model.startswith("http"):
                 # Base model, make sure it's downloaded here
                 self.model = self.check_download_checkpoint(self.model)
-
+            
+            # Start keepalive here
+            self.start_keepalive()
             kwargs = {
                 "cache_dir": self.engine_cache_dir,
                 "engine_size": self.size,
@@ -2113,6 +2115,9 @@ class DiffusionPipelineManager:
             if self.multi_scheduler is not None:
                 pipeline.multi_scheduler = self.multi_scheduler.from_config(pipeline.scheduler_config)
             self._pipeline = pipeline.to(self.device)
+
+            # Stop keepalive here
+            self.stop_keepalive()
         return self._pipeline
 
     @pipeline.deleter
@@ -2143,6 +2148,9 @@ class DiffusionPipelineManager:
                 # Base refiner, make sure it's downloaded here
                 self.refiner = self.check_download_checkpoint(self.refiner)
 
+            # Start keepalive here
+            self.start_keepalive()
+            
             kwargs = {
                 "cache_dir": self.engine_cache_dir,
                 "engine_size": self.refiner_size,
@@ -2221,6 +2229,9 @@ class DiffusionPipelineManager:
             if self.multi_scheduler is not None:
                 refiner_pipeline.multi_scheduler = self.multi_scheduler.from_config(refiner_pipeline.scheduler_config)
             self._refiner_pipeline = refiner_pipeline.to(self.device)
+
+            # Stop keepalive here
+            self.stop_keepalive()
         return self._refiner_pipeline
 
     @refiner_pipeline.deleter
@@ -2269,6 +2280,9 @@ class DiffusionPipelineManager:
                     self.inpainter = target_checkpoint_path
             if self.inpainter.startswith("http"):
                 self.inpainter = self.check_download_checkpoint(self.inpainter)
+            
+            # Start keepalive here
+            self.start_keepalive()
 
             kwargs = {
                 "cache_dir": self.engine_cache_dir,
@@ -2333,6 +2347,9 @@ class DiffusionPipelineManager:
             if self.multi_scheduler is not None:
                 inpainter_pipeline.multi_scheduler = self.multi_scheduler.from_config(inpainter_pipeline.scheduler_config)
             self._inpainter_pipeline = inpainter_pipeline.to(self.device)
+
+            # Stop keepalive here
+            self.stop_keepalive()
         return self._inpainter_pipeline
 
     @inpainter_pipeline.deleter

@@ -184,7 +184,7 @@ class GPU:
                     memory_total=float(gpu_dict["VRAM Total Memory (B)"])/1000000.0,
                     memory_used=float(gpu_dict["VRAM Total Used Memory (B)"])/1000000.0,
                     temp=float(gpu_dict["Temperature (Sensor junction) (C)"]),
-                    load=float(gpu_dict["GPU use (%)"]),
+                    load=float(gpu_dict["GPU use (%)"])/100.0,
                     driver=result["system"]["Driver version"],
                     name=gpu_dict["Card series"],
                 )
