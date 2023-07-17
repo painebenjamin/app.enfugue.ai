@@ -1706,6 +1706,14 @@ class DiffusionPipelineManager:
             if self.device.type == "cpu":
                 logger.debug("Inferencing on CPU, using BFloat")
                 self._torch_dtype = torch.bfloat16
+            elif self.device.type == "cuda":
+                import torch
+                if torch.version.hip:
+                    # ROCm
+                    self._torch_dtype = torch.float
+                else:
+                    # Regular Cuda
+                    self._torch_dtype = torch.half
             else:
                 configuration_dtype = self.configuration.get("enfugue.dtype", "float16")
                 if configuration_dtype == "float16" or configuration_dtype == "half":
@@ -1932,6 +1940,7 @@ class DiffusionPipelineManager:
         """
         Returns true if the model should always be cached.
         """
+        return True
         configured = self.configuration.get("enfugue.engine.always_cache", None)
         if configured:
             return configured
@@ -2097,7 +2106,7 @@ class DiffusionPipelineManager:
                 )
                 if self.always_cache:
                     logger.debug("Saving pipeline to pretrained.")
-                    pipeline.save_pretrained(self.model_diffusers_cache_dir)
+                    pipeline.save_pretrained(self.model_diffusers_dir)
             if not self.tensorrt_is_ready:
                 for lora, weight in self.lora:
                     logger.debug(f"Adding LoRA {lora} to pipeline")
@@ -2221,7 +2230,7 @@ class DiffusionPipelineManager:
                 )
                 if self.always_cache:
                     logger.debug("Saving pipeline to pretrained.")
-                    refiner_pipeline.save_pretrained(self.refiner_diffusers_cache_dir)
+                    refiner_pipeline.save_pretrained(self.refiner_diffusers_dir)
             
             # load scheduler
             if self.scheduler is not None:
@@ -2340,7 +2349,7 @@ class DiffusionPipelineManager:
                 )
                 if self.always_cache:
                     logger.debug("Saving inpainter pipeline to pretrained cache.")
-                    inpainter_pipeline.save_pretrained(self.inpainter_diffusers_cache_dir)
+                    inpainter_pipeline.save_pretrained(self.inpainter_diffusers_dir)
             # load scheduler
             if self.scheduler is not None:
                 inpainter_pipeline.scheduler = self.scheduler.from_config(inpainter_pipeline.scheduler_config)
