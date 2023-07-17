@@ -62,7 +62,7 @@ configuration:
         secure: true
         host: 0.0.0.0
         port: 45554
-        domain: rocm.enfugue.ai
+        domain: test.enfugue.ai
         driver: cherrypy
         key: '../../config/ssl/privkey.pem'
         cert: '../../config/ssl/cert.pem'
@@ -84,7 +84,7 @@ configuration:
         cms:
             name: Enfugue
             path:
-                root: https://rocm.enfugue.ai:45554/
-                static: https://rocm.enfugue.ai:45554/static/
-                api: https://rocm.enfugue.ai:45554/api/
+                root: https://test.enfugue.ai:45554/
+                static: https://test.enfugue.ai:45554/static/
+                api: https://test.enfugue.ai:45554/api/
             context: !include ./cms-context.yml

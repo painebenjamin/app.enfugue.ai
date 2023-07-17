@@ -159,9 +159,12 @@ class DiffusionEngineProcess(Process):
         self,
         instruction_id: int,
         model: Optional[str] = None,
+        refiner: Optional[str] = None,
+        inpainter: Optional[str] = None,
         lora: Optional[Union[str, Tuple[str, float], List[Union[str, Tuple[str, float]]]]] = None,
         inversion: Optional[Union[str, List[str]]] = None,
         controlnet: Optional[str] = None,
+        vae: Optional[str] = None,
         control_image: Optional[Union[str, PIL.Image.Image]] = None,
         seed: Optional[int] = None,
         image_callback_steps: Optional[int] = None,
@@ -173,6 +176,8 @@ class DiffusionEngineProcess(Process):
         guidance_scale: Optional[float] = None,
         num_inference_steps: Optional[int] = None,
         size: Optional[int] = None,
+        refiner_size: Optional[int] = None,
+        inpainter_size: Optional[int] = None,
         **kwargs: Any,
     ) -> dict:
         """
@@ -191,7 +196,16 @@ class DiffusionEngineProcess(Process):
         self.pipemanager.keepalive_callback = lambda: kwargs["progress_callback"](0, 0, 0.0)
 
         if model is not None:
-            self.pipemanager.model = model
+            self.pipemanager.model = model # type: ignore
+
+        if refiner is not None:
+            self.pipemanager.refiner = refiner # type: ignore
+
+        if inpainter is not None:
+            self.pipemanager.inpainter = inpainter # type: ignore
+
+        if vae is not None:
+            self.pipemanager.vae = vae # type: ignore
 
         if seed is not None:
             self.pipemanager.seed = seed
@@ -220,6 +234,12 @@ class DiffusionEngineProcess(Process):
 
         if size is not None:
             self.pipemanager.size = size
+
+        if refiner_size is not None:
+            self.pipemanager.refiner_size = refiner_size
+
+        if inpainter_size is not None:
+            self.pipemanager.inpainter_size = inpainter_size
 
         if width is not None:
             kwargs["width"] = int(width)

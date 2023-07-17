@@ -1940,7 +1940,6 @@ class DiffusionPipelineManager:
         """
         Returns true if the model should always be cached.
         """
-        return True
         configured = self.configuration.get("enfugue.engine.always_cache", None)
         if configured:
             return configured
@@ -2031,8 +2030,6 @@ class DiffusionPipelineManager:
                 # Base model, make sure it's downloaded here
                 self.model = self.check_download_checkpoint(self.model)
             
-            # Start keepalive here
-            self.start_keepalive()
             kwargs = {
                 "cache_dir": self.engine_cache_dir,
                 "engine_size": self.size,
@@ -2044,9 +2041,6 @@ class DiffusionPipelineManager:
 
             vae = self.vae # Load into memory here
             controlnet = self.controlnet # Load into memory here
-
-            if vae is not None:
-                kwargs["vae"] = vae
             
             if self.use_tensorrt and self.model_diffusers_cache_dir is not None:
                 if "unet" in self.TENSORRT_STAGES:
@@ -2068,6 +2062,8 @@ class DiffusionPipelineManager:
                 logger.debug(
                     f"Initializing pipeline from diffusers cache directory at {self.model_diffusers_cache_dir}. Arguments are {kwargs}"
                 )
+                if vae is not None:
+                    kwargs["vae"] = vae
                 pipeline = self.pipeline_class.from_pretrained(
                     self.model_diffusers_cache_dir,
                     controlnet=controlnet,
@@ -2083,6 +2079,8 @@ class DiffusionPipelineManager:
                 logger.debug(
                     f"Initializing pipeline from diffusers cache directory at {self.model_diffusers_cache_dir}. Arguments are {kwargs}"
                 )
+                if vae is not None:
+                    kwargs["vae"] = vae
                 pipeline = self.pipeline_class.from_pretrained(
                     self.model_diffusers_cache_dir,
                     controlnet=controlnet,
@@ -2124,9 +2122,6 @@ class DiffusionPipelineManager:
             if self.multi_scheduler is not None:
                 pipeline.multi_scheduler = self.multi_scheduler.from_config(pipeline.scheduler_config)
             self._pipeline = pipeline.to(self.device)
-
-            # Stop keepalive here
-            self.stop_keepalive()
         return self._pipeline
 
     @pipeline.deleter
@@ -2156,9 +2151,6 @@ class DiffusionPipelineManager:
             if self.refiner.startswith("http"):
                 # Base refiner, make sure it's downloaded here
                 self.refiner = self.check_download_checkpoint(self.refiner)
-
-            # Start keepalive here
-            self.start_keepalive()
             
             kwargs = {
                 "cache_dir": self.engine_cache_dir,
@@ -2171,8 +2163,6 @@ class DiffusionPipelineManager:
             }
             
             vae = self.vae # Load into memory here
-            if vae is not None:
-                kwargs["vae"] = vae
 
             if self.refiner_use_tensorrt:
                 if "unet" in self.TENSORRT_STAGES:
@@ -2197,6 +2187,8 @@ class DiffusionPipelineManager:
                 logger.debug(
                     f"Initializing refiner pipeline from diffusers cache directory at {self.refiner_diffusers_cache_dir}. Arguments are {kwargs}"
                 )
+                if vae is not None:
+                    kwargs["vae"] = vae
                 refiner_pipeline = self.refiner_pipeline_class.from_pretrained(
                     self.refiner_diffusers_cache_dir,
                     #controlnet=controlnet,
@@ -2209,6 +2201,8 @@ class DiffusionPipelineManager:
                 logger.debug(
                     f"Initializing refiner pipeline from diffusers cache directory at {self.refiner_diffusers_cache_dir}. Arguments are {kwargs}"
                 )
+                if vae is not None:
+                    kwargs["vae"] = vae
                 refiner_pipeline = self.refiner_pipeline_class.from_pretrained(
                     self.refiner_diffusers_cache_dir,
                     safety_checker=None,
@@ -2218,6 +2212,11 @@ class DiffusionPipelineManager:
                     **kwargs
                 )
             else:
+                if self.vae_name is not None:
+                    if self.vae_name == "mse":
+                        kwargs["vae_path"] = VAE_MSE
+                    elif self.vae_name == "ema":
+                        kwargs["vae_path"] = VAE_EMA
                 logger.debug(
                     f"Initializing refiner pipeline from checkpoint at {self.refiner}. Arguments are {kwargs}"
                 )
@@ -2238,9 +2237,6 @@ class DiffusionPipelineManager:
             if self.multi_scheduler is not None:
                 refiner_pipeline.multi_scheduler = self.multi_scheduler.from_config(refiner_pipeline.scheduler_config)
             self._refiner_pipeline = refiner_pipeline.to(self.device)
-
-            # Stop keepalive here
-            self.stop_keepalive()
         return self._refiner_pipeline
 
     @refiner_pipeline.deleter
@@ -2289,9 +2285,6 @@ class DiffusionPipelineManager:
                     self.inpainter = target_checkpoint_path
             if self.inpainter.startswith("http"):
                 self.inpainter = self.check_download_checkpoint(self.inpainter)
-            
-            # Start keepalive here
-            self.start_keepalive()
 
             kwargs = {
                 "cache_dir": self.engine_cache_dir,
@@ -2306,8 +2299,6 @@ class DiffusionPipelineManager:
             }
             
             vae = self.vae # Load into memory here
-            if vae is not None:
-                kwargs["vae"] = vae
 
             if self.inpainter_use_tensorrt:
                 if "unet" in self.TENSORRT_STAGES:
@@ -2323,6 +2314,8 @@ class DiffusionPipelineManager:
                 logger.debug(
                     f"Initializing inpainter pipeline from diffusers cache directory at {self.inpainter_diffusers_cache_dir}. Arguments are {kwargs}"
                 )
+                if vae is not None:
+                    kwargs["vae"] = vae
                 inpainter_pipeline = self.inpainter_pipeline_class.from_pretrained(
                     self.inpainter_diffusers_cache_dir,
                     **kwargs
@@ -2333,6 +2326,8 @@ class DiffusionPipelineManager:
                 )
                 if not self.safe:
                     kwargs["safety_checker"] = None
+                if vae is not None:
+                    kwargs["vae"] = vae
                 inpainter_pipeline = self.inpainter_pipeline_class.from_pretrained(
                     self.inpainter_diffusers_cache_dir,
                     **kwargs
@@ -2341,6 +2336,11 @@ class DiffusionPipelineManager:
                 logger.debug(
                     f"Initializing inpainter pipeline from checkpoint at {self.inpainter}. Arguments are {kwargs}"
                 )
+                if self.vae_name is not None:
+                    if self.vae_name == "mse":
+                        kwargs["vae_path"] = VAE_MSE
+                    elif self.vae_name == "ema":
+                        kwargs["vae_path"] = VAE_EMA
                 inpainter_pipeline = self.inpainter_pipeline_class.from_ckpt(
                     self.inpainter,
                     num_in_channels=9,
@@ -2356,9 +2356,6 @@ class DiffusionPipelineManager:
             if self.multi_scheduler is not None:
                 inpainter_pipeline.multi_scheduler = self.multi_scheduler.from_config(inpainter_pipeline.scheduler_config)
             self._inpainter_pipeline = inpainter_pipeline.to(self.device)
-
-            # Stop keepalive here
-            self.stop_keepalive()
         return self._inpainter_pipeline
 
     @inpainter_pipeline.deleter
