@@ -100,7 +100,7 @@ class GPU:
         }
         if platform.system() == "Windows":
             from subprocess import CREATE_NO_WINDOW
-            process_kwargs["creationFlags"] = CREATE_NO_WINDOW
+            process_kwargs["creationflags"] = CREATE_NO_WINDOW
         return process_kwargs
 
     @staticmethod
@@ -120,7 +120,14 @@ class GPU:
             )
             stdout, stderr = p.communicate()
             output = stdout.decode("UTF-8")
-            lines = output.split(os.linesep)
+            lines = [
+                line for line in
+                [
+                    line.strip()
+                    for line in output.split(os.linesep)
+                ]
+                if line
+            ]
             for line in lines:
                 (
                     id,
@@ -135,17 +142,17 @@ class GPU:
                     _,
                     _,
                     temp
-                ) = lines.split(",")
+                ) = line.split(",")
 
                 yield GPU(
                     id=int(id),
-                    uuid=uuid,
+                    uuid=uuid.strip(),
                     memory_total=float(memory_total),
                     memory_used=float(memory_used),
                     load=float(load)/100.0,
                     temp=float(temp),
-                    driver=driver,
-                    name=name
+                    driver=driver.strip(),
+                    name=name.strip()
                 )
         except Exception as ex:
             logger.error(f"Couldn't execute nvidia-smi (binary `{executable}`): {ex}\n{stderr}")
