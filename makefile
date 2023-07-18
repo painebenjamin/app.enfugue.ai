@@ -9,6 +9,7 @@ LICENSE=$(shell cat $(LICENSE_FILE))
 # Artifacts
 WINDOWS_ARTIFACT=$(BUILD_DIR)/enfugue-server-$(VERSION_MAJOR).$(VERSION_MINOR).$(VERSION_PATCH)-win64.zip
 LINUX_ARTIFACT=$(BUILD_DIR)/enfugue-server-$(VERSION_MAJOR).$(VERSION_MINOR).$(VERSION_PATCH)-manylinux.tar.gz
+MACOS_ARTIFACT=$(BUILD_DIR)/enfugue-server-$(VERSION_MAJOR).$(VERSION_MINOR).$(VERSION_PATCH)-macos-ventura.tar.gz
 
 # Default build is linux, we'll test in a moment
 ARTIFACT=$(LINUX_ARTIFACT)
@@ -89,6 +90,11 @@ ifneq ($(findstring Windows,${OS}),)
       endif
     endif
   endif
+else
+  ifeq ($(shell uname -s),Darwin)
+    # MACOS
+    ARTIFACT=$(MACOS_ARTIFACT)
+  endif
 endif
 
 ##################
@@ -131,6 +137,19 @@ $(WINDOWS_ARTIFACT): $(PYTHON_ARTIFACTS)
 
 ## Linux build
 $(LINUX_ARTIFACT): $(PYTHON_ARTIFACTS)
+	rm -rf $(BUILD_DIR)/dist
+	mkdir $(BUILD_DIR)/dist
+	pip install $<
+	pyinstaller $(CONFIG_DIR)/$(PYINSTALLER_SPEC) --distpath $(BUILD_DIR)/dist
+	cp $(SCRIPT_DIR)/$(LINUX_RUN_SCRIPT) $(BUILD_DIR)/dist/$(PYINSTALLER_NAME)/
+	@if [ '$(MINIMAL_BUILD)' != '2' ]; then \
+		tar -cvzf $@ -C $(BUILD_DIR)/dist/$(PYINSTALLER_NAME)/ .; \
+	else \
+		tar -cvzf $@ --remove-files -C $(BUILD_DIR)/dist/$(PYINSTALLER_NAME)/ .; \
+	fi;
+
+## MacOS build
+$(MACOS_ARTIFACT): $(PYTHON_ARTIFACTS)
 	rm -rf $(BUILD_DIR)/dist
 	mkdir $(BUILD_DIR)/dist
 	pip install $<

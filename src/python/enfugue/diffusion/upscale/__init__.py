@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import PIL
 
-from typing import Union
+from typing import Union, TYPE_CHECKING
 
 from realesrgan import RealESRGANer
 from basicsr.archs.rrdbnet_arch import RRDBNet
@@ -10,6 +10,8 @@ from basicsr.archs.rrdbnet_arch import RRDBNet
 from enfugue.util import check_download_to_dir
 from enfugue.diffusion.vision import ComputerVision
 
+if TYPE_CHECKING:
+    import torch
 
 class Upscaler:
     """
@@ -17,9 +19,7 @@ class Upscaler:
     """
 
     GFPGAN_PATH = "https://github.com/TencentARC/GFPGAN/releases/download/v1.3.0/GFPGANv1.3.pth"
-    ESRGAN_PATH = (
-        "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.0/RealESRGAN_x4plus.pth"
-    )
+    ESRGAN_PATH = "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.0/RealESRGAN_x4plus.pth"
     ESRGAN_ANIME_PATH = "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.2.4/RealESRGAN_x4plus_anime_6B.pth"
 
     def __init__(
@@ -27,7 +27,7 @@ class Upscaler:
         model_dir: str,
         device: torch.device,
         dtype: torch.dtype
-    ) -> str:
+    ) -> None:
         """
         On initialization, pass the model dir.
         """
@@ -85,7 +85,7 @@ class Upscaler:
             tile_pad=tile_pad,
             pre_pad=pre_pad,
             device=self.device,
-            half=True,
+            half=self.dtype is torch.float16
         )
 
     def esrgan(

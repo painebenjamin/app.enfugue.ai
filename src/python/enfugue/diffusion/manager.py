@@ -100,6 +100,7 @@ class DiffusionPipelineManager:
     DEFAULT_SIZE = 512
 
     _keepalive_thread: KeepaliveThread
+    _keepalive_callback: Callable[[], None]
     _scheduler: KarrasDiffusionSchedulers
     _multi_scheduler: KarrasDiffusionSchedulers
     _pipeline: EnfugueStableDiffusionPipeline
@@ -163,9 +164,11 @@ class DiffusionPipelineManager:
         Clears cached data
         """
         if self.device.type == "cuda":
+            import torch
             import torch.cuda
             torch.cuda.empty_cache()
         elif self.device.type == "mps":
+            import torch
             import torch.mps
             torch.mps.empty_cache()
         gc.collect()
@@ -1729,7 +1732,7 @@ class DiffusionPipelineManager:
             elif self.device.type == "cuda":
                 if torch.version.hip:
                     # ROCm
-                    logger.debug("Inferencing on ROCm, defaulting to dtype float32")
+                    logger.debug("Inferencing on ROCm, defaulting to dtype float32") # type: ignore[unreachable]
                     self._torch_dtype = torch.float
                 else:
                     # Regular CUDA

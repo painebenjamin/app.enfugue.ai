@@ -4,7 +4,7 @@ import os
 import json
 import platform
 
-from typing import Iterator, Dict, Any, TypedDict
+from typing import Iterator, Dict, Any, TypedDict, Optional, Union, List
 
 from subprocess import Popen, PIPE
 from distutils import spawn
@@ -27,9 +27,9 @@ def get_gpu_status() -> Optional[GPUStatusDict]:
         "load": primary_gpu.load,
         "temp": primary_gpu.temp,
         "memory": {
-            "free": primary_gpu.memory_free,
-            "total": primary_gpu.memory_total,
-            "used": primary_gpu.memory_used,
+            "free": int(primary_gpu.memory_free),
+            "total": int(primary_gpu.memory_total),
+            "used": int(primary_gpu.memory_used),
             "util": primary_gpu.memory_util,
         },
     }
@@ -61,10 +61,10 @@ class GPU:
         self,
         id: str,
         uuid: str,
-        load: float,
-        memory_total: int,
-        memory_used: int,
-        temp: float,
+        load: Union[int, float],
+        memory_total: Union[int, float],
+        memory_used: Union[int, float],
+        temp: Union[int, float],
         driver: str,
         name: str,
     ) -> None:
@@ -85,7 +85,7 @@ class GPU:
         return float(self.memory_used) / float(self.memory_total)
 
     @property
-    def memory_free(self) -> int:
+    def memory_free(self) -> float:
         """
         Calculate free bytes
         """
@@ -101,8 +101,8 @@ class GPU:
             "stderr": PIPE
         }
         if platform.system() == "Windows":
-            from subprocess import CREATE_NO_WINDOW
-            process_kwargs["creationflags"] = CREATE_NO_WINDOW
+            from subprocess import CREATE_NO_WINDOW # type: ignore
+            process_kwargs["creationflags"] = CREATE_NO_WINDOW # type: ignore
         return process_kwargs
 
     @staticmethod
@@ -147,7 +147,7 @@ class GPU:
                 ) = line.split(",")
 
                 yield GPU(
-                    id=int(id),
+                    id=id,
                     uuid=uuid.strip(),
                     memory_total=float(memory_total),
                     memory_used=float(memory_used),
