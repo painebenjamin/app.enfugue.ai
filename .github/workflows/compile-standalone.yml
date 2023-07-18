@@ -45,6 +45,10 @@ jobs:
     - name: Clean space
       run: |
         conda clean -aqy
+    - name: Output Environment Information for Debugging
+      run: |
+        conda list
+        pip freeze
     - name: Compile Linux package
       if: ${{ !contains(matrix.os, 'windows') }} 
       run: |
