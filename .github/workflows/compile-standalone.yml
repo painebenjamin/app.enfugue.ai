@@ -19,10 +19,14 @@ jobs:
       MINIMAL_BUILD: 1
     steps:
     - uses: actions/checkout@v3
-    - name: Setup Miniconda
+    - name: Setup Miniconda (Linux/MacOS)
+      if: ${{ !contains(matrix.os, 'windows') }}
       uses: conda-incubator/setup-miniconda@v2.2.0
       with:
         miniconda-version: latest
+    - name: Setup Miniconda (Windows)
+      if: ${{ contains(matrix.os, 'windows') }}
+      uses: conda-incubator/setup-miniconda@v2.2.0
     - name: Add conda to system path
       run: |
         # $CONDA is an environment variable pointing to the root of the miniconda directory
@@ -42,6 +46,10 @@ jobs:
     - name: Install dependencies
       run: |
         conda env update --file environments/build/${{ matrix.os }}/${{ matrix.api }}.yml --name base
+    - name: Output Environment Information for Debugging
+      run: |
+        conda list
+        pip freeze
     - name: Clean space
       run: |
         conda clean -aqy
