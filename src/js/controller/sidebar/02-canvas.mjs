@@ -133,7 +133,7 @@ class CanvasController extends Controller {
         this.application.sidebar.addChild(this.canvasForm);
         
         // Subscribe to model changes to look for defaults
-        this.subscribe("modelPickerChange", (newModel) => {
+        this.subscribe("modelPickerChange", async (newModel) => {
             if (!isEmpty(newModel)) {
                 let defaultConfig = newModel.defaultConfiguration,
                     canvasConfig = {};
@@ -151,7 +151,8 @@ class CanvasController extends Controller {
                     canvasConfig.chunkingBlur = defaultConfig.chunking_blur;
                 }
                 if (!isEmpty(canvasConfig)) {
-                    this.canvasForm.setValues(canvasConfig);
+                    await this.canvasForm.setValues(canvasConfig);
+                    await this.canvasForm.submit();
                 }
             }
         });

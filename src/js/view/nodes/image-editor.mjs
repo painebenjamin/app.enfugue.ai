@@ -309,7 +309,7 @@ class ImageEditorBaseOptionsFormView extends FormView {
                     "min": 0.0,
                     "max": 100.0,
                     "step": 0.1,
-                    "value": 7.5,
+                    "value": null,
                     "tooltip": "How closely to follow the text prompt; high values result in high-contrast images closely adhering to your text, low values result in low-contrast images with more randomness."
                 }
             },
@@ -320,7 +320,7 @@ class ImageEditorBaseOptionsFormView extends FormView {
                     "min": 5,
                     "max": 250,
                     "step": 1,
-                    "value": 50,
+                    "value": null,
                     "tooltip": "How many steps to take during primary inference, larger values take longer to process."
                 }
             }
@@ -435,7 +435,7 @@ class ImageEditorImageNodeOptionsFormView extends FormView {
                     "min": 0.0,
                     "max": 100.0,
                     "step": 0.1,
-                    "value": 7.5,
+                    "value": null,
                     "tooltip": "How closely to follow the text prompt; high values result in high-contrast images closely adhering to your text, low values result in low-contrast images with more randomness."
                 }
             },
@@ -446,7 +446,7 @@ class ImageEditorImageNodeOptionsFormView extends FormView {
                     "min": 5,
                     "max": 250,
                     "step": 1,
-                    "value": 50,
+                    "value": null,
                     "tooltip": "How many steps to take during primary inference, larger values take longer to process."
                 }
             }
@@ -630,8 +630,8 @@ class ImageEditorNodeView extends NodeView {
         let state = super.getState();
         state.prompt = this.prompt || null;
         state.negativePrompt = this.negativePrompt || null;
-        state.guidanceScale = this.guidanceScale || 7.5;
-        state.inferenceSteps = this.inferenceSteps || 50;
+        state.guidanceScale = this.guidanceScale || null;
+        state.inferenceSteps = this.inferenceSteps || null;
         state.removeBackground = this.removeBackground || false;
         state.scaleToModelSize = this.scaleToModelSize || true;
         return state;
@@ -1123,8 +1123,8 @@ class ImageEditorImageNodeView extends ImageEditorScribbleNodeView {
             "inpaint": false,
             "control": false,
             "inpaint": false,
-            "inferenceSteps": 50,
-            "guidanceScale": 7.5,
+            "inferenceSteps": null,
+            "guidanceScale": null,
             "strength": 0.8,
             "processControlImage": true,
             "conditioningScale": 1.0,

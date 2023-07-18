@@ -66,6 +66,7 @@ class Upscaler:
         """
         Gets the appropriate upsampler
         """
+        import torch
         if anime:
             model = RRDBNet(
                 num_in_ch=3, num_out_ch=3, num_feat=64, num_block=6, num_grow_ch=32, scale=4

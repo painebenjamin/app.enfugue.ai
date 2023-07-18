@@ -1,12 +1,14 @@
 # type: ignore
 # Adapted from https://github.com/patrickvonplaten/controlnet_aux/blob/master/src/controlnet_aux/open_pose/util.py
+from __future__ import annotations
 import math
 import numpy as np
 import matplotlib
 import cv2
-from typing import List, Tuple, Union
+from typing import List, Tuple, Union, TYPE_CHECKING
 
-from enfugue.diffusion.pose.body import BodyResult, Keypoint
+if TYPE_CHECKING:
+    from enfugue.diffusion.pose.body import BodyResult, Keypoint
 
 eps = 0.01
 

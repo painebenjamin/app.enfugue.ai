@@ -13,9 +13,8 @@ import os
 
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
-import json
 import warnings
-from typing import Callable, List, NamedTuple, Tuple, Union
+from typing import List, NamedTuple, Tuple, Union
 
 import cv2
 import numpy as np
