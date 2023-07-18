@@ -84,7 +84,9 @@ class KeepaliveThread(threading.Thread):
             time.sleep(self.INTERVAL)
             now = datetime.datetime.now()
             if (now - last_keepalive).total_seconds() > self.KEEPALIVE_INTERVAL:
-                self.manager.keepalive_callback()
+                callback = self.manager.keepalive_callback
+                logger.debug(f"Calling keepalive {callback}")
+                callback()
                 last_keepalive = now
 
 
@@ -156,6 +158,18 @@ class DiffusionPipelineManager:
             device = torch.device(new_device)
         self._device = device
 
+    def clear_memory(self) -> None:
+        """
+        Clears cached data
+        """
+        if self.device.type == "cuda":
+            import torch.cuda
+            torch.cuda.empty_cache()
+        elif self.device.type == "mps":
+            import torch.mps
+            torch.mps.empty_cache()
+        gc.collect()
+
     @property
     def seed(self) -> int:
         """
@@ -187,6 +201,8 @@ class DiffusionPipelineManager:
         """
         Sets the callback
         """
+        if hasattr(self, "_keepalive_callback") and self._keepalive_callback is not new_callback:
+            logger.debug(f"Setting keepalive callback to {new_callback}")
         self._keepalive_callback = new_callback
 
     @keepalive_callback.deleter
@@ -1703,16 +1719,21 @@ class DiffusionPipelineManager:
         Gets the default or configured torch data type
         """
         if not hasattr(self, "_torch_dtype"):
+            import torch
             if self.device.type == "cpu":
-                logger.debug("Inferencing on CPU, using BFloat")
+                logger.debug("Inferencing on CPU, defaulting to dtype bfloat16")
                 self._torch_dtype = torch.bfloat16
+            elif self.device.type == "mps":
+                logger.debug("Inferencing on MPS, defaulting to dtype float32")
+                self._torch_dtype = torch.float32
             elif self.device.type == "cuda":
-                import torch
                 if torch.version.hip:
                     # ROCm
+                    logger.debug("Inferencing on ROCm, defaulting to dtype float32")
                     self._torch_dtype = torch.float
                 else:
-                    # Regular Cuda
+                    # Regular CUDA
+                    logger.debug("Inferencing on CUDA, defaulting to dtype float16")
                     self._torch_dtype = torch.half
             else:
                 configuration_dtype = self.configuration.get("enfugue.dtype", "float16")
@@ -1972,8 +1993,7 @@ class DiffusionPipelineManager:
             ).to(torch_dtype=self.dtype)
             pipe.save_pretrained(self.model_diffusers_dir)
             del pipe
-            torch.cuda.empty_cache()
-            gc.collect()
+            self.clear_memory()
             self.stop_keepalive()
     
     def check_create_refiner_engine_cache(self) -> None:
@@ -1994,8 +2014,7 @@ class DiffusionPipelineManager:
             ).to(torch_dtype=self.dtype)
             pipe.save_pretrained(self.refiner_diffusers_dir)
             del pipe
-            torch.cuda.empty_cache()
-            gc.collect()
+            self.clear_memory()
             self.stop_keepalive()
 
     def check_create_inpainter_engine_cache(self) -> None:
@@ -2016,8 +2035,7 @@ class DiffusionPipelineManager:
             ).to(torch_dtype=self.dtype)
             pipe.save_pretrained(self.inpainter_diffusers_dir)
             del pipe
-            torch.cuda.empty_cache()
-            gc.collect()
+            self.clear_memory()
             self.stop_keepalive()
 
     @property
@@ -2134,9 +2152,7 @@ class DiffusionPipelineManager:
             del self._pipeline
             if hasattr(self, "_pipeline_is_offloaded"):
                 del self._pipeline_is_offloaded
-            import torch
-            torch.cuda.empty_cache()
-            gc.collect()
+            self.clear_memory()
         else:
             logger.debug("Pipeline delete called, but no pipeline present. This is not an error.")
 
@@ -2249,10 +2265,7 @@ class DiffusionPipelineManager:
             del self._refiner_pipeline
             if hasattr(self, "_refiner_pipeline_is_offloaded"):
                 del self._refiner_pipeline_is_offloaded
-            import torch
-
-            torch.cuda.empty_cache()
-            gc.collect()
+            self.clear_memory()
         else:
             logger.debug("Refiner pipeline delete called, but no refiner pipeline present. This is not an error.")
 
@@ -2368,9 +2381,7 @@ class DiffusionPipelineManager:
             del self._inpainter_pipeline
             if hasattr(self, "_inpainter_pipeline_is_offloaded"):
                 del self._inpainter_pipeline_is_offloaded
-            import torch
-            torch.cuda.empty_cache()
-            gc.collect()
+            self.clear_memory()
 
     @property
     def pipeline_is_offloaded(self) -> bool:
@@ -2396,8 +2407,7 @@ class DiffusionPipelineManager:
             logger.debug("Offloading pipeline to CPU.")
             self._pipeline = self._pipeline.to("cpu", torch_dtype=torch.float32)
             self._pipeline_is_offloaded = True
-            torch.cuda.empty_cache()
-            gc.collect()
+            self.clear_memory()
 
     def reload_pipeline(self) -> None:
         """
@@ -2432,8 +2442,7 @@ class DiffusionPipelineManager:
             logger.debug("Offloading refiner to CPU")
             self._refiner_pipeline = self._refiner_pipeline.to("cpu", torch_dtype=torch.float32)
             self._refiner_pipeline_is_offloaded = True
-            torch.cuda.empty_cache()
-            gc.collect()
+            self.clear_memory()
 
     def reload_refiner(self) -> None:
         """
@@ -2468,8 +2477,7 @@ class DiffusionPipelineManager:
             logger.debug("Offloading inpainter to CPU")
             self._inpainter_pipeline = self._inpainter_pipeline.to("cpu", torch_dtype=torch.float32)
             self._inpainter_pipeline_is_offloaded = True
-            torch.cuda.empty_cache()
-            gc.collect()
+            self.clear_memory()
 
     def reload_inpainter(self) -> None:
         """
@@ -2487,8 +2495,11 @@ class DiffusionPipelineManager:
         """
         if not hasattr(self, "_upscaler"):
             from enfugue.diffusion.upscale import Upscaler
-
-            self._upscaler = Upscaler(self.engine_other_dir)
+            self._upscaler = Upscaler(
+                model_dir=self.engine_other_dir,
+                device=self.device,
+                dtype=self.dtype
+            )
         return self._upscaler
 
     @upscaler.deleter
@@ -2499,10 +2510,7 @@ class DiffusionPipelineManager:
         if hasattr(self, "_upscaler"):
             logger.debug("Deleting upscaler.")
             del self._upscaler
-            import torch
-
-            torch.cuda.empty_cache()
-            gc.collect()
+            self.clear_memory()
 
     @property
     def edge_detector(self) -> EdgeDetector:

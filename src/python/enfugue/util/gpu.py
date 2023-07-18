@@ -13,12 +13,14 @@ from enfugue.util.log import logger
 
 __all__ = ["get_gpu_status", "GPUMemoryStatusDict", "GPUStatusDict", "GPU"]
 
-def get_gpu_status() -> GPUStatusDict:
+def get_gpu_status() -> Optional[GPUStatusDict]:
     """
     Gets current GPU status.
     """
-    primary_gpu = GPU.get_gpus()[0]
-
+    gpus = GPU.get_gpus()
+    if not gpus:
+        return None
+    primary_gpu = gpus[0]
     return {
         "driver": primary_gpu.driver,
         "name": primary_gpu.name,
@@ -204,6 +206,10 @@ class GPU:
         """
         Gets the appropriate binary and executes it
         """
+        if platform.system() == "Darwin":
+            # MacOS - can't do this yet
+            return []
+
         nvidia_smi = spawn.find_executable("nvidia-smi")
         rocm_smi = spawn.find_executable("rocm-smi")
 

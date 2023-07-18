@@ -298,6 +298,10 @@ class EnfugueInterfaceServer(
         """
         The GET() handler for logging in, i.e, the landing page when a user isn't logged in.
         """
+        if self.configuration.get("enfugue.noauth", False):
+            if not hasattr(request, "token"):
+                self.bypass_login(request, response)
+            self.redirect(response, "/", 302)
         return {"title": "Login"}
 
     @handlers.methods("POST")

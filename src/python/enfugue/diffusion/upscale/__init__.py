@@ -22,11 +22,18 @@ class Upscaler:
     )
     ESRGAN_ANIME_PATH = "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.2.4/RealESRGAN_x4plus_anime_6B.pth"
 
-    def __init__(self, model_dir: str) -> None:
+    def __init__(
+        self,
+        model_dir: str,
+        device: torch.device,
+        dtype: torch.dtype
+    ) -> str:
         """
         On initialization, pass the model dir.
         """
         self.model_dir = model_dir
+        self.device = device
+        self.dtype = dtype
 
     @property
     def esrgan_weights_path(self) -> str:
@@ -50,7 +57,11 @@ class Upscaler:
         return check_download_to_dir(self.GFPGAN_PATH, self.model_dir)
 
     def get_upsampler(
-        self, tile: int = 0, tile_pad: int = 10, pre_pad: int = 10, anime: bool = False
+        self, 
+        tile: int = 0,
+        tile_pad: int = 10,
+        pre_pad: int = 10,
+        anime: bool = False
     ) -> RealESRGANer:
         """
         Gets the appropriate upsampler
@@ -73,6 +84,7 @@ class Upscaler:
             tile=tile,
             tile_pad=tile_pad,
             pre_pad=pre_pad,
+            device=self.device,
             half=True,
         )
 
@@ -120,6 +132,7 @@ class Upscaler:
             channel_multiplier=2,
             bg_upsampler=self.get_upsampler(tile=tile, tile_pad=tile_pad, pre_pad=pre_pad),
             rootpath=self.model_dir,
+            device=self.device
         )
 
         return ComputerVision.revert_image(

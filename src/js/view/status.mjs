@@ -86,56 +86,72 @@ class StatusView extends View {
      * @return int The GPU load in integer percentage
      */
     get gpuLoad() {
-        return Math.ceil(this.status.gpu.load * 100);
+        return isEmpty(this.status.gpu)
+            ? 0.0
+            : Math.ceil(this.status.gpu.load * 100);
     }
 
     /**
      * @return float The GPU memory total in GB
      */
     get gpuMemoryTotal() {
-        return this.status.gpu.memory.total;
+        return isEmpty(this.status.gpu)
+            ? 0
+            : this.status.gpu.memory.total;
     }
 
     /**
      * @return float The GPU memory free (unused) in GB
      */
     get gpuMemoryFree() {
-        return this.status.gpu.memory.free;
+        return isEmpty(this.status.gpu)
+            ? 0
+            : this.status.gpu.memory.free;
     }
 
     /**
      * @return float The GPU memory used in GB
      */
     get gpuMemoryUsed() {
-        return this.status.gpu.memory.used;
+        return isEmpty(this.status.gpu)
+            ? 0
+            : this.status.gpu.memory.used;
     }
 
     /**
      * @return int The GPU memory load in integer percentage
      */
     get gpuMemoryUtil() {
-        return Math.ceil((this.gpuMemoryUsed / this.gpuMemoryTotal) * 100);
+        return isEmpty(this.status.gpu)
+            ? 0
+            : Math.ceil((this.gpuMemoryUsed / this.gpuMemoryTotal) * 100);
     }
 
     /**
      * @return string A description string of the current memory
      */
     get gpuMemoryUsage() {
-        return `${humanSize(this.gpuMemoryUsed*1e6)} / ${humanSize(this.gpuMemoryTotal*1e6)}`;
+        return isEmpty(this.status.gpu)
+            ? "Unknown"
+            : `${humanSize(this.gpuMemoryUsed*1e6)} / ${humanSize(this.gpuMemoryTotal*1e6)}`;
     }
 
     /**
      * @return string The name of the GPU
      */
     get gpuName() {
-        return this.status.gpu.name;
+        return isEmpty(this.status.gpu)
+            ? "Unknown GPU"
+            : this.status.gpu.name;
     }
 
     /**
      * @return int The temperature of the GPU in celsius
      */
     get gpuTemp() {
-        return this.status.gpu.temp;
+        return isEmpty(this.status.gpu)
+            ? 0
+            : this.status.gpu.temp;
     }
 
     /**
