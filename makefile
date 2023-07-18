@@ -164,7 +164,7 @@ $(MACOS_ARTIFACT): $(PYTHON_ARTIFACTS)
 ## Split on Linux
 .PHONY: split
 split: $(ARTIFACT)
-	split -b $(ARCHIVE_SIZE) -d -a 1 --additional-suffix=.part $(ARTIFACT) $(shell basename $(ARTIFACT))
+	split -b $(ARCHIVE_SIZE) -a 1 --additional-suffix=.part $(ARTIFACT) $(shell basename $(ARTIFACT)).
 
 
 ## Deletes build directory
