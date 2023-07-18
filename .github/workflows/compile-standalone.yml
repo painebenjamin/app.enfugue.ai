@@ -10,8 +10,6 @@ jobs:
             api: tensorrt
           - os: ubuntu-latest
             api: cuda
-          - os: ubuntu-latest
-            api: none
           - os: windows-latest
             api: cuda
           - os: macos-13
