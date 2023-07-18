@@ -30,7 +30,7 @@ jobs:
         # $CONDA is an environment variable pointing to the root of the miniconda directory
         echo $CONDA/bin >> $GITHUB_PATH
     - name: Clean unneeded pre-installed code
-      if: ${{ !contains(matrix.os, 'windows') }}
+      if: ${{ contains(matrix.os, 'ubuntu') }}
       run: |
         echo "Storage before:"
         df -h
