@@ -71,7 +71,17 @@ class CivitAISearchOptionsFormView extends FormView {
         "Filters": {
             "commercial": {
                 "label": "Only Show Models Allowing Commercial Use",
-                "class": CheckboxInputView
+                "class": CheckboxInputView,
+                "config": {
+                    "tooltip": "Checking this box will ensure all results have at least the 'Image' commercial use status from CivitAI. Some models may additionally authorize you to distribute or modify the models, but not all - review the details on each result before making such a determination."
+                }
+            },
+            "nsfw": {
+                "label": "Show NSFW Models and Images",
+                "class": CheckboxInputView,
+                "config": {
+                    "tooltip": "Checking this box will show <strong>NSFW (Not Safe For Work)</strong> content of a sexual or explicit nature.<br /><br /><em>Note:</em> If safety checking is enabled on a system-wide level, NSFW results will never be returned, regardless of whether or not this box is checked."
+                }
             },
             "search": {
                 "class": StringInputView,
@@ -224,7 +234,7 @@ class CivitAIItemView extends View {
         }
 
         for (let version of this.item.modelVersions) {
-            let option = E.option().content(version.name);
+            let option = E.option().content(`${version.name} (${version.baseModel})`);
             if (version.name === selectedVersion) {
                 option.selected(true);
             }
@@ -368,6 +378,9 @@ class CivitAICategoryBrowserView extends ParentView {
         }
         if (query.commercial === true) {
             queryInput.allow_commercial_use = "Image";
+        }
+        if (query.nsfw === true) {
+            queryInput.nsfw = true;
         }
 
         for (let datum of await this.getData(null, queryInput)) {

@@ -91,6 +91,9 @@ def pred_lines(
             x_end = x + disp_x_end
             y_end = y + disp_y_end
             segments_list.append([x_start, y_start, x_end, y_end])
+    
+    if not segments_list:
+        return []
 
     lines = 2 * np.array(segments_list)  # 256 > 512
     lines[:, 0] = lines[:, 0] * w_ratio

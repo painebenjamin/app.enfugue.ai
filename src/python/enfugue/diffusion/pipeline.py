@@ -1729,10 +1729,10 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 seconds_in_window = (datetime.datetime.now() - window_start).total_seconds()
                 its = (overall_step - window_start_step) / seconds_in_window
                 unit = "s/it" if its < 1 else "it/s"
-                its = 1 / its if its < 1 else its
+                its_display = 1 / its if its < 1 else its
                 logger.debug(
                     f"{{0:0{digits}d}}/{{1:0{digits}d}}: {{2:0.2f}} {{3:s}}".format(
-                        overall_step, overall_steps, its, unit
+                        overall_step, overall_steps, its_display, unit
                     )
                 )
 

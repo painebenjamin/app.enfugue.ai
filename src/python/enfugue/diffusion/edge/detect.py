@@ -93,14 +93,6 @@ class EdgeDetector:
 
         device = get_optimal_device()
         model = MLSD().to(device).eval()
-        """
-        if device.type == "cuda":
-
-            model = MLSD().cuda().eval()
-        else:
-            model = MLSD().eval()
-        device = torch.device(device_type)
-        """
         model.load_state_dict(torch.load(self.mlsd_weights, map_location=device), strict=True)
         cv2_image = ComputerVision.convert_image(image)
         cv2_image = cv2.resize(cv2_image, (512, 512))

@@ -178,10 +178,6 @@ form.login label {
     font-family: monospace;
 }
 
-fieldset.field-set-initial-date-range {
-    flex-flow: row nowrap;
-}
-
 .civit-ai-view > div:first-child > a {
     display: block;
     text-align: center;

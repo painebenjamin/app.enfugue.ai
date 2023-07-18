@@ -87,11 +87,16 @@ class EnfugueAPIDownloadsController(EnfugueAPIControllerBase):
             raise BadRequestError(f"Unknown lookup type {lookup}")
 
         query = request.params.get("query", None)
+        show_nsfw = request.params.get("nsfw", False)
+        if isinstance(show_nsfw, str):
+            show_nsfw = show_nsfw.lower() in ["t", "true", "y", "yes", "1"]
+        else:
+            show_nsfw = bool(show_nsfw)
 
         lookup_kwargs = {
             "types": lookup_type,
             "limit": 20,
-            "nsfw": not self.safe,
+            "nsfw": False if self.safe else show_nsfw,
             "query": request.params.get("query", None),
             "page": request.params.get("page", None),
             "sort": request.params.get("sort", "Most Downloaded"),

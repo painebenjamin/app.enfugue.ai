@@ -483,6 +483,19 @@ form.loading::after {
     opacity: 1;
 }
 
+.no-animations .loading-bar::after,
+.no-animations form::after {
+    content: "LOADING";
+    position: relative;
+    margin-top: -20px;
+    display: block;
+    font-size: 11px;
+    font-weight: 900;
+    text-align: center;
+    color: var(--theme-color-primary);
+    background: none;
+}
+
 a {
     text-decoration: underline;
     color: var(--theme-color-primary);

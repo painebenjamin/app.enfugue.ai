@@ -10,6 +10,8 @@ __all__ = [
     "CONTROLNET_SCRIBBLE",
     "CONTROLNET_TILE",
     "CONTR0LNET_INPAINT",
+    "CONTROLNET_DEPTH",
+    "CONTROLNET_NORMAL"
 ]
 
 DEFAULT_MODEL = "https://huggingface.co/runwayml/stable-diffusion-v1-5/resolve/main/v1-5-pruned.ckpt"
@@ -25,3 +27,5 @@ CONTROLNET_HED = "lllyasviel/sd-controlnet-hed"
 CONTROLNET_SCRIBBLE = "lllyasviel/control_v11p_sd15_scribble"
 CONTROLNET_TILE = "lllyasviel/control_v11f1e_sd15_tile"
 CONTROLNET_INPAINT = "lllyasviel/control_v11p_sd15_inpaint"
+CONTROLNET_DEPTH = "lllyasviel/sd-controlnet-depth"
+CONTROLNET_NORMAL = "lllyasviel/sd-controlnet-normal"

@@ -150,6 +150,7 @@ enfugue-sidebar .invoke-loader {
 }
 
 enfugue-sidebar .invoke-loader.loading-bar::after {
+    content: "\A" !important;
     border-top-left-radius: 0;
     border-top-right-radius: 0;
     border-bottom-left-radius: 4px;
@@ -731,6 +732,10 @@ form.model-picker {
     flex-flow: row nowrap;
     align-items: center;
     justify-content: center;
+}
+
+.no-animations form.model-picker::after {
+    display: none;
 }
 
 form.model-picker fieldset {

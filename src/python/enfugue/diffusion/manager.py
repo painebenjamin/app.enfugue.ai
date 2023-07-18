@@ -29,6 +29,8 @@ from enfugue.diffusion.constants import (
     CONTROLNET_SCRIBBLE,
     CONTROLNET_TILE,
     CONTROLNET_INPAINT,
+    CONTROLNET_DEPTH,
+    CONTROLNET_NORMAL
 )
 
 __all__ = ["DiffusionPipelineManager"]
@@ -39,6 +41,7 @@ if TYPE_CHECKING:
     from enfugue.diffusion.upscale import Upscaler
     from enfugue.diffusion.pipeline import EnfugueStableDiffusionPipeline
     from enfugue.diffusion.edge.detect import EdgeDetector
+    from enfugue.diffusion.depth.detect import DepthDetector
 
 def redact(kwargs: Dict[str, Any]) -> Dict[str, Any]:
     """
@@ -2525,6 +2528,17 @@ class DiffusionPipelineManager:
 
             self._edge_detector = EdgeDetector(self.engine_other_dir)
         return self._edge_detector
+    
+    @property
+    def depth_detector(self) -> DepthDetector:
+        """
+        Gets the depth detector.
+        """
+        if not hasattr(self, "_depth_detector"):
+            from enfugue.diffusion.depth.detect import DepthDetector
+            
+            self._depth_detector = DepthDetector(self.engine_other_dir, self.device)
+        return self._depth_detector
 
     def unload_upscaler(self) -> None:
         """
@@ -2570,7 +2584,7 @@ class DiffusionPipelineManager:
     @controlnet.setter
     def controlnet(
         self,
-        new_controlnet: Optional[Literal["canny", "tile", "mlsd", "hed", "scribble", "inpaint"]],
+        new_controlnet: Optional[Literal["canny", "tile", "mlsd", "hed", "scribble", "inpaint", "depth", "normal"]],
     ) -> None:
         """
         Sets a new controlnet.
@@ -2588,6 +2602,10 @@ class DiffusionPipelineManager:
             pretrained_path = CONTROLNET_SCRIBBLE
         elif new_controlnet == "inpaint":
             pretrained_path = CONTROLNET_INPAINT
+        elif new_controlnet == "depth":
+            pretrained_path = CONTROLNET_DEPTH
+        elif new_controlnet == "normal":
+            pretrained_path = CONTROLNET_NORMAL
         if pretrained_path is None and new_controlnet is not None:
             logger.error(f"Unsupported controlnet {new_controlnet}")
 

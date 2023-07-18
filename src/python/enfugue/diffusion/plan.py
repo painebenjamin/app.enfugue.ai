@@ -100,7 +100,7 @@ class DiffusionStep:
         image: Optional[Union[DiffusionStep, PIL.Image.Image, str]] = None,
         mask: Optional[Union[DiffusionStep, PIL.Image.Image, str]] = None,
         control_image: Optional[Union[DiffusionStep, PIL.Image.Image, str]] = None,
-        controlnet: Optional[Literal["canny", "tile", "mlsd", "hed", "scribble", "inpaint"]] = None,
+        controlnet: Optional[Literal["canny", "tile", "mlsd", "hed", "scribble", "inpaint", "depth", "normal"]] = None,
         conditioning_scale: Optional[float] = DEFAULT_CONDITIONING_SCALE,
         strength: Optional[float] = DEFAULT_IMG2IMG_STRENGTH,
         num_inference_steps: Optional[int] = DEFAULT_INFERENCE_STEPS,
@@ -214,6 +214,10 @@ class DiffusionStep:
                 return pipeline.edge_detector.mlsd(control_image)
             if self.controlnet == "hed":
                 return pipeline.edge_detector.hed(control_image)
+            if self.controlnet == "depth":
+                return pipeline.depth_detector.midas(control_image)
+            if self.controlnet == "normal":
+                return pipeline.depth_detector.normal(control_image)
         return control_image
 
     def execute(
@@ -513,8 +517,8 @@ class DiffusionPlan:
         ] = DEFAULT_UPSCALE_NEGATIVE_PROMPT,
         upscale_diffusion_controlnet: Optional[
             Union[
-                Literal["canny", "tile", "mlsd", "hed", "scribble", "inpaint"],
-                List[Literal["canny", "tile", "mlsd", "hed", "scribble", "inpaint"]],
+                Literal["canny", "tile", "mlsd", "hed", "scribble", "inpaint", "depth", "normal"],
+                List[Literal["canny", "tile", "mlsd", "hed", "scribble", "inpaint", "depth", "normal"]],
             ]
         ] = None,
         upscale_diffusion_chunking_size: Optional[int] = None,
@@ -731,6 +735,12 @@ class DiffusionPlan:
                             elif upscale_controlnet == "tile":
                                 pipeline.controlnet = "tile"
                                 kwargs["control_image"] = image
+                            elif upscale_controlnet == "depth":
+                                pipeline.controlnet = "depth"
+                                kwargs["control_image"] = pipeline.depth_detector.midas(image)
+                            elif upscale_controlnet == "normal":
+                                pipeline.controlnet = "normal"
+                                kwargs["control_image"] = pipeline.depth_detector.normal(image)
                             else:
                                 logger.error(f"Unknown controlnet {upscale_controlnet}, ignoring.")
                                 pipeline.controlnet = None
@@ -1089,8 +1099,8 @@ class DiffusionPlan:
         ] = DEFAULT_UPSCALE_NEGATIVE_PROMPT,
         upscale_diffusion_controlnet: Optional[
             Union[
-                Literal["canny", "tile", "mlsd", "hed", "scribble", "inpaint"],
-                List[Literal["canny", "tile", "mlsd", "hed", "scribble", "inpaint"]],
+                Literal["canny", "tile", "mlsd", "hed", "scribble", "inpaint", "depth", "normal"],
+                List[Literal["canny", "tile", "mlsd", "hed", "scribble", "inpaint", "depth", "normal"]],
             ]
         ] = None,
         upscale_diffusion_chunking_size: Optional[int] = None,
@@ -1237,8 +1247,8 @@ class DiffusionPlan:
         ] = DEFAULT_UPSCALE_NEGATIVE_PROMPT,
         upscale_diffusion_controlnet: Optional[
             Union[
-                Literal["canny", "tile", "mlsd", "hed", "scribble", "inpaint"],
-                List[Literal["canny", "tile", "mlsd", "hed", "scribble", "inpaint"]],
+                Literal["canny", "tile", "mlsd", "hed", "scribble", "inpaint", "depth", "normal"],
+                List[Literal["canny", "tile", "mlsd", "hed", "scribble", "inpaint", "depth", "normal"]],
             ]
         ] = None,
         upscale_diffusion_chunking_size: Optional[int] = None,

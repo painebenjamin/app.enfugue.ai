@@ -178,6 +178,7 @@ class DiffusionEngineProcess(Process):
         size: Optional[int] = None,
         refiner_size: Optional[int] = None,
         inpainter_size: Optional[int] = None,
+        process_control_image: bool = True,
         **kwargs: Any,
     ) -> dict:
         """
@@ -224,12 +225,17 @@ class DiffusionEngineProcess(Process):
             if control_image is not None:
                 if isinstance(control_image, str):
                     control_image = PIL.Image.open(control_image)
-                if controlnet == "canny":
-                    control_image = self.pipemanager.edge_detector.canny(control_image)
-                elif controlnet == "mlsd":
-                    control_image = self.pipemanager.edge_detector.mlsd(control_image)
-                elif controlnet == "hed":
-                    control_image = self.pipemanager.edge_detector.hed(control_image)
+                if process_control_image:
+                    if controlnet == "canny":
+                        control_image = self.pipemanager.edge_detector.canny(control_image)
+                    elif controlnet == "mlsd":
+                        control_image = self.pipemanager.edge_detector.mlsd(control_image)
+                    elif controlnet == "hed":
+                        control_image = self.pipemanager.edge_detector.hed(control_image)
+                    elif controlnet == "depth":
+                        control_image = self.pipemanager.depth_detector.midas(control_image)
+                    elif controlnet == "normal":
+                        control_image = self.pipemanager.depth_detector.normal(control_image)
                 kwargs["control_image"] = control_image
 
         if size is not None:
