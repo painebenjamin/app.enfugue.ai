@@ -80,7 +80,10 @@ class DepthDetector:
             output = pred.cpu().numpy()
             formatted = (output * 255 / np.max(output)).astype(np.uint8)
             image = PIL.Image.fromarray(formatted)
-            return depth.cpu(), image
+            return_tuple = (depth.cpu(), image)
+            del model
+            del transforms
+            return return_tuple
 
     def midas(self, image: PIL.Image.Image) -> PIL.Image.Image:
         """

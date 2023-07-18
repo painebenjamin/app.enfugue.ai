@@ -100,7 +100,7 @@ class DiffusionStep:
         image: Optional[Union[DiffusionStep, PIL.Image.Image, str]] = None,
         mask: Optional[Union[DiffusionStep, PIL.Image.Image, str]] = None,
         control_image: Optional[Union[DiffusionStep, PIL.Image.Image, str]] = None,
-        controlnet: Optional[Literal["canny", "tile", "mlsd", "hed", "scribble", "inpaint", "depth", "normal"]] = None,
+        controlnet: Optional[Literal["canny", "tile", "mlsd", "hed", "scribble", "inpaint", "depth", "normal", "pose"]] = None,
         conditioning_scale: Optional[float] = DEFAULT_CONDITIONING_SCALE,
         strength: Optional[float] = DEFAULT_IMG2IMG_STRENGTH,
         num_inference_steps: Optional[int] = DEFAULT_INFERENCE_STEPS,
@@ -218,6 +218,8 @@ class DiffusionStep:
                 return pipeline.depth_detector.midas(control_image)
             if self.controlnet == "normal":
                 return pipeline.depth_detector.normal(control_image)
+            if self.controlnet == "pose":
+                return pipeline.pose_detector.detect(control_image)
         return control_image
 
     def execute(

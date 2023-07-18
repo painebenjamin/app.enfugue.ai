@@ -30,7 +30,8 @@ from enfugue.diffusion.constants import (
     CONTROLNET_TILE,
     CONTROLNET_INPAINT,
     CONTROLNET_DEPTH,
-    CONTROLNET_NORMAL
+    CONTROLNET_NORMAL,
+    CONTROLNET_POSE
 )
 
 __all__ = ["DiffusionPipelineManager"]
@@ -42,6 +43,7 @@ if TYPE_CHECKING:
     from enfugue.diffusion.pipeline import EnfugueStableDiffusionPipeline
     from enfugue.diffusion.edge.detect import EdgeDetector
     from enfugue.diffusion.depth.detect import DepthDetector
+    from enfugue.diffusion.pose.detect import PoseDetector
 
 def redact(kwargs: Dict[str, Any]) -> Dict[str, Any]:
     """
@@ -2539,6 +2541,17 @@ class DiffusionPipelineManager:
             
             self._depth_detector = DepthDetector(self.engine_other_dir, self.device)
         return self._depth_detector
+    
+    @property
+    def pose_detector(self) -> PoseDetector:
+        """
+        Gets the pose detector.
+        """
+        if not hasattr(self, "_pose_detector"):
+            from enfugue.diffusion.pose.detect import PoseDetector
+            
+            self._pose_detector = PoseDetector(self.engine_other_dir, self.device)
+        return self._pose_detector
 
     def unload_upscaler(self) -> None:
         """
@@ -2584,7 +2597,7 @@ class DiffusionPipelineManager:
     @controlnet.setter
     def controlnet(
         self,
-        new_controlnet: Optional[Literal["canny", "tile", "mlsd", "hed", "scribble", "inpaint", "depth", "normal"]],
+        new_controlnet: Optional[Literal["canny", "tile", "mlsd", "hed", "scribble", "inpaint", "depth", "normal", "pose"]],
     ) -> None:
         """
         Sets a new controlnet.
@@ -2606,6 +2619,8 @@ class DiffusionPipelineManager:
             pretrained_path = CONTROLNET_DEPTH
         elif new_controlnet == "normal":
             pretrained_path = CONTROLNET_NORMAL
+        elif new_controlnet == "pose":
+            pretrained_path = CONTROLNET_POSE
         if pretrained_path is None and new_controlnet is not None:
             logger.error(f"Unsupported controlnet {new_controlnet}")
 

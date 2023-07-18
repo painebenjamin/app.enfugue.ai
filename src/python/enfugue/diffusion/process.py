@@ -236,6 +236,8 @@ class DiffusionEngineProcess(Process):
                         control_image = self.pipemanager.depth_detector.midas(control_image)
                     elif controlnet == "normal":
                         control_image = self.pipemanager.depth_detector.normal(control_image)
+                    elif controlnet == "pose":
+                        control_image = self.pipemanager.pose_detector.detect(control_image)
                 kwargs["control_image"] = control_image
 
         if size is not None:

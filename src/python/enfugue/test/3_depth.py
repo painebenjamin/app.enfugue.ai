@@ -1,5 +1,5 @@
 """
-Tests automatic loading of controlnet and edge detection
+Tests automatic loading of controlnet and depth detection
 """
 import os
 import PIL
