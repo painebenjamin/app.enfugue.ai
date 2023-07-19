@@ -16,9 +16,7 @@ class EdgeDetector:
     """
 
     HED_PROTOTXT = "https://github.com/ashukid/hed-edge-detector/raw/master/deploy.prototxt"
-    HED_CAFFEMODEL = (
-        "https://github.com/ashukid/hed-edge-detector/raw/master/hed_pretrained_bsds.caffemodel"
-    )
+    HED_CAFFEMODEL = "https://github.com/ashukid/hed-edge-detector/raw/master/hed_pretrained_bsds.caffemodel"
     HED_MEAN = (104.00698793, 116.66876762, 122.67891434)
     MLSD_WEIGHTS = "https://github.com/lhwcv/mlsd_pytorch/raw/main/models/mlsd_large_512_fp32.pth"
 
@@ -66,7 +64,7 @@ class EdgeDetector:
         width, height = image.size
 
         model = cv2.dnn.readNetFromCaffe(self.hed_prototxt, self.hed_caffemodel)
-        cv2.dnn_registerLayer("Crop", HEDCropLayer) # type: ignore[attr-defined]
+        cv2.dnn_registerLayer("Crop", HEDCropLayer)  # type: ignore[attr-defined]
 
         cv2_image = ComputerVision.convert_image(image)
         dnn_input = cv2.dnn.blobFromImage(
@@ -80,7 +78,7 @@ class EdgeDetector:
         model.setInput(dnn_input)
         dnn_output = model.forward()
         output_array = (cv2.cvtColor(dnn_output[0, 0], cv2.COLOR_GRAY2BGR) * 255).astype(np.uint8)
-        cv2.dnn_unregisterLayer("Crop") # type: ignore[attr-defined]
+        cv2.dnn_unregisterLayer("Crop")  # type: ignore[attr-defined]
         return PIL.Image.fromarray(output_array)
 
     def mlsd(self, image: PIL.Image.Image) -> PIL.Image.Image:

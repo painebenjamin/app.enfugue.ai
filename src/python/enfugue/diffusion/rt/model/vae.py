@@ -61,18 +61,14 @@ class VAE(BaseModel):
             ]
         }
 
-    def get_shape_dict(
-        self, batch_size: int, image_height: int, image_width: int
-    ) -> Dict[str, Tuple[int, ...]]:
+    def get_shape_dict(self, batch_size: int, image_height: int, image_width: int) -> Dict[str, Tuple[int, ...]]:
         latent_height, latent_width = self.check_dims(batch_size, image_height, image_width)
         return {
             "latent": (batch_size, 4, latent_height, latent_width),
             "images": (batch_size, 3, image_height, image_width),
         }
 
-    def get_sample_input(
-        self, batch_size: int, image_height: int, image_width: int
-    ) -> torch.Tensor:
+    def get_sample_input(self, batch_size: int, image_height: int, image_width: int) -> torch.Tensor:
         latent_height, latent_width = self.check_dims(batch_size, image_height, image_width)
         return torch.randn(
             batch_size,

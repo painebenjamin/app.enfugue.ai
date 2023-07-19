@@ -108,9 +108,7 @@ class EnfugueAPIServerBase(
         password_file = os.path.join(self.engine_root, "password_reset.txt")
         if os.path.exists(password_file):
             with self.orm.session() as session:
-                root_user = (
-                    session.query(self.orm.User).filter(self.orm.User.username == "enfugue").one()
-                )
+                root_user = session.query(self.orm.User).filter(self.orm.User.username == "enfugue").one()
                 root_user.password = Password.hash(open(password_file, "r").read())
                 for token in root_user.tokens:
                     session.delete(token)
@@ -121,9 +119,7 @@ class EnfugueAPIServerBase(
         """
         Override configure() to pass in REST configuration.
         """
-        super(EnfugueAPIServerBase, self).configure(
-            rest=EnfugueAPIRESTConfiguration, **configuration
-        )
+        super(EnfugueAPIServerBase, self).configure(rest=EnfugueAPIRESTConfiguration, **configuration)
 
     def on_destroy(self) -> None:
         """
@@ -153,16 +149,12 @@ class EnfugueAPIServerBase(
                 elif isinstance(value, dict):
                     serialized[key] = replace_images(value)
                 elif isinstance(value, list):
-                    serialized[key] = [
-                        replace_images(part) if isinstance(part, dict) else part for part in value
-                    ]
+                    serialized[key] = [replace_images(part) if isinstance(part, dict) else part for part in value]
             return serialized
 
         return replace_images(plan.get_serialization_dict())
 
-    def get_plan_kwargs_from_model(
-        self, model_name: str, include_prompts: bool = True
-    ) -> Dict[str, Any]:
+    def get_plan_kwargs_from_model(self, model_name: str, include_prompts: bool = True) -> Dict[str, Any]:
         """
         Given a model name, return the keyword arguments that should be passed into a plan.
         """
@@ -193,7 +185,7 @@ class EnfugueAPIServerBase(
                         "enfugue.engine.checkpoint",
                         os.path.join(self.manager.engine_root_dir, "checkpoint"),
                     ),
-                    refiner[0].model
+                    refiner[0].model,
                 ),
             )
         else:
@@ -207,7 +199,7 @@ class EnfugueAPIServerBase(
                         "enfugue.engine.checkpoint",
                         os.path.join(self.manager.engine_root_dir, "checkpoint"),
                     ),
-                    inpainter[0].model
+                    inpainter[0].model,
                 ),
             )
         else:
@@ -234,7 +226,7 @@ class EnfugueAPIServerBase(
                         lora.model,
                     )
                 ),
-                float(lora.weight)
+                float(lora.weight),
             )
             for lora in diffusion_model.lora
         ]
@@ -279,7 +271,7 @@ class EnfugueAPIServerBase(
             "inversion": inversion,
             "scheduler": scheduler,
             "multi_scheduler": multi_scheduler,
-            "vae": vae
+            "vae": vae,
         }
 
         if include_prompts:
@@ -304,9 +296,7 @@ class EnfugueAPIServerBase(
         )
         if save:
             self.database.add(
-                self.orm.DiffusionInvocation(
-                    id=invocation.uuid, user_id=user_id, plan=self.format_plan(plan)
-                )
+                self.orm.DiffusionInvocation(id=invocation.uuid, user_id=user_id, plan=self.format_plan(plan))
             )
             self.database.commit()
         return invocation
@@ -322,9 +312,7 @@ class EnfugueAPIServerBase(
         """
         Starts a download using the download manager.
         """
-        return self.manager.download(
-            user_id, url, destination, headers=headers, parameters=parameters
-        )
+        return self.manager.download(user_id, url, destination, headers=headers, parameters=parameters)
 
     def __del__(self) -> None:
         """
@@ -458,9 +446,7 @@ class EnfugueAPIServerBase(
         icon_path = configuration.get("enfugue", {}).get("icon", "favicon/favicon-64x64.png")
         icon_image = PIL.Image.open(os.path.join(static_dir, "img", icon_path))
         icon = pystray.Icon("enfugue", icon_image)
-        icon.menu = pystray.Menu(
-            pystray.MenuItem("Open App", open_app), pystray.MenuItem("Quit", stop)
-        )
+        icon.menu = pystray.Menu(pystray.MenuItem("Open App", open_app), pystray.MenuItem("Quit", stop))
         icon.run(setup=setup)
 
 

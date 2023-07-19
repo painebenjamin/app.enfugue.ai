@@ -153,9 +153,7 @@ class SystemManager:
         """
         Gets the location for tensorrt engines.
         """
-        directory = self.configuration.get(
-            "enfugue.engine.tensorrt", os.path.join(self.engine_root_dir, "tensorrt")
-        )
+        directory = self.configuration.get("enfugue.engine.tensorrt", os.path.join(self.engine_root_dir, "tensorrt"))
         check_make_directory(directory)
         return directory
 
@@ -164,9 +162,7 @@ class SystemManager:
         """
         Returns the engine checkpoint location.
         """
-        path = self.configuration.get(
-            "enfugue.engine.checkpoint", os.path.join(self.engine_root_dir, "checkpoint")
-        )
+        path = self.configuration.get("enfugue.engine.checkpoint", os.path.join(self.engine_root_dir, "checkpoint"))
         check_make_directory(path)
         return path
 
@@ -198,9 +194,7 @@ class SystemManager:
         pending = []
         if not os.path.exists(default_model_ckpt) and not self.is_downloading(DEFAULT_MODEL):
             pending.append((DEFAULT_MODEL, default_model_ckpt))
-        if not os.path.exists(default_inpaint_ckpt) and not self.is_downloading(
-            DEFAULT_INPAINTING_MODEL
-        ):
+        if not os.path.exists(default_inpaint_ckpt) and not self.is_downloading(DEFAULT_INPAINTING_MODEL):
             pending.append((DEFAULT_INPAINTING_MODEL, default_inpaint_ckpt))
         return pending
 
@@ -210,9 +204,7 @@ class SystemManager:
         Gets default downloads that are currently underway.
         """
         return [
-            download
-            for download in self.active_downloads
-            if download.src in [DEFAULT_MODEL, DEFAULT_INPAINTING_MODEL]
+            download for download in self.active_downloads if download.src in [DEFAULT_MODEL, DEFAULT_INPAINTING_MODEL]
         ]
 
     @property
@@ -236,9 +228,7 @@ class SystemManager:
         """
         The maximum number of downloads that can go at once.
         """
-        return self.configuration.get(
-            "enfugue.downloads.concurrent", self.DEFAULT_MAX_CONCURRENT_DOWNLOADS
-        )
+        return self.configuration.get("enfugue.downloads.concurrent", self.DEFAULT_MAX_CONCURRENT_DOWNLOADS)
 
     @property
     def max_queued_invocations(self) -> int:
@@ -268,10 +258,7 @@ class SystemManager:
         Gets a list of active downloads
         """
         return [
-            download
-            for download_list in self.downloads.values()
-            for download in download_list
-            if not download.complete
+            download for download_list in self.downloads.values() for download in download_list if not download.complete
         ]
 
     @property
@@ -332,9 +319,7 @@ class SystemManager:
             "invocations": {
                 "active": not self.can_invoke,
                 "queued": len(self.invocation_queue),
-                "total": sum(
-                    [len(invocation_list) for invocation_list in self.invocations.values()]
-                ),
+                "total": sum([len(invocation_list) for invocation_list in self.invocations.values()]),
             },
         }
 
@@ -479,14 +464,9 @@ class SystemManager:
                                 if "model.opt.onnx" in stage_files:
                                     to_remove.append(file_path)
                             elif file_name == "timing_cache":
-                                file_mod_time = datetime.datetime.fromtimestamp(
-                                    os.path.getmtime(file_path)
-                                )
+                                file_mod_time = datetime.datetime.fromtimestamp(os.path.getmtime(file_path))
                                 file_age = (datetime.datetime.now() - file_mod_time).total_seconds()
-                                if (
-                                    file_age > self.max_timing_cache_age
-                                    or "engine.plan" in stage_files
-                                ):
+                                if file_age > self.max_timing_cache_age or "engine.plan" in stage_files:
                                     to_remove.append(file_path)
                             elif file_name != "engine.plan" and file_name != "metadata.json":
                                 to_remove.append(file_path)
@@ -522,15 +502,11 @@ class SystemManager:
                     logger.info("Active invocation appears to be dangling, terminating it.")
                     self.active_invocation.timeout()
                     time.sleep(5)
-                elif (
-                    self.active_invocation.results is None and self.active_invocation.error is None
-                ):
+                elif self.active_invocation.results is None and self.active_invocation.error is None:
                     try:
                         self.active_invocation.poll()
                     except IOError:
-                        self.active_invocation = (
-                            None  # results came in between checking and polling
-                        )
+                        self.active_invocation = None  # results came in between checking and polling
                 else:
                     self.active_invocation = None
 

@@ -97,9 +97,7 @@ class BaseModel:
         """
         raise NotImplementedError()
 
-    def get_shape_dict(
-        self, batch_size: int, image_height: int, image_width: int
-    ) -> Dict[str, Tuple[int, ...]]:
+    def get_shape_dict(self, batch_size: int, image_height: int, image_width: int) -> Dict[str, Tuple[int, ...]]:
         """
         Gets the optimal dimensions for all inputs and outputs
         """
@@ -131,13 +129,7 @@ class BaseModel:
         image_width: int,
         static_batch: bool,
         static_shape: bool,
-    ) -> Tuple[
-        Tuple[int, int],
-        Tuple[int, int],
-        Tuple[int, int],
-        Tuple[int, int],
-        Tuple[int, int],
-    ]:
+    ) -> Tuple[Tuple[int, int], Tuple[int, int], Tuple[int, int], Tuple[int, int], Tuple[int, int],]:
         """
         Gets min/max for:
             batch

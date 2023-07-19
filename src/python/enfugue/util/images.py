@@ -58,9 +58,7 @@ def fit_image(
         horizontal_image_width, horizontal_image_height = int(image_width * width_ratio), int(
             image_height * width_ratio
         )
-        vertical_image_width, vertical_image_height = int(image_width * height_ratio), int(
-            image_height * height_ratio
-        )
+        vertical_image_width, vertical_image_height = int(image_width * height_ratio), int(image_height * height_ratio)
         top, left = 0, 0
         direction = None
         if width >= horizontal_image_width and height >= horizontal_image_height:
@@ -86,12 +84,12 @@ def fit_image(
     elif fit == "cover":
         image_width, image_height = image.size
         width_ratio, height_ratio = width / image_width, height / image_height
-        horizontal_image_width, horizontal_image_height = math.ceil(
-            image_width * width_ratio
-        ), math.ceil(image_height * width_ratio)
-        vertical_image_width, vertical_image_height = math.ceil(
-            image_width * height_ratio
-        ), math.ceil(image_height * height_ratio)
+        horizontal_image_width, horizontal_image_height = math.ceil(image_width * width_ratio), math.ceil(
+            image_height * width_ratio
+        )
+        vertical_image_width, vertical_image_height = math.ceil(image_width * height_ratio), math.ceil(
+            image_height * height_ratio
+        )
         top, left = 0, 0
         direction = None
         if width <= horizontal_image_width and height <= horizontal_image_height:

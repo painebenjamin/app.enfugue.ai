@@ -26,7 +26,8 @@ def tensorrt_available() -> bool:
     """
     try:
         import tensorrt
-        tensorrt # silence importchecker
+
+        tensorrt  # silence importchecker
         return True
     except:
         return False
@@ -172,18 +173,14 @@ class ModelMerger:
         return theta0 - theta1
 
     @staticmethod
-    def weighted_sum(
-        theta0: torch.Tensor, theta1: torch.Tensor, alpha: Union[int, float]
-    ) -> torch.Tensor:
+    def weighted_sum(theta0: torch.Tensor, theta1: torch.Tensor, alpha: Union[int, float]) -> torch.Tensor:
         """
         Returns the sum of θ0 and θ0 weighted by ɑ
         """
         return ((1 - alpha) * theta0) + (alpha * theta1)
 
     @staticmethod
-    def add_weighted_difference(
-        theta0: torch.Tensor, theta1: torch.Tensor, alpha: Union[int, float]
-    ) -> torch.Tensor:
+    def add_weighted_difference(theta0: torch.Tensor, theta1: torch.Tensor, alpha: Union[int, float]) -> torch.Tensor:
         """
         Adds a weighted difference back to the original value
         """
@@ -199,10 +196,7 @@ class ModelMerger:
             del state_dict["state_dict"]  # Remove any sub-embedded state dicts
 
         transformed_dict = dict(
-            [
-                (ModelMerger.transform_checkpoint_key(key), value)
-                for key, value in state_dict.items()
-            ]
+            [(ModelMerger.transform_checkpoint_key(key), value) for key, value in state_dict.items()]
         )
         state_dict.clear()
         state_dict.update(transformed_dict)
@@ -248,12 +242,8 @@ class ModelMerger:
         )
 
         primary_state_dict = self.load_checkpoint(self.primary_model)
-        secondary_state_dict = (
-            None if not self.secondary_model else self.load_checkpoint(self.secondary_model)
-        )
-        tertiary_state_dict = (
-            None if not self.tertiary_model else self.load_checkpoint(self.tertiary_model)
-        )
+        secondary_state_dict = None if not self.secondary_model else self.load_checkpoint(self.secondary_model)
+        tertiary_state_dict = None if not self.tertiary_model else self.load_checkpoint(self.tertiary_model)
 
         theta_0 = primary_state_dict
         theta_1 = secondary_state_dict
@@ -298,18 +288,14 @@ class ModelMerger:
 
                     if a.shape[1] == 8 and b.shape[1] == 4:
                         # Merging IP2P into Normal
-                        theta_0[key][:, 0:4, :, :] = interpolate(
-                            a[:, 0:4, :, :], b, self.multiplier
-                        )
+                        theta_0[key][:, 0:4, :, :] = interpolate(a[:, 0:4, :, :], b, self.multiplier)
                         result_is_instruct_pix2pix_model = True
                     else:
                         # Merging inpainting into Normal
                         assert (
                             a.shape[1] == 9 and b.shape[1] == 4
                         ), f"Bad dimensions for merged layer {key}: A={a.shape}, B={b.shape}"
-                        theta_0[key][:, 0:4, :, :] = interpolate(
-                            a[:, 0:4, :, :], b, self.multiplier
-                        )
+                        theta_0[key][:, 0:4, :, :] = interpolate(a[:, 0:4, :, :], b, self.multiplier)
                         result_is_inpainting_model = True
                 else:
                     theta_0[key] = interpolate(a, b, self.multiplier)

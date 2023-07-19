@@ -60,9 +60,7 @@ install_requires = [
 ]
 
 extras_require = {
-    "directml": [
-        "torch-directml==0.1.13.1.dev230413"
-    ],
+    "directml": ["torch-directml==0.1.13.1.dev230413"],
     "tensorrt": [
         "polygraphy>=0.47,<0.48",
         "onnx==1.12",
@@ -80,7 +78,7 @@ extras_require = {
         "types-tabulate>=0.9,<0.10",
         "types-pyyaml>=6.0,<7.0",
         "importchecker>=2.0,<3.0",
-        "pyinstaller>=5.13.0"
+        "pyinstaller>=5.13.0",
     ],
 }
 

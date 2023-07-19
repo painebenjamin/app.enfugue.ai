@@ -91,9 +91,7 @@ class EnfugueAPISystemController(EnfugueAPIControllerBase):
             if self.user_config["enfugue.noauth"] != request.parsed["auth"]:
                 self.database.execute(delete(self.orm.AuthenticationToken))  # Clear auth data
                 if request.parsed["auth"]:
-                    self.database.execute(
-                        delete(self.orm.User).filter(self.orm.User.username == "noauth")
-                    )
+                    self.database.execute(delete(self.orm.User).filter(self.orm.User.username == "noauth"))
                 self.database.commit()
         if "safe" in request.parsed:
             if request.parsed["safe"] != self.configuration.get("enfugue.safe", True):
@@ -120,11 +118,7 @@ class EnfugueAPISystemController(EnfugueAPIControllerBase):
         username = request.parsed.get("username", None)
         if not username:
             raise BadRequestError("Username is required.")
-        user = (
-            self.database.query(self.orm.User)
-            .filter(self.orm.User.username == username)
-            .one_or_none()
-        )
+        user = self.database.query(self.orm.User).filter(self.orm.User.username == username).one_or_none()
         if user:
             raise BadRequestError(f"User {username} already exists.")
         password = request.parsed.get("new_password", None)
@@ -155,9 +149,7 @@ class EnfugueAPISystemController(EnfugueAPIControllerBase):
                 raise ConfigurationError(
                     "Couldn't find admin permission group. Did you modify the user initialization configuration?"
                 )
-            self.database.add(
-                self.orm.UserPermissionGroup(user_id=user.id, group_id=admin_permission_group.id)
-            )
+            self.database.add(self.orm.UserPermissionGroup(user_id=user.id, group_id=admin_permission_group.id))
         self.database.commit()
         return user
 
@@ -169,11 +161,7 @@ class EnfugueAPISystemController(EnfugueAPIControllerBase):
         """
         Updates one user.
         """
-        user = (
-            self.database.query(self.orm.User)
-            .filter(self.orm.User.username == username)
-            .one_or_none()
-        )
+        user = self.database.query(self.orm.User).filter(self.orm.User.username == username).one_or_none()
         if not user:
             raise NotFoundError(f"No user named {username}")
 
@@ -207,11 +195,7 @@ class EnfugueAPISystemController(EnfugueAPIControllerBase):
             if admin_permission is not None and not request.parsed["admin"]:
                 self.database.delete(admin_permission)
             elif admin_permission is None and request.parsed["admin"]:
-                self.database.add(
-                    self.orm.UserPermissionGroup(
-                        user_id=user.id, group_id=admin_permission_group.id
-                    )
-                )
+                self.database.add(self.orm.UserPermissionGroup(user_id=user.id, group_id=admin_permission_group.id))
         self.database.commit()
         return user
 
@@ -226,11 +210,7 @@ class EnfugueAPISystemController(EnfugueAPIControllerBase):
         """
         if username == "enfugue":
             raise BadRequestError("Cannot delete default user.")
-        user = (
-            self.database.query(self.orm.User)
-            .filter(self.orm.User.username == username)
-            .one_or_none()
-        )
+        user = self.database.query(self.orm.User).filter(self.orm.User.username == username).one_or_none()
         if not user:
             raise NotFoundError(f"No user named {username}")
         for permission in user.permissions:
@@ -251,9 +231,7 @@ class EnfugueAPISystemController(EnfugueAPIControllerBase):
         """
         sizes = {}
         for dirname in ["cache", "checkpoint", "lora", "lycoris", "inversion", "other"]:
-            directory = self.configuration.get(
-                f"enfugue.engine.{dirname}", os.path.join(self.engine_root, dirname)
-            )
+            directory = self.configuration.get(f"enfugue.engine.{dirname}", os.path.join(self.engine_root, dirname))
             items, files, size = get_directory_size(directory)
             sizes[dirname] = {"items": items, "files": files, "bytes": size, "path": directory}
         return sizes
@@ -281,15 +259,11 @@ class EnfugueAPISystemController(EnfugueAPIControllerBase):
     @handlers.methods("GET")
     @handlers.format()
     @handlers.secured("System", "read")
-    def get_installation_details(
-        self, request: Request, response: Response, dirname: str
-    ) -> List[Dict[str, Any]]:
+    def get_installation_details(self, request: Request, response: Response, dirname: str) -> List[Dict[str, Any]]:
         """
         Gets a summary of files and filesize in the installation
         """
-        directory = self.configuration.get(
-            f"enfugue.engine.{dirname}", os.path.join(self.engine_root, dirname)
-        )
+        directory = self.configuration.get(f"enfugue.engine.{dirname}", os.path.join(self.engine_root, dirname))
         if not os.path.isdir(directory):
             return []
         items = []
@@ -306,16 +280,12 @@ class EnfugueAPISystemController(EnfugueAPIControllerBase):
     @handlers.methods("DELETE")
     @handlers.format()
     @handlers.secured("System", "update")
-    def remove_from_installation(
-        self, request: Request, response: Response, dirname: str, filename: str
-    ) -> None:
+    def remove_from_installation(self, request: Request, response: Response, dirname: str, filename: str) -> None:
         """
         Deletes a file or directory from the installation
         """
 
-        directory = self.configuration.get(
-            f"enfugue.engine.{dirname}", os.path.join(self.engine_root, dirname)
-        )
+        directory = self.configuration.get(f"enfugue.engine.{dirname}", os.path.join(self.engine_root, dirname))
         path = os.path.join(directory, filename)
         if not os.path.exists(path):
             raise BadRequestError(f"Unknown engine file/directory {dirname}/{filename}")
@@ -338,9 +308,7 @@ class EnfugueAPISystemController(EnfugueAPIControllerBase):
             raise BadRequestError("File is missing.")
 
         filename = request.POST["file"].filename
-        directory = self.configuration.get(
-            f"enfugue.engine.{dirname}", os.path.join(self.engine_root, dirname)
-        )
+        directory = self.configuration.get(f"enfugue.engine.{dirname}", os.path.join(self.engine_root, dirname))
         if not os.path.exists(directory):
             raise BadRequestError(f"Unknown directory {dirname}")
 
@@ -353,9 +321,7 @@ class EnfugueAPISystemController(EnfugueAPIControllerBase):
     @handlers.methods("POST")
     @handlers.format()
     @handlers.secured("System", "update")
-    def change_installation_directory(
-        self, request: Request, response: Response, dirname: str
-    ) -> None:
+    def change_installation_directory(self, request: Request, response: Response, dirname: str) -> None:
         """
         Changes the directory of a particular model folder.
         """
@@ -435,9 +401,7 @@ class EnfugueAPISystemController(EnfugueAPIControllerBase):
                     raise ValueError("Unknown log format.")
 
                 parsed_dict = parsed_line.groupdict()
-                timestamp = datetime.datetime.strptime(
-                    parsed_dict["timestamp"], "%Y-%m-%d %H:%M:%S,%f"
-                )
+                timestamp = datetime.datetime.strptime(parsed_dict["timestamp"], "%Y-%m-%d %H:%M:%S,%f")
 
                 logs.append(
                     cast(

@@ -87,9 +87,7 @@ class Download:
         self.last_elapsed = None
         self.last_downloaded_bytes = None
         self.last_total_bytes = None
-        self.process = DownloadProcess(
-            src, dest, chunk_size, headers, parameters, self.progress_queue
-        )
+        self.process = DownloadProcess(src, dest, chunk_size, headers, parameters, self.progress_queue)
 
     def start(self) -> None:
         """
@@ -123,9 +121,7 @@ class Download:
         if not self.started:
             return None
         if self.progress_queue is None:
-            raise ValueError(
-                "Download was initialized with `progress=False`, no progress report is available."
-            )
+            raise ValueError("Download was initialized with `progress=False`, no progress report is available.")
         if not self.closed:
             last_tuple = None
             try:
@@ -248,7 +244,5 @@ class Download:
         self.check_raise_exitcode()
         self.get_last_progress()
         if not self.last_elapsed:
-            return (
-                datetime.datetime.now() - cast(datetime.datetime, self.start_time)
-            ).total_seconds()
+            return (datetime.datetime.now() - cast(datetime.datetime, self.start_time)).total_seconds()
         return self.last_elapsed

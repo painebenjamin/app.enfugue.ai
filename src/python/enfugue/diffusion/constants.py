@@ -12,11 +12,13 @@ __all__ = [
     "CONTR0LNET_INPAINT",
     "CONTROLNET_DEPTH",
     "CONTROLNET_NORMAL",
-    "CONTROLNET_POSE"
+    "CONTROLNET_POSE",
 ]
 
 DEFAULT_MODEL = "https://huggingface.co/runwayml/stable-diffusion-v1-5/resolve/main/v1-5-pruned.ckpt"
-DEFAULT_INPAINTING_MODEL = "https://huggingface.co/runwayml/stable-diffusion-inpainting/resolve/main/sd-v1-5-inpainting.ckpt"
+DEFAULT_INPAINTING_MODEL = (
+    "https://huggingface.co/runwayml/stable-diffusion-inpainting/resolve/main/sd-v1-5-inpainting.ckpt"
+)
 
 VAE_EMA = "stabilityai/sd-vae-ft-ema"
 VAE_MSE = "stabilityai/sd-vae-ft-mse"

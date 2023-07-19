@@ -222,7 +222,7 @@ $(PYTHON_BUILD_SRC): $(PYTHON_TEST_TYPE) $(PYTHON_TEST_IMPORT) $(PYTHON_TEST_UNI
 ## Run black
 .PHONY: format
 format: $(PYTHON_SRC)
-	$(PYTHON) -m black --line-length 100 $?
+	$(PYTHON) -m black --line-length 120 $?
 
 ## Run mypy
 .PHONY: typecheck

@@ -156,9 +156,7 @@ class Invocation:
             last_known_time = self.last_intermediate_time
         else:
             last_known_time = self.start_time
-        seconds_since_last_communication = (
-            datetime.datetime.now() - last_known_time
-        ).total_seconds()
+        seconds_since_last_communication = (datetime.datetime.now() - last_known_time).total_seconds()
         return seconds_since_last_communication > self.communication_timeout
 
     def timeout(self) -> None:

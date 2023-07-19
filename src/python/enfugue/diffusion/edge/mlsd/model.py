@@ -29,12 +29,8 @@ class BlockTypeA(nn.Module):
 class BlockTypeB(nn.Module):
     def __init__(self, in_c, out_c):
         super(BlockTypeB, self).__init__()
-        self.conv1 = nn.Sequential(
-            nn.Conv2d(in_c, in_c, kernel_size=3, padding=1), nn.BatchNorm2d(in_c), nn.ReLU()
-        )
-        self.conv2 = nn.Sequential(
-            nn.Conv2d(in_c, out_c, kernel_size=3, padding=1), nn.BatchNorm2d(out_c), nn.ReLU()
-        )
+        self.conv1 = nn.Sequential(nn.Conv2d(in_c, in_c, kernel_size=3, padding=1), nn.BatchNorm2d(in_c), nn.ReLU())
+        self.conv2 = nn.Sequential(nn.Conv2d(in_c, out_c, kernel_size=3, padding=1), nn.BatchNorm2d(out_c), nn.ReLU())
 
     def forward(self, x):
         x = self.conv1(x) + x
@@ -50,9 +46,7 @@ class BlockTypeC(nn.Module):
             nn.BatchNorm2d(in_c),
             nn.ReLU(),
         )
-        self.conv2 = nn.Sequential(
-            nn.Conv2d(in_c, in_c, kernel_size=3, padding=1), nn.BatchNorm2d(in_c), nn.ReLU()
-        )
+        self.conv2 = nn.Sequential(nn.Conv2d(in_c, in_c, kernel_size=3, padding=1), nn.BatchNorm2d(in_c), nn.ReLU())
         self.conv3 = nn.Conv2d(in_c, out_c, kernel_size=1)
 
     def forward(self, x):
@@ -95,9 +89,7 @@ class ConvBNReLU(nn.Sequential):
             padding = (kernel_size - 1) // 2
 
         super(ConvBNReLU, self).__init__(
-            nn.Conv2d(
-                in_planes, out_planes, kernel_size, stride, padding, groups=groups, bias=False
-            ),
+            nn.Conv2d(in_planes, out_planes, kernel_size, stride, padding, groups=groups, bias=False),
             nn.BatchNorm2d(out_planes),
             nn.ReLU6(inplace=True),
         )
@@ -231,9 +223,7 @@ class MobileNetV2(nn.Module):
         return self._forward_impl(x)
 
     def _load_pretrained_model(self):
-        pretrain_dict = model_zoo.load_url(
-            "https://download.pytorch.org/models/mobilenet_v2-b0353104.pth"
-        )
+        pretrain_dict = model_zoo.load_url("https://download.pytorch.org/models/mobilenet_v2-b0353104.pth")
         model_dict = {}
         state_dict = self.state_dict()
         for k, v in pretrain_dict.items():

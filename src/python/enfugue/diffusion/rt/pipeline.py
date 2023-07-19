@@ -80,7 +80,7 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
             requires_aesthetic_score=requires_aesthetic_score,
             engine_size=engine_size,
             chunking_size=chunking_size,
-            chunking_blur=chunking_blur
+            chunking_blur=chunking_blur,
         )
 
         if self.controlnet is not None:
@@ -112,9 +112,7 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         """
         Gets a device view over a tensor
         """
-        return cuda.DeviceView(
-            ptr=t.data_ptr(), shape=t.shape, dtype=DTypeConverter.from_torch(t.dtype)
-        )
+        return cuda.DeviceView(ptr=t.data_ptr(), shape=t.shape, dtype=DTypeConverter.from_torch(t.dtype))
 
     def controlled_unet_forward(self, *args, **kwargs):
         """
@@ -145,9 +143,7 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         if self.clip_engine_dir is not None:
             self.models["clip"] = CLIP(self.text_encoder, **models_args)
         if self.unet_engine_dir is not None:
-            self.models["unet"] = UNet(
-                self.unet, unet_dim=self.unet.config.in_channels, **models_args
-            )
+            self.models["unet"] = UNet(self.unet, unet_dim=self.unet.config.in_channels, **models_args)
         if self.controlled_unet_engine_dir is not None:
             self.models["controlledunet"] = ControlledUNet(
                 self.unet, unet_dim=self.unet.config.in_channels, **models_args
@@ -173,9 +169,7 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
             )
 
     @contextmanager
-    def get_runtime_context(
-        self, batch_size: int, device: Union[str, torch.device]
-    ) -> Iterator[None]:
+    def get_runtime_context(self, batch_size: int, device: Union[str, torch.device]) -> Iterator[None]:
         """
         We initialize the TensorRT runtime here.
         """
@@ -265,30 +259,20 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         Override to change to float32
         """
         return super(EnfugueTensorRTStableDiffusionPipeline, self).create_latents(
-            batch_size,
-            num_channels_latents,
-            height,
-            width,
-            torch.float32,
-            device,
-            generator,
-            scheduler=scheduler
+            batch_size, num_channels_latents, height, width, torch.float32, device, generator, scheduler=scheduler
         )
 
     def encode_prompt(
         self,
         prompt: Optional[str],
         device: torch.device,
-        num_images_per_prompt: int=1,
-        do_classifier_free_guidance: bool=False,
-        negative_prompt: Optional[str]=None,
-        prompt_embeds: Optional[torch.Tensor]=None,
-        negative_prompt_embeds: Optional[torch.Tensor]=None,
-        lora_scale: Optional[float]=None,
-    ) -> Union[
-        torch.Tensor,
-        Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]
-    ]:
+        num_images_per_prompt: int = 1,
+        do_classifier_free_guidance: bool = False,
+        negative_prompt: Optional[str] = None,
+        prompt_embeds: Optional[torch.Tensor] = None,
+        negative_prompt_embeds: Optional[torch.Tensor] = None,
+        lora_scale: Optional[float] = None,
+    ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]]:
         """
         Encodes the prompt into text encoder hidden states.
         Args:
@@ -307,7 +291,7 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
                 do_classifier_free_guidance=do_classifier_free_guidance,
                 negative_prompt=negative_prompt,
                 prompt_embeds=prompt_embeds,
-                negative_prompt_embeds=negative_prompt_embeds
+                negative_prompt_embeds=negative_prompt_embeds,
             )
 
         # Tokenize prompt
@@ -327,9 +311,7 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         # NOTE: output tensor for CLIP must be cloned because it will be overwritten when called again for negative prompt
 
         text_embeddings = (
-            self.engine["clip"]
-            .infer({"input_ids": text_input_ids_inp}, self.stream)["text_embeddings"]
-            .clone()
+            self.engine["clip"].infer({"input_ids": text_input_ids_inp}, self.stream)["text_embeddings"].clone()
         )
 
         # Tokenize negative prompt
@@ -346,9 +328,9 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         )
 
         uncond_input_ids_inp = self.device_view(uncond_input_ids)
-        uncond_embeddings = self.engine["clip"].infer(
-            {"input_ids": uncond_input_ids_inp}, self.stream
-        )["text_embeddings"]
+        uncond_embeddings = self.engine["clip"].infer({"input_ids": uncond_input_ids_inp}, self.stream)[
+            "text_embeddings"
+        ]
 
         # Concatenate the unconditional and text embeddings into a single batch to avoid doing two forward passes for classifier free guidance
         text_embeddings = torch.cat([uncond_embeddings, text_embeddings]).to(dtype=torch.float16)
@@ -368,9 +350,7 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         Executes the controlnet inference
         """
         if "controlnet" not in self.engine:
-            return super(
-                EnfugueTensorRTStableDiffusionPipeline, self
-            ).get_controlnet_conditioning_blocks(
+            return super(EnfugueTensorRTStableDiffusionPipeline, self).get_controlnet_conditioning_blocks(
                 device=device,
                 latents=latents,
                 timestep=timestep,
@@ -382,9 +362,7 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
             return None, None
 
         timestep_float = timestep.float() if timestep.dtype != torch.float32 else timestep
-        conditioning_scale_tensor = torch.Tensor([conditioning_scale]).to(
-            dtype=torch.float32, device=device
-        )
+        conditioning_scale_tensor = torch.Tensor([conditioning_scale]).to(dtype=torch.float32, device=device)
         inference_kwargs = {
             "sample": self.device_view(latents),
             "timestep": self.device_view(timestep_float),
@@ -420,7 +398,7 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
                 cross_attention_kwargs=cross_attention_kwargs,
                 added_cond_kwargs=added_cond_kwargs,
                 down_block_additional_residuals=down_block_additional_residuals,
-                mid_block_additional_residual=mid_block_additional_residual
+                mid_block_additional_residual=mid_block_additional_residual,
             )
 
         timestep_float = timestep.float() if timestep.dtype != torch.float32 else timestep
@@ -431,10 +409,7 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
             "encoder_hidden_states": self.device_view(embeddings),
         }
 
-        if (
-            down_block_additional_residuals is not None
-            and mid_block_additional_residual is not None
-        ):
+        if down_block_additional_residuals is not None and mid_block_additional_residual is not None:
             if engine_name == "unet":
                 if not getattr(self, "_informed_of_bad_controlled_unet", False):
                     logger.error(

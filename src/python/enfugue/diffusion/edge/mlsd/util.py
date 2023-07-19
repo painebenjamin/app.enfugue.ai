@@ -91,7 +91,7 @@ def pred_lines(
             x_end = x + disp_x_end
             y_end = y + disp_y_end
             segments_list.append([x_start, y_start, x_end, y_end])
-    
+
     if not segments_list:
         return []
 
@@ -339,9 +339,7 @@ def pred_squares(
     # rename variables
     deg1_map, deg2_map = deg_inter_to_start, deg_inter_to_end
     # sort deg ascending
-    deg_sort = np.sort(
-        np.concatenate([deg1_map[:, :, None], deg2_map[:, :, None]], axis=-1), axis=-1
-    )
+    deg_sort = np.sort(np.concatenate([deg1_map[:, :, None], deg2_map[:, :, None]], axis=-1), axis=-1)
 
     deg_diff_map = np.abs(deg1_map - deg2_map)
     # we only consider the smallest degree of intersect
@@ -453,15 +451,9 @@ def pred_squares(
                                             | line_idx0_i, line_idx0_j, line_idx1_i, line_idx1_j, line_idx2_i, line_idx2_j, line_idx3_i, line_idx3_j |
                                             ...
                                         """
-                                        square_list.append(
-                                            corner0[:2] + corner1[:2] + corner2[:2] + corner3[:2]
-                                        )
-                                        connect_list.append(
-                                            [corner0_line, corner1_line, corner2_line, corner3_line]
-                                        )
-                                        segments_list.append(
-                                            corner0[2:] + corner1[2:] + corner2[2:] + corner3[2:]
-                                        )
+                                        square_list.append(corner0[:2] + corner1[:2] + corner2[:2] + corner3[:2])
+                                        connect_list.append([corner0_line, corner1_line, corner2_line, corner3_line])
+                                        segments_list.append(corner0[2:] + corner1[2:] + corner2[2:] + corner3[2:])
 
     def check_outside_inside(segments_info, connect_idx):
         # return 'outside or inside', min distance, cover_param, peri_param
@@ -502,9 +494,7 @@ def pred_squares(
         degree_scores = []
         length_scores = []
 
-        for connects, segments, square, degree in zip(
-            connect_array, segments_array, squares, squares_degree
-        ):
+        for connects, segments, square, degree in zip(connect_array, segments_array, squares, squares_degree):
             """
             0 -- 1
             |    |
@@ -537,25 +527,13 @@ def pred_squares(
                     start_cover_param,
                     start_peri_param,
                 ) = check_outside_inside(start_segments, connect_idx)
-                end_position, end_min, end_cover_param, end_peri_param = check_outside_inside(
-                    end_segments, connect_idx
-                )
+                end_position, end_min, end_cover_param, end_peri_param = check_outside_inside(end_segments, connect_idx)
 
-                cover += (
-                    dist_segments[connect_idx]
-                    + start_cover_param * start_min
-                    + end_cover_param * end_min
-                )
-                perimeter += (
-                    dist_segments[connect_idx]
-                    + start_peri_param * start_min
-                    + end_peri_param * end_min
-                )
+                cover += dist_segments[connect_idx] + start_cover_param * start_min + end_cover_param * end_min
+                perimeter += dist_segments[connect_idx] + start_peri_param * start_min + end_peri_param * end_min
 
                 square_length.append(
-                    dist_segments[connect_idx]
-                    + start_peri_param * start_min
-                    + end_peri_param * end_min
+                    dist_segments[connect_idx] + start_peri_param * start_min + end_peri_param * end_min
                 )
 
             overlap_scores.append(cover / perimeter)
@@ -599,9 +577,7 @@ def pred_squares(
         area_x = area_scores[:, :, 0]
         area_y = area_scores[:, :, 1]
         correction = area_x[:, -1] * area_y[:, 0] - area_y[:, -1] * area_x[:, 0]
-        area_scores = np.sum(area_x[:, :-1] * area_y[:, 1:], axis=-1) - np.sum(
-            area_y[:, :-1] * area_x[:, 1:], axis=-1
-        )
+        area_scores = np.sum(area_x[:, :-1] * area_y[:, 1:], axis=-1) - np.sum(area_y[:, :-1] * area_x[:, 1:], axis=-1)
         area_scores = 0.5 * np.abs(area_scores + correction)
         area_scores /= map_size * map_size  # np.max(area_scores)
         ######################################

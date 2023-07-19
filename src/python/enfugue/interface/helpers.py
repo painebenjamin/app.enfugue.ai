@@ -23,9 +23,7 @@ def check_url(configuration: APIConfiguration, value: Any) -> Any:
     """
     if isinstance(value, str) and value.startswith("/"):
         if value.startswith("/static/"):
-            static_path = str(
-                configuration.get("server.cms.path.static", configuration["server.cms.path.root"])
-            )
+            static_path = str(configuration.get("server.cms.path.static", configuration["server.cms.path.root"]))
             if static_path.endswith("static") or static_path.endswith("static/"):
                 value = value[len("/static") :]
             return url_join(static_path, value)
@@ -54,15 +52,11 @@ class HTMLPropertiesHelperFunction(FunctionExtensionBase):
 
     def __call__(self, property_dict: dict) -> str:
         for property_name in property_dict:
-            property_dict[property_name] = check_url(
-                self.getConfiguration(), property_dict[property_name]
-            )
+            property_dict[property_name] = check_url(self.getConfiguration(), property_dict[property_name])
 
         return " ".join(
             [
-                '{0}="{1}"'.format(key, property_dict[key])
-                if property_dict[key] is not None
-                else key
+                '{0}="{1}"'.format(key, property_dict[key]) if property_dict[key] is not None else key
                 for key in property_dict
             ]
         )

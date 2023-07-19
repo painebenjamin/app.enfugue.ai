@@ -122,9 +122,7 @@ class DiffusionEngine:
             return
 
         logger.debug("No current engine process, creating.")
-        self.process = DiffusionEngineProcess(
-            self.instructions, self.results, self.intermediates, self.configuration
-        )
+        self.process = DiffusionEngineProcess(self.instructions, self.results, self.intermediates, self.configuration)
 
         poll_delay_seconds = DiffusionEngineProcess.POLLING_DELAY_MS / 250
 
@@ -256,9 +254,7 @@ class DiffusionEngine:
                 try:
                     if result_deserialized["id"] == id:
                         if "error" in result_deserialized:
-                            to_raise = resolve(result_deserialized["error"])(
-                                result_deserialized["message"]
-                            )
+                            to_raise = resolve(result_deserialized["error"])(result_deserialized["message"])
                             if "trace" in result_deserialized:
                                 logger.error(result_deserialized["trace"])
                         else:
@@ -277,17 +273,13 @@ class DiffusionEngine:
             if timeout is not None and (datetime.datetime.now() - start).total_seconds() > timeout:
                 raise TimeoutError("Timed out waiting for response.")
 
-    def invoke(
-        self, action: str, payload: Any = None, timeout: Optional[Union[int, float]] = None
-    ) -> Any:
+    def invoke(self, action: str, payload: Any = None, timeout: Optional[Union[int, float]] = None) -> Any:
         """
         Issue a single request synchronously using arg syntax.
         """
         return self.wait(self.dispatch(action, payload), timeout)
 
-    def execute(
-        self, plan: DiffusionPlan, timeout: Optional[Union[int, float]] = None, wait: bool = False
-    ) -> Any:
+    def execute(self, plan: DiffusionPlan, timeout: Optional[Union[int, float]] = None, wait: bool = False) -> Any:
         """
         This is a helpful method to just serialize and execute a plan.
         """

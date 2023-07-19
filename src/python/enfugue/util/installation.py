@@ -110,6 +110,7 @@ def get_version() -> Version:
     Gets the version of enfugue installed.
     """
     import logging
+
     logger = logging.getLogger("enfugue")
     try:
         local_install = get_local_installation_directory()

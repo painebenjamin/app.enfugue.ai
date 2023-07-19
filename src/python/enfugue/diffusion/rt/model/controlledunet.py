@@ -169,9 +169,7 @@ class ControlledUNet(BaseModel):
             ],
         }
 
-    def get_shape_dict(
-        self, batch_size: int, image_height: int, image_width: int
-    ) -> Dict[str, Tuple[int, ...]]:
+    def get_shape_dict(self, batch_size: int, image_height: int, image_width: int) -> Dict[str, Tuple[int, ...]]:
         latent_height, latent_width = self.check_dims(batch_size, image_height, image_width)
         return {
             "sample": (2 * batch_size, self.unet_dim, latent_height, latent_width),

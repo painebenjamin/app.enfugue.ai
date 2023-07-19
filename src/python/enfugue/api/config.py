@@ -66,9 +66,7 @@ class EnfugueConfiguration:
                 .one_or_none()
             )
             if item is None:
-                session.add(
-                    self.orm.ConfigurationItem(configuration_key=key, configuration_value=value)
-                )
+                session.add(self.orm.ConfigurationItem(configuration_key=key, configuration_value=value))
             else:
                 item.configuration_value = value
             session.commit()

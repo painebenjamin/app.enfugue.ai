@@ -10,10 +10,10 @@ from enfugue.database.models import (
     DiffusionModelLora,
     DiffusionModelLycoris,
     DiffusionModelInversion,
-    DiffusionModelDefaultConfiguration
+    DiffusionModelDefaultConfiguration,
 )
 
-EnfugueObjectBase, DiffusionModel, DiffusionModelRefiner, DiffusionModelInpainter, DiffusionModelVAE, DiffusionModelScheduler, DiffusionModelLora, DiffusionModelLycoris, DiffusionModelInversion, DiffusionInvocation, DiffusionModelDefaultConfiguration, ConfigurationItem # Silence importchecker
+EnfugueObjectBase, DiffusionModel, DiffusionModelRefiner, DiffusionModelInpainter, DiffusionModelVAE, DiffusionModelScheduler, DiffusionModelLora, DiffusionModelLycoris, DiffusionModelInversion, DiffusionInvocation, DiffusionModelDefaultConfiguration, ConfigurationItem  # Silence importchecker
 
 __all__ = [
     "EnfugueObjectBase",

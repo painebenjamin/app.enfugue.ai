@@ -131,16 +131,12 @@ class Engine:
             if self.engine.binding_is_input(binding):
                 self.context.set_binding_shape(i, shape)
 
-            tensor = torch.empty(tuple(shape), dtype=DTypeConverter.from_numpy(dtype)).to(
-                device=device
-            )
+            tensor = torch.empty(tuple(shape), dtype=DTypeConverter.from_numpy(dtype)).to(device=device)
             self.tensors[binding] = tensor
             self.buffers[binding] = cuda.DeviceView(ptr=tensor.data_ptr(), shape=shape, dtype=dtype)
             logger.debug(f"Binding {binding} to tensor of shape {shape}")
 
-    def infer(
-        self, feeds: Dict[str, cuda.DeviceView], stream: cuda.Stream
-    ) -> OrderedDict[str, torch.Tensor]:
+    def infer(self, feeds: Dict[str, cuda.DeviceView], stream: cuda.Stream) -> OrderedDict[str, torch.Tensor]:
         """
         Runs inference through the engine.
         """
@@ -215,9 +211,7 @@ class Engine:
 
         config_kwargs: dict[str, Any] = {}
 
-        config_kwargs["preview_features"] = [
-            trt.PreviewFeature.DISABLE_EXTERNAL_TACTIC_SOURCES_FOR_CORE_0805
-        ]
+        config_kwargs["preview_features"] = [trt.PreviewFeature.DISABLE_EXTERNAL_TACTIC_SOURCES_FOR_CORE_0805]
         if enable_preview:
             # Faster dynamic shapes made optional since it increases engine build time.
             config_kwargs["preview_features"].append(trt.PreviewFeature.FASTER_DYNAMIC_SHAPES_0805)
@@ -270,9 +264,7 @@ class Engine:
                         logger.debug(f"Exporting model to {onnx_path}")
                         model = model_obj.get_model()
                         with torch.inference_mode(), torch.autocast("cuda"):
-                            inputs = model_obj.get_sample_input(
-                                opt_batch_size, opt_image_height, opt_image_width
-                            )
+                            inputs = model_obj.get_sample_input(opt_batch_size, opt_image_height, opt_image_width)
                             torch.onnx.export(
                                 model,
                                 inputs,

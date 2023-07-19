@@ -35,9 +35,7 @@ class CivitAIModel:
         self.properties = properties
         if self.properties.get("description", None) is not None:
             lines = self.html_parser.handle(self.properties["description"]).splitlines()
-            self.properties["description"] = "\n".join(
-                [line.strip() for line in lines if line.strip()]
-            )
+            self.properties["description"] = "\n".join([line.strip() for line in lines if line.strip()])
 
     def serialize(self) -> Dict[str, Any]:
         """
@@ -67,16 +65,12 @@ class CivitAI(JSONWebServiceAPIClient):
         client["path"] = "/api/v1"
         super(CivitAI, self).configure(client=client, **kwargs)
 
-    def get_all(
-        self, path: str, limit: Optional[int] = None, **parameters: Any
-    ) -> Iterator[Dict[str, Any]]:
+    def get_all(self, path: str, limit: Optional[int] = None, **parameters: Any) -> Iterator[Dict[str, Any]]:
         """
         Gets all results from an endpoint, paginating if necessary
         """
 
-        parameters = dict(
-            [(key, value) for key, value in parameters.items() if value is not None and value != ""]
-        )
+        parameters = dict([(key, value) for key, value in parameters.items() if value is not None and value != ""])
 
         if limit is not None:
             parameters["limit"] = min(limit, self.PAGE_SIZE)

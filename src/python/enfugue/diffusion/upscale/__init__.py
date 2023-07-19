@@ -13,6 +13,7 @@ from enfugue.diffusion.vision import ComputerVision
 if TYPE_CHECKING:
     import torch
 
+
 class Upscaler:
     """
     The upscaler user ESRGAN or GFGPGAN for up to 4x upscale
@@ -20,14 +21,11 @@ class Upscaler:
 
     GFPGAN_PATH = "https://github.com/TencentARC/GFPGAN/releases/download/v1.3.0/GFPGANv1.3.pth"
     ESRGAN_PATH = "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.0/RealESRGAN_x4plus.pth"
-    ESRGAN_ANIME_PATH = "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.2.4/RealESRGAN_x4plus_anime_6B.pth"
+    ESRGAN_ANIME_PATH = (
+        "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.2.4/RealESRGAN_x4plus_anime_6B.pth"
+    )
 
-    def __init__(
-        self,
-        model_dir: str,
-        device: torch.device,
-        dtype: torch.dtype
-    ) -> None:
+    def __init__(self, model_dir: str, device: torch.device, dtype: torch.dtype) -> None:
         """
         On initialization, pass the model dir.
         """
@@ -56,26 +54,17 @@ class Upscaler:
         """
         return check_download_to_dir(self.GFPGAN_PATH, self.model_dir)
 
-    def get_upsampler(
-        self, 
-        tile: int = 0,
-        tile_pad: int = 10,
-        pre_pad: int = 10,
-        anime: bool = False
-    ) -> RealESRGANer:
+    def get_upsampler(self, tile: int = 0, tile_pad: int = 10, pre_pad: int = 10, anime: bool = False) -> RealESRGANer:
         """
         Gets the appropriate upsampler
         """
         import torch
+
         if anime:
-            model = RRDBNet(
-                num_in_ch=3, num_out_ch=3, num_feat=64, num_block=6, num_grow_ch=32, scale=4
-            )
+            model = RRDBNet(num_in_ch=3, num_out_ch=3, num_feat=64, num_block=6, num_grow_ch=32, scale=4)
             model_path = self.esrgan_anime_weights_path
         else:
-            model = RRDBNet(
-                num_in_ch=3, num_out_ch=3, num_feat=64, num_block=23, num_grow_ch=32, scale=4
-            )
+            model = RRDBNet(num_in_ch=3, num_out_ch=3, num_feat=64, num_block=23, num_grow_ch=32, scale=4)
             model_path = self.esrgan_weights_path
 
         return RealESRGANer(
@@ -86,7 +75,7 @@ class Upscaler:
             tile_pad=tile_pad,
             pre_pad=pre_pad,
             device=self.device,
-            half=self.dtype is torch.float16
+            half=self.dtype is torch.float16,
         )
 
     def esrgan(
@@ -106,9 +95,7 @@ class Upscaler:
 
         esrganer = self.get_upsampler(tile=tile, tile_pad=tile_pad, pre_pad=pre_pad, anime=anime)
 
-        return ComputerVision.revert_image(
-            esrganer.enhance(ComputerVision.convert_image(image), outscale=outscale)[0]
-        )
+        return ComputerVision.revert_image(esrganer.enhance(ComputerVision.convert_image(image), outscale=outscale)[0])
 
     def gfpgan(
         self,
@@ -133,7 +120,7 @@ class Upscaler:
             channel_multiplier=2,
             bg_upsampler=self.get_upsampler(tile=tile, tile_pad=tile_pad, pre_pad=pre_pad),
             rootpath=self.model_dir,
-            device=self.device
+            device=self.device,
         )
 
         return ComputerVision.revert_image(

@@ -81,18 +81,14 @@ class CLIP(BaseModel):
             ]
         }
 
-    def get_shape_dict(
-        self, batch_size: int, image_height: int, image_width: int
-    ) -> Dict[str, Tuple[int, ...]]:
+    def get_shape_dict(self, batch_size: int, image_height: int, image_width: int) -> Dict[str, Tuple[int, ...]]:
         self.check_dims(batch_size, image_height, image_width)
         return {
             "input_ids": (batch_size, self.text_maxlen),
             "text_embeddings": (batch_size, self.text_maxlen, self.embedding_dim),
         }
 
-    def get_sample_input(
-        self, batch_size: int, image_height: int, image_width: int
-    ) -> torch.Tensor:
+    def get_sample_input(self, batch_size: int, image_height: int, image_width: int) -> torch.Tensor:
         self.check_dims(batch_size, image_height, image_width)
         return torch.zeros(batch_size, self.text_maxlen, dtype=torch.int32, device=self.device)
 

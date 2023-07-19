@@ -46,9 +46,7 @@ class EnfugueAPIDownloadsController(EnfugueAPIControllerBase):
 
             check_make_directory(target_dir)
 
-            return self.manager.download(
-                request.token.user.id, request.parsed["url"], target_file
-            ).format()
+            return self.manager.download(request.token.user.id, request.parsed["url"], target_file).format()
         except KeyError as ex:
             raise BadRequestError(f"Missing required argument {ex}")
 
@@ -66,9 +64,7 @@ class EnfugueAPIDownloadsController(EnfugueAPIControllerBase):
     @handlers.methods("GET")
     @handlers.secured()
     @handlers.format()
-    def civitai_lookup(
-        self, request: Request, response: Response, lookup: str
-    ) -> List[Dict[str, Any]]:
+    def civitai_lookup(self, request: Request, response: Response, lookup: str) -> List[Dict[str, Any]]:
         """
         Performs a lookup in CivitAI
         """

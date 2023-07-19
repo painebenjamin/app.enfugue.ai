@@ -44,11 +44,7 @@ from diffusers.schedulers import (
     LMSDiscreteScheduler,
     PNDMScheduler,
 )
-from diffusers.models import (
-    AutoencoderKL,
-    UNet2DConditionModel,
-    ControlNetModel
-)
+from diffusers.models import AutoencoderKL, UNet2DConditionModel, ControlNetModel
 from diffusers.loaders import LoraLoaderMixin
 from diffusers.models.attention_processor import (
     AttnProcessor2_0,
@@ -67,7 +63,7 @@ from diffusers.pipelines.stable_diffusion.convert_from_ckpt import (
     convert_ldm_unet_checkpoint,
     convert_ldm_vae_checkpoint,
     convert_ldm_clip_checkpoint,
-    convert_open_clip_checkpoint
+    convert_open_clip_checkpoint,
 )
 
 from diffusers.utils import randn_tensor, PIL_INTERPOLATION
@@ -134,8 +130,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
         # Add config for xl
         self.register_to_config(
-            requires_aesthetic_score=requires_aesthetic_score,
-            force_zeros_for_empty_prompt=force_zeros_for_empty_prompt
+            requires_aesthetic_score=requires_aesthetic_score, force_zeros_for_empty_prompt=force_zeros_for_empty_prompt
         )
 
         # Add an image processor for later
@@ -150,11 +145,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             self.multi_scheduler_config = dict(**self.scheduler_config)
 
         # Register other networks
-        self.register_modules(
-            controlnet=controlnet,
-            text_encoder_2=text_encoder_2,
-            tokenizer_2=tokenizer_2
-        )
+        self.register_modules(controlnet=controlnet, text_encoder_2=text_encoder_2, tokenizer_2=tokenizer_2)
 
     @classmethod
     def debug_tensors(cls, **kwargs: Union[Dict, List, torch.Tensor]) -> None:
@@ -179,9 +170,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         cache_dir: str,
         prediction_type: Optional[str] = None,
         image_size: int = 512,
-        scheduler_type: Literal[
-            "pndm", "lms", "heun", "euler", "euler-ancestral", "dpm", "ddim"
-        ] = "ddim",
+        scheduler_type: Literal["pndm", "lms", "heun", "euler", "euler-ancestral", "dpm", "ddim"] = "ddim",
         vae_path: Optional[str] = None,
         load_safety_checker: bool = True,
         torch_dtype: Optional[torch.dtype] = None,
@@ -223,7 +212,9 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         key_name_xl_refiner = "conditioner.embedders.0.model.transformer.resblocks.9.mlp.c_proj.bias"
 
         # SD v1
-        config_url = "https://raw.githubusercontent.com/CompVis/stable-diffusion/main/configs/stable-diffusion/v1-inference.yaml"
+        config_url = (
+            "https://raw.githubusercontent.com/CompVis/stable-diffusion/main/configs/stable-diffusion/v1-inference.yaml"
+        )
 
         if key_name_2_1 in checkpoint and checkpoint[key_name_2_1].shape[-1] == 1024:
             # SD v2.1
@@ -238,19 +229,19 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         elif key_name_xl_refiner in checkpoint:
             # SDXL Refiner
             config_url = "https://raw.githubusercontent.com/Stability-AI/generative-models/main/configs/inference/sd_xl_refiner.yaml"
-        
+
         original_config_file = check_download_to_dir(config_url, cache_dir, check_size=False)
         from omegaconf import OmegaConf
+
         original_config = OmegaConf.load(original_config_file)
-        
+
         if num_in_channels is not None:
-            if "unet_config" in original_config["model"]["params"]: # type: ignore
+            if "unet_config" in original_config["model"]["params"]:  # type: ignore
                 # SD 1 or 2
                 original_config["model"]["params"]["unet_config"]["params"]["in_channels"] = num_in_channels  # type: ignore
-            elif "network_config" in original_config["model"]["params"]: # type: ignore
+            elif "network_config" in original_config["model"]["params"]:  # type: ignore
                 # SDXL
                 original_config["model"]["params"]["network_config"]["params"]["in_channels"] = num_in_channels  # type: ignore
-
 
         if (
             "parameterization" in original_config["model"]["params"]  # type: ignore
@@ -282,7 +273,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             else:
                 model_type = "SDXL-Refiner"
 
-        num_train_timesteps = 1000 # Default is SDXL
+        num_train_timesteps = 1000  # Default is SDXL
         if "timesteps" in original_config.model.params:
             # SD 1 or 2
             num_train_timesteps = original_config.model.params.timesteps
@@ -362,12 +353,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             vae = AutoencoderKL.from_pretrained(vae_path, cache_dir=cache_dir)
 
         if load_safety_checker:
-            safety_checker = StableDiffusionSafetyChecker.from_pretrained(
-                "CompVis/stable-diffusion-safety-checker"
-            )
-            feature_extractor = AutoFeatureExtractor.from_pretrained(
-                "CompVis/stable-diffusion-safety-checker"
-            )
+            safety_checker = StableDiffusionSafetyChecker.from_pretrained("CompVis/stable-diffusion-safety-checker")
+            feature_extractor = AutoFeatureExtractor.from_pretrained("CompVis/stable-diffusion-safety-checker")
         else:
             safety_checker = None
             feature_extractor = None
@@ -430,7 +417,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         if torch_dtype is not None:
             return pipe.to(torch_dtype=torch_dtype)
         return pipe
-    
+
     @property
     def is_sdxl(self) -> bool:
         """
@@ -443,15 +430,12 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         prompt: Optional[str],
         device: torch.device,
         num_images_per_prompt: int = 1,
-        do_classifier_free_guidance: bool=False,
-        negative_prompt: Optional[str]=None,
+        do_classifier_free_guidance: bool = False,
+        negative_prompt: Optional[str] = None,
         prompt_embeds: Optional[torch.Tensor] = None,
         negative_prompt_embeds: Optional[torch.Tensor] = None,
         lora_scale: Optional[float] = None,
-    ) -> Union[
-        torch.Tensor,
-        Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]
-    ]:
+    ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]]:
         """
         Encodes the prompt into text encoder hidden states.
         See https://github.com/huggingface/diffusers/blob/main/src/diffusers/pipelines/stable_diffusion_xl/pipeline_stable_diffusion_xl.py
@@ -503,29 +487,31 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                         f" {tokenizer.model_max_length} tokens: {removed_text}"
                     )
 
-                if not self.is_sdxl and hasattr(text_encoder.config, "use_attention_mask") and text_encoder.config.use_attention_mask:
+                if (
+                    not self.is_sdxl
+                    and hasattr(text_encoder.config, "use_attention_mask")
+                    and text_encoder.config.use_attention_mask
+                ):
                     attention_mask = text_inputs.attention_mask.to(device)
                 else:
                     attention_mask = None
 
                 text_input_ids = text_input_ids.to(device=device)
                 prompt_embeds = text_encoder(
-                    text_input_ids,
-                    output_hidden_states=self.is_sdxl,
-                    attention_mask=attention_mask
+                    text_input_ids, output_hidden_states=self.is_sdxl, attention_mask=attention_mask
                 )
 
                 if self.is_sdxl:
-                    pooled_prompt_embeds = prompt_embeds[0] # type: ignore
-                    prompt_embeds = prompt_embeds.hidden_states[-2] # type: ignore
+                    pooled_prompt_embeds = prompt_embeds[0]  # type: ignore
+                    prompt_embeds = prompt_embeds.hidden_states[-2]  # type: ignore
                 else:
-                    prompt_embeds = prompt_embeds[0].to(dtype=self.text_encoder.dtype, device=device) # type: ignore
+                    prompt_embeds = prompt_embeds[0].to(dtype=self.text_encoder.dtype, device=device)  # type: ignore
 
-                bs_embed, seq_len, _ = prompt_embeds.shape # type: ignore
+                bs_embed, seq_len, _ = prompt_embeds.shape  # type: ignore
                 # duplicate text embeddings for each generation per prompt, using mps friendly method
-                prompt_embeds = prompt_embeds.repeat(1, num_images_per_prompt, 1) # type: ignore
+                prompt_embeds = prompt_embeds.repeat(1, num_images_per_prompt, 1)  # type: ignore
                 prompt_embeds = prompt_embeds.view(bs_embed * num_images_per_prompt, seq_len, -1)
-                
+
                 if self.is_sdxl:
                     prompt_embeds_list.append(prompt_embeds)
             if self.is_sdxl:
@@ -534,14 +520,14 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         # get unconditional embeddings for classifier free guidance
         zero_out_negative_prompt = negative_prompt is None and self.config.force_zeros_for_empty_prompt
         if self.is_sdxl and do_classifier_free_guidance and negative_prompt_embeds is None and zero_out_negative_prompt:
-            negative_prompt_embeds = torch.zeros_like(prompt_embeds) # type: ignore
+            negative_prompt_embeds = torch.zeros_like(prompt_embeds)  # type: ignore
             negative_pooled_prompt_embeds = torch.zeros_like(pooled_prompt_embeds)
         elif do_classifier_free_guidance and negative_prompt_embeds is None:
             uncond_tokens: List[str] = [negative_prompt or ""]
             negative_prompt_embeds_list = []
 
             for tokenizer, text_encoder in zip(tokenizers, text_encoders):
-                max_length = prompt_embeds.shape[1] # type: ignore
+                max_length = prompt_embeds.shape[1]  # type: ignore
                 uncond_input = tokenizer(
                     uncond_tokens,
                     padding="max_length",
@@ -549,30 +535,32 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     truncation=True,
                     return_tensors="pt",
                 )
-                
-                if not self.is_sdxl and hasattr(text_encoder.config, "use_attention_mask") and text_encoder.config.use_attention_mask:
+
+                if (
+                    not self.is_sdxl
+                    and hasattr(text_encoder.config, "use_attention_mask")
+                    and text_encoder.config.use_attention_mask
+                ):
                     attention_mask = text_inputs.attention_mask.to(device)
                 else:
                     attention_mask = None
 
                 negative_prompt_embeds = text_encoder(
-                    uncond_input.input_ids.to(device),
-                    output_hidden_states=self.is_sdxl,
-                    attention_mask=attention_mask
+                    uncond_input.input_ids.to(device), output_hidden_states=self.is_sdxl, attention_mask=attention_mask
                 )
 
                 if self.is_sdxl:
                     # We are only ALWAYS interested in the pooled output of the final text encoder
-                    negative_pooled_prompt_embeds = negative_prompt_embeds[0] # type: ignore
-                    negative_prompt_embeds = negative_prompt_embeds.hidden_states[-2] # type: ignore
+                    negative_pooled_prompt_embeds = negative_prompt_embeds[0]  # type: ignore
+                    negative_prompt_embeds = negative_prompt_embeds.hidden_states[-2]  # type: ignore
                 else:
-                    negative_prompt_embeds = negative_prompt_embeds[0] # type: ignore
+                    negative_prompt_embeds = negative_prompt_embeds[0]  # type: ignore
 
                 if do_classifier_free_guidance:
                     # duplicate unconditional embeddings for each generation per prompt, using mps friendly method
-                    seq_len = negative_prompt_embeds.shape[1] # type: ignore
+                    seq_len = negative_prompt_embeds.shape[1]  # type: ignore
 
-                    negative_prompt_embeds = negative_prompt_embeds.to(dtype=text_encoder.dtype, device=device) # type: ignore
+                    negative_prompt_embeds = negative_prompt_embeds.to(dtype=text_encoder.dtype, device=device)  # type: ignore
 
                     negative_prompt_embeds = negative_prompt_embeds.repeat(1, num_images_per_prompt, 1)
                     negative_prompt_embeds = negative_prompt_embeds.view(num_images_per_prompt, seq_len, -1)
@@ -581,12 +569,12 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     # Here we concatenate the unconditional and text embeddings into a single batch
                     # to avoid doing two forward passes
                     if not self.is_sdxl:
-                        prompt_embeds = torch.cat([negative_prompt_embeds, prompt_embeds]) # type: ignore
+                        prompt_embeds = torch.cat([negative_prompt_embeds, prompt_embeds])  # type: ignore
                 if self.is_sdxl:
                     negative_prompt_embeds_list.append(negative_prompt_embeds)
             if self.is_sdxl:
                 negative_prompt_embeds = torch.concat(negative_prompt_embeds_list, dim=-1)
-        
+
         if self.is_sdxl:
             pooled_prompt_embeds = pooled_prompt_embeds.repeat(1, num_images_per_prompt).view(
                 bs_embed * num_images_per_prompt, -1
@@ -594,13 +582,11 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             negative_pooled_prompt_embeds = negative_pooled_prompt_embeds.repeat(1, num_images_per_prompt).view(
                 bs_embed * num_images_per_prompt, -1
             )
-            return prompt_embeds, negative_prompt_embeds, pooled_prompt_embeds, negative_pooled_prompt_embeds # type: ignore
-        return prompt_embeds # type: ignore
+            return prompt_embeds, negative_prompt_embeds, pooled_prompt_embeds, negative_pooled_prompt_embeds  # type: ignore
+        return prompt_embeds  # type: ignore
 
     @contextmanager
-    def get_runtime_context(
-        self, batch_size: int, device: Union[str, torch.device]
-    ) -> Iterator[None]:
+    def get_runtime_context(self, batch_size: int, device: Union[str, torch.device]) -> Iterator[None]:
         """
         Used by other implementations (tensorrt), but not base.
         """
@@ -638,14 +624,10 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
         while "state_dict" in state_dict:
             state_dict = state_dict["state_dict"]
-        
+
         from lycoris.utils import merge
-        merge(
-            (self.text_encoder, self.vae, self.unet),
-            state_dict,
-            multiplier,
-            device="cpu"
-        )
+
+        merge((self.text_encoder, self.vae, self.unet), state_dict, multiplier, device="cpu")
 
     def load_lora_weights(
         self,
@@ -668,9 +650,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         LORA_PREFIX_TEXT_ENCODER = "lora_te"
 
         # load LoRA weight from .safetensors
-        state_dict = safetensors.torch.load_file(
-            pretrained_model_name_or_path_or_dict, device="cpu"
-        )
+        state_dict = safetensors.torch.load_file(pretrained_model_name_or_path_or_dict, device="cpu")
 
         updates: Mapping[str, Any] = defaultdict(dict)
         for key, value in state_dict.items():
@@ -766,9 +746,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     mask = mask.unsqueeze(1)
 
             assert image.ndim == 4 and mask.ndim == 4, "Image and Mask must have 4 dimensions"
-            assert (
-                image.shape[-2:] == mask.shape[-2:]
-            ), "Image and Mask must have the same spatial dimensions"
+            assert image.shape[-2:] == mask.shape[-2:], "Image and Mask must have the same spatial dimensions"
             assert image.shape[0] == mask.shape[0], "Image and Mask must have the same batch size"
 
             # Check image is in [-1, 1]
@@ -806,9 +784,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 mask = [mask]
 
             if isinstance(mask, list) and isinstance(mask[0], PIL.Image.Image):
-                mask = np.concatenate(
-                    [np.array(m.convert("L"))[None, None, :] for m in mask], axis=0
-                )
+                mask = np.concatenate([np.array(m.convert("L"))[None, None, :] for m in mask], axis=0)
                 mask = mask.astype(np.float32) / 255.0
             elif isinstance(mask, list) and isinstance(mask[0], np.ndarray):
                 mask = np.concatenate([m[None, None, :] for m in mask], axis=0)
@@ -848,7 +824,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         return random_latents * scheduler.init_noise_sigma
 
     def encode_image_unchunked(
-            self, image: torch.Tensor, dtype: torch.dtype, generator: Optional[torch.Generator] = None
+        self, image: torch.Tensor, dtype: torch.dtype, generator: Optional[torch.Generator] = None
     ) -> torch.Tensor:
         """
         Encodes an image without chunking using the VAE.
@@ -893,7 +869,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
         count = torch.zeros((1, num_channels, latent_height, latent_width)).to(device=device)
         value = torch.zeros_like(count)
-        
+
         if self.is_sdxl:
             self.vae.to(dtype=torch.float32)
             image = image.float()
@@ -1056,13 +1032,17 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         """
         Gets added time embedding vectors for SDXL
         """
-        if aesthetic_score is not None and negative_aesthetic_score is not None and self.config.requires_aesthetic_score:
+        if (
+            aesthetic_score is not None
+            and negative_aesthetic_score is not None
+            and self.config.requires_aesthetic_score
+        ):
             add_time_ids = list(original_size + crops_coords_top_left + (aesthetic_score,))
             add_neg_time_ids = list(original_size + crops_coords_top_left + (negative_aesthetic_score,))
         else:
             add_time_ids = list(original_size + crops_coords_top_left + target_size)
             add_neg_time_ids = None
-        
+
         passed_add_embed_dim = (
             self.unet.config.addition_time_embed_dim * len(add_time_ids) + self.text_encoder_2.config.projection_dim
         )
@@ -1087,11 +1067,11 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 f"Model expects an added time embedding vector of length {expected_add_embed_dim}, but a vector of {passed_add_embed_dim} was created. The model has an incorrect config. Please check `unet.config.time_embedding_type` and `text_encoder_2.config.projection_dim`."
             )
 
-        add_time_ids = torch.tensor([add_time_ids], dtype=dtype) # type: ignore
+        add_time_ids = torch.tensor([add_time_ids], dtype=dtype)  # type: ignore
         if add_neg_time_ids is not None:
-            add_neg_time_ids = torch.tensor([add_neg_time_ids], dtype=dtype) # type: ignore
+            add_neg_time_ids = torch.tensor([add_neg_time_ids], dtype=dtype)  # type: ignore
 
-        return add_time_ids, add_neg_time_ids # type: ignore
+        return add_time_ids, add_neg_time_ids  # type: ignore
 
     def predict_noise_residual(
         self,
@@ -1117,7 +1097,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             down_block_additional_residuals=down_block_additional_residuals,
             mid_block_additional_residual=mid_block_additional_residual,
             return_dict=False,
-            **kwargs
+            **kwargs,
         )[0]
 
     def prepare_control_image(
@@ -1184,9 +1164,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         image = np.array(image.convert("RGB")).astype(np.float32) / 255.0
         mask = np.array(mask.convert("L")).astype(np.float32) / 255.0
 
-        assert (
-            image.shape[0:1] == mask.shape[0:1]
-        ), "image and image_mask must have the same image size"
+        assert image.shape[0:1] == mask.shape[0:1], "image and image_mask must have the same image size"
         image[mask > 0.5] = -1.0  # set as masked pixel
 
         image = np.expand_dims(image, 0).transpose(0, 3, 1, 2)
@@ -1239,9 +1217,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         latent_window_size = self.engine_size // self.vae_scale_factor
 
         vertical_blocks = math.ceil((latent_height - latent_window_size) / latent_chunking_size + 1)
-        horizontal_blocks = math.ceil(
-            (latent_width - latent_window_size) / latent_chunking_size + 1
-        )
+        horizontal_blocks = math.ceil((latent_width - latent_window_size) / latent_chunking_size + 1)
         total_blocks = vertical_blocks * horizontal_blocks
         chunks = []
 
@@ -1303,9 +1279,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         mask_image: Optional[torch.Tensor] = None,
         control_image: Optional[torch.Tensor] = None,
         progress_callback: Optional[Callable[[], None]] = None,
-        latent_callback: Optional[
-            Callable[[Union[torch.Tensor, np.ndarray, List[PIL.Image.Image]]], None]
-        ] = None,
+        latent_callback: Optional[Callable[[Union[torch.Tensor, np.ndarray, List[PIL.Image.Image]]], None]] = None,
         latent_callback_steps: Optional[int] = 1,
         latent_callback_type: Literal["latent", "pt", "np", "pil"] = "latent",
         conditioning_scale: float = 1.0,
@@ -1325,9 +1299,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
         for i, t in enumerate(timesteps):
             # expand the latents if we are doing classifier free guidance
-            latent_model_input = (
-                torch.cat([latents] * 2) if do_classifier_free_guidance else latents
-            )
+            latent_model_input = torch.cat([latents] * 2) if do_classifier_free_guidance else latents
             latent_model_input = self.scheduler.scale_model_input(latent_model_input, t)
 
             # Get controlnet input if configured
@@ -1364,9 +1336,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             # perform guidance
             if do_classifier_free_guidance:
                 noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
-                noise_pred = noise_pred_uncond + guidance_scale * (
-                    noise_pred_text - noise_pred_uncond
-                )
+                noise_pred = noise_pred_uncond + guidance_scale * (noise_pred_text - noise_pred_uncond)
 
             # Compute previous noisy sample
             latents = self.scheduler.step(
@@ -1384,10 +1354,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 latent_callback is not None
                 and latent_callback_steps is not None
                 and i % latent_callback_steps == 0
-                and (
-                    i == num_steps - 1
-                    or ((i + 1) > num_warmup_steps and (i + 1) % self.scheduler.order == 0)
-                )
+                and (i == num_steps - 1 or ((i + 1) > num_warmup_steps and (i + 1) % self.scheduler.order == 0))
             ):
                 latent_callback_value = latents
 
@@ -1397,13 +1364,9 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     )
                     latent_callback_value = self.denormalize_latents(latent_callback_value)
                     if latent_callback_type != "pt":
-                        latent_callback_value = self.image_processor.pt_to_numpy(
-                            latent_callback_value
-                        )
+                        latent_callback_value = self.image_processor.pt_to_numpy(latent_callback_value)
                         if latent_callback_type == "pil":
-                            latent_callback_value = self.image_processor.numpy_to_pil(
-                                latent_callback_value
-                            )
+                            latent_callback_value = self.image_processor.numpy_to_pil(latent_callback_value)
                 latent_callback(latent_callback_value)
 
         return latents
@@ -1423,9 +1386,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         mask_image: Optional[torch.Tensor] = None,
         control_image: Optional[torch.Tensor] = None,
         progress_callback: Optional[Callable[[], None]] = None,
-        latent_callback: Optional[
-            Callable[[Union[torch.Tensor, np.ndarray, List[PIL.Image.Image]]], None]
-        ] = None,
+        latent_callback: Optional[Callable[[Union[torch.Tensor, np.ndarray, List[PIL.Image.Image]]], None]] = None,
         latent_callback_steps: Optional[int] = 1,
         latent_callback_type: Literal["latent", "pt", "np", "pil"] = "latent",
         conditioning_scale: float = 1.0,
@@ -1463,7 +1424,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 latent_callback_type=latent_callback_type,
                 extra_step_kwargs=extra_step_kwargs,
                 cross_attention_kwargs=cross_attention_kwargs,
-                added_cond_kwargs=added_cond_kwargs
+                added_cond_kwargs=added_cond_kwargs,
             )
 
         num_steps = len(timesteps)
@@ -1499,9 +1460,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
                 # expand the latents if we are doing classifier free guidance
                 latent_model_input = (
-                    torch.cat([latents_for_view] * 2)
-                    if do_classifier_free_guidance
-                    else latents_for_view
+                    torch.cat([latents_for_view] * 2) if do_classifier_free_guidance else latents_for_view
                 )
                 latent_model_input = self.multi_scheduler.scale_model_input(latent_model_input, t)
 
@@ -1543,9 +1502,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 # perform guidance
                 if do_classifier_free_guidance:
                     noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
-                    noise_pred = noise_pred_uncond + guidance_scale * (
-                        noise_pred_text - noise_pred_uncond
-                    )
+                    noise_pred = noise_pred_uncond + guidance_scale * (noise_pred_text - noise_pred_uncond)
 
                 # compute the previous noisy sample x_t -> x_t-1
                 denoised_latents = self.multi_scheduler.step(
@@ -1590,10 +1547,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 latent_callback is not None
                 and latent_callback_steps is not None
                 and i % latent_callback_steps == 0
-                and (
-                    i == num_steps - 1
-                    or ((i + 1) > num_warmup_steps and (i + 1) % self.multi_scheduler.order == 0)
-                )
+                and (i == num_steps - 1 or ((i + 1) > num_warmup_steps and (i + 1) % self.multi_scheduler.order == 0))
             ):
                 latent_callback_value = latents
 
@@ -1603,13 +1557,9 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     )
                     latent_callback_value = self.denormalize_latents(latent_callback_value)
                     if latent_callback_type != "pt":
-                        latent_callback_value = self.image_processor.pt_to_numpy(
-                            latent_callback_value
-                        )
+                        latent_callback_value = self.image_processor.pt_to_numpy(latent_callback_value)
                         if latent_callback_type == "pil":
-                            latent_callback_value = self.image_processor.numpy_to_pil(
-                                latent_callback_value
-                            )
+                            latent_callback_value = self.image_processor.numpy_to_pil(latent_callback_value)
                 latent_callback(latent_callback_value)
 
         return latents
@@ -1620,9 +1570,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         """
         return self.vae.decode(latents, return_dict=False)[0]
 
-    def decode_latents_unchunked(
-        self, latents: torch.Tensor, device: Union[str, torch.device]
-    ) -> torch.Tensor:
+    def decode_latents_unchunked(self, latents: torch.Tensor, device: Union[str, torch.device]) -> torch.Tensor:
         """
         Decodes the latents using the VAE without chunking.
         """
@@ -1780,9 +1728,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         return_dict: bool = True,
         scale_image: bool = True,
         progress_callback: Optional[Callable[[int, int, float], None]] = None,
-        latent_callback: Optional[
-            Callable[[Union[torch.Tensor, np.ndarray, List[PIL.Image.Image]]], None]
-        ] = None,
+        latent_callback: Optional[Callable[[Union[torch.Tensor, np.ndarray, List[PIL.Image.Image]]], None]] = None,
         latent_callback_steps: Optional[int] = 1,
         latent_callback_type: Literal["latent", "pt", "np", "pil"] = "latent",
         cross_attention_kwargs: Optional[Dict[str, Any]] = None,
@@ -1835,7 +1781,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
         device = self._execution_device
         do_classifier_free_guidance = guidance_scale > 1.0
-        
+
         # Calculate chunks
         num_chunks = max(1, len(self.get_chunks(height, width)))
 
@@ -1848,9 +1794,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
         scheduler.set_timesteps(num_inference_steps, device=device)
         if image and not mask:
-            timesteps, num_inference_steps = self.get_timesteps(
-                num_inference_steps, strength, device, num_chunks > 1
-            )
+            timesteps, num_inference_steps = self.get_timesteps(num_inference_steps, strength, device, num_chunks > 1)
         else:
             timesteps = scheduler.timesteps
 
@@ -1866,15 +1810,22 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             chunked_steps += 1
         if latent_callback is not None and latent_callback_steps is not None:
             chunked_steps += num_scheduled_inference_steps // latent_callback_steps
-        
+
         overall_num_steps = num_chunks * (num_scheduled_inference_steps + chunked_steps)
-        logger.debug(f"Calculated overall steps to be {overall_num_steps} ({num_chunks} chunks, {num_inference_steps} steps, {num_scheduled_inference_steps} scheduled steps)")
+        logger.debug(
+            f"Calculated overall steps to be {overall_num_steps} ({num_chunks} chunks, {num_inference_steps} steps, {num_scheduled_inference_steps} scheduled steps)"
+        )
         step_complete = self.get_step_complete_callback(overall_num_steps, progress_callback)
 
         with self.get_runtime_context(batch_size, device):
             # Base runtime has no context, but extensions do
             if self.is_sdxl:
-                prompt_embeds, negative_prompt_embeds, pooled_prompt_embeds, negative_pooled_prompt_embeds = self.encode_prompt(
+                (
+                    prompt_embeds,
+                    negative_prompt_embeds,
+                    pooled_prompt_embeds,
+                    negative_pooled_prompt_embeds,
+                ) = self.encode_prompt(
                     prompt,
                     device,
                     num_images_per_prompt,
@@ -1892,7 +1843,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     negative_prompt,
                     prompt_embeds=prompt_embeds,
                     negative_prompt_embeds=negative_prompt_embeds,
-                    ) # type: ignore
+                )  # type: ignore
                 pooled_prompt_embeds = None
                 negative_prompt_embeds = None
                 negative_pooled_prompt_embeds = None
@@ -1906,17 +1857,13 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             if scale_image and image:
                 image_width, image_height = image.size
                 if image_width != width or image_height != height:
-                    logger.debug(
-                        f"Resizing input image from {image_width}x{image_height} to {width}x{height}"
-                    )
+                    logger.debug(f"Resizing input image from {image_width}x{image_height} to {width}x{height}")
                     image = image.resize((width, height), resample=PIL_INTERPOLATION["lanczos"])
 
             if scale_image and mask:
                 mask_width, mask_height = mask.size
                 if mask_width != width or mask_height != height:
-                    logger.debug(
-                        f"Resizing input mask from {mask_width}x{mask_height} to {width}x{height}"
-                    )
+                    logger.debug(f"Resizing input mask from {mask_width}x{mask_height} to {width}x{height}")
                     mask = mask.resize((width, height), resample=PIL_INTERPOLATION["lanczos"])
 
             if image:
@@ -1954,7 +1901,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                         prompt_embeds.dtype,
                         device,
                         generator,
-                        scheduler=scheduler
+                        scheduler=scheduler,
                     )
 
                 prepared_mask, prepared_image_latents = self.prepare_mask_latents(
@@ -1973,10 +1920,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 num_channels_mask = prepared_mask.shape[1]
                 num_channels_masked_image = prepared_image_latents.shape[1]
 
-                if (
-                    num_channels_latents + num_channels_mask + num_channels_masked_image
-                    != self.unet.config.in_channels
-                ):
+                if num_channels_latents + num_channels_mask + num_channels_masked_image != self.unet.config.in_channels:
                     raise ValueError(
                         f"Incorrect configuration settings! The config of `pipeline.unet`: {self.unet.config} expects"
                         f" {self.unet.config.in_channels} but received `num_channels_latents`: {num_channels_latents} +"
@@ -1994,7 +1938,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     device,
                     generator,
                     progress_callback=step_complete,
-                    scheduler=scheduler
+                    scheduler=scheduler,
                 )
             elif latents:
                 # Running the pipeline on existing latents, add some noise
@@ -2009,7 +1953,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     prompt_embeds.dtype,
                     device,
                     generator,
-                    scheduler=scheduler
+                    scheduler=scheduler,
                 )
 
             # Look for controlnet and conditioning image
@@ -2033,17 +1977,13 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     )
             elif self.controlnet is not None:
                 if image and mask:
-                    logger.info(
-                        "Assuming controlnet inpaint, creating conditioning image from image and mask"
-                    )
+                    logger.info("Assuming controlnet inpaint, creating conditioning image from image and mask")
                     prepared_control_image = self.prepare_controlnet_inpaint_control_image(
                         image=image, mask=image, device=device, dtype=self.controlnet.dtype
                     )
                 else:
                     self.controlnet = self.controlnet.to("cpu")
-                    logger.warning(
-                        "Controlnet present, but no conditioning image. Disabling controlnet."
-                    )
+                    logger.warning("Controlnet present, but no conditioning image. Disabling controlnet.")
 
             # Should no longer be None
             prepared_latents = cast(torch.Tensor, prepared_latents)
@@ -2080,17 +2020,14 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                         original_size=original_size,
                         crops_coords_top_left=crops_coords_top_left,
                         target_size=target_size,
-                        dtype=prompt_embeds.dtype
+                        dtype=prompt_embeds.dtype,
                     )
                     add_time_ids = torch.cat([add_time_ids, add_time_ids], dim=0)
-                
+
                 prompt_embeds = prompt_embeds.to(device)
                 add_text_embeds = add_text_embeds.to(device)
                 add_time_ids = add_time_ids.to(device).repeat(batch_size * num_images_per_prompt, 1)
-                added_cond_kwargs = {
-                    "text_embeds": add_text_embeds,
-                    "time_ids": add_time_ids
-                }
+                added_cond_kwargs = {"text_embeds": add_text_embeds, "time_ids": add_time_ids}
             else:
                 added_cond_kwargs = None
 
@@ -2142,10 +2079,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                         self.vae.decoder.mid_block.to(prepared_latents.dtype)
                     else:
                         prepared_latents = prepared_latents.float()
-                
-                prepared_latents = self.decode_latents(
-                    prepared_latents, device=device, progress_callback=step_complete
-                )
+
+                prepared_latents = self.decode_latents(prepared_latents, device=device, progress_callback=step_complete)
 
                 if self.is_sdxl:
                     self.vae.to(dtype=prepared_latents.dtype)

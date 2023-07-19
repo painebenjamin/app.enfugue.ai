@@ -13,6 +13,7 @@ from enfugue.util.log import logger
 
 __all__ = ["get_gpu_status", "GPUMemoryStatusDict", "GPUStatusDict", "GPU"]
 
+
 def get_gpu_status() -> Optional[GPUStatusDict]:
     """
     Gets current GPU status.
@@ -34,29 +35,35 @@ def get_gpu_status() -> Optional[GPUStatusDict]:
         },
     }
 
+
 class GPUMemoryStatusDict(TypedDict):
     """
     The memory status dictionary.
     """
+
     free: int
     total: int
     used: int
     util: float
 
+
 class GPUStatusDict(TypedDict):
     """
     The GPU status dictionary.
     """
+
     driver: str
     name: str
     load: float
     temp: float
     memory: GPUMemoryStatusDict
 
+
 class GPU:
     """
     This class holds details about the GPU as returned by the appropriate subprocess.
     """
+
     def __init__(
         self,
         id: str,
@@ -96,13 +103,11 @@ class GPU:
         """
         Gets keyword arguments to pass into the Popen call.
         """
-        process_kwargs: Dict[str, Any] = {
-            "stdout": PIPE,
-            "stderr": PIPE
-        }
+        process_kwargs: Dict[str, Any] = {"stdout": PIPE, "stderr": PIPE}
         if platform.system() == "Windows":
-            from subprocess import CREATE_NO_WINDOW # type: ignore
-            process_kwargs["creationflags"] = CREATE_NO_WINDOW # type: ignore
+            from subprocess import CREATE_NO_WINDOW  # type: ignore
+
+            process_kwargs["creationflags"] = CREATE_NO_WINDOW  # type: ignore
         return process_kwargs
 
     @staticmethod
@@ -118,47 +123,27 @@ class GPU:
                     "--query-gpu=index,uuid,utilization.gpu,memory.total,memory.used,memory.free,driver_version,name,gpu_serial,display_active,display_mode,temperature.gpu",
                     "--format=csv,noheader,nounits",
                 ],
-                **GPU.get_process_kwargs()
+                **GPU.get_process_kwargs(),
             )
             stdout, stderr = p.communicate()
             output = stdout.decode("UTF-8")
-            lines = [
-                line for line in
-                [
-                    line.strip()
-                    for line in output.split(os.linesep)
-                ]
-                if line
-            ]
+            lines = [line for line in [line.strip() for line in output.split(os.linesep)] if line]
             for line in lines:
-                (
-                    id,
-                    uuid,
-                    load,
-                    memory_total,
-                    memory_used,
-                    _,
-                    driver,
-                    name,
-                    _,
-                    _,
-                    _,
-                    temp
-                ) = line.split(",")
+                (id, uuid, load, memory_total, memory_used, _, driver, name, _, _, _, temp) = line.split(",")
 
                 yield GPU(
                     id=id,
                     uuid=uuid.strip(),
                     memory_total=float(memory_total),
                     memory_used=float(memory_used),
-                    load=float(load)/100.0,
+                    load=float(load) / 100.0,
                     temp=float(temp),
                     driver=driver.strip(),
-                    name=name.strip()
+                    name=name.strip(),
                 )
         except Exception as ex:
             logger.error(f"Couldn't execute nvidia-smi (binary `{executable}`): {ex}\n{stderr}")
-        
+
     @staticmethod
     def get_amd_gpus(executable: str) -> Iterator[GPU]:
         """
@@ -176,9 +161,9 @@ class GPU:
                     "--showuniqueid",
                     "--showmeminfo",
                     "vram",
-                    "--json"
+                    "--json",
                 ],
-                **GPU.get_process_kwargs()
+                **GPU.get_process_kwargs(),
             )
             stdout, stderr = p.communicate()
             output = stdout.decode("UTF-8")
@@ -190,10 +175,10 @@ class GPU:
                 yield GPU(
                     id=key,
                     uuid=gpu_dict["Unique ID"],
-                    memory_total=float(gpu_dict["VRAM Total Memory (B)"])/1000000.0,
-                    memory_used=float(gpu_dict["VRAM Total Used Memory (B)"])/1000000.0,
+                    memory_total=float(gpu_dict["VRAM Total Memory (B)"]) / 1000000.0,
+                    memory_used=float(gpu_dict["VRAM Total Used Memory (B)"]) / 1000000.0,
                     temp=float(gpu_dict["Temperature (Sensor junction) (C)"]),
-                    load=float(gpu_dict["GPU use (%)"])/100.0,
+                    load=float(gpu_dict["GPU use (%)"]) / 100.0,
                     driver=result["system"]["Driver version"],
                     name=gpu_dict["Card series"],
                 )
@@ -217,10 +202,7 @@ class GPU:
             return list(GPU.get_amd_gpus(rocm_smi))
         elif nvidia_smi is None:
             if platform.system() == "Windows":
-                nvidia_smi = (
-                    "%s\\Program Files\\NVIDIA Corporation\\NVSMI\\nvidia-smi.exe"
-                    % os.environ["systemdrive"]
-                )
+                nvidia_smi = "%s\\Program Files\\NVIDIA Corporation\\NVSMI\\nvidia-smi.exe" % os.environ["systemdrive"]
             else:
                 nvidia_smi = "nvidia-smi"
         return list(GPU.get_nvidia_gpus(nvidia_smi))

@@ -14,7 +14,7 @@ from pibble.ext.user.server.base import (
 from pibble.ext.session.server.base import SessionExtensionServerBase
 from pibble.ext.rest.server.user import UserRESTExtensionServerBase
 from pibble.api.middleware.database.orm import ORMMiddlewareBase
-from pibble.api.exceptions import NotFoundError
+from pibble.api.exceptions import NotFoundError, BadRequestError
 
 from enfugue.diffusion.plan import DiffusionPlan
 from enfugue.api.controller.base import EnfugueAPIControllerBase
@@ -59,7 +59,9 @@ class EnfugueAPIInvocationController(EnfugueAPIControllerBase):
                         model_name,
                     )
                 ),
-                "refiner": None if refiner_name is None else os.path.abspath(
+                "refiner": None
+                if refiner_name is None
+                else os.path.abspath(
                     os.path.join(
                         self.configuration.get(
                             "enfugue.engine.checkpoint", os.path.join(self.engine_root, "checkpoint")
@@ -67,7 +69,9 @@ class EnfugueAPIInvocationController(EnfugueAPIControllerBase):
                         refiner_name,
                     )
                 ),
-                "inpainter": None if inpainter_name is None else os.path.abspath(
+                "inpainter": None
+                if inpainter_name is None
+                else os.path.abspath(
                     os.path.join(
                         self.configuration.get(
                             "enfugue.engine.checkpoint", os.path.join(self.engine_root, "checkpoint")
@@ -75,21 +79,25 @@ class EnfugueAPIInvocationController(EnfugueAPIControllerBase):
                         inpainter_name,
                     )
                 ),
-                "lora": [
+            }
+            try:
+                plan_kwargs["lora"] = [
                     (
                         os.path.abspath(
                             os.path.join(
-                                self.configuration.get(
-                                    "enfugue.engine.lora", os.path.join(self.engine_root, "lora")
-                                ),
+                                self.configuration.get("enfugue.engine.lora", os.path.join(self.engine_root, "lora")),
                                 lora["model"],
                             )
                         ),
                         float(lora["weight"]),
                     )
                     for lora in request.parsed.pop("lora", [])
-                ],
-                "lycoris": [
+                ]
+            except KeyError as ex:
+                raise BadRequestError(f"Missing required LoRA configuration '{ex}'")
+
+            try:
+                plan_kwargs["lycoris"] = [
                     (
                         os.path.abspath(
                             os.path.join(
@@ -102,19 +110,19 @@ class EnfugueAPIInvocationController(EnfugueAPIControllerBase):
                         float(lycoris["weight"]),
                     )
                     for lycoris in request.parsed.pop("lycoris", [])
-                ],
-                "inversion": [
-                    os.path.abspath(
-                        os.path.join(
-                            self.configuration.get(
-                                "enfugue.engine.inversion", os.path.join(self.engine_root, "inversion")
-                            ),
-                            inversion,
-                        )
+                ]
+            except KeyError as ex:
+                raise BadRequestError(f"Missing required LyCORIS configuration '{ex}'")
+
+            plan_kwargs["inversion"] = [
+                os.path.abspath(
+                    os.path.join(
+                        self.configuration.get("enfugue.engine.inversion", os.path.join(self.engine_root, "inversion")),
+                        inversion,
                     )
-                    for inversion in request.parsed.pop("inversion", [])
-                ],
-            }
+                )
+                for inversion in request.parsed.pop("inversion", [])
+            ]
         # Always take passed scheduler
         scheduler = request.parsed.pop("scheduler", None)
         if scheduler is not None:
@@ -130,10 +138,7 @@ class EnfugueAPIInvocationController(EnfugueAPIControllerBase):
         """
         Gets all invocations since engine start for a user.
         """
-        return [
-            invocation.format()
-            for invocation in self.manager.get_invocations(request.token.user.id)
-        ]
+        return [invocation.format() for invocation in self.manager.get_invocations(request.token.user.id)]
 
     @handlers.path("^/api/invocation/intermediates/(?P<file_path>.+)$")
     @handlers.download()
@@ -147,9 +152,7 @@ class EnfugueAPIInvocationController(EnfugueAPIControllerBase):
         SessionExtensionServerBase,
         UserExtensionTemplateServer,
     )  # bypass processing for speed
-    def download_intermediate_image(
-        self, request: Request, response: Response, file_path: str
-    ) -> str:
+    def download_intermediate_image(self, request: Request, response: Response, file_path: str) -> str:
         """
         Downloads one of the intermediate results of an invocation.
         """

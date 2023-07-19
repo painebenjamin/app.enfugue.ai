@@ -7,20 +7,18 @@ from typing import Iterator, TYPE_CHECKING
 
 from contextlib import contextmanager
 
-from enfugue.diffusion.pose.helper import OpenposeDetector # type: ignore[attr-defined]
+from enfugue.diffusion.pose.helper import OpenposeDetector  # type: ignore[attr-defined]
 
 if TYPE_CHECKING:
     import torch
+
 
 class PoseDetector:
     """
     Uses OpenPose to predict human poses.
     """
-    def __init__(
-        self,
-        model_dir: str,
-        device: torch.device
-    ) -> None:
+
+    def __init__(self, model_dir: str, device: torch.device) -> None:
         self.model_dir = model_dir
         self.device = device
 
@@ -33,10 +31,12 @@ class PoseDetector:
         if self.device.type == "cuda":
             import torch
             import torch.cuda
+
             torch.cuda.empty_cache()
         elif self.device.type == "mps":
             import torch
             import torch.mps
+
             torch.mps.empty_cache()
         gc.collect()
 

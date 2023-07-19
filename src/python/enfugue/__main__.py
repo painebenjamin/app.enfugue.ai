@@ -79,9 +79,7 @@ def version() -> None:
 
 @main.command(short_help="Dumps a copy of the configuration")
 @click.option("-f", "--filename", help="A file to write to instead of stdout.")
-@click.option(
-    "-j", "--json", help="When passed, use JSON instead of YAML.", is_flag=True, default=False
-)
+@click.option("-j", "--json", help="When passed, use JSON instead of YAML.", is_flag=True, default=False)
 def dump_config(filename: Optional[str] = None, json: bool = False) -> None:
     """
     Dumps a copy of the configuration to the console or the specified path.
@@ -110,9 +108,7 @@ def dump_config(filename: Optional[str] = None, json: bool = False) -> None:
         print(yaml.dump(configuration))
 
 
-@click.option(
-    "-c", "--config", help="An optional path to a configuration file to use instead of the default."
-)
+@click.option("-c", "--config", help="An optional path to a configuration file to use instead of the default.")
 @main.command(short_help="Runs the server.")
 def run(config: str = None) -> None:
     """

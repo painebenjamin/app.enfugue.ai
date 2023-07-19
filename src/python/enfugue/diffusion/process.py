@@ -103,9 +103,7 @@ class DiffusionEngineProcess(Process):
 
         progress_callback = self.create_progress_callback(instruction_id)
         if intermediate_dir is not None:
-            image_callback = self.create_image_callback(
-                instruction_id, intermediate_dir=intermediate_dir
-            )
+            image_callback = self.create_image_callback(instruction_id, intermediate_dir=intermediate_dir)
         else:
             image_callback = None
 
@@ -186,9 +184,7 @@ class DiffusionEngineProcess(Process):
         """
         kwargs["progress_callback"] = self.create_progress_callback(instruction_id)
         if intermediate_dir is not None and image_callback_steps is not None:
-            kwargs["latent_callback"] = self.create_image_callback(
-                instruction_id, intermediate_dir=intermediate_dir
-            )
+            kwargs["latent_callback"] = self.create_image_callback(instruction_id, intermediate_dir=intermediate_dir)
             kwargs["latent_callback_steps"] = image_callback_steps
             kwargs["latent_callback_type"] = "pil"
         else:
@@ -197,16 +193,16 @@ class DiffusionEngineProcess(Process):
         self.pipemanager.keepalive_callback = lambda: kwargs["progress_callback"](0, 0, 0.0)
 
         if model is not None:
-            self.pipemanager.model = model # type: ignore
+            self.pipemanager.model = model  # type: ignore
 
         if refiner is not None:
-            self.pipemanager.refiner = refiner # type: ignore
+            self.pipemanager.refiner = refiner  # type: ignore
 
         if inpainter is not None:
-            self.pipemanager.inpainter = inpainter # type: ignore
+            self.pipemanager.inpainter = inpainter  # type: ignore
 
         if vae is not None:
-            self.pipemanager.vae = vae # type: ignore
+            self.pipemanager.vae = vae  # type: ignore
 
         if seed is not None:
             self.pipemanager.seed = seed
@@ -325,11 +321,7 @@ class DiffusionEngineProcess(Process):
                     except Exception as ex:
                         if logger.isEnabledFor(logging.DEBUG):
                             logger.debug(traceback.format_exc())
-                        raise IOError(
-                            "Received unexpected {0}, process will exit. {1}".format(
-                                type(ex).__name__, ex
-                            )
-                        )
+                        raise IOError("Received unexpected {0}, process will exit. {1}".format(type(ex).__name__, ex))
 
                     instruction = Serializer.deserialize(payload)
                     if not isinstance(instruction, dict):
@@ -340,14 +332,10 @@ class DiffusionEngineProcess(Process):
                     instruction_action = instruction["action"]
                     instruction_payload = instruction.get("payload", None)
 
-                    logger.debug(
-                        f"Received instruction {instruction_id}, action {instruction_action}"
-                    )
+                    logger.debug(f"Received instruction {instruction_id}, action {instruction_action}")
                     if instruction_action == "ping":
                         logger.debug("Responding with 'pong'")
-                        self.results.put(
-                            Serializer.serialize({"id": instruction_id, "result": "pong"})
-                        )
+                        self.results.put(Serializer.serialize({"id": instruction_id, "result": "pong"}))
                     elif instruction_action in ["exit", "stop"]:
                         logger.debug("Exiting process")
                         self.pipemanager.unload_inpainter("exiting")
@@ -360,9 +348,7 @@ class DiffusionEngineProcess(Process):
                         try:
                             if instruction_action == "plan":
                                 intermediate_dir = instruction_payload.get("intermediate_dir", None)
-                                intermediate_steps = instruction_payload.get(
-                                    "intermediate_steps", None
-                                )
+                                intermediate_steps = instruction_payload.get("intermediate_steps", None)
                                 plan = self.get_diffusion_plan(instruction_payload)
                                 response["result"] = self.execute_diffusion_plan(
                                     instruction_id,
@@ -371,9 +357,7 @@ class DiffusionEngineProcess(Process):
                                     intermediate_steps=intermediate_steps,
                                 )
                             else:
-                                payload = self.check_invoke_kwargs(
-                                    instruction_id, **instruction_payload
-                                )
+                                payload = self.check_invoke_kwargs(instruction_id, **instruction_payload)
                                 response["result"] = self.pipemanager(**payload)
                         except Exception as ex:
                             response["error"] = qualify(type(ex))
