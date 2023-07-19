@@ -185,6 +185,12 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
             torch.autocast(device.type if isinstance(device, torch.device) else device),
             trt.Runtime(trt.Logger(trt.Logger.ERROR)),
         ):
+            if self.vae is not None and self.vae_engine_dir is None:
+                self.vae.to(device)
+            if self.controlnet is not None and self.controlnet_engine_dir is None:
+                self.controlnet.to(device)
+            if self.text_encoder is not None and self.clip_engine_dir is None:
+                self.text_encoder.to(device)
             if self.unet_engine_dir is not None or self.controlled_unet_engine_dir is not None:
                 logger.info("TensorRT unloading UNET")
                 self.unet = self.unet.to("cpu")

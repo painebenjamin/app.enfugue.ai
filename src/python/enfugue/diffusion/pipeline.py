@@ -508,8 +508,9 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 else:
                     attention_mask = None
 
+                text_input_ids = text_input_ids.to(device=device)
                 prompt_embeds = text_encoder(
-                    text_input_ids.to(device),
+                    text_input_ids,
                     output_hidden_states=self.is_sdxl,
                     attention_mask=attention_mask
                 )
@@ -605,6 +606,14 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         """
         if isinstance(device, str):
             device = torch.device(device)
+        self.unet.to(device)
+        self.vae.to(device)
+        if self.text_encoder is not None:
+            self.text_encoder.to(device)
+        if self.text_encoder_2 is not None:
+            self.text_encoder_2.to(device)
+        if self.controlnet is not None:
+            self.controlnet.to(device)
         if device.type == "cpu":
             with torch.autocast("cpu"):
                 yield

@@ -666,9 +666,7 @@ enfugue-repeatable-input enfugue-repeatable-input-item input.remove-item {
     text-align: center;
 }
 
-enfugue-repeatable-input
-    enfugue-repeatable-input-item
-    input.remove-item.disabled {
+enfugue-repeatable-input enfugue-repeatable-input-item input.remove-item.disabled {
     opacity: 0.33;
 }
 
@@ -681,14 +679,15 @@ enfugue-repeatable-input.columns enfugue-repeatable-input-item {
     margin-bottom: 5px;
 }
 
-enfugue-repeatable-input enfugue-repeatable-input-item > form.inset-form {
+enfugue-repeatable-input enfugue-repeatable-input-item form::after {
+    display: none !important;
+}
+
+enfugue-repeatable-input enfugue-repeatable-input-item form.inset-form {
     padding: 10px;
 }
 
-enfugue-repeatable-input
-    enfugue-repeatable-input-item
-    > form.inset-form
-    fieldset:not(:last-child) {
+enfugue-repeatable-input enfugue-repeatable-input-item orm.inset-form fieldset:not(:last-child) {
     margin-bottom: 10px;
 }
 

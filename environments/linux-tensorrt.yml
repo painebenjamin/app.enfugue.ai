@@ -9,11 +9,11 @@ dependencies:
   - python=3.10.11
   - pip=23.1.2
   - cudatoolkit=11.7
-  - pytorch=1.13.1
-  - torchvision=0.14.1
+  - pytorch=2.0.1
   - numpy=1.24.3
+  - torchvision=0.15.2
   - pip:
-    - torch==1.13.1+cu117
+    - torch==2.0.1+cu117
     - cheroot>=9.0.0
     - nvidia-pyindex>=1.0.9
     - pibble[cherrypy]>=0.6
@@ -33,9 +33,9 @@ dependencies:
     - einops>=0.3,<0.4
     - torch-fidelity>=0.3,<0.4
     - transformers>=4.28,<5.0
-    - torchmetrics==0.11.4
+    - torchmetrics>=1.0.0,<1.1
     - kornia>=0.6,<0.7
-    - accelerate>=0.18<0.19
+    - accelerate>=0.21<0.22
     - tqdm>=4.27
     - safetensors>=0.3,<0.4
     - realesrgan>=0.3,<0.4
