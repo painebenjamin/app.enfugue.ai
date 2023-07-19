@@ -156,6 +156,7 @@ $(MACOS_ARTIFACT): $(PYTHON_ARTIFACTS)
 	pip install $<
 	pyinstaller $(CONFIG_DIR)/$(PYINSTALLER_SPEC) --distpath $(BUILD_DIR)/dist
 	cp $(SCRIPT_DIR)/$(LINUX_RUN_SCRIPT) $(BUILD_DIR)/dist/$(PYINSTALLER_NAME)/
+	cp $(SCRIPT_DIR)/$(MACOS_UNQUARANTINE_SCRIPT) $(BUILD_DIR)/dist/$(PYINSTALLER_NAME)/
 	@if [ '$(MINIMAL_BUILD)' != '2' ]; then \
 		tar -cvzf $@ -C $(BUILD_DIR)/dist/$(PYINSTALLER_NAME)/ .; \
 	else \
