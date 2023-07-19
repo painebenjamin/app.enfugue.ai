@@ -1,4 +1,4 @@
-name: Compile Portable Distributions (MacOS Only)
+name: Compile MacOS Portable Distribution
 on:
   - workflow_dispatch
 jobs:

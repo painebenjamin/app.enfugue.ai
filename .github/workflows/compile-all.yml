@@ -1,4 +1,4 @@
-name: Compile Portable Distributions
+name: Compile All Portable Distributions
 on:
   - workflow_dispatch
 jobs:

@@ -1,4 +1,4 @@
-name: Compile Portable Distributions
+name: Compile Portable Distribution
 on:
   workflow_call:
     inputs:
