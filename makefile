@@ -5,11 +5,12 @@ include makefile.env
 ############
 ROOT_DIR=.
 LICENSE=$(shell cat $(LICENSE_FILE))
+ARCH=$(shell uname -m)
 
 # Artifacts
-WINDOWS_ARTIFACT=$(BUILD_DIR)/enfugue-server-$(VERSION_MAJOR).$(VERSION_MINOR).$(VERSION_PATCH)-win64.zip
-LINUX_ARTIFACT=$(BUILD_DIR)/enfugue-server-$(VERSION_MAJOR).$(VERSION_MINOR).$(VERSION_PATCH)-manylinux.tar.gz
-MACOS_ARTIFACT=$(BUILD_DIR)/enfugue-server-$(VERSION_MAJOR).$(VERSION_MINOR).$(VERSION_PATCH)-macos-ventura.tar.gz
+WINDOWS_ARTIFACT=$(BUILD_DIR)/enfugue-server-$(VERSION_MAJOR).$(VERSION_MINOR).$(VERSION_PATCH)-win-$(ARCH).zip
+LINUX_ARTIFACT=$(BUILD_DIR)/enfugue-server-$(VERSION_MAJOR).$(VERSION_MINOR).$(VERSION_PATCH)-manylinux-$(ARCH).tar.gz
+MACOS_ARTIFACT=$(BUILD_DIR)/enfugue-server-$(VERSION_MAJOR).$(VERSION_MINOR).$(VERSION_PATCH)-macos-ventura-$(ARCH).tar.gz
 
 # Default build is linux, we'll test in a moment
 ARTIFACT=$(LINUX_ARTIFACT)
