@@ -1,0 +1,21 @@
+name: Compile Portable Distributions
+on:
+  - workflow_dispatch
+jobs:
+  compile-distribution:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            api: tensorrt
+          - os: ubuntu-latest
+            api: cuda
+          - os: windows-latest
+            api: cuda
+          - os: macos-13
+            api: mps
+    steps:
+    - uses: painebenjamin/app.enfugue.ai/.github/workflows/compile-standalone.yml
+      with:
+        os: ${{ matrix.os }}
+        api: ${{ matrix.api }}

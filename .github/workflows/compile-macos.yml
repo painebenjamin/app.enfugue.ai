@@ -1,0 +1,15 @@
+name: Compile Portable Distributions (MacOS Only)
+on:
+  - workflow_dispatch
+jobs:
+  compile-distribution:
+    strategy:
+      matrix:
+        include:
+          - os: macos-13
+            api: mps
+    steps:
+    - uses: painebenjamin/app.enfugue.ai/.github/workflows/compile-standalone.yml
+      with:
+        os: ${{ matrix.os }}
+        api: ${{ matrix.api }}
