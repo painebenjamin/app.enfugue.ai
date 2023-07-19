@@ -9,7 +9,7 @@ jobs:
           - os: macos-13
             api: mps
     steps:
-    - uses: painebenjamin/app.enfugue.ai/.github/workflows/compile-standalone.yml
+    - uses: painebenjamin/app.enfugue.ai/.github/workflows/compile.yml@main
       with:
         os: ${{ matrix.os }}
         api: ${{ matrix.api }}
