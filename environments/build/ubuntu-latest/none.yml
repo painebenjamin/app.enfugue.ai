@@ -7,9 +7,9 @@ dependencies:
   - python=3.10.11
   - pip=23.1.2
   - pytorch=2.0.1
-  - torchvision=0.15.2
   - numpy=1.24.3
   - make=4.3
+  - torchvision=0.14.1
   - pip:
     - torch==2.0.1
     - cheroot>=9.0.0

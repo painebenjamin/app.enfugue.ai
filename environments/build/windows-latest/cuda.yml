@@ -10,10 +10,10 @@ dependencies:
   - pip=23.1.2
   - cudatoolkit=11.7
   - pytorch=2.0.1
-  - torchvision=0.15.2
   - numpy=1.24.3
   - 7zip=19.00
   - make=4.3
+  - torchvision=0.14.1
   - pip:
     - torch==2.0.1+cu117
     - cheroot>=9.0.0

@@ -11,7 +11,7 @@ dependencies:
   - cudatoolkit=11.7
   - pytorch=2.0.1
   - numpy=1.24.3
-  - torchvision=0.15.2
+  - torchvision=0.14.1
   - pip:
     - torch==2.0.1+cu117
     - cheroot>=9.0.0
