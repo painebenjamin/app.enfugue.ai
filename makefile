@@ -165,7 +165,7 @@ $(MACOS_ARTIFACT): $(PYTHON_ARTIFACTS)
 .PHONY: split
 split: $(ARTIFACT)
 	split -b $(ARCHIVE_SIZE) -a 1 -d $(ARTIFACT) $(shell basename $(ARTIFACT)).
-
+	rm $(ARTIFACT)
 
 ## Deletes build directory
 .PHONY: clean

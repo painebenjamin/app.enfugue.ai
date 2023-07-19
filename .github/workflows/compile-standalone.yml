@@ -80,7 +80,7 @@ jobs:
       uses: actions/upload-artifact@v3.1.2
       with:
         name: ${{ matrix.os }}-${{ matrix.api }}
-        path: ./enfugue-server*.part
+        path: ./enfugue-server*tar.gz*
     - name: Upload Windows artifact
       if: ${{ contains(matrix.os, 'windows') }} 
       uses: actions/upload-artifact@v3.1.2
