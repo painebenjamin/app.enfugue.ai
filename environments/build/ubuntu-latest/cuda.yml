@@ -12,9 +12,9 @@ dependencies:
   - pytorch=2.0.1
   - numpy=1.24.3
   - make=4.3
-  - torchvision=0.14.1
   - pip:
     - torch==2.0.1+cu117
+    - torchvision==0.15.2+cu117
     - cheroot>=9.0.0
     - nvidia-pyindex>=1.0.9
     - pibble[cherrypy]>=0.6
