@@ -2,7 +2,7 @@ name: Compile All Portable Distributions
 on:
   - workflow_dispatch
 jobs:
-  compile-distribution:
+  compile-all:
     strategy:
       matrix:
         include:

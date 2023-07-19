@@ -1,0 +1,9 @@
+name: Compile Ubuntu CUDA Portable Distribution
+on:
+  - workflow_dispatch
+jobs:
+  compile-macos:
+    uses: painebenjamin/app.enfugue.ai/.github/workflows/compile.yml@main
+    with:
+      os: ubuntu-latest
+      api: cuda
