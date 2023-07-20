@@ -40,7 +40,7 @@ class Invocation:
         engine_image_dir: str,
         engine_intermediate_dir: str,
         decode_nth_intermediate: Optional[int] = 10,
-        communication_timeout: Optional[int] = 90,  # Really big images can take this long to start
+        communication_timeout: Optional[int] = 180,
         metadata: Optional[Dict[str, Any]] = None,
         save: bool = True,
         **kwargs: Any,
