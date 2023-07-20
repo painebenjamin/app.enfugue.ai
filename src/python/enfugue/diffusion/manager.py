@@ -2720,9 +2720,7 @@ class DiffusionPipelineManager:
                         self.stop_keepalive()  # This checks, we can call it all we want
                         result["images"][i] = self.refiner_pipeline(  # type: ignore
                             generator=self.generator, image=image, **kwargs
-                        )["images"][
-                            0
-                        ]  # type: ignore
+                        )["images"][0]  # type: ignore
                     if self.pipeline_switch_mode == "offload":
                         self.offload_refiner()
                     elif self.pipeline_switch_mode == "unload":
