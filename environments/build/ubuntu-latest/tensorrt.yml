@@ -9,12 +9,11 @@ dependencies:
   - python=3.10.11
   - pip=23.1.2
   - cudatoolkit=11.7
-  - pytorch=2.0.1
   - numpy=1.24.3
   - make=4.3
   - pip:
-    - torch==2.0.1+cu117
-    - torchvision==0.15.2+cu117
+    - torch==2.1.0.dev20230523+cu117.with.pypi.cudnn
+    - torchvision==0.16.0.dev20230523+cu117
     - cheroot>=9.0.0
     - nvidia-pyindex>=1.0.9
     - pibble[cherrypy]>=0.6
@@ -68,5 +67,6 @@ dependencies:
     - git+https://github.com/CompVis/taming-transformers.git@master#egg=taming-transformers
     - git+https://github.com/openai/CLIP.git@main#egg=clip
     - git+https://github.com/CompVis/stable-diffusion.git@main#egg=latent-diffusion
-    - --extra-index-url https://download.pytorch.org/whl/cu117
+    - --extra-index-url https://download.pytorch.org/whl/nightly/cu117_pypi_cudnn
+    - --extra-index-url https://download.pytorch.org/whl/nightly/cu117
     - --extra-index-url https://pypi.ngc.nvidia.com

@@ -310,7 +310,6 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
             plan,
             save=False,
             disable_intermediate_decoding=True,
-            communication_timeout=3600,
             metadata={"tensorrt_build": build_metadata},
         ).format()
 
