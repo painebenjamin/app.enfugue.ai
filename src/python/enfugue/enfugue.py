@@ -8,9 +8,12 @@ if __name__ == "__main__":
 
     from enfugue.util import get_local_configuration
     import os
+    import certifi
     import platform
 
     os.environ["CUDA_MODULE_LOADING"] = "LAZY"
+    os.environ["REQUESTS_CA_BUNDLE"] = certifi.where()
+    os.environ["SSL_CERT_FILE"] = certifi.where()
 
     from enfugue.server import EnfugueServer
     from enfugue.util.browser import OpenBrowserWhenResponsiveThread
