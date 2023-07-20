@@ -25,7 +25,7 @@ name = 'enfugue-server'
 debug = False
 console = False
 
-all_packages = ['torch', 'jaxlib', 'onnxruntime', 'transformers', 'basicsr', 'gfpgan', 'realesrgan', 'tensorrt', 'PIL', 'pyarrow', 'huggingface_hub', 'huggingface-hub', 'pyyaml', 'accelerate', 'pydantic', 'safetensors', 'timm', 'diffusers']
+all_packages = ['torch', 'jaxlib', 'onnxruntime', 'transformers', 'basicsr', 'gfpgan', 'realesrgan', 'tensorrt', 'PIL', 'pyarrow', 'huggingface_hub', 'huggingface-hub', 'pyyaml', 'accelerate', 'pydantic', 'safetensors', 'timm', 'diffusers', 'certifi']
 data_packages = ['enfugue']
 submodule_packages = []
 metadata_packages = ['requests', 'tqdm', 'numpy', 'tokenizers', 'importlib_metadata', 'regex', 'packaging', 'filelock', 'cheroot', 'pillow', 'enfugue', 'requests', 'scipy', 'beautifulsoup4']
