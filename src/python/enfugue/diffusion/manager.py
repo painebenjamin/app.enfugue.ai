@@ -2050,7 +2050,7 @@ class DiffusionPipelineManager:
             vae = self.vae  # Load into memory here
             controlnet = self.controlnet  # Load into memory here
 
-            if self.use_tensorrt and self.model_diffusers_cache_dir is not None:
+            if self.use_tensorrt:
                 if "unet" in self.TENSORRT_STAGES:
                     if self.controlnet is None and not self.TENSORRT_ALWAYS_USE_CONTROLLED_UNET:
                         kwargs["unet_engine_dir"] = self.model_tensorrt_unet_dir
