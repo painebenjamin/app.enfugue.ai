@@ -360,6 +360,8 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         for existing_vae in model.vae:
             self.database.delete(existing_vae)
 
+        self.database.commit()
+
         refiner = request.parsed.get("refiner", None)
         if refiner:
             self.database.add(
@@ -389,7 +391,9 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         if multi_scheduler:
             self.database.add(
                 self.orm.DiffusionModelScheduler(
-                    diffusion_model_name=model_name, name=multi_scheduler, context="multi_diffusion"
+                    diffusion_model_name=model_name,
+                    name=multi_scheduler,
+                    context="multi_diffusion"
                 )
             )
 

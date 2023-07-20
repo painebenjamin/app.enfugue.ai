@@ -54,10 +54,10 @@ class DiffusionModelScheduler(EnfugueObjectBase):
     __tablename__ = "model_scheduler"
 
     diffusion_model_name = Column(
-        DiffusionModel.ForeignKey("name", ondelete="CASCADE", onupdate="CASCADE"), primary_key=True, unique=True
+        DiffusionModel.ForeignKey("name", ondelete="CASCADE", onupdate="CASCADE"), primary_key=True
     )
-    name = Column(String(256), nullable=False)
-    context = Column(String(256), nullable=True)
+    name = Column(String(256), primary_key=True, nullable=False)
+    context = Column(String(256), primary_key=True, nullable=True)
 
     diffusion_model = DiffusionModel.Relationship(backref="scheduler", uselist=False)
 

@@ -12,7 +12,7 @@ dependencies:
   - numpy=1.24.3
   - make=4.3
   - pip:
-    - torch==2.1.0.dev20230523+cu121.with.pypi.cudnn
+    - torch==2.1.0.dev20230720+cu121.with.pypi.cudnn
     - torchvision==0.16.0.dev20230720+cu121
     - brotli>=1.0.9
     - cheroot>=9.0.0
@@ -48,7 +48,7 @@ dependencies:
     - pydantic==1.10.10
     - html2text==2020.1.16
     - polygraphy>=0.47,<0.48
-    - tensorrt==8.6.0
+    - tensorrt==8.6.1
     - onnx==1.12
     - onnxruntime-gpu==1.12.1
     - onnx-graphsurgeon==0.3.26

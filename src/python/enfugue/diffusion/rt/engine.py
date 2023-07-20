@@ -227,7 +227,7 @@ class Engine:
             **config_kwargs,
         )
         engine = engine_from_network(
-            network_from_onnx_path(onnx_path),
+            network_from_onnx_path(onnx_path, flags=[trt.OnnxParserFlag.NATIVE_INSTANCENORM]),
             config=config,
             save_timing_cache=timing_cache,
         )
