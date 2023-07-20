@@ -7,12 +7,12 @@ dependencies:
   - python=3.10.11
   - pip=23.1.2
   - pytorch=2.0.1
-  - torchvision=0.15.2
   - numpy=1.24.3
   - make=4.3
   - nodejs=18.16.0
   - pip:
-    - torch>=2.0.1
+    - torch==2.1.0.dev20230523
+    - torchvision==1.6.0.dev20230523
     - cheroot>=9.0.0
     - nvidia-pyindex>=1.0.9
     - pibble[cherrypy]>=0.6
@@ -62,3 +62,4 @@ dependencies:
     - git+https://github.com/openai/CLIP.git@main#egg=clip
     - git+https://github.com/CompVis/stable-diffusion.git@main#egg=latent-diffusion
     - --extra-index-url https://pypi.ngc.nvidia.com
+    - --extra-index-url https://pypi.ngc.nvidia.com/https://download.pytorch.org/whl/nightly
