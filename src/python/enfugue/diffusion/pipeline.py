@@ -886,7 +886,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         if self.is_sdxl:
             self.vae.to(dtype=torch.float32)
             image = image.float()
-
+        else:
+            self.vae.to(dtype=image.dtype)
         for i, (top, bottom, left, right) in enumerate(chunks):
             top_px = top * self.vae_scale_factor
             bottom_px = bottom * self.vae_scale_factor

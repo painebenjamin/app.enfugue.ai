@@ -1969,11 +1969,36 @@ class DiffusionPipelineManager:
     @property
     def is_sdxl(self) -> bool:
         """
-        Returns true if this is SDXL (based on name)
+        If the model is cached, we can know for sure by checking for sdxl-exclusive models.
+        Otherwise, we guess by file name.
         """
         if self.model_diffusers_cache_dir is not None:
             return os.path.exists(os.path.join(self.model_diffusers_cache_dir, "text_encoder_2"))  # type: ignore[arg-type]
         return "xl" in self.model_name.lower()
+
+    @property
+    def refiner_is_sdxl(self) -> bool:
+        """
+        If the refiner model is cached, we can know for sure by checking for sdxl-exclusive models.
+        Otherwise, we guess by file name.
+        """
+        if not self.refiner_name:
+            return False
+        if self.refiner_diffusers_cache_dir is not None:
+            return os.path.exists(os.path.join(self.refiner_diffusers_cache_dir, "text_encoder_2"))  # type: ignore[arg-type]
+        return "xl" in self.refiner_name.lower()
+
+    @property
+    def inpainter_is_sdxl(self) -> bool:
+        """
+        If the inpainter model is cached, we can know for sure by checking for sdxl-exclusive models.
+        Otherwise, we guess by file name.
+        """
+        if not self.inpainter_name:
+            return False
+        if self.inpainter_diffusers_cache_dir is not None:
+            return os.path.exists(os.path.join(self.inpainter_diffusers_cache_dir, "text_encoder_2"))  # type: ignore[arg-type]
+        return "xl" in self.inpainter_name.lower()
 
     def check_create_engine_cache(self) -> None:
         """
@@ -2065,8 +2090,7 @@ class DiffusionPipelineManager:
                 self.check_create_engine_cache()
                 if self.model_diffusers_cache_dir is None:
                     raise IOError("Couldn't create engine cache, check logs.")
-                if not os.path.exists(os.path.join(self.model_diffusers_cache_dir, "tokenizer_2")):
-                    # SD 1.5 or lower
+                if not self.is_sdxl:
                     kwargs["tokenizer_2"] = None
                     kwargs["text_encoder_2"] = None
                 logger.debug(
@@ -2080,8 +2104,7 @@ class DiffusionPipelineManager:
             elif self.model_diffusers_cache_dir is not None:
                 if not self.safe:
                     kwargs["safety_checker"] = None
-                if not os.path.exists(os.path.join(self.model_diffusers_cache_dir, "tokenizer_2")):
-                    # SD 1.5 or lower
+                if not self.is_sdxl:
                     kwargs["tokenizer_2"] = None
                     kwargs["text_encoder_2"] = None
                 logger.debug(
@@ -2155,8 +2178,7 @@ class DiffusionPipelineManager:
                 "chunking_size": self.chunking_size,
                 "torch_dtype": self.dtype,
                 "requires_safety_checker": False,
-                "requires_aesthetic_score": True,
-                "controlnet": None,  # TODO: investigate
+                "controlnet": None,
             }
 
             vae = self.vae  # Load into memory here
@@ -2179,20 +2201,34 @@ class DiffusionPipelineManager:
                     kwargs["clip_engine_dir"] = self.refiner_tensorrt_clip_dir
 
                 self.check_create_refiner_engine_cache()
+                if self.refiner_is_sdxl:
+                    kwargs["text_encoder"] = None
+                    kwargs["tokenizer"] = None
+                    kwargs["requires_aesthetic_score"] = True
+                else:
+                    kwargs["text_encoder_2"] = None
+                    kwargs["tokenizer_2"] = None
+
                 logger.debug(
                     f"Initializing refiner pipeline from diffusers cache directory at {self.refiner_diffusers_cache_dir}. Arguments are {kwargs}"
                 )
+
                 if vae is not None:
                     kwargs["vae"] = vae
+
                 refiner_pipeline = self.refiner_pipeline_class.from_pretrained(
                     self.refiner_diffusers_cache_dir,
-                    # controlnet=controlnet,
                     safety_checker=None,
-                    text_encoder=None,
-                    tokenizer=None,
                     **kwargs,
                 )
             elif self.refiner_engine_cache_exists:
+                if self.refiner_is_sdxl:
+                    kwargs["text_encoder"] = None
+                    kwargs["tokenizer"] = None
+                    kwargs["requires_aesthetic_score"] = True
+                else:
+                    kwargs["text_encoder_2"] = None
+                    kwargs["tokenizer_2"] = None
                 logger.debug(
                     f"Initializing refiner pipeline from diffusers cache directory at {self.refiner_diffusers_cache_dir}. Arguments are {kwargs}"
                 )
@@ -2201,8 +2237,6 @@ class DiffusionPipelineManager:
                 refiner_pipeline = self.refiner_pipeline_class.from_pretrained(
                     self.refiner_diffusers_cache_dir,
                     safety_checker=None,
-                    text_encoder=None,
-                    tokenizer=None,
                     # controlnet=controlnet,
                     **kwargs,
                 )
@@ -2290,8 +2324,6 @@ class DiffusionPipelineManager:
                 "requires_safety_checker": self.safe,
                 "requires_aesthetic_score": False,
                 "controlnet": None,
-                "tokenizer_2": None,
-                "text_encoder_2": None,
             }
 
             vae = self.vae  # Load into memory here
@@ -2305,13 +2337,20 @@ class DiffusionPipelineManager:
                     kwargs["clip_engine_dir"] = self.inpainter_tensorrt_clip_dir
 
                 self.check_create_inpainter_engine_cache()
+                
                 if not self.safe:
                     kwargs["safety_checker"] = None
+                if not self.inpainter_is_sdxl:
+                    kwargs["text_encoder_2"] = None
+                    kwargs["tokenizer_2"] = None
+                
                 logger.debug(
                     f"Initializing inpainter pipeline from diffusers cache directory at {self.inpainter_diffusers_cache_dir}. Arguments are {kwargs}"
                 )
+
                 if vae is not None:
                     kwargs["vae"] = vae
+
                 inpainter_pipeline = self.inpainter_pipeline_class.from_pretrained(
                     self.inpainter_diffusers_cache_dir, **kwargs
                 )
@@ -2321,8 +2360,14 @@ class DiffusionPipelineManager:
                 )
                 if not self.safe:
                     kwargs["safety_checker"] = None
+                if not self.inpainter_is_sdxl:
+                    kwargs["text_encoder_2"] = None
+                    kwargs["tokenizer_2"] = None
+                    kwargs["text_encoder_2"] = None
+                    kwargs["tokenizer_2"] = None
                 if vae is not None:
                     kwargs["vae"] = vae
+
                 inpainter_pipeline = self.inpainter_pipeline_class.from_pretrained(
                     self.inpainter_diffusers_cache_dir, **kwargs
                 )
