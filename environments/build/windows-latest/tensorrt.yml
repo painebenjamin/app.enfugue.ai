@@ -13,8 +13,9 @@ dependencies:
   - 7zip=19.00
   - make=4.3
   - torchvision=0.14.1
+  - pytorch=1.13.1
   - pip:
-    - torch==1.13.0+cu117
+    - torch==1.13.1+cu117
     - brotli>=1.0.9
     - cheroot>=9.0.0
     - nvidia-pyindex>=1.0.9
