@@ -2223,7 +2223,17 @@ class DiffusionPipelineManager:
                 if self.always_cache:
                     logger.debug("Saving pipeline to pretrained.")
                     refiner_pipeline.save_pretrained(self.refiner_diffusers_dir)
-
+            if not self.refiner_tensorrt_is_ready:
+                for lora, weight in self.lora:
+                    logger.debug(f"Adding LoRA {lora} to refiner pipeline")
+                    refiner_pipeline.load_lora_weights(lora, multiplier=weight)
+                for lycoris, weight in self.lycoris:
+                    logger.debug(f"Adding lycoris {lycoris} to refiner pipeline")
+                    refiner_pipeline.load_lycoris_weights(lycoris, multiplier=weight)
+                for inversion in self.inversion:
+                    logger.debug(f"Adding textual inversion {inversion} to refiner pipeline")
+                    refiner_pipeline.load_textual_inversion(inversion)
+            
             # load scheduler
             if self.scheduler is not None:
                 refiner_pipeline.scheduler = self.scheduler.from_config(refiner_pipeline.scheduler_config)
@@ -2331,6 +2341,16 @@ class DiffusionPipelineManager:
                 if self.always_cache:
                     logger.debug("Saving inpainter pipeline to pretrained cache.")
                     inpainter_pipeline.save_pretrained(self.inpainter_diffusers_dir)
+            if not self.inpainter_tensorrt_is_ready:
+                for lora, weight in self.lora:
+                    logger.debug(f"Adding LoRA {lora} to inpainter pipeline")
+                    inpainter_pipeline.load_lora_weights(lora, multiplier=weight)
+                for lycoris, weight in self.lycoris:
+                    logger.debug(f"Adding lycoris {lycoris} to inpainter pipeline")
+                    inpainter_pipeline.load_lycoris_weights(lycoris, multiplier=weight)
+                for inversion in self.inversion:
+                    logger.debug(f"Adding textual inversion {inversion} to inpainter pipeline")
+                    inpainter_pipeline.load_textual_inversion(inversion)
             # load scheduler
             if self.scheduler is not None:
                 inpainter_pipeline.scheduler = self.scheduler.from_config(inpainter_pipeline.scheduler_config)
