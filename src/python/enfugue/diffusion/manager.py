@@ -554,6 +554,10 @@ class DiffusionPipelineManager:
         Gets the refiner engine size in pixels when chunking (default always.)
         """
         if not hasattr(self, "_refiner_size"):
+            if self.is_sdxl and not self.refiner_is_sdxl:
+                return 512
+            elif not self.is_sdxl and self.refiner_is_sdxl:
+                return 1024
             return self.size
         return self._refiner_size
 
@@ -585,6 +589,10 @@ class DiffusionPipelineManager:
         Gets the inpainter engine size in pixels when chunking (default always.)
         """
         if not hasattr(self, "_inpainter_size"):
+            if self.is_sdxl and not self.inpainter_is_sdxl:
+                return 512
+            elif not self.is_sdxl and self.inpainter_is_sdxl:
+                return 1024
             return self.size
         return self._inpainter_size
 
@@ -1965,6 +1973,26 @@ class DiffusionPipelineManager:
         if configured:
             return configured
         return self.is_sdxl
+    
+    @property
+    def always_cache_inpainter(self) -> bool:
+        """
+        Returns true if the inpainter model should always be cached.
+        """
+        configured = self.configuration.get("enfugue.engine.always_cache", None)
+        if configured:
+            return configured
+        return self.inpainter_is_sdxl
+    
+    @property
+    def always_cache_refiner(self) -> bool:
+        """
+        Returns true if the refiner model should always be cached.
+        """
+        configured = self.configuration.get("enfugue.engine.always_cache", None)
+        if configured:
+            return configured
+        return self.refiner_is_sdxl
 
     @property
     def is_sdxl(self) -> bool:
@@ -2181,7 +2209,10 @@ class DiffusionPipelineManager:
                 "controlnet": None,
             }
 
-            vae = self.vae  # Load into memory here
+            if self.vae_name == "xl" and not self.refiner_is_sdxl:
+                vae = None
+            else:
+                vae = self.vae  # Load into memory here
 
             if self.refiner_use_tensorrt:
                 if "unet" in self.TENSORRT_STAGES:
@@ -2254,7 +2285,7 @@ class DiffusionPipelineManager:
                     # controlnet=controlnet,
                     **kwargs,
                 )
-                if self.always_cache:
+                if self.always_cache_refiner:
                     logger.debug("Saving pipeline to pretrained.")
                     refiner_pipeline.save_pretrained(self.refiner_diffusers_dir)
             if not self.refiner_tensorrt_is_ready:
@@ -2297,22 +2328,26 @@ class DiffusionPipelineManager:
         """
         if not hasattr(self, "_inpainter_pipeline"):
             if not self.inpainter:
-                current_checkpoint_path = self.model
-                default_checkpoint_name, _ = os.path.splitext(os.path.basename(DEFAULT_MODEL))
-                default_inpainting_name, _ = os.path.splitext(os.path.basename(DEFAULT_INPAINTING_MODEL))
-                checkpoint_name, ext = os.path.splitext(os.path.basename(current_checkpoint_path))
-
-                if default_checkpoint_name == checkpoint_name:
+                if self.is_sdxl:
+                    logger.warning(f"Main model is SDXL, and no configured inpainting checkpoint. There is no inpainting checkpoint for SDXL; switching to default SD 1.5 inpainting checkpoint. You may wish to configure a more fine-tuned SD 1.5 inpainting checkpoint for better results.")
                     self.inpainter = DEFAULT_INPAINTING_MODEL
                 else:
-                    target_checkpoint_name = f"{checkpoint_name}-inpainting"
-                    target_checkpoint_path = os.path.join(
-                        os.path.dirname(current_checkpoint_path), f"{target_checkpoint_name}{ext}"
-                    )
-                    if not os.path.exists(target_checkpoint_path):
-                        logger.info(f"Creating inpainting checkpoint from {current_checkpoint_path}")
-                        self.create_inpainting_checkpoint(current_checkpoint_path, target_checkpoint_path)
-                    self.inpainter = target_checkpoint_path
+                    current_checkpoint_path = self.model
+                    default_checkpoint_name, _ = os.path.splitext(os.path.basename(DEFAULT_MODEL))
+                    default_inpainting_name, _ = os.path.splitext(os.path.basename(DEFAULT_INPAINTING_MODEL))
+                    checkpoint_name, ext = os.path.splitext(os.path.basename(current_checkpoint_path))
+
+                    if default_checkpoint_name == checkpoint_name:
+                        self.inpainter = DEFAULT_INPAINTING_MODEL
+                    else:
+                        target_checkpoint_name = f"{checkpoint_name}-inpainting"
+                        target_checkpoint_path = os.path.join(
+                            os.path.dirname(current_checkpoint_path), f"{target_checkpoint_name}{ext}"
+                        )
+                        if not os.path.exists(target_checkpoint_path):
+                            logger.info(f"Creating inpainting checkpoint from {current_checkpoint_path}")
+                            self.create_inpainting_checkpoint(current_checkpoint_path, target_checkpoint_path)
+                        self.inpainter = target_checkpoint_path
             if self.inpainter.startswith("http"):
                 self.inpainter = self.check_download_checkpoint(self.inpainter)
 
@@ -2326,7 +2361,10 @@ class DiffusionPipelineManager:
                 "controlnet": None,
             }
 
-            vae = self.vae  # Load into memory here
+            if self.vae_name == "xl" and not self.inpainter_is_sdxl:
+                vae = None
+            else:
+                vae = self.vae  # Load into memory here
 
             if self.inpainter_use_tensorrt:
                 if "unet" in self.TENSORRT_STAGES:
@@ -2383,7 +2421,7 @@ class DiffusionPipelineManager:
                 inpainter_pipeline = self.inpainter_pipeline_class.from_ckpt(
                     self.inpainter, num_in_channels=9, load_safety_checker=self.safe, **kwargs
                 )
-                if self.always_cache:
+                if self.always_cache_inpainter:
                     logger.debug("Saving inpainter pipeline to pretrained cache.")
                     inpainter_pipeline.save_pretrained(self.inpainter_diffusers_dir)
             if not self.inpainter_tensorrt_is_ready:

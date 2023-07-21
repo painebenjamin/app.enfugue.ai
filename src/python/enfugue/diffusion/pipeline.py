@@ -141,7 +141,11 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             self.multi_scheduler = multi_scheduler
             self.multi_scheduler_config = dict(**multi_scheduler.config)
         else:
-            self.multi_scheduler = scheduler
+            if not isinstance(scheduler, DDIMScheduler) and not isinstance(scheduler, EulerDiscreteScheduler):
+                logger.info(f"Default scheduler {type(scheduler).__name__} does not work well with multi-diffusion, setting default to DDIM.")
+                self.multi_scheduler = DDIMScheduler.from_config(self.scheduler_config)
+            else:
+                self.multi_scheduler = scheduler
             self.multi_scheduler_config = dict(**self.scheduler_config)
 
         # Register other networks
