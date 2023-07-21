@@ -14,7 +14,7 @@ from transformers import (
     CLIPTextModelWithProjection,
 )
 
-from diffusers.schedulers import KarrasDiffusionSchedulers
+from diffusers.schedulers import KarrasDiffusionSchedulers, DDIMScheduler
 from diffusers.models import AutoencoderKL, UNet2DConditionModel, ControlNetModel
 
 from diffusers.pipelines.stable_diffusion import StableDiffusionSafetyChecker
@@ -30,6 +30,8 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
     models: Dict[str, BaseModel]
     engine: Dict[str, Engine]
     unet: UNet2DConditionModel
+    scheduler: KarrasDiffusionSchedulers
+    multi_scheduler: Optional[KarrasDiffusionSchedulers]
 
     def __init__(
         self,
@@ -99,13 +101,20 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         self.build_preview_features = build_preview_features
         self.max_batch_size = max_batch_size
 
-        # TODO: Restrict batch size to 4 for larger image dimensions as a WAR for TensorRT limitation.
         if self.build_dynamic_shape or self.engine_size > 512:
             self.max_batch_size = 4
 
+        # Set default to DDIM - The PNDM default that some models have does not work with TRT
+        if not isinstance(self.scheduler, DDIMScheduler):
+            logger.debug(f"TensorRT pipeling changing default scheduler from {type(self.scheduler).__name__} to DDIM")
+            self.scheduler = DDIMScheduler.from_config(self.scheduler_config)
+        if self.multi_scheduler is not None and not isinstance(self.multi_scheduler, DDIMScheduler):
+            logger.debug(f"TensorRT pipeling changing default multi-diffusion scheduler from {type(self.multi_scheduler).__name__} to DDIM")
+            self.multi_scheduler = DDIMScheduler.from_config(self.multi_scheduler_config)
+
         self.stream = None  # loaded in load_resources()
-        self.models = {}  # loaded in load_models()
-        self.engine = {}  # loaded in build_engines()
+        self.models = {}    # loaded in load_models()
+        self.engine = {}    # loaded in build_engines()
 
     @staticmethod
     def device_view(t: torch.Tensor) -> cuda.DeviceView:

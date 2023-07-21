@@ -381,7 +381,14 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             tokenizer = CLIPTokenizer.from_pretrained("openai/clip-vit-large-patch14")
             text_encoder = convert_ldm_clip_checkpoint(checkpoint)
             tokenizer_2 = CLIPTokenizer.from_pretrained("laion/CLIP-ViT-bigG-14-laion2B-39B-b160k", pad_token="!")
-            text_encoder_2 = convert_open_clip_checkpoint(checkpoint, prefix="conditioner.embedders.1.model.")
+
+            text_encoder_2 = convert_open_clip_checkpoint(
+                checkpoint,
+                "laion/CLIP-ViT-bigG-14-laion2B-39B-b160k",
+                prefix="conditioner.embedders.1.model.",
+                has_projection=True,
+                projection_dim=1280
+            )
             pipe = cls(
                 vae=vae,
                 text_encoder=text_encoder,
@@ -398,7 +405,13 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         elif model_type == "SDXL-Refiner":
             logger.debug("Using Stable Diffusion XL refiner pipeline.")
             tokenizer_2 = CLIPTokenizer.from_pretrained("laion/CLIP-ViT-bigG-14-laion2B-39B-b160k", pad_token="!")
-            text_encoder_2 = convert_open_clip_checkpoint(checkpoint, prefix="conditioner.embedders.0.model.")
+            text_encoder_2 = convert_open_clip_checkpoint(
+                checkpoint,
+                "laion/CLIP-ViT-bigG-14-laion2B-39B-b160k",
+                prefix="conditioner.embedders.0.model.",
+                has_projection=True,
+                projection_dim=1280
+            )
             pipe = cls(
                 vae=vae,
                 text_encoder=None,

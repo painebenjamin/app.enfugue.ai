@@ -17,7 +17,6 @@ SCHEDULERS = [
     "dpmss",
     "heun",
     "dpmd",
-    "dpmdsa",
     "dpmsde",
     "unipc",
     "lmsd",
