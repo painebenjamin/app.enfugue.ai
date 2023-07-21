@@ -2,7 +2,7 @@ name: Compile MacOS MPS Portable Distribution
 on:
   - workflow_dispatch
 jobs:
-  compile-macos:
+  compile-macos-mps:
     uses: painebenjamin/app.enfugue.ai/.github/workflows/compile.yml@main
     with:
       os: macos-13
