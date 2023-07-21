@@ -125,8 +125,11 @@ class EnfugueAPIInvocationController(EnfugueAPIControllerBase):
             ]
         # Always take passed scheduler
         scheduler = request.parsed.pop("scheduler", None)
-        if scheduler is not None:
+        multi_scheduler = request.parsed.pop("multi_scheduler", None)
+        if scheduler:
             plan_kwargs["scheduler"] = scheduler
+        if multi_scheduler:
+            plan_kwargs["multi_scheduler"] = multi_scheduler
         plan = DiffusionPlan.from_nodes(**{**request.parsed, **plan_kwargs})
         return self.invoke(request.token.user.id, plan).format()
 

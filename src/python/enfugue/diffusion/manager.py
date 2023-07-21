@@ -2063,6 +2063,8 @@ class DiffusionPipelineManager:
                 if not self.safe:
                     kwargs["safety_checker"] = None
                 self.check_create_engine_cache()
+                if self.model_diffusers_cache_dir is None:
+                    raise IOError("Couldn't create engine cache, check logs.")
                 if not os.path.exists(os.path.join(self.model_diffusers_cache_dir, "tokenizer_2")):
                     # SD 1.5 or lower
                     kwargs["tokenizer_2"] = None

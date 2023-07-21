@@ -206,11 +206,11 @@ class EnfugueAPIServerBase(
             inpainter, inpainter_size = None, None
         scheduler, multi_scheduler = None, None
         if diffusion_model.scheduler:
-            for scheduler in diffusion_model.scheduler:
-                if scheduler.context == "multi_diffusion":
-                    multi_scheduler = scheduler.name
+            for model_scheduler in diffusion_model.scheduler:
+                if model_scheduler.context == "multi_diffusion":
+                    multi_scheduler = model_scheduler.name
                 else:
-                    scheduler = scheduler.name
+                    scheduler = model_scheduler.name
         vae = diffusion_model.vae
         if vae:
             vae = diffusion_model.vae[0].name

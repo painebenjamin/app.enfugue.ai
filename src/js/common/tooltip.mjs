@@ -104,9 +104,13 @@ class TooltipHelper extends DOMWatcher {
                 });
             },
             activate = function () {
+                clearInterval(checkIntervalTimer);
                 self.tooltipContainer.addClass('active');
                 checkIntervalTimer = setInterval(() => {
-                    if (!self.watchedNode.contains(node)) {
+                    let tooltipElapsedTime = self.tooltipTime === null
+                        ? 0 
+                        : ((new Date()).getTime() - self.tooltipTime);
+                    if (!self.watchedNode.contains(node) && tooltipElapsedTime > 1000) {
                         deactivate();
                     }
                 }, checkInterval);
@@ -120,6 +124,7 @@ class TooltipHelper extends DOMWatcher {
                 positionElement(e.clientX, e.clientY);
             },
             mouseEnter = function (e) {
+                self.tooltipTime = (new Date()).getTime();
                 self.tooltipNode = node;
                 self.tooltipContainer.content(node.getAttribute('data-tooltip'));
                 positionElement(e.clientX, e.clientY);

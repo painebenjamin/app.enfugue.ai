@@ -11,6 +11,8 @@ jobs:
           - os: ubuntu-latest
             api: cuda
           - os: windows-latest
+            api: tensorrt
+          - os: windows-latest
             api: cuda
           - os: macos-13
             api: mps
