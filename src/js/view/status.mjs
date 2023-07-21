@@ -87,7 +87,7 @@ class StatusView extends View {
      */
     get gpuLoad() {
         return isEmpty(this.status.gpu)
-            ? 0.0
+            ? null
             : Math.ceil(this.status.gpu.load * 100);
     }
 
@@ -96,7 +96,7 @@ class StatusView extends View {
      */
     get gpuMemoryTotal() {
         return isEmpty(this.status.gpu)
-            ? 0
+            ? null
             : this.status.gpu.memory.total;
     }
 
@@ -105,7 +105,7 @@ class StatusView extends View {
      */
     get gpuMemoryFree() {
         return isEmpty(this.status.gpu)
-            ? 0
+            ? null
             : this.status.gpu.memory.free;
     }
 
@@ -114,7 +114,7 @@ class StatusView extends View {
      */
     get gpuMemoryUsed() {
         return isEmpty(this.status.gpu)
-            ? 0
+            ? null
             : this.status.gpu.memory.used;
     }
 
@@ -123,7 +123,7 @@ class StatusView extends View {
      */
     get gpuMemoryUtil() {
         return isEmpty(this.status.gpu)
-            ? 0
+            ? null
             : Math.ceil((this.gpuMemoryUsed / this.gpuMemoryTotal) * 100);
     }
 
@@ -132,7 +132,7 @@ class StatusView extends View {
      */
     get gpuMemoryUsage() {
         return isEmpty(this.status.gpu)
-            ? "Unknown"
+            ? null
             : `${humanSize(this.gpuMemoryUsed*1e6)} / ${humanSize(this.gpuMemoryTotal*1e6)}`;
     }
 
@@ -141,7 +141,7 @@ class StatusView extends View {
      */
     get gpuName() {
         return isEmpty(this.status.gpu)
-            ? "Unknown GPU"
+            ? null
             : this.status.gpu.name;
     }
 
@@ -150,7 +150,7 @@ class StatusView extends View {
      */
     get gpuTemp() {
         return isEmpty(this.status.gpu)
-            ? 0
+            ? null
             : this.status.gpu.temp;
     }
 
@@ -195,20 +195,39 @@ class StatusView extends View {
      * @param DOMElement $gpuMemory
      */
     setStatusNodeDetails(icon, version, uptime, gpuName, gpuTemp, gpuLoad, gpuMemory) {
-        let temperatureColor = statusColorScale.get((this.gpuTemp - 50.0) / 50.0).join(","),
-            loadColor = statusColorScale.get(this.gpuLoad / 100.0).join(","),
-            memoryColor = statusColorScale.get(this.gpuMemoryUtil / 100.0),
-            memoryColorString = `rgba(${memoryColor.join(",")}, 0.6)`;
-        
         icon.class(this.label).data("tooltip", `Engine status is <strong>${this.label}</strong>`);
-        version.show().content(this.version);
         uptime.show().content(this.uptime);
-        gpuName.show().content(this.gpuName);
-        gpuTemp.show().content(`${this.gpuTemp}`).css("color", `rgb(${temperatureColor})`);
-        gpuLoad.show().content(`${this.gpuLoad}`).css("color", `rgb(${loadColor})`);
-        gpuMemory.show().content(this.gpuMemoryUsage).css({
-            "background-image": `linear-gradient(to right, ${memoryColorString} 0%, ${memoryColorString} ${this.gpuMemoryUtil}%, transparent calc(${this.gpuMemoryUtil}% + 1px))`
-        });
+        version.show().content(this.version);
+
+        if (isEmpty(this.gpuTemp)) {
+            gpuTemp.hide();
+        } else {
+            let temperatureColor = statusColorScale.get((this.gpuTemp - 50.0) / 50.0).join(",");
+            gpuTemp.show().content(`${this.gpuTemp}`).css("color", `rgb(${temperatureColor})`);
+        }
+
+        if (isEmpty(this.gpuLoad)) {
+            gpuLoad.hide();
+        } else {
+            let loadColor = statusColorScale.get(this.gpuLoad / 100.0).join(",");
+            gpuLoad.show().content(`${this.gpuLoad}`).css("color", `rgb(${loadColor})`);
+        }
+
+        if (isEmpty(this.gpuMemoryTotal)) {
+            gpuMemory.hide();
+        } else {
+            let memoryColor = statusColorScale.get(this.gpuMemoryUtil / 100.0),
+                memoryColorString = `rgba(${memoryColor.join(",")}, 0.6)`;
+            gpuMemory.show().content(this.gpuMemoryUsage).css({
+                "background-image": `linear-gradient(to right, ${memoryColorString} 0%, ${memoryColorString} ${this.gpuMemoryUtil}%, transparent calc(${this.gpuMemoryUtil}% + 1px))`
+            });
+        }
+
+        if (isEmpty(this.gpuName)) {
+            gpuName.hide();
+        } else {
+            gpuName.show().content(this.gpuName);
+        }
     }
 
     /**

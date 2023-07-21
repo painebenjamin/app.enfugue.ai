@@ -106,10 +106,10 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
 
         # Set default to DDIM - The PNDM default that some models have does not work with TRT
         if not isinstance(self.scheduler, DDIMScheduler):
-            logger.debug(f"TensorRT pipeling changing default scheduler from {type(self.scheduler).__name__} to DDIM")
+            logger.debug(f"TensorRT pipeline changing default scheduler from {type(self.scheduler).__name__} to DDIM")
             self.scheduler = DDIMScheduler.from_config(self.scheduler_config)
         if self.multi_scheduler is not None and not isinstance(self.multi_scheduler, DDIMScheduler):
-            logger.debug(f"TensorRT pipeling changing default multi-diffusion scheduler from {type(self.multi_scheduler).__name__} to DDIM")
+            logger.debug(f"TensorRT pipeline changing default multi-diffusion scheduler from {type(self.multi_scheduler).__name__} to DDIM")
             self.multi_scheduler = DDIMScheduler.from_config(self.multi_scheduler_config)
 
         self.stream = None  # loaded in load_resources()
