@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import gc
 import os
+import PIL
 import time
 import torch
 import random
@@ -89,7 +90,7 @@ class KeepaliveThread(threading.Thread):
             now = datetime.datetime.now()
             if (now - last_keepalive).total_seconds() > self.KEEPALIVE_INTERVAL:
                 callback = self.manager.keepalive_callback
-                logger.debug(f"Pipeline still initializing.")
+                logger.debug(f"Pipeline still initializing. Please wait.")
                 callback()
                 last_keepalive = now
 
@@ -2211,6 +2212,8 @@ class DiffusionPipelineManager:
 
             if self.vae_name == "xl" and not self.refiner_is_sdxl:
                 vae = None
+            elif self.vae_name != "xl" and self.refiner_is_sdxl:
+                vae = None
             else:
                 vae = self.vae  # Load into memory here
 
@@ -2726,6 +2729,7 @@ class DiffusionPipelineManager:
         refiner_guidance_scale: Optional[float] = None,
         refiner_aesthetic_score: Optional[float] = None,
         refiner_negative_aesthetic_score: Optional[float] = None,
+        scale_to_refiner_size: bool = True,
         **kwargs: Any,
     ) -> Any:
         """
@@ -2806,7 +2810,6 @@ class DiffusionPipelineManager:
                             continue
                         kwargs.pop("image", None)  # Remove any previous image
                         kwargs.pop("mask", None)  # Remove any previous mask
-                        kwargs.pop("latent_callback", None)  # Remove latent callbacks
 
                         kwargs["strength"] = refiner_strength if refiner_strength else self.refiner_strength
                         kwargs["guidance_scale"] = (
@@ -2821,11 +2824,37 @@ class DiffusionPipelineManager:
                             else self.refiner_negative_aesthetic_score
                         )
 
+                        width, height = image.size
+                        image_scale = 1
+                        if (width < self.refiner_size or height < self.refiner_size) and scale_to_refiner_size:
+                            if width < self.refiner_size:
+                                image_scale = self.refiner_size / width
+                            if height < self.refiner_size:
+                                image_scale = max(image_scale, self.refiner_size / height)
+                            new_width = 8 * round((width * image_scale) / 8)
+                            new_height = 8 * round((height * image_scale) / 8)
+                            image = image.resize((new_width, new_height))
+                            kwargs["width"] = new_width
+                            kwargs["height"] = new_height
+                            if "latent_callback" in kwargs and kwargs.get("latent_callback_type", "pil") == "pil":
+                                original_callback = kwargs["latent_callback"]
+                                def resize_callback(images: List[PIL.Image.Image]) -> None:
+                                    original_callback([
+                                        image.resize((width, height))
+                                        for image in images
+                                    ])
+                                kwargs["latent_callback"] = resize_callback
+                            logger.debug(f"Scaling image up to {new_width}×{new_height} (×{image_scale:.3f}) for refiner")
+
                         logger.debug(f"Refining result {i} with arguments {kwargs}")
                         self.stop_keepalive()  # This checks, we can call it all we want
-                        result["images"][i] = self.refiner_pipeline(  # type: ignore
+                        refined_image = self.refiner_pipeline(  # type: ignore
                             generator=self.generator, image=image, **kwargs
                         )["images"][0]  # type: ignore
+                        if image_scale != 1:
+                            logger.debug(f"Scaling refined image back down to {width}×{height}")
+                            refined_image = refined_image.resize((width, height)) # type: ignore
+                        result["images"][i] = refined_image # type: ignore
                     if self.pipeline_switch_mode == "offload":
                         self.offload_refiner()
                     elif self.pipeline_switch_mode == "unload":
