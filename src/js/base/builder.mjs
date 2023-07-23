@@ -991,7 +991,9 @@ class DOMElement {
                         }
                     }
                 } else {
-                    this.element.childNodes[0].selected = true;
+                    if(this.element.childNodes.length > 0) {
+                        this.element.childNodes[0].selected = true;
+                    }
                 }
             });
         }

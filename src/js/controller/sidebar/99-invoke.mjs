@@ -64,6 +64,8 @@ class InvokeButtonController extends Controller {
                     formattedState["control"] = true;
                     formattedState["controlnet"] = "scribble";
                     formattedState["prompt"] = datum.prompt;
+                    formattedState["invert"] = true;
+                    formattedState["process_control_image"] = false;
                     formattedState["negative_prompt"] = datum.negativePrompt;
                     formattedState["guidance_scale"] = datum.guidanceScale;
                     formattedState["inference_steps"] = datum.inferenceSteps;
@@ -77,10 +79,11 @@ class InvokeButtonController extends Controller {
                     formattedState["control"] = datum.control;
                     formattedState["inpaint"] = datum.inpaint;
                     formattedState["image"] = datum.src;
-                    formattedState["mask"] = datum.scribbleSrc;
+                    formattedState["mask"] = datum.inpaint ? datum.scribbleSrc : null;
                     formattedState["strength"] = datum.strength;
                     formattedState["conditioning_scale"] = datum.conditioningScale;
                     formattedState["controlnet"] = datum.controlnet;
+                    formattedState["invert"] = datum.colorSpace == "invert";
                     formattedState["prompt"] = datum.prompt;
                     formattedState["negative_prompt"] = datum.negativePrompt;
                     formattedState["guidance_scale"] = datum.guidanceScale;

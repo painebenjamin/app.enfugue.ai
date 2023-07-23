@@ -1,23 +1,19 @@
 from __future__ import annotations
 
-import gc
 import cv2
 import PIL
 import numpy as np
 
-from typing import TYPE_CHECKING, Iterator, Tuple
+from typing import Tuple
 
-from contextlib import contextmanager
+from enfugue.diffusion.support.model import SupportModel
+from enfugue.diffusion.support.vision import ComputerVision
 
-from enfugue.diffusion.vision import ComputerVision
+__all__ = [
+    "DepthDetector"
+]
 
-if TYPE_CHECKING:
-    import torch
-
-__all__ = ["DepthDetector"]
-
-
-class DepthDetector:
+class DepthDetector(SupportModel):
     """
     Uses MiDaS v2 to predict depth.
     Uses depth prediction to generate normal maps.
@@ -26,29 +22,7 @@ class DepthDetector:
     MIDAS_MODEL_TYPE = "DPT_Hybrid"
     MIDAS_TRANSFORM_TYPE = "transforms"
     MIDAS_PATH = "intel-isl/MiDaS"
-
-    def __init__(self, model_dir: str, device: torch.device) -> None:
-        self.model_dir = model_dir
-        self.device = device
-
-    @contextmanager
-    def context(self) -> Iterator[None]:
-        """
-        Cleans torch memory after processing.
-        """
-        yield
-        if self.device.type == "cuda":
-            import torch
-            import torch.cuda
-
-            torch.cuda.empty_cache()
-        elif self.device.type == "mps":
-            import torch
-            import torch.mps
-
-            torch.mps.empty_cache()
-        gc.collect()
-
+    
     def execute(self, image: PIL.Image.Image) -> Tuple[np.ndarray, PIL.Image.Image]:
         import torch
 

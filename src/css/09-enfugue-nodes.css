@@ -633,6 +633,7 @@ enfugue-node-editor.image-editor enfugue-node-canvas enfugue-toolbar-item::after
 fieldset.field-set-prompts .field-container,
 fieldset.field-set-directories .field-container,
 fieldset.field-set-engine .field-container,
+fieldset.field-set-diffusion .field-container,
 fieldset.field-set-filters .field-container.string-input-view-search
 {
     flex-basis: 100%;

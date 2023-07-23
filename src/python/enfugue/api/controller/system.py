@@ -76,6 +76,9 @@ class EnfugueAPISystemController(EnfugueAPIControllerBase):
             "max_queued_invocations": self.manager.max_queued_invocations,
             "max_queued_downloads": self.manager.max_queued_downloads,
             "max_concurrent_downloads": self.manager.max_concurrent_downloads,
+            "switch_mode": self.configuration.get("enfugue.pipeline.switch", "offload"),
+            "cache_mode": self.configuration.get("enfugue.pipeline.cache", "xl"),
+            "precision": self.configuration.get("enfugue.dtype", None)
         }
 
     @handlers.path("^/api/settings$")
@@ -94,11 +97,27 @@ class EnfugueAPISystemController(EnfugueAPIControllerBase):
                     self.database.execute(delete(self.orm.User).filter(self.orm.User.username == "noauth"))
                 self.database.commit()
         if "safe" in request.parsed:
-            if request.parsed["safe"] != self.configuration.get("enfugue.safe", True):
-                # Destroy process so we re-initialize with new safety settings
-                self.manager.stop_engine()
+            self.user_config["enfugue.safe"] = request.parsed["safe"]
+            self.manager.stop_engine()
+        if "switch_mode" in request.parsed:
+            if not request.parsed["switch_mode"]:
+                self.user_config["enfugue.pipeline.switch"] = None
+            else:
+                self.user_config["enfugue.pipeline.switch"] = request.parsed["switch_mode"]
+            self.manager.stop_engine()
+        if "cache_mode" in request.parsed:
+            if not request.parsed["cache_mode"]:
+                self.user_config["enfugue.pipeline.cache"] = None
+            else:
+                self.user_config["enfugue.pipeline.cache"] = request.parsed["cache_mode"]
+            self.manager.stop_engine()
+        if "precision" in request.parsed:
+            if not request.parsed["precision"]:
+                self.user_config["enfugue.dtype"] = None
+            else:
+                self.user_config["enfugue.dtype"] = request.parsed["precision"]
+            self.manager.stop_engine()
         for key in [
-            "safe",
             "max_queued_invocation",
             "max_queued_downloads",
             "max_concurrent_downloads",
@@ -230,7 +249,7 @@ class EnfugueAPISystemController(EnfugueAPIControllerBase):
         Gets a summary of files and filesize in the installation
         """
         sizes = {}
-        for dirname in ["cache", "checkpoint", "lora", "lycoris", "inversion", "other"]:
+        for dirname in ["cache", "diffusers", "checkpoint", "lora", "lycoris", "inversion", "tensorrt", "other"]:
             directory = self.configuration.get(f"enfugue.engine.{dirname}", os.path.join(self.engine_root, dirname))
             items, files, size = get_directory_size(directory)
             sizes[dirname] = {"items": items, "files": files, "bytes": size, "path": directory}
@@ -284,7 +303,6 @@ class EnfugueAPISystemController(EnfugueAPIControllerBase):
         """
         Deletes a file or directory from the installation
         """
-
         directory = self.configuration.get(f"enfugue.engine.{dirname}", os.path.join(self.engine_root, dirname))
         path = os.path.join(directory, filename)
         if not os.path.exists(path):
@@ -303,7 +321,6 @@ class EnfugueAPISystemController(EnfugueAPIControllerBase):
         """
         Uploads a file to an installation directory.
         """
-
         if "file" not in request.POST:
             raise BadRequestError("File is missing.")
 

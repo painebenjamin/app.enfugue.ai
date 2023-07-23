@@ -13,17 +13,31 @@ from typing import (
     Union,
     Tuple,
     List,
-    Literal,
     Callable,
     TypedDict,
     TYPE_CHECKING,
 )
 
-from enfugue.util import logger, feather_mask, fit_image, remove_background, TokenMerger
+from enfugue.util import (
+    logger,
+    feather_mask,
+    fit_image,
+    remove_background,
+    TokenMerger,
+    IMAGE_FIT_LITERAL,
+    IMAGE_ANCHOR_LITERAL
+)
 
 if TYPE_CHECKING:
     from enfugue.diffusers.manager import DiffusionPipelineManager
     from diffusers.pipelines.stable_diffusion import StableDiffusionPipelineOutput
+    from enfugue.diffusion.constants import (
+        SCHEDULER_LITERAL,
+        MULTI_SCHEDULER_LITERAL,
+        CONTROLNET_LITERAL,
+        VAE_LITERAL,
+        UPSCALE_LITERAL
+    )
 
 DEFAULT_SIZE = 512
 DEFAULT_IMAGE_CALLBACK_STEPS = 10
@@ -56,20 +70,8 @@ class NodeDict(TypedDict):
     h: int
     x: int
     y: int
-    fit: Optional[Literal["actual", "stretch", "contain", "cover"]]
-    anchor: Optional[
-        Literal[
-            "top-left",
-            "top-center",
-            "top-right",
-            "center-left",
-            "center-center",
-            "center-right",
-            "bottom-left",
-            "bottom-center",
-            "bottom-right",
-        ]
-    ]
+    fit: Optional[IMAGE_FIT_LITERAL]
+    anchor: Optional[IMAGE_ANCHOR_LITERAL]
     infer: Optional[bool]
     inpaint: Optional[bool]
     control: Optional[bool]
@@ -80,6 +82,9 @@ class NodeDict(TypedDict):
     conditioning_scale: Optional[float]
     image: Optional[PIL.Image.Image]
     mask: Optional[PIL.Image.Image]
+    process_control_image: Optional[bool]
+    remove_background: Optional[bool]
+    invert: Optional[bool]
 
 
 class DiffusionStep:
@@ -98,9 +103,7 @@ class DiffusionStep:
         image: Optional[Union[DiffusionStep, PIL.Image.Image, str]] = None,
         mask: Optional[Union[DiffusionStep, PIL.Image.Image, str]] = None,
         control_image: Optional[Union[DiffusionStep, PIL.Image.Image, str]] = None,
-        controlnet: Optional[
-            Literal["canny", "tile", "mlsd", "hed", "scribble", "inpaint", "depth", "normal", "pose"]
-        ] = None,
+        controlnet: Optional[CONTROLNET_LITERAL] = None,
         conditioning_scale: Optional[float] = DEFAULT_CONDITIONING_SCALE,
         strength: Optional[float] = DEFAULT_IMG2IMG_STRENGTH,
         num_inference_steps: Optional[int] = DEFAULT_INFERENCE_STEPS,
@@ -212,16 +215,24 @@ class DiffusionStep:
         if self.process_control_image:
             if self.controlnet == "canny":
                 return pipeline.edge_detector.canny(control_image)
-            if self.controlnet == "mlsd":
-                return pipeline.edge_detector.mlsd(control_image)
             if self.controlnet == "hed":
                 return pipeline.edge_detector.hed(control_image)
+            if self.controlnet == "scribble":
+                return pipeline.edge_detector.hed(control_image, scribble=True)
+            if self.controlnet == "pidi":
+                return pipeline.edge_detector.pidi(control_image)
             if self.controlnet == "depth":
                 return pipeline.depth_detector.midas(control_image)
             if self.controlnet == "normal":
                 return pipeline.depth_detector.normal(control_image)
             if self.controlnet == "pose":
                 return pipeline.pose_detector.detect(control_image)
+            if self.controlnet == "line":
+                return pipeline.line_detector.detect(control_image)
+            if self.controlnet == "anime":
+                return pipeline.line_detector.detect(control_image, anime=True)
+            if self.controlnet == "mlsd":
+                return pipeline.line_detector.mlsd(control_image)
         return control_image
 
     def execute(
@@ -453,26 +464,9 @@ class DiffusionPlan:
         lora: Optional[Union[str, List[str], Tuple[str, float], List[Union[str, Tuple[str, float]]]]] = None,
         lycoris: Optional[Union[str, List[str], Tuple[str, float], List[Union[str, Tuple[str, float]]]]] = None,
         inversion: Optional[Union[str, List[str]]] = None,
-        scheduler: Optional[
-            Literal[
-                "ddim",
-                "ddpm",
-                "deis",
-                "dpmsm",
-                "dpmss",
-                "heun",
-                "dpmd",
-                "adpmd",
-                "dpmsde",
-                "unipc",
-                "lmsd",
-                "pndm",
-                "eds",
-                "eads",
-            ]
-        ] = None,
-        multi_scheduler: Optional[Literal["ddim", "ddpm", "deis", "dpmsm", "dpmss", "eds", "eads"]] = None,
-        vae: Optional[Literal["ema", "mse"]] = None,
+        scheduler: Optional[SCHEDULER_LITERAL] = None,
+        multi_scheduler: Optional[MULTI_SCHEDULER_LITERAL] = None,
+        vae: Optional[VAE_LITERAL] = None,
         width: Optional[int] = None,
         height: Optional[int] = None,
         image_callback_steps: Optional[int] = DEFAULT_IMAGE_CALLBACK_STEPS,
@@ -484,32 +478,7 @@ class DiffusionPlan:
         seed: Optional[int] = None,
         build_tensorrt: bool = False,
         outscale: Optional[int] = 1,
-        upscale: Optional[
-            Union[
-                Literal[
-                    "esrgan",
-                    "esrganime",
-                    "gfpgan",
-                    "lanczos",
-                    "bilinear",
-                    "bicubic",
-                    "lanczos",
-                    "nearest",
-                ],
-                List[
-                    Literal[
-                        "esrgan",
-                        "esrganime",
-                        "gfpgan",
-                        "lanczos",
-                        "bilinear",
-                        "bicubic",
-                        "lanczos",
-                        "nearest",
-                    ]
-                ],
-            ]
-        ] = None,
+        upscale: Optional[Union[UPSCALE_LITERAL, List[UPSCALE_LITERAL]]] = None,
         upscale_diffusion: bool = False,
         upscale_iterative: bool = False,
         upscale_diffusion_steps: Optional[Union[int, List[int]]] = DEFAULT_UPSCALE_DIFFUSION_STEPS,
@@ -519,12 +488,7 @@ class DiffusionPlan:
         upscale_diffusion_strength: Optional[Union[float, List[float]]] = DEFAULT_UPSCALE_DIFFUSION_STRENGTH,
         upscale_diffusion_prompt: Optional[Union[str, List[str]]] = DEFAULT_UPSCALE_PROMPT,
         upscale_diffusion_negative_prompt: Optional[Union[str, List[str]]] = DEFAULT_UPSCALE_NEGATIVE_PROMPT,
-        upscale_diffusion_controlnet: Optional[
-            Union[
-                Literal["canny", "tile", "mlsd", "hed", "scribble", "inpaint", "depth", "normal"],
-                List[Literal["canny", "tile", "mlsd", "hed", "scribble", "inpaint", "depth", "normal"]],
-            ]
-        ] = None,
+        upscale_diffusion_controlnet: Optional[Union[CONTROLNET_LITERAL, List[CONTROLNET_LITERAL]]] = None,
         upscale_diffusion_chunking_size: Optional[int] = None,
         upscale_diffusion_chunking_blur: Optional[int] = None,
         upscale_diffusion_scale_chunking_size: bool = True,
@@ -664,9 +628,6 @@ class DiffusionPlan:
                         return images
                     images[i] = image
 
-                # Unload the upscaler to save VRAM
-                pipeline.unload_upscaler()
-
                 if image_callback is not None and (j < len(scales) - 1 or self.upscale_diffusion):
                     image_callback(images)
 
@@ -709,12 +670,21 @@ class DiffusionPlan:
                             if upscale_controlnet == "canny":
                                 pipeline.controlnet = "canny"
                                 kwargs["control_image"] = pipeline.edge_detector.canny(image)
-                            elif upscale_controlnet == "mlsd":
-                                pipeline.controlnet = "mlsd"
-                                kwargs["control_image"] = pipeline.edge_detector.mlsd(image)
                             elif upscale_controlnet == "hed":
                                 pipeline.controlnet = "hed"
                                 kwargs["control_image"] = pipeline.edge_detector.hed(image)
+                            elif upscale_controlnet == "scribble":
+                                pipeline.controlnet = "scribble"
+                                kwargs["control_image"] = pipeline.edge_detector.hed(image, scribble=True)
+                            elif upscale_controlnet == "mlsd":
+                                pipeline.controlnet = "mlsd"
+                                kwargs["control_image"] = pipeline.line_detector.mlsd(image)
+                            elif upscale_controlnet == "line":
+                                pipeline.controlnet = "line"
+                                kwargs["control_image"] = pipeline.line_detector.line(image)
+                            elif upscale_controlnet == "anime":
+                                pipeline.controlnet = "anime"
+                                kwargs["control_image"] = pipeline.line_detector.line(image, anime=True)
                             elif upscale_controlnet == "tile":
                                 pipeline.controlnet = "tile"
                                 kwargs["control_image"] = image
@@ -1025,54 +995,12 @@ class DiffusionPlan:
         lora: Optional[Union[str, List[str], Tuple[str, float], List[Union[str, Tuple[str, float]]]]] = None,
         lycoris: Optional[Union[str, List[str], Tuple[str, float], List[Union[str, Tuple[str, float]]]]] = None,
         inversion: Optional[Union[str, List[str]]] = None,
-        scheduler: Optional[
-            Literal[
-                "ddim",
-                "ddpm",
-                "deis",
-                "dpmsm",
-                "dpmss",
-                "heun",
-                "dpmd",
-                "adpmd",
-                "dpmsde",
-                "unipc",
-                "lmsd",
-                "pndm",
-                "eds",
-                "eads",
-            ]
-        ] = None,
-        multi_scheduler: Optional[Literal["ddim", "ddpm", "deis", "dpmsm", "dpmss", "eds", "eads"]] = None,
-        vae: Optional[Literal["ema", "mse"]] = None,
+        scheduler: Optional[SCHEDULER_LITERAL] = None,
+        multi_scheduler: Optional[MULTI_SCHEDULER_LITERAL] = None,
+        vae: Optional[VAE_LITERAL] = None,
         seed: Optional[int] = None,
         outscale: Optional[int] = 1,
-        upscale: Optional[
-            Union[
-                Literal[
-                    "esrgan",
-                    "esrganime",
-                    "gfpgan",
-                    "lanczos",
-                    "bilinear",
-                    "bicubic",
-                    "lanczos",
-                    "nearest",
-                ],
-                List[
-                    Literal[
-                        "esrgan",
-                        "esrganime",
-                        "gfpgan",
-                        "lanczos",
-                        "bilinear",
-                        "bicubic",
-                        "lanczos",
-                        "nearest",
-                    ]
-                ],
-            ]
-        ] = None,
+        upscale: Optional[Union[UPSCALE_LITERAL, List[UPSCALE_LITERAL]]] = None,
         upscale_diffusion: bool = False,
         upscale_iterative: bool = False,
         upscale_diffusion_steps: Optional[Union[int, List[int]]] = DEFAULT_UPSCALE_DIFFUSION_STEPS,
@@ -1082,12 +1010,7 @@ class DiffusionPlan:
         upscale_diffusion_strength: Optional[Union[float, List[float]]] = DEFAULT_UPSCALE_DIFFUSION_STRENGTH,
         upscale_diffusion_prompt: Optional[Union[str, List[str]]] = DEFAULT_UPSCALE_PROMPT,
         upscale_diffusion_negative_prompt: Optional[Union[str, List[str]]] = DEFAULT_UPSCALE_NEGATIVE_PROMPT,
-        upscale_diffusion_controlnet: Optional[
-            Union[
-                Literal["canny", "tile", "mlsd", "hed", "scribble", "inpaint", "depth", "normal"],
-                List[Literal["canny", "tile", "mlsd", "hed", "scribble", "inpaint", "depth", "normal"]],
-            ]
-        ] = None,
+        upscale_diffusion_controlnet: Optional[Union[CONTROLNET_LITERAL, List[CONTROLNET_LITERAL]]] = None,
         upscale_diffusion_chunking_size: Optional[int] = None,
         upscale_diffusion_chunking_blur: Optional[int] = None,
         upscale_diffusion_scale_chunking_size: bool = True,
@@ -1120,6 +1043,9 @@ class DiffusionPlan:
                 "strength": None,
                 "conditioning_scale": None,
                 "mask": None,
+                "process_control_image": None,
+                "remove_background": None,
+                "invert": None
             }
         ]
         return DiffusionPlan.from_nodes(
@@ -1164,26 +1090,9 @@ class DiffusionPlan:
         lora: Optional[Union[str, List[str], Tuple[str, float], List[Union[str, Tuple[str, float]]]]] = None,
         lycoris: Optional[Union[str, List[str], Tuple[str, float], List[Union[str, Tuple[str, float]]]]] = None,
         inversion: Optional[Union[str, List[str]]] = None,
-        scheduler: Optional[
-            Literal[
-                "ddim",
-                "ddpm",
-                "deis",
-                "dpmsm",
-                "dpmss",
-                "heun",
-                "dpmd",
-                "adpmd",
-                "dpmsde",
-                "unipc",
-                "lmsd",
-                "pndm",
-                "eds",
-                "eads",
-            ]
-        ] = None,
-        multi_scheduler: Optional[Literal["ddim", "ddpm", "deis", "dpmsm", "dpmss", "eds", "eads"]] = None,
-        vae: Optional[Literal["ema", "mse"]] = None,
+        scheduler: Optional[SCHEDULER_LITERAL] = None,
+        multi_scheduler: Optional[MULTI_SCHEDULER_LITERAL] = None,
+        vae: Optional[VAE_LITERAL] = None,
         model_prompt: Optional[str] = None,
         model_negative_prompt: Optional[str] = None,
         samples: int = 1,
@@ -1203,32 +1112,7 @@ class DiffusionPlan:
         refiner_aesthetic_score: Optional[float] = DEFAULT_AESTHETIC_SCORE,
         refiner_negative_aesthetic_score: Optional[float] = DEFAULT_NEGATIVE_AESTHETIC_SCORE,
         outscale: Optional[int] = 1,
-        upscale: Optional[
-            Union[
-                Literal[
-                    "esrgan",
-                    "esrganime",
-                    "gfpgan",
-                    "lanczos",
-                    "bilinear",
-                    "bicubic",
-                    "lanczos",
-                    "nearest",
-                ],
-                List[
-                    Literal[
-                        "esrgan",
-                        "esrganime",
-                        "gfpgan",
-                        "lanczos",
-                        "bilinear",
-                        "bicubic",
-                        "lanczos",
-                        "nearest",
-                    ]
-                ],
-            ]
-        ] = None,
+        upscale: Optional[Union[UPSCALE_LITERAL, List[UPSCALE_LITERAL]]] = None,
         upscale_diffusion: bool = False,
         upscale_iterative: bool = False,
         upscale_diffusion_steps: Optional[Union[int, List[int]]] = DEFAULT_UPSCALE_DIFFUSION_STEPS,
@@ -1238,12 +1122,7 @@ class DiffusionPlan:
         upscale_diffusion_strength: Optional[Union[float, List[float]]] = DEFAULT_UPSCALE_DIFFUSION_STRENGTH,
         upscale_diffusion_prompt: Optional[Union[str, List[str]]] = DEFAULT_UPSCALE_PROMPT,
         upscale_diffusion_negative_prompt: Optional[Union[str, List[str]]] = DEFAULT_UPSCALE_NEGATIVE_PROMPT,
-        upscale_diffusion_controlnet: Optional[
-            Union[
-                Literal["canny", "tile", "mlsd", "hed", "scribble", "inpaint", "depth", "normal"],
-                List[Literal["canny", "tile", "mlsd", "hed", "scribble", "inpaint", "depth", "normal"]],
-            ]
-        ] = None,
+        upscale_diffusion_controlnet: Optional[Union[CONTROLNET_LITERAL, List[CONTROLNET_LITERAL]]] = None,
         upscale_diffusion_chunking_size: Optional[int] = None,
         upscale_diffusion_chunking_blur: Optional[int] = None,
         upscale_diffusion_scale_chunking_size: bool = True,
@@ -1405,6 +1284,7 @@ class DiffusionPlan:
             node_conditioning_scale: Optional[float] = node_dict.get("conditioning_scale", None)
             node_image = node_dict.get("image", None)
             node_inpaint_mask = node_dict.get("mask", None)
+            node_invert = node_dict.get("invert", False)
             node_process_control_image = node_dict.get("process_control_image", True)
             node_scale_to_model_size = node_dict.get("scale_to_model_size", True)
             node_remove_background = bool(node_dict.get("remove_background", False))
@@ -1487,18 +1367,29 @@ class DiffusionPlan:
                     step_image = inpaint_image_step
                 elif node_image_needs_outpainting and (node_infer or node_control):
                     # There are gaps; add an outpaint step before the infer/control
-                    outpaint_image_step = DiffusionStep(
-                        image=node_image,
-                        mask=feather_mask(node_mask.convert("1")),
-                        prompt=str(node_prompt_tokens),
-                        negative_prompt=str(node_negative_prompt_tokens),
-                        guidance_scale=guidance_scale,
-                        refiner_strength=refiner_strength,
-                        refiner_guidance_scale=refiner_guidance_scale,
-                        refiner_aesthetic_score=refiner_aesthetic_score,
-                        refiner_negative_aesthetic_score=refiner_negative_aesthetic_score,
-                    )
-                    step_image = outpaint_image_step
+                    if node_infer or node_process_control_image:
+                        outpaint_image_step = DiffusionStep(
+                            image=node_image,
+                            mask=feather_mask(node_mask.convert("1")),
+                            prompt=str(node_prompt_tokens),
+                            negative_prompt=str(node_negative_prompt_tokens),
+                            guidance_scale=guidance_scale,
+                            refiner_strength=refiner_strength,
+                            refiner_guidance_scale=refiner_guidance_scale,
+                            refiner_aesthetic_score=refiner_aesthetic_score,
+                            refiner_negative_aesthetic_score=refiner_negative_aesthetic_score,
+                        )
+                        step_image = outpaint_image_step
+                    elif node_invert:
+                        # Paste on white
+                        white = PIL.Image.new("RGB", node_image.size, (255, 255, 255))
+                        white.paste(node_image, mask=node_alpha)
+                        step_image = white
+                    else:
+                        # Paste on black
+                        black = PIL.Image.new("RGB", node_image.size, (0, 0, 0))
+                        black.paste(node_image)
+                        step_image = black
                 else:
                     step_image = node_image
 
@@ -1521,6 +1412,8 @@ class DiffusionPlan:
                         step.control_image = step_image
                         if not node_process_control_image:
                             step.process_control_image = False
+                            if node_invert and not isinstance(step_image, DiffusionStep):
+                                step.control_image = PIL.ImageOps.invert(step_image.convert("L")) # type: ignore[unreachable]
                         if node_conditioning_scale:
                             step.conditioning_scale = node_conditioning_scale
             elif node_prompt:

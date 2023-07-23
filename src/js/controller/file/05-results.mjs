@@ -82,7 +82,7 @@ class InvocationTableView extends ModelTableView {
     static columnFormatters = {
         "duration": (value) => humanDuration(parseFloat(value)),
         "plan": (plan) => {
-            return JSON.stringify(plan); // For Now
+            return JSON.stringify(plan);
         },
         "outputs": async function(outputCount, datum) {
             if (outputCount > 0) {

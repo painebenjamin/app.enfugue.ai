@@ -8,7 +8,7 @@ import cv2
 from typing import List, Tuple, Union, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from enfugue.diffusion.pose.body import BodyResult, Keypoint
+    from enfugue.diffusion.support.pose.body import BodyResult, Keypoint
 
 eps = 0.01
 

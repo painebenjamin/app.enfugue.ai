@@ -460,7 +460,7 @@ class FormView extends View {
      */
     async inputChanged(fieldName, inputView) {
         this.values[fieldName] = inputView.getValue();
-
+        
         if (this.node !== undefined) {
             await this.evaluateConditions();
         }

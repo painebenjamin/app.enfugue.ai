@@ -3,7 +3,7 @@
 import numpy as np
 import torch
 import torch.nn.functional as F
-import enfugue.diffusion.pose.util as util
+import enfugue.diffusion.support.pose.util as util
 from torch.nn import Conv2d, MaxPool2d, Module, ReLU, init
 from torchvision.transforms import ToPILImage, ToTensor
 

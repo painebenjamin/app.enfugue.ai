@@ -192,10 +192,10 @@ class Application {
         await this.registerToolbarControllers();
 
         await this.startAutosave();
-        await this.startKeepalive();
         await this.startAnnouncements();
         await this.startLogs();
         await this.registerLogout();
+        await this.startKeepalive();
 
         window.onpopstate = (e) => this.popState(e);
         document.addEventListener("paste", (e) => this.onPaste(e));
@@ -459,6 +459,7 @@ class Application {
                 this.notifications.push("info", "Active Invocation Found", "You have an image currently being generated, beginning monitoring process.");
                 this.engine.canvasInvocation(activeInvocation.uuid);
            }
+           this.publish("invocationBegin", activeInvocation);
         }
 
         setInterval(async () => {

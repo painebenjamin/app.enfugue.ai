@@ -10,7 +10,7 @@ from pibble.util.log import DebugUnifiedLoggingContext
 
 def main() -> None:
     here = os.path.dirname(os.path.abspath(__file__))
-    output_dir = os.path.join(here, "test-images", "edge-detection")
+    output_dir = os.path.join(here, "test-images", "line-detection")
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
@@ -18,7 +18,7 @@ def main() -> None:
         with DiffusionEngine.debug() as engine:
             base_image = engine(prompt = "A suburban home frontage", seed=12345)["images"][0]
             base_image.save(os.path.join(output_dir, "base.png"))
-            for controlnet in ["pidi", "hed", "canny", "scribble"]:
+            for controlnet in ["line", "anime", "mlsd"]:
                 output_path = os.path.join(output_dir, f"{controlnet}.png")
                 engine(
                     seed=12345,

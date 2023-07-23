@@ -10,7 +10,7 @@ import datetime
 import traceback
 import threading
 
-from typing import Type, Union, Any, Optional, List, Tuple, Dict, Literal, Callable, TYPE_CHECKING
+from typing import Type, Union, Any, Optional, List, Tuple, Dict, Callable, TYPE_CHECKING
 from hashlib import md5
 
 from pibble.api.configuration import APIConfiguration
@@ -24,6 +24,7 @@ from enfugue.diffusion.constants import (
     VAE_EMA,
     VAE_MSE,
     VAE_XL,
+    VAE_LITERAL,
     CONTROLNET_CANNY,
     CONTROLNET_MLSD,
     CONTROLNET_HED,
@@ -33,6 +34,14 @@ from enfugue.diffusion.constants import (
     CONTROLNET_DEPTH,
     CONTROLNET_NORMAL,
     CONTROLNET_POSE,
+    CONTROLNET_ANIME,
+    CONTROLNET_LINE,
+    CONTROLNET_PIDI,
+    CONTROLNET_LITERAL,
+    SCHEDULER_LITERAL,
+    MULTI_SCHEDULER_LITERAL,
+    DEVICE_LITERAL,
+    PIPELINE_SWITCH_MODE_LITERAL
 )
 
 __all__ = ["DiffusionPipelineManager"]
@@ -40,12 +49,14 @@ __all__ = ["DiffusionPipelineManager"]
 if TYPE_CHECKING:
     from diffusers.models import ControlNetModel, AutoencoderKL
     from diffusers.schedulers.scheduling_utils import KarrasDiffusionSchedulers
-    from enfugue.diffusion.upscale import Upscaler
     from enfugue.diffusion.pipeline import EnfugueStableDiffusionPipeline
-    from enfugue.diffusion.edge.detect import EdgeDetector
-    from enfugue.diffusion.depth.detect import DepthDetector
-    from enfugue.diffusion.pose.detect import PoseDetector
-
+    from enfugue.diffusion.support import (
+        EdgeDetector,
+        DepthDetector,
+        PoseDetector,
+        LineDetector,
+        Upscaler
+    )
 
 def redact(kwargs: Dict[str, Any]) -> Dict[str, Any]:
     """
@@ -147,7 +158,7 @@ class DiffusionPipelineManager:
         return self._device
 
     @device.setter
-    def device(self, new_device: Optional[Literal["cpu", "cuda", "dml", "mps"]]) -> None:
+    def device(self, new_device: Optional[DEVICE_LITERAL]) -> None:
         """
         Changes the device.
         """
@@ -267,24 +278,7 @@ class DiffusionPipelineManager:
 
     def get_scheduler_class(
         self,
-        scheduler: Optional[
-            Literal[
-                "ddim",
-                "ddpm",
-                "deis",
-                "dpmsm",
-                "dpmss",
-                "heun",
-                "dpmd",
-                "adpmd",
-                "dpmsde",
-                "unipc",
-                "lmsd",
-                "pndm",
-                "eds",
-                "eads",
-            ]
-        ],
+        scheduler: Optional[SCHEDULER_LITERAL]
     ) -> KarrasDiffusionSchedulers:
         """
         Sets the scheduler class
@@ -361,24 +355,7 @@ class DiffusionPipelineManager:
     @scheduler.setter
     def scheduler(
         self,
-        new_scheduler: Optional[
-            Literal[
-                "ddim",
-                "ddpm",
-                "deis",
-                "dpmsm",
-                "dpmss",
-                "heun",
-                "dpmd",
-                "adpmd",
-                "dpmsde",
-                "unipc",
-                "lmsd",
-                "pndm",
-                "eds",
-                "eads",
-            ]
-        ],
+        new_scheduler: Optional[SCHEDULER_LITERAL],
     ) -> None:
         """
         Sets the scheduler class
@@ -413,7 +390,7 @@ class DiffusionPipelineManager:
 
     @multi_scheduler.setter
     def multi_scheduler(
-        self, new_multi_scheduler: Optional[Literal["ddim", "ddpm", "deis", "dpmsm", "dpmss", "eds", "eads"]]
+        self, new_multi_scheduler: Optional[MULTI_SCHEDULER_LITERAL]
     ) -> None:
         """
         Sets the multi_scheduler class
@@ -469,7 +446,7 @@ class DiffusionPipelineManager:
     @vae.setter
     def vae(
         self,
-        new_vae: Optional[Literal["ema", "mse", "xl"]],
+        new_vae: Optional[VAE_LITERAL],
     ) -> None:
         """
         Sets a new vae.
@@ -1490,7 +1467,7 @@ class DiffusionPipelineManager:
         return not torch.cuda.is_available() and directml_available()
 
     @property
-    def pipeline_switch_mode(self) -> Optional[Literal["offload", "unload"]]:
+    def pipeline_switch_mode(self) -> Optional[PIPELINE_SWITCH_MODE_LITERAL]:
         """
         Defines how to switch to pipelines.
         """
@@ -1499,7 +1476,7 @@ class DiffusionPipelineManager:
         return self._pipeline_switch_mode
 
     @pipeline_switch_mode.setter
-    def pipeline_switch_mode(self, mode: Optional[Literal["offload", "unload"]]) -> None:
+    def pipeline_switch_mode(self, mode: Optional[PIPELINE_SWITCH_MODE_LITERAL]) -> None:
         """
         Changes how pipelines get switched.
         """
@@ -1736,30 +1713,30 @@ class DiffusionPipelineManager:
         """
         if not hasattr(self, "_torch_dtype"):
             import torch
+            device_type = self.device.type
 
-            if self.device.type == "cpu":
-                logger.debug("Inferencing on CPU, defaulting to dtype bfloat16")
+            if device_type == "cpu":
+                logger.debug("Inferencing on cpu, must use dtype bfloat16")
                 self._torch_dtype = torch.bfloat16
-            elif self.device.type == "mps":
-                logger.debug("Inferencing on MPS, defaulting to dtype float32")
+            elif device_type == "mps":
+                logger.debug("Inferencing on mps, must use dtype float32")
                 self._torch_dtype = torch.float32
-            elif self.device.type == "cuda":
-                if torch.version.hip:
-                    # ROCm
-                    logger.debug("Inferencing on ROCm, defaulting to dtype float32")  # type: ignore[unreachable]
-                    self._torch_dtype = torch.float
-                else:
-                    # Regular CUDA
-                    logger.debug("Inferencing on CUDA, defaulting to dtype float16")
-                    self._torch_dtype = torch.half
+            elif device_type == "cuda" and torch.version.hip:
+                logger.debug("Inferencing on rocm, must use dtype float32")  # type: ignore[unreachable]
+                self._torch_dtype = torch.float
             else:
-                configuration_dtype = self.configuration.get("enfugue.dtype", "float16")
-                if configuration_dtype == "float16" or configuration_dtype == "half":
+                configuration_dtype = self.configuration.get("enfugue.dtype", None)
+                if configuration_dtype is None:
+                    logger.debug(f"Inferencing on {device_type}, defaulting to dtype float16")
                     self._torch_dtype = torch.half
-                elif configuration_dtype == "float32" or configuration_dtype == "float":
-                    self._torch_dtype = torch.float
                 else:
-                    raise ConfigurationError("dtype incorrectly configured, use 'float16/half' or 'float32/float'")
+                    logger.debug(f"Inferencing on {device_type}, using configured dtype {configuration_dtype}")
+                    if configuration_dtype == "float16" or configuration_dtype == "half":
+                        self._torch_dtype = torch.half
+                    elif configuration_dtype == "float32" or configuration_dtype == "float" or configuration_dtype == "full":
+                        self._torch_dtype = torch.float
+                    else:
+                        raise ConfigurationError(f"dtype incorrectly configured, use 'float16/half' or 'float32/float/full', got '{configuration_dtype}'")
         return self._torch_dtype
 
     @dtype.setter
@@ -1966,34 +1943,34 @@ class DiffusionPipelineManager:
         return self.inpainter_diffusers_cache_dir is not None
 
     @property
-    def always_cache(self) -> bool:
+    def should_cache(self) -> bool:
         """
         Returns true if the model should always be cached.
         """
-        configured = self.configuration.get("enfugue.engine.always_cache", None)
-        if configured:
-            return configured
-        return self.is_sdxl
+        configured = self.configuration.get("enfugue.engine.cache", "xl")
+        if configured == "xl":
+            return self.is_sdxl
+        return configured in ["always", True]
     
     @property
-    def always_cache_inpainter(self) -> bool:
+    def should_cache_inpainter(self) -> bool:
         """
         Returns true if the inpainter model should always be cached.
         """
-        configured = self.configuration.get("enfugue.engine.always_cache", None)
-        if configured:
-            return configured
-        return self.inpainter_is_sdxl
+        configured = self.configuration.get("enfugue.engine.cache", "xl")
+        if configured == "xl":
+            return self.inpainter_is_sdxl
+        return configured in ["always", True]
     
     @property
-    def always_cache_refiner(self) -> bool:
+    def should_cache_refiner(self) -> bool:
         """
         Returns true if the refiner model should always be cached.
         """
-        configured = self.configuration.get("enfugue.engine.always_cache", None)
-        if configured:
-            return configured
-        return self.refiner_is_sdxl
+        configured = self.configuration.get("enfugue.engine.cache", "xl")
+        if configured == "xl":
+            return self.refiner_is_sdxl
+        return configured in ["always", True]
 
     @property
     def is_sdxl(self) -> bool:
@@ -2153,7 +2130,7 @@ class DiffusionPipelineManager:
                         kwargs["vae_path"] = VAE_EMA
                 logger.debug(f"Initializing pipeline from checkpoint at {self.model}. Arguments are {kwargs}")
                 pipeline = self.pipeline_class.from_ckpt(self.model, num_in_channels=4, controlnet=controlnet, **kwargs)
-                if self.always_cache:
+                if self.should_cache:
                     logger.debug("Saving pipeline to pretrained.")
                     pipeline.save_pretrained(self.model_diffusers_dir)
             if not self.tensorrt_is_ready:
@@ -2288,7 +2265,7 @@ class DiffusionPipelineManager:
                     # controlnet=controlnet,
                     **kwargs,
                 )
-                if self.always_cache_refiner:
+                if self.should_cache_refiner:
                     logger.debug("Saving pipeline to pretrained.")
                     refiner_pipeline.save_pretrained(self.refiner_diffusers_dir)
             if not self.refiner_tensorrt_is_ready:
@@ -2424,7 +2401,7 @@ class DiffusionPipelineManager:
                 inpainter_pipeline = self.inpainter_pipeline_class.from_ckpt(
                     self.inpainter, num_in_channels=9, load_safety_checker=self.safe, **kwargs
                 )
-                if self.always_cache_inpainter:
+                if self.should_cache_inpainter:
                     logger.debug("Saving inpainter pipeline to pretrained cache.")
                     inpainter_pipeline.save_pretrained(self.inpainter_diffusers_dir)
             if not self.inpainter_tensorrt_is_ready:
@@ -2573,20 +2550,10 @@ class DiffusionPipelineManager:
         Gets the GAN upscaler
         """
         if not hasattr(self, "_upscaler"):
-            from enfugue.diffusion.upscale import Upscaler
+            from enfugue.diffusion.support.upscale import Upscaler
 
-            self._upscaler = Upscaler(model_dir=self.engine_other_dir, device=self.device, dtype=self.dtype)
+            self._upscaler = Upscaler(self.engine_other_dir, self.device, self.dtype)
         return self._upscaler
-
-    @upscaler.deleter
-    def upscaler(self) -> None:
-        """
-        Deletes the upscaler to save VRAM.
-        """
-        if hasattr(self, "_upscaler"):
-            logger.debug("Deleting upscaler.")
-            del self._upscaler
-            self.clear_memory()
 
     @property
     def edge_detector(self) -> EdgeDetector:
@@ -2594,10 +2561,21 @@ class DiffusionPipelineManager:
         Gets the edge detector.
         """
         if not hasattr(self, "_edge_detector"):
-            from enfugue.diffusion.edge.detect import EdgeDetector
+            from enfugue.diffusion.support.edge import EdgeDetector
 
-            self._edge_detector = EdgeDetector(self.engine_other_dir)
+            self._edge_detector = EdgeDetector(self.engine_other_dir, self.device, self.dtype)
         return self._edge_detector
+    
+    @property
+    def line_detector(self) -> LineDetector:
+        """
+        Gets the line detector.
+        """
+        if not hasattr(self, "_line_detector"):
+            from enfugue.diffusion.support.line import LineDetector
+
+            self._line_detector = LineDetector(self.engine_other_dir, self.device, self.dtype)
+        return self._line_detector
 
     @property
     def depth_detector(self) -> DepthDetector:
@@ -2605,9 +2583,9 @@ class DiffusionPipelineManager:
         Gets the depth detector.
         """
         if not hasattr(self, "_depth_detector"):
-            from enfugue.diffusion.depth.detect import DepthDetector
+            from enfugue.diffusion.support.depth import DepthDetector
 
-            self._depth_detector = DepthDetector(self.engine_other_dir, self.device)
+            self._depth_detector = DepthDetector(self.engine_other_dir, self.device, self.dtype)
         return self._depth_detector
 
     @property
@@ -2616,16 +2594,10 @@ class DiffusionPipelineManager:
         Gets the pose detector.
         """
         if not hasattr(self, "_pose_detector"):
-            from enfugue.diffusion.pose.detect import PoseDetector
+            from enfugue.diffusion.support.pose import PoseDetector
 
-            self._pose_detector = PoseDetector(self.engine_other_dir, self.device)
+            self._pose_detector = PoseDetector(self.engine_other_dir, self.device, self.dtype)
         return self._pose_detector
-
-    def unload_upscaler(self) -> None:
-        """
-        Calls the upscaler deleter.
-        """
-        del self.upscaler
 
     def get_controlnet(self, controlnet: Optional[str] = None) -> Optional[ControlNetModel]:
         """
@@ -2661,9 +2633,7 @@ class DiffusionPipelineManager:
     @controlnet.setter
     def controlnet(
         self,
-        new_controlnet: Optional[
-            Literal["canny", "tile", "mlsd", "hed", "scribble", "inpaint", "depth", "normal", "pose"]
-        ],
+        new_controlnet: Optional[CONTROLNET_LITERAL],
     ) -> None:
         """
         Sets a new controlnet.
@@ -2687,6 +2657,12 @@ class DiffusionPipelineManager:
             pretrained_path = CONTROLNET_NORMAL
         elif new_controlnet == "pose":
             pretrained_path = CONTROLNET_POSE
+        elif new_controlnet == "line":
+            pretrained_path = CONTROLNET_LINE
+        elif new_controlnet == "anime":
+            pretrained_path = CONTROLNET_ANIME
+        elif new_controlnet == "pidi":
+            pretrained_path = CONTROLNET_PIDI
         if pretrained_path is None and new_controlnet is not None:
             logger.error(f"Unsupported controlnet {new_controlnet}")
 
@@ -2699,9 +2675,11 @@ class DiffusionPipelineManager:
         ):
             self.unload_pipeline("ControlNet changing")
             if new_controlnet is not None:
+                logger.debug(f"Setting ControlNet to {new_controlnet}")
                 self._controlnet_name = new_controlnet
                 self._controlnet = self.get_controlnet(pretrained_path)
             else:
+                logger.debug(f"Disabling ControlNet")
                 self._controlnet_name = None  # type: ignore
                 self._controlnet = None
 

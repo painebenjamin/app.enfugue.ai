@@ -31,6 +31,8 @@ const filterEmpty = (obj) => {
     return values;
 };
 
+/**
+ */
 class InvocationToolbarView extends ToolbarView {
     constructor(invocationNode) {
         super(invocationNode.config);
@@ -212,7 +214,11 @@ class ImageEditorImageControlNetInputView extends SelectInputView {
     static defaultOptions = {
         "canny": "Canny Edge Detection",
         "hed": "Holistically-nested Edge Detection (HED)",
+        "pidi": "Soft Edge Detection (PIDI)",
         "mlsd": "Mobile Line Segment Detection (MLSD)",
+        "line": "Line Art",
+        "anime": "Anime Line Art",
+        "scribble": "Scribble",
         "depth": "Depth Detection (MiDaS)",
         "normal": "Normal Detection (Estimate)",
         "pose": "Pose Detection (OpenPose)"
@@ -221,7 +227,17 @@ class ImageEditorImageControlNetInputView extends SelectInputView {
     /**
      * @var string The tooltip to display
      */
-    static tooltip = "The ControlNet to use depends on your input image. Unless otherwise specified, your input image will be processed through the appropriate algorithm for this ControlNet prior to diffusion.<br /><strong>Canny Edge</strong>: This network is trained on images and the edges of that image after having run through Canny Edge detection.<br /><strong>HED</strong>: Short for Holistically-Nested Edge Detection, this edge-detection algorithm is best used when the input image is too blurry or too noisy for Canny Edge detection.<br /><strong>MLSD</strong>: Short for Mobile Line Segment Detection, this edge-detection algorithm searches only for straight lines, and is best used for geometric or architectural images.<br /><strong>Depth</strong>: This uses Intel's MiDaS model to estimate monocular depth from a single image. This uses a greyscale image showing the distance from the camera to any given object.<br /><strong>Normal</strong>: Normal maps are similar to depth maps, but instead of using a greyscale depth, three sets of distance data is encoded into red, green and blue channels.<br /><strong>OpenPose</strong>: This AI model from the Carnegie Mellon University's Perceptual Computing Lab detects human limb, face and digit poses from an image. Using this data, you can generate different people in the same pose.";
+    static tooltip = "The ControlNet to use depends on your input image. Unless otherwise specified, your input image will be processed through the appropriate algorithm for this ControlNet prior to diffusion.<br />" +
+        "<strong>Canny Edge</strong>: This network is trained on images and the edges of that image after having run through Canny Edge detection.<br />" +
+        "<strong>HED</strong>: Short for Holistically-Nested Edge Detection, this edge-detection algorithm is best used when the input image is too blurry or too noisy for Canny Edge detection.<br />" +
+        "<strong>Soft Edge Detection</strong>: Using a Pixel Difference Network, this edge-detection algorithm can be used in a wide array of applications.<br />" +
+        "<strong>MLSD</strong>: Short for Mobile Line Segment Detection, this edge-detection algorithm searches only for straight lines, and is best used for geometric or architectural images.<br />" +
+        "<strong>Line Art</strong>: This model is capable of rendering images to line art drawings. The controlnet was trained on the model output, this provides a great way to provide your own hand-drawn pieces as well as another means of edge detection.<br />" +
+        "<strong>Anime Line Art</strong>: This is similar to the above, but focusing specifically on anime style.<br />" +
+        "<strong>Scribble</strong>: This ControlNet was trained on a variant of the HED edge-detection algorithm, and is good for hand-drawn scribbles with thick, variable lines.<br />" +
+        "<strong>Depth</strong>: This uses Intel's MiDaS model to estimate monocular depth from a single image. This uses a greyscale image showing the distance from the camera to any given object.<br />" +
+        "<strong>Normal</strong>: Normal maps are similar to depth maps, but instead of using a greyscale depth, three sets of distance data is encoded into red, green and blue channels.<br />" +
+        "<strong>OpenPose</strong>: This AI model from the Carnegie Mellon University's Perceptual Computing Lab detects human limb, face and digit poses from an image. Using this data, you can generate different people in the same pose.";
 };
 
 
@@ -356,6 +372,34 @@ class ImageEditorBaseOptionsFormView extends FormView {
 };
 
 /**
+ * This input allows the user to specify what colors an image is, so we can determine
+ * if we need to invert them on the backend.
+ */
+class ImageColorSpaceInputView extends SelectInputView {
+    /**
+     * @var object Only one option
+     */
+    static defaultOptions = {
+        "invert": "White on Black"
+    };
+
+    /**
+     * @var string The default option is to invert
+     */
+    static defaultValue = "invert";
+
+    /**
+     * @var string The empty option text
+     */
+    static placeholder = "Black on White";
+
+    /**
+     * @var bool Always show empty
+     */
+    static allowEmpty = true;
+}
+
+/**
  * This form combines all image options.
  */
 class ImageEditorImageNodeOptionsFormView extends FormView {
@@ -488,6 +532,12 @@ class ImageEditorImageNodeOptionsFormView extends FormView {
                     "tooltip": "When checked, the image will be processed through the appropriate edge detection algorithm for the ControlNet. Only uncheck this if your image has already been processed through edge detection."
                 }
             }
+        },
+        "Color Space": {
+            "colorSpace": {
+                "label": "Input Image Color Space",
+                "class": ImageColorSpaceInputView
+            }
         }
     };
 
@@ -499,6 +549,9 @@ class ImageEditorImageNodeOptionsFormView extends FormView {
         "Tweaks": (values) => values.infer || values.inpaint || values.control,
         "Inference": (values) => values.infer,
         "Control": (values) => values.control,
+        "Color Space": (values) => values.control && 
+            ["mlsd", "hed", "pidi", "scribble", "line", "anime"].indexOf(values.controlnet) !== -1 &&
+            values.processControlImage === false
     };
 
     /**
@@ -1074,10 +1127,11 @@ class ImageEditorImageNodeView extends ImageEditorScribbleNodeView {
         state.inpaint = this.inpaint || false;
         state.strength = this.strength || 0.8;
         state.controlnet = this.controlnet || null;
-        state.processControlImage = this.processControlImage || true;
+        state.colorSpace = this.colorSpace || "invert";
         state.conditioningScale = this.conditioningScale || 1.0;
-        state.removeBackground = this.removeBackground || false;
-        state.scaleToModelSize = this.scaleToModelSize || true;
+        state.processControlImage = this.processControlImage !== false;
+        state.removeBackground = this.removeBackground === true;
+        state.scaleToModelSize = this.scaleToModelSize !== false;
         return state;
     }
 
@@ -1127,6 +1181,7 @@ class ImageEditorImageNodeView extends ImageEditorScribbleNodeView {
             "guidanceScale": null,
             "strength": 0.8,
             "processControlImage": true,
+            "colorSpace": "invert",
             "conditioningScale": 1.0,
             "removeBackground": false,
             "scaleToModelSize": true,

@@ -3,12 +3,12 @@
 import cv2
 import numpy as np
 import torch
-import enfugue.diffusion.pose.util as util
+import enfugue.diffusion.support.pose.util as util
 
 from scipy.ndimage.filters import gaussian_filter
 from skimage.measure import label
 
-from enfugue.diffusion.pose.model import handpose_model
+from enfugue.diffusion.support.pose.model import handpose_model
 
 
 class Hand(object):

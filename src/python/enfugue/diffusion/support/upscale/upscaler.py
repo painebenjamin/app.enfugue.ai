@@ -4,17 +4,14 @@ import PIL
 
 from typing import Union, TYPE_CHECKING
 
-from realesrgan import RealESRGANer
-from basicsr.archs.rrdbnet_arch import RRDBNet
-
 from enfugue.util import check_download_to_dir
-from enfugue.diffusion.vision import ComputerVision
+from enfugue.diffusion.support.vision import ComputerVision
+from enfugue.diffusion.support.model import SupportModel
 
 if TYPE_CHECKING:
-    import torch
+    from realesrgan import RealESRGANer
 
-
-class Upscaler:
+class Upscaler(SupportModel):
     """
     The upscaler user ESRGAN or GFGPGAN for up to 4x upscale
     """
@@ -24,14 +21,6 @@ class Upscaler:
     ESRGAN_ANIME_PATH = (
         "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.2.4/RealESRGAN_x4plus_anime_6B.pth"
     )
-
-    def __init__(self, model_dir: str, device: torch.device, dtype: torch.dtype) -> None:
-        """
-        On initialization, pass the model dir.
-        """
-        self.model_dir = model_dir
-        self.device = device
-        self.dtype = dtype
 
     @property
     def esrgan_weights_path(self) -> str:
@@ -59,6 +48,8 @@ class Upscaler:
         Gets the appropriate upsampler
         """
         import torch
+        from basicsr.archs.rrdbnet_arch import RRDBNet
+        from realesrgan import RealESRGANer
 
         if anime:
             model = RRDBNet(num_in_ch=3, num_out_ch=3, num_feat=64, num_block=6, num_grow_ch=32, scale=4)
@@ -90,12 +81,14 @@ class Upscaler:
         """
         Does a simple upscale
         """
-        if type(image) is str:
-            image = PIL.Image.open(image)
+        with self.context():
+            if type(image) is str:
+                image = PIL.Image.open(image)
 
-        esrganer = self.get_upsampler(tile=tile, tile_pad=tile_pad, pre_pad=pre_pad, anime=anime)
-
-        return ComputerVision.revert_image(esrganer.enhance(ComputerVision.convert_image(image), outscale=outscale)[0])
+            esrganer = self.get_upsampler(tile=tile, tile_pad=tile_pad, pre_pad=pre_pad, anime=anime)
+            result = ComputerVision.revert_image(esrganer.enhance(ComputerVision.convert_image(image), outscale=outscale)[0])
+            del esrganer
+            return result
 
     def gfpgan(
         self,
@@ -108,26 +101,29 @@ class Upscaler:
         """
         Does an upscale with face enhancement
         """
-        if type(image) is str:
-            image = PIL.Image.open(image)
+        with self.context():
+            if type(image) is str:
+                image = PIL.Image.open(image)
 
-        from enfugue.diffusion.upscale.gfpganer import GFPGANer  # type: ignore[attr-defined]
+            from enfugue.diffusion.support.upscale.gfpganer import GFPGANer  # type: ignore[attr-defined]
 
-        gfpganer = GFPGANer(
-            model_path=self.gfpgan_weights_path,
-            upscale=outscale,
-            arch="clean",
-            channel_multiplier=2,
-            bg_upsampler=self.get_upsampler(tile=tile, tile_pad=tile_pad, pre_pad=pre_pad),
-            rootpath=self.model_dir,
-            device=self.device,
-        )
+            gfpganer = GFPGANer(
+                model_path=self.gfpgan_weights_path,
+                upscale=outscale,
+                arch="clean",
+                channel_multiplier=2,
+                bg_upsampler=self.get_upsampler(tile=tile, tile_pad=tile_pad, pre_pad=pre_pad),
+                rootpath=self.model_dir,
+                device=self.device,
+            )
 
-        return ComputerVision.revert_image(
-            gfpganer.enhance(
-                ComputerVision.convert_image(image),
-                has_aligned=False,
-                only_center_face=False,
-                paste_back=True,
-            )[2]
-        )
+            result = ComputerVision.revert_image(
+                gfpganer.enhance(
+                    ComputerVision.convert_image(image),
+                    has_aligned=False,
+                    only_center_face=False,
+                    paste_back=True,
+                )[2]
+            )
+            del gfpganer
+            return result

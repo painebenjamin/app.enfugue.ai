@@ -113,6 +113,10 @@ class Invocation:
                     if "traceback" in result:
                         logger.error(f"Traceback for invocation {self.uuid}:")
                         logger.debug(result["traceback"])
+                if self.metadata is not None and "tensorrt_build" in self.metadata:
+                    logger.info("TensorRT build complete, terminating engine to start fresh on next invocation.")
+                    self.engine.terminate_process()
+                    
         except TimeoutError:
             return
 
