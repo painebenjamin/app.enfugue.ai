@@ -2767,20 +2767,26 @@ class DiffusionPipelineManager:
                     self.start_keepalive()
                     if kwargs.get("latent_callback", None) is not None:
                         kwargs["latent_callback"](result["images"])  # type: ignore
-                    if self.pipeline_switch_mode == "offload":
-                        if inpainting:
-                            self.offload_inpainter()
-                        else:
-                            self.offload_pipeline()
-                        self.reload_refiner()
-                    elif self.pipeline_switch_mode == "unload":
+                    
+                    # Issues seem to exist with loading both sdxl 0.9 ckpts into memory at once, unless they're cached.
+                    # add a catch here to unload the main pipeline if loading the refiner pipeline and it's not cached.
+                    should_offload = self.pipeline_switch_mode == "offload"
+                    should_unload = self.pipeline_switch_mode == "unload" or (self.refiner_is_sdxl and not self.refiner_engine_cache_exists)
+
+                    if should_unload:
                         if inpainting:
                             self.unload_inpainter("switching to refining")
                         else:
                             self.unload_pipeline("switching to refining")
+                    elif should_offload:
+                        if inpainting:
+                            self.offload_inpainter()
+                        else:
+                            self.offload_pipeline()
                     else:
                         logger.debug("Keeping pipeline in memory")
-
+                    
+                    self.reload_refiner()
                     for i, image in enumerate(result["images"]):  # type: ignore
                         is_nsfw = "nsfw_content_detected" in result and result["nsfw_content_detected"][i]  # type: ignore
                         if is_nsfw:
