@@ -14,6 +14,15 @@ class ComputerVision:
     """
 
     @staticmethod
+    def show(name: str, image: PIL.Image.Image) -> None:
+        """
+        Shows an image.
+        """
+        cv2.imshow(name, ComputerVision.convert_image(image))
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
+
+    @staticmethod
     def convert_image(image: PIL.Image.Image) -> np.ndarray:
         """
         Converts PIL image to OpenCV format.

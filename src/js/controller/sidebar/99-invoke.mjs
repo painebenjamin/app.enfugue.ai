@@ -84,6 +84,7 @@ class InvokeButtonController extends Controller {
                     formattedState["conditioning_scale"] = datum.conditioningScale;
                     formattedState["controlnet"] = datum.controlnet;
                     formattedState["invert"] = datum.colorSpace == "invert";
+                    formattedState["invert_mask"] = true; // The UI is inversed
                     formattedState["prompt"] = datum.prompt;
                     formattedState["negative_prompt"] = datum.negativePrompt;
                     formattedState["guidance_scale"] = datum.guidanceScale;

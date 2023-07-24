@@ -7,10 +7,13 @@ import PIL.Image
 
 from typing import Optional, Literal
 
+from pibble.resources.retriever import Retriever
+
 __all__ = [
     "fit_image",
     "feather_mask",
     "remove_background",
+    "image_from_uri",
     "IMAGE_FIT_LITERAL",
     "IMAGE_ANCHOR_LITERAL"
 ]
@@ -152,3 +155,9 @@ def remove_background(image: PIL.Image.Image) -> PIL.Image.Image:
     buf = io.BytesIO()
     image.save(buf, "PNG")
     return PIL.Image.open(io.BytesIO(backgroundremover.bg.remove(buf.getvalue())))
+
+def image_from_uri(uri: str) -> PIL.Image.Image:
+    """
+    Loads an image using the pibble reteiever; works with http, file, ftp, ftps, sftp, and s3
+    """
+    return PIL.Image.open(io.BytesIO(Retriever.get(uri).all()))

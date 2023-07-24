@@ -130,8 +130,9 @@ class EnfugueAPIInvocationController(EnfugueAPIControllerBase):
             plan_kwargs["scheduler"] = scheduler
         if multi_scheduler:
             plan_kwargs["multi_scheduler"] = multi_scheduler
+        disable_decoding = request.parsed.pop("intermediates", None) == False
         plan = DiffusionPlan.from_nodes(**{**request.parsed, **plan_kwargs})
-        return self.invoke(request.token.user.id, plan).format()
+        return self.invoke(request.token.user.id, plan, disable_intermediate_decoding=disable_decoding).format()
 
     @handlers.path("^/api/invocation$")
     @handlers.methods("GET")

@@ -62,7 +62,7 @@ GLOBAL_PROMPT_UPSCALE_WEIGHT = 0.4
 UPSCALE_PROMPT_STEP_WEIGHT = 0.1
 MAX_IMAGE_SCALE = 3.0
 
-__all__ = ["DiffusionStep", "DiffusionPlan"]
+__all__ = ["NodeDict", "DiffusionStep", "DiffusionPlan"]
 
 
 class NodeDict(TypedDict):
@@ -85,6 +85,7 @@ class NodeDict(TypedDict):
     process_control_image: Optional[bool]
     remove_background: Optional[bool]
     invert: Optional[bool]
+    invert_mask: Optional[bool]
 
 
 class DiffusionStep:
@@ -819,7 +820,7 @@ class DiffusionPlan:
 
         # Determine if there's anything left to outpaint
         image_r_min, image_r_max = outpaint_mask.getextrema()[1]
-        if image_r_max > 0:
+        if image_r_max > 0 and self.prompt:
             # Outpaint
             del invocation_kwargs["num_images_per_prompt"]
             outpaint_mask = feather_mask(outpaint_mask)
@@ -1045,7 +1046,8 @@ class DiffusionPlan:
                 "mask": None,
                 "process_control_image": None,
                 "remove_background": None,
-                "invert": None
+                "invert": None,
+                "invert_mask": None
             }
         ]
         return DiffusionPlan.from_nodes(
@@ -1262,16 +1264,10 @@ class DiffusionPlan:
                 refiner_negative_aesthetic_score=refiner_negative_aesthetic_score,
             )
 
-            node_width = int(node_dict["w"])
-            node_height = int(node_dict["h"])
-            node_left = int(node_dict["x"])
-            node_top = int(node_dict["y"])
+            node_left = int(node_dict.get("x", 0))
+            node_top = int(node_dict.get("y", 0))
             node_fit = node_dict.get("fit", None)
             node_anchor = node_dict.get("anchor", None)
-            node_bounds = [
-                (node_left, node_top),
-                (node_left + node_width, node_top + node_height),
-            ]
 
             node_infer = node_dict.get("infer", False)
             node_inpaint = node_dict.get("inpaint", False)
@@ -1285,6 +1281,7 @@ class DiffusionPlan:
             node_image = node_dict.get("image", None)
             node_inpaint_mask = node_dict.get("mask", None)
             node_invert = node_dict.get("invert", False)
+            node_invert_mask = node_dict.get("invert_mask", False)
             node_process_control_image = node_dict.get("process_control_image", True)
             node_scale_to_model_size = node_dict.get("scale_to_model_size", True)
             node_remove_background = bool(node_dict.get("remove_background", False))
@@ -1298,6 +1295,24 @@ class DiffusionPlan:
 
             node_prompt_tokens = TokenMerger()
             node_negative_prompt_tokens = TokenMerger()
+            
+            if "w" in node_dict:
+                node_width = int(node_dict["w"])
+            elif node_image is not None: # type: ignore[unreachable]
+                node_width, _ = node_image.size
+            else:
+                raise ValueError(f"Node {i} missing width, pass 'w' or an image")
+            if "h" in node_dict:
+                node_height = int(node_dict["h"])
+            elif node_image is not None: # type: ignore[unreachable]
+                _, node_height = node_image.size
+            else:
+                raise ValueError(f"Node {i} missing height, pass 'h' or an image")
+            
+            node_bounds = [
+                (node_left, node_top),
+                (node_left + node_width, node_top + node_height),
+            ]
 
             if node_prompt:
                 node_prompt_tokens.add(node_prompt)
@@ -1341,9 +1356,15 @@ class DiffusionPlan:
 
                 node_image_needs_outpainting = node_mask_r_max > 0
 
-                if node_inpaint and node_inpaint_mask:
-                    # Inpaint prior to anything else. First invert mask
-                    node_inpaint_mask = PIL.ImageOps.invert(node_inpaint_mask.convert("L"))
+                if node_inpaint:
+                    if node_inpaint_mask:
+                        # Inpaint prior to anything else.
+                        node_inpaint_mask.convert("L")
+                        if node_invert_mask:
+                            node_inpaint_mask = PIL.ImageOps.invert(node_inpaint_mask)
+                    else:
+                        # Make blank mask
+                        node_inpaint_mask = PIL.Image.new("L", node_image.size, 0)
                     if node_image_needs_outpainting:
                         # Merge inpaint and outpaint masks
                         node_mask.paste(node_inpaint_mask)

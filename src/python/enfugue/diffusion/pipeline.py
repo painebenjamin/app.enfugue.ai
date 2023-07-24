@@ -479,9 +479,9 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
         text_encoders = []
         if self.text_encoder:
-            text_encoders.append(self.text_encoder)
+            text_encoders.append(self.text_encoder.to(device=device, dtype=self.text_encoder.dtype))
         if self.text_encoder_2:
-            text_encoders.append(self.text_encoder_2)
+            text_encoders.append(self.text_encoder_2.to(device=device, dtype=self.text_encoder_2.dtype))
 
         if prompt_embeds is None:
             prompt_embeds_list = []
@@ -513,7 +513,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     attention_mask = text_inputs.attention_mask.to(device)
                 else:
                     attention_mask = None
-
+                
                 text_input_ids = text_input_ids.to(device=device)
                 prompt_embeds = text_encoder(
                     text_input_ids, output_hidden_states=self.is_sdxl, attention_mask=attention_mask

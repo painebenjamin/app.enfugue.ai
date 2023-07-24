@@ -12,6 +12,7 @@ dependencies:
   - numpy=1.24.3
   - 7zip=19.00
   - make=4.3
+  - nodejs=18.16.0
   - pip:
     - torch==2.1.0.dev20230720+cu121
     - torchvision==0.16.0.dev20230720+cu121
