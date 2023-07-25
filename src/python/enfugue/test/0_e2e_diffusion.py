@@ -73,13 +73,21 @@ def main() -> None:
             kwargs["intermediates"] = False
             logger.info(f"Testing {name}\n{kwargs}")
             result = client.invoke(**kwargs)
-            images = result.results()
+            try:
+                images = result.results()
+            except Exception as ex:
+                logger.error(f"Error in invocation {name}: {type(ex).__name__}({ex})")
+                images = [
+                    Image.new("RGB", (kwargs.get("width", 512), kwargs.get("height", 512)))
+                    for i in range(kwargs.get("samples", 1))
+                ]
+                name = f"{name} ({type(ex).__name__})"
             result.delete()
             return save_results(name, images)
 
         gpu_name = "Unknown GPU"
         status = client.status()
-        if "gpu" in status:
+        if "gpu" in status and isinstance(status["gpu"], dict):
             gpu = status["gpu"]
             gpu_name = gpu.get("name", gpu_name)
         
