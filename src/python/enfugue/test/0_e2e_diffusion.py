@@ -2,6 +2,7 @@
 Runs an end-to-end test of an active installation.
 """
 import os
+import re
 
 from pibble.util.log import DebugUnifiedLoggingContext
 

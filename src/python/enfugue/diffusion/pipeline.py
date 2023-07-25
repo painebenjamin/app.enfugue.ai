@@ -20,9 +20,10 @@ import PIL
 import PIL.Image
 import math
 import torch
-import safetensors.torch
+import inspect
 import datetime
 import numpy as np
+import safetensors.torch
 
 from contextlib import contextmanager
 from collections import defaultdict
@@ -1684,6 +1685,27 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             self.vae.to(dtype=revert_dtype)
         return latents
 
+    def prepare_extra_step_kwargs(
+        self,
+        scheduler: KarrasDiffusionSchedulers,
+        generator: Optional[torch.Generator],
+        eta: float
+    ) -> Dict[str, Any]:
+        """
+        Override this method to additionally accept the scheduler, since we have
+        both a regular and multi scheduler.
+        """
+        accepts_eta = "eta" in set(inspect.signature(scheduler.step).parameters.keys())
+        extra_step_kwargs: Dict[str, Any] = {}
+        if accepts_eta:
+            extra_step_kwargs["eta"] = eta
+
+        # check if the scheduler accepts generator
+        accepts_generator = "generator" in set(inspect.signature(scheduler.step).parameters.keys())
+        if accepts_generator:
+            extra_step_kwargs["generator"] = generator
+        return extra_step_kwargs
+
     def get_step_complete_callback(
         self,
         overall_steps: int,
@@ -2008,7 +2030,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             prepared_latents = cast(torch.Tensor, prepared_latents)
 
             # 6. Prepare extra step kwargs.
-            extra_step_kwargs = self.prepare_extra_step_kwargs(generator, eta)
+            extra_step_kwargs = self.prepare_extra_step_kwargs(scheduler, generator, eta)
 
             # Make sure controlnet on device
             if self.controlnet is not None:
