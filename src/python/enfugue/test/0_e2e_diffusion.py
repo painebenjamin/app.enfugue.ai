@@ -100,7 +100,7 @@ def main() -> None:
         # Base txt2img
         prompt = "A man and woman standing outside a house, happy couple purchasing their first home"
         base = invoke("txt2img", prompt=prompt)[0]
-        
+        """
         # Base img2img
         invoke(
             "img2img",
@@ -207,10 +207,10 @@ def main() -> None:
         )
         
         # Controlnets
-        for controlnet in ["canny", "hed", "pidi", "scribble", "depth", "normal", "mlsd", "line", "anime", "pose", "mlsd"]:
+        for controlnet in ["canny", "hed", "pidi", "scribble", "depth", "normal", "mlsd", "line", "anime", "pose"]:
             invoke(f"txt2img-controlnet-{controlnet}", prompt=prompt, nodes=[{"image": base, "control": True, "controlnet": controlnet}])
             invoke(f"img2img-controlnet-{controlnet}", prompt=prompt, nodes=[{"image": base, "control": True, "infer": True, "controlnet": controlnet}])
-        
+        """
         # Schedulers
         for scheduler in ["ddim", "ddpm", "dpmsm", "dpmss", "heun", "dpmd", "adpmd", "dpmsde", "unipc", "lmsd", "pndm", "eds", "eads"]:
             invoke(f"txt2img-scheduler-{scheduler}", prompt=prompt, scheduler=scheduler)
