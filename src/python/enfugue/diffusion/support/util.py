@@ -1,11 +1,13 @@
 # type: ignore
-
+# Adapted from https://github.com/patrickvonplaten/controlnet_aux/blob/master/src/controlnet_aux/util.py
 import numpy as np
 import cv2
 
 __all__ = [
     "HWC3",
-    "resize_image"
+    "resize_image",
+    "nms",
+    "safe_step"
 ]
 
 def HWC3(x):

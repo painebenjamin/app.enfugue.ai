@@ -20,7 +20,7 @@ class EdgeDetector(SupportModel):
     HED_PROTOTXT = "https://github.com/ashukid/hed-edge-detector/raw/master/deploy.prototxt"
     HED_CAFFEMODEL = "https://github.com/ashukid/hed-edge-detector/raw/master/hed_pretrained_bsds.caffemodel"
     HED_MEAN = (104.00698793, 116.66876762, 122.67891434)
-    PIDI_PATH = "lllyasviel/Annotators"
+    PRETRAINED_PATH = "lllyasviel/Annotators"
 
     @property
     def hed_prototxt(self) -> str:
@@ -50,7 +50,7 @@ class EdgeDetector(SupportModel):
         """
         from enfugue.diffusion.support.edge.pidi import PidiNetDetector  # type: ignore
         with self.context():
-            detector = PidiNetDetector.from_pretrained(self.PIDI_PATH, cache_dir=self.model_dir)
+            detector = PidiNetDetector.from_pretrained(self.PRETRAINED_PATH, cache_dir=self.model_dir)
             detector.to(self.device)
             result = detector(image, safe=True)
             del detector
@@ -60,31 +60,10 @@ class EdgeDetector(SupportModel):
         """
         Runs holistically-nested edge detection on an image.
         """
-        from enfugue.diffusion.support.edge.hed import HEDCropLayer  # type: ignore
+        from enfugue.diffusion.support.edge.hed import HEDDetector  # type: ignore
         with self.context():
-            width, height = image.size
-
-            model = cv2.dnn.readNetFromCaffe(self.hed_prototxt, self.hed_caffemodel)
-            cv2.dnn_registerLayer("Crop", HEDCropLayer)  # type: ignore[attr-defined]
-
-            cv2_image = ComputerVision.convert_image(image)
-            dnn_input = cv2.dnn.blobFromImage(
-                cv2_image,
-                scalefactor=1.0,
-                size=(width, height),
-                mean=self.HED_MEAN,
-                swapRB=False,
-                crop=False,
-            )
-            model.setInput(dnn_input)
-            dnn_output = model.forward()
-            output_array = (cv2.cvtColor(dnn_output[0, 0], cv2.COLOR_GRAY2BGR) * 255).astype(np.uint8)
-            cv2.dnn_unregisterLayer("Crop")  # type: ignore[attr-defined]
-            del model
-            if scribble:
-                from enfugue.diffusion.support.util import nms # type: ignore
-                output_array = nms(output_array, 127, 3.0)
-                output_array = cv2.GaussianBlur(output_array, (0, 0), 3.0)
-                output_array[output_array > 4] = 255
-                output_array[output_array < 255] = 0
-            return PIL.Image.fromarray(output_array)
+            detector = HEDDetector.from_pretrained(self.PRETRAINED_PATH)
+            detector.to(self.device)
+            result = detector(image, scribble=scribble)
+            del detector
+            return result
