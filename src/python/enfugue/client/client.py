@@ -84,6 +84,7 @@ class EnfugueClient(UserExtensionClientBase, JSONWebServiceAPIClient):
         if filename is None:
             filename = os.path.basename(urlparse(url).path)
         data = {
+            "type": download_type,
             "url": url,
             "filename": filename,
             "overwrite": overwrite

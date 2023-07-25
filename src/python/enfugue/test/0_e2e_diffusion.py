@@ -16,8 +16,8 @@ from typing import Any, List
 GRID_SIZE = 256
 GRID_COLS = 4
 CAPTION_HEIGHT = 50
-CHECKPOINT = "realisticVisionV20_v20.ckpt"
-CHECKPOINT_URL = "https://civitai.com/api/download/models/29460?type=Model&format=SafeTensor&size=pruned&fp=fp16"
+CHECKPOINT = "realisticVisionV40_v40VAE.safetensors"
+CHECKPOINT_URL = "https://civitai.com/api/download/models/114367"
 INPAINT_IMAGE = "https://huggingface.co/datasets/diffusers/test-arrays/resolve/main/stable_diffusion_inpaint/boy.png"
 INPAINT_MASK = "https://huggingface.co/datasets/diffusers/test-arrays/resolve/main/stable_diffusion_inpaint/boy_mask.png"
 
