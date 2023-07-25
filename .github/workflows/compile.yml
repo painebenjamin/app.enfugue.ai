@@ -15,13 +15,13 @@ jobs:
       MINIMAL_BUILD: 1
     steps:
     - uses: actions/checkout@v3
-    - name: Setup Miniconda (Linux/MacOS)
-      if: ${{ !contains(inputs.os, 'windows') }}
+    - name: Setup Miniconda (MacOS)
+      if: ${{ contains(inputs.os, 'mac') }}
       uses: conda-incubator/setup-miniconda@v2.2.0
       with:
         miniconda-version: latest
-    - name: Setup Miniconda (Windows)
-      if: ${{ contains(inputs.os, 'windows') }}
+    - name: Setup Miniconda (Windows/Linux)
+      if: ${{ !contains(inputs.os, 'mac') }}
       uses: conda-incubator/setup-miniconda@v2.2.0
     - name: Add conda to system path
       run: |
@@ -65,14 +65,14 @@ jobs:
         conda activate base
         make
     - name: Clean space and split artifact
-      if: ${{ !contains(inputs.os, 'windows') }} 
+      if: ${{ contains(inputs.os, 'ubuntu') }} 
       run: |
         conda install --revision 0
         conda install make
         conda clean -aqy
         make split
     - name: Upload Linux artifact
-      if: ${{ !contains(inputs.os, 'windows') }} 
+      if: ${{ contains(inputs.os, 'ubuntu') }} 
       uses: actions/upload-artifact@v3.1.2
       with:
         name: ${{ inputs.os }}-${{ inputs.api }}
@@ -83,3 +83,9 @@ jobs:
       with:
         name: ${{ inputs.os }}-${{ inputs.api }}
         path: ./build/enfugue-server*zip*
+    - name: Upload MacOS artifact
+      if: ${{ contains(inputs.os, 'mac') }} 
+      uses: actions/upload-artifact@v3.1.2
+      with:
+        name: ${{ inputs.os }}-${{ inputs.api }}
+        path: ./build/enfugue-server*tar.gz
