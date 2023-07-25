@@ -144,9 +144,9 @@ $(LINUX_ARTIFACT): $(PYTHON_ARTIFACTS)
 	pyinstaller $(CONFIG_DIR)/$(PYINSTALLER_SPEC) --distpath $(BUILD_DIR)/dist
 	cp $(SCRIPT_DIR)/$(LINUX_RUN_SCRIPT) $(BUILD_DIR)/dist/$(PYINSTALLER_NAME)/
 	@if [ '$(MINIMAL_BUILD)' != '2' ]; then \
-		tar -cvzf $@ -C $(BUILD_DIR)/dist/$(PYINSTALLER_NAME)/ .; \
+		tar -cvzf $@ -C $(BUILD_DIR)/dist/ .; \
 	else \
-		tar -cvzf $@ --remove-files -C $(BUILD_DIR)/dist/$(PYINSTALLER_NAME)/ .; \
+		tar -cvzf $@ --remove-files -C $(BUILD_DIR)/dist/ .; \
 	fi;
 
 ## MacOS build
