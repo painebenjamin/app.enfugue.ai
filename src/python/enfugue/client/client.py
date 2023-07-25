@@ -254,5 +254,12 @@ class EnfugueClient(UserExtensionClientBase, JSONWebServiceAPIClient):
         elif model is not None:
             kwargs["model_type"] = "checkpoint" if "." in model else "model"
         logger.info(f"Invoking with keyword arguments {kwargs}")
-        response = self.post("/api/invoke", data=kwargs).json()
+        try:
+            response = self.post("/api/invoke", data=kwargs).json()
+        except Exception as ex:
+            if "responsive" in str(ex).lower():
+                logger.warning("Engine process died before becoming responsive, trying one more time.")
+                response = self.post("/api/invoke", data=kwargs).json()
+            else:
+                raise
         return RemoteInvocation.from_response(self, response.get("data", {}))
