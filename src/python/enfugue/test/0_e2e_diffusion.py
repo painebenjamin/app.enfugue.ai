@@ -21,11 +21,6 @@ CHECKPOINT_URL = "https://civitai.com/api/download/models/114367"
 INPAINT_IMAGE = "https://huggingface.co/datasets/diffusers/test-arrays/resolve/main/stable_diffusion_inpaint/boy.png"
 INPAINT_MASK = "https://huggingface.co/datasets/diffusers/test-arrays/resolve/main/stable_diffusion_inpaint/boy_mask.png"
 
-TEST_MODE = os.getenv("ENFUGUE_TEST_MODE", "")
-TEST_MODE_SAVE = "show" not in TEST_MODE.lower()
-TEST_MODE_SHOW = not TEST_MODE_SAVE
-TEST_MODE_SHOW_GRID = not TEST_MODE_SAVE and "grid" in TEST_MODE.lower()
-
 def split_text(text: str, maxlen: int = 40) -> str:
     """
     Splits text into lines based on max length.
@@ -37,8 +32,12 @@ def split_text(text: str, maxlen: int = 40) -> str:
     ])
 
 def main() -> None:
+    font = ImageFont.load_default()
     with DebugUnifiedLoggingContext():
         save_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "test-images", "e2e")
+        if not os.path.exists(save_dir):
+            os.makedirs(save_dir)
+
         client = EnfugueClient()
         client.configure(
             client = {
@@ -53,34 +52,48 @@ def main() -> None:
         def save_results(name: str, results: List[Image.Image]) -> List[Image.Image]:
             nonlocal all_results
             for i, result in enumerate(results):
-                if TEST_MODE_SHOW and not TEST_MODE_SHOW_GRID:
-                    ComputerVision.show(f"Result for \"{name}\" sample {i+1}", result)
-                elif TEST_MODE_SAVE:
-                    if not os.path.exists(save_dir):
-                        os.makedirs(save_dir)
-                    result_path = os.path.join(save_dir, f"{name}_{i}.png")
-                    result.save(result_path)
-                    logger.info(f"Saved result for \"{name}\" sample {i+1} to {result_path}")
+                result_path = os.path.join(save_dir, f"{name}-{i}.png")
+                result.save(result_path)
+                logger.info(f"Saved result for \"{name}\" sample {i+1} to {result_path}")
             all_results[name] = results
             return results
 
         def invoke(name: str, **kwargs: Any) -> List[Image.Image]:
-            nonlocal all_results
+            existing_results = [
+                filename for filename 
+                in os.listdir(save_dir) 
+                if re.match(f"^{name}-\d+$", filename)
+            ]
+            if existing_results:
+                results = [
+                    Image.open(os.path.join(save_dir, result))
+                    for result in existing_results
+                ]
+                logger.info(f"Found existing results {existing_results}, skipping test {name}")
+                nonlocal all_results
+                all_results[name] = results
+                return results
             results = []
-            kwargs["seed"] = 987654321
+            kwargs["seed"] = 1234567
             if "model" not in kwargs:
                 kwargs["model"] = CHECKPOINT
             kwargs["intermediates"] = False
+            kwargs["num_inference_steps"] = 25
             logger.info(f"Testing {name}\n{kwargs}")
             result = client.invoke(**kwargs)
             try:
                 images = result.results()
             except Exception as ex:
                 logger.error(f"Error in invocation {name}: {type(ex).__name__}({ex})")
-                images = [
-                    Image.new("RGB", (kwargs.get("width", 512), kwargs.get("height", 512)))
-                    for i in range(kwargs.get("samples", 1))
-                ]
+                image = Image.new("RGB", (GRID_SIZE, GRID_SIZE), (255,255,255))
+                draw = ImageDraw.Draw(image)
+                draw.text(
+                    (5, 5),
+                    split_text(str(ex)),
+                    fill=(0,0,0),
+                    font=font
+                )
+                images = [image] * kwargs.get("samples", 1)
                 name = f"{name} ({type(ex).__name__})"
             result.delete()
             return save_results(name, images)
@@ -98,9 +111,9 @@ def main() -> None:
             client.download("checkpoint", CHECKPOINT_URL, filename=CHECKPOINT)
         
         # Base txt2img
-        prompt = "A man and woman standing outside a house, happy couple purchasing their first home"
+        prompt = "A man and woman standing outside a house, happy couple purchasing their first home, wearing casual clothing"
         base = invoke("txt2img", prompt=prompt)[0]
-        """
+        
         # Base img2img
         invoke(
             "img2img",
@@ -116,8 +129,6 @@ def main() -> None:
         # Base inpaint + fit
         inpaint_image = image_from_uri(INPAINT_IMAGE)
         inpaint_mask = image_from_uri(INPAINT_MASK)
-        save_results("inpaint-image", [inpaint_image])
-        save_results("inpaint-mask", [inpaint_mask])
         invoke(
             "inpaint", 
             prompt="a handsome man with ray-ban sunglasses",
@@ -210,14 +221,14 @@ def main() -> None:
         for controlnet in ["canny", "hed", "pidi", "scribble", "depth", "normal", "mlsd", "line", "anime", "pose"]:
             invoke(f"txt2img-controlnet-{controlnet}", prompt=prompt, nodes=[{"image": base, "control": True, "controlnet": controlnet}])
             invoke(f"img2img-controlnet-{controlnet}", prompt=prompt, nodes=[{"image": base, "control": True, "infer": True, "controlnet": controlnet}])
-        """
+        
         # Schedulers
         for scheduler in ["ddim", "ddpm", "dpmsm", "dpmss", "heun", "dpmd", "adpmd", "dpmsde", "unipc", "lmsd", "pndm", "eds", "eads"]:
             invoke(f"txt2img-scheduler-{scheduler}", prompt=prompt, scheduler=scheduler)
         
         # Multi Schedulers
         for scheduler in ["ddim", "ddpm", "deis", "dpmsm", "dpmss", "eds", "eads"]:
-            invoke(f"txt2img-multi-scheduler-{scheduler}", prompt=prompt, multi_scheduler=scheduler, height=768)
+            invoke(f"txt2img-multi-scheduler-{scheduler}", prompt=prompt, multi_scheduler=scheduler, height=768, width=786, chunking_size=256, chunking_blur=256)
 
         # Upscalers
         invoke(f"upscale-standalone-esrgan", outscale=2, upscale="esrgan", nodes=[{"image": base}])
@@ -250,7 +261,6 @@ def main() -> None:
         height = (GRID_SIZE * rows) + (CAPTION_HEIGHT * rows)
         grid = Image.new("RGB", (width, height), (255, 255, 255))
         draw = ImageDraw.Draw(grid)
-        font = ImageFont.load_default()
         row, col = 0, 0
 
         for name in all_results:
@@ -268,12 +278,10 @@ def main() -> None:
                 if col >= GRID_COLS:
                     row += 1
                     col = 0
-        if TEST_MODE_SHOW:
-            ComputerVision.show("Results", grid)
-        elif TEST_MODE_SAVE:
-            grid_path = os.path.join(save_dir, "grid.png")
-            grid.save(grid_path)
-            logger.info(f"Saved grid result at {grid_path}")
+        
+        grid_path = os.path.join(save_dir, "grid.png")
+        grid.save(grid_path)
+        logger.info(f"Saved grid result at {grid_path}")
 
 
 if __name__ == "__main__":
