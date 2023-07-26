@@ -4,7 +4,6 @@ import cv2
 import PIL
 import numpy as np
 
-from enfugue.util import check_download_to_dir
 from enfugue.diffusion.support.model import SupportModel
 
 __all__ = [
