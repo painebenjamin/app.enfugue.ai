@@ -6,7 +6,6 @@ import numpy as np
 
 from enfugue.util import check_download_to_dir
 from enfugue.diffusion.support.model import SupportModel
-from enfugue.diffusion.support.vision import ComputerVision
 
 __all__ = [
     "EdgeDetector"
@@ -16,26 +15,8 @@ class EdgeDetector(SupportModel):
     """
     Provides edge detection methods
     """
-
-    HED_PROTOTXT = "https://github.com/ashukid/hed-edge-detector/raw/master/deploy.prototxt"
-    HED_CAFFEMODEL = "https://github.com/ashukid/hed-edge-detector/raw/master/hed_pretrained_bsds.caffemodel"
-    HED_MEAN = (104.00698793, 116.66876762, 122.67891434)
     PRETRAINED_PATH = "lllyasviel/Annotators"
 
-    @property
-    def hed_prototxt(self) -> str:
-        """
-        Gets the local path to the HED prototxt.
-        """
-        return check_download_to_dir(self.HED_PROTOTXT, self.model_dir)
-
-    @property
-    def hed_caffemodel(self) -> str:
-        """
-        Gets the local path to the HED caffemodel.
-        """
-        return check_download_to_dir(self.HED_CAFFEMODEL, self.model_dir)
-    
     @staticmethod
     def canny(image: PIL.Image.Image, lower: int = 100, upper: int = 200) -> PIL.Image.Image:
         """
