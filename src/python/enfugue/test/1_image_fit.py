@@ -47,7 +47,7 @@ def main() -> None:
             ("grad-vert", grad_vert),
             ("grad-horz", grad_horz),
         ]:
-            save_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "test-images", "image-fit", dirname)
+            save_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "test-results", "image-fit", dirname)
             if not os.path.exists(save_dir):
                 os.makedirs(save_dir)
             img.save(os.path.join(save_dir, "base.png"))

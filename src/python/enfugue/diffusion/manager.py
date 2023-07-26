@@ -41,7 +41,7 @@ from enfugue.diffusion.constants import (
     SCHEDULER_LITERAL,
     MULTI_SCHEDULER_LITERAL,
     DEVICE_LITERAL,
-    PIPELINE_SWITCH_MODE_LITERAL
+    PIPELINE_SWITCH_MODE_LITERAL,
 )
 
 __all__ = ["DiffusionPipelineManager"]
@@ -50,13 +50,8 @@ if TYPE_CHECKING:
     from diffusers.models import ControlNetModel, AutoencoderKL
     from diffusers.schedulers.scheduling_utils import KarrasDiffusionSchedulers
     from enfugue.diffusion.pipeline import EnfugueStableDiffusionPipeline
-    from enfugue.diffusion.support import (
-        EdgeDetector,
-        DepthDetector,
-        PoseDetector,
-        LineDetector,
-        Upscaler
-    )
+    from enfugue.diffusion.support import EdgeDetector, DepthDetector, PoseDetector, LineDetector, Upscaler
+
 
 def redact(kwargs: Dict[str, Any]) -> Dict[str, Any]:
     """
@@ -276,10 +271,7 @@ class DiffusionPipelineManager:
         if hasattr(self, "_generator"):
             delattr(self, "_generator")
 
-    def get_scheduler_class(
-        self,
-        scheduler: Optional[SCHEDULER_LITERAL]
-    ) -> KarrasDiffusionSchedulers:
+    def get_scheduler_class(self, scheduler: Optional[SCHEDULER_LITERAL]) -> KarrasDiffusionSchedulers:
         """
         Sets the scheduler class
         """
@@ -389,9 +381,7 @@ class DiffusionPipelineManager:
         return self._multi_scheduler
 
     @multi_scheduler.setter
-    def multi_scheduler(
-        self, new_multi_scheduler: Optional[MULTI_SCHEDULER_LITERAL]
-    ) -> None:
+    def multi_scheduler(self, new_multi_scheduler: Optional[MULTI_SCHEDULER_LITERAL]) -> None:
         """
         Sets the multi_scheduler class
         """
@@ -1713,6 +1703,7 @@ class DiffusionPipelineManager:
         """
         if not hasattr(self, "_torch_dtype"):
             import torch
+
             device_type = self.device.type
 
             if device_type == "cpu":
@@ -1733,10 +1724,16 @@ class DiffusionPipelineManager:
                     logger.debug(f"Inferencing on {device_type}, using configured dtype {configuration_dtype}")
                     if configuration_dtype == "float16" or configuration_dtype == "half":
                         self._torch_dtype = torch.half
-                    elif configuration_dtype == "float32" or configuration_dtype == "float" or configuration_dtype == "full":
+                    elif (
+                        configuration_dtype == "float32"
+                        or configuration_dtype == "float"
+                        or configuration_dtype == "full"
+                    ):
                         self._torch_dtype = torch.float
                     else:
-                        raise ConfigurationError(f"dtype incorrectly configured, use 'float16/half' or 'float32/float/full', got '{configuration_dtype}'")
+                        raise ConfigurationError(
+                            f"dtype incorrectly configured, use 'float16/half' or 'float32/float/full', got '{configuration_dtype}'"
+                        )
         return self._torch_dtype
 
     @dtype.setter
@@ -1951,7 +1948,7 @@ class DiffusionPipelineManager:
         if configured == "xl":
             return self.is_sdxl
         return configured in ["always", True]
-    
+
     @property
     def should_cache_inpainter(self) -> bool:
         """
@@ -1961,7 +1958,7 @@ class DiffusionPipelineManager:
         if configured == "xl":
             return self.inpainter_is_sdxl
         return configured in ["always", True]
-    
+
     @property
     def should_cache_refiner(self) -> bool:
         """
@@ -2278,7 +2275,7 @@ class DiffusionPipelineManager:
                 for inversion in self.inversion:
                     logger.debug(f"Adding textual inversion {inversion} to refiner pipeline")
                     refiner_pipeline.load_textual_inversion(inversion)
-            
+
             # load scheduler
             if self.scheduler is not None:
                 refiner_pipeline.scheduler = self.scheduler.from_config(refiner_pipeline.scheduler_config)
@@ -2309,7 +2306,9 @@ class DiffusionPipelineManager:
         if not hasattr(self, "_inpainter_pipeline"):
             if not self.inpainter:
                 if self.is_sdxl:
-                    logger.warning(f"Main model is SDXL, and no configured inpainting checkpoint. There is no inpainting checkpoint for SDXL; switching to default SD 1.5 inpainting checkpoint. You may wish to configure a more fine-tuned SD 1.5 inpainting checkpoint for better results.")
+                    logger.warning(
+                        f"Main model is SDXL, and no configured inpainting checkpoint. There is no inpainting checkpoint for SDXL; switching to default SD 1.5 inpainting checkpoint. You may wish to configure a more fine-tuned SD 1.5 inpainting checkpoint for better results."
+                    )
                     self.inpainter = DEFAULT_INPAINTING_MODEL
                 else:
                     current_checkpoint_path = self.model
@@ -2355,13 +2354,13 @@ class DiffusionPipelineManager:
                     kwargs["clip_engine_dir"] = self.inpainter_tensorrt_clip_dir
 
                 self.check_create_inpainter_engine_cache()
-                
+
                 if not self.safe:
                     kwargs["safety_checker"] = None
                 if not self.inpainter_is_sdxl:
                     kwargs["text_encoder_2"] = None
                     kwargs["tokenizer_2"] = None
-                
+
                 logger.debug(
                     f"Initializing inpainter pipeline from diffusers cache directory at {self.inpainter_diffusers_cache_dir}. Arguments are {kwargs}"
                 )
@@ -2565,7 +2564,7 @@ class DiffusionPipelineManager:
 
             self._edge_detector = EdgeDetector(self.engine_other_dir, self.device, self.dtype)
         return self._edge_detector
-    
+
     @property
     def line_detector(self) -> LineDetector:
         """
@@ -2767,11 +2766,13 @@ class DiffusionPipelineManager:
                     self.start_keepalive()
                     if kwargs.get("latent_callback", None) is not None:
                         kwargs["latent_callback"](result["images"])  # type: ignore
-                    
+
                     # Issues seem to exist with loading both sdxl 0.9 ckpts into memory at once, unless they're cached.
                     # add a catch here to unload the main pipeline if loading the refiner pipeline and it's not cached.
                     should_offload = self.pipeline_switch_mode == "offload"
-                    should_unload = self.pipeline_switch_mode == "unload" or (self.refiner_is_sdxl and not self.refiner_engine_cache_exists)
+                    should_unload = self.pipeline_switch_mode == "unload" or (
+                        self.refiner_is_sdxl and not self.refiner_engine_cache_exists
+                    )
 
                     if should_unload:
                         if inpainting:
@@ -2785,7 +2786,7 @@ class DiffusionPipelineManager:
                             self.offload_pipeline()
                     else:
                         logger.debug("Keeping pipeline in memory")
-                    
+
                     self.reload_refiner()
                     for i, image in enumerate(result["images"]):  # type: ignore
                         is_nsfw = "nsfw_content_detected" in result and result["nsfw_content_detected"][i]  # type: ignore
@@ -2822,23 +2823,26 @@ class DiffusionPipelineManager:
                             kwargs["height"] = new_height
                             if "latent_callback" in kwargs and kwargs.get("latent_callback_type", "pil") == "pil":
                                 original_callback = kwargs["latent_callback"]
+
                                 def resize_callback(images: List[PIL.Image.Image]) -> None:
-                                    original_callback([
-                                        image.resize((width, height))
-                                        for image in images
-                                    ])
+                                    original_callback([image.resize((width, height)) for image in images])
+
                                 kwargs["latent_callback"] = resize_callback
-                            logger.debug(f"Scaling image up to {new_width}×{new_height} (×{image_scale:.3f}) for refiner")
+                            logger.debug(
+                                f"Scaling image up to {new_width}×{new_height} (×{image_scale:.3f}) for refiner"
+                            )
 
                         logger.debug(f"Refining result {i} with arguments {kwargs}")
                         self.stop_keepalive()  # This checks, we can call it all we want
                         refined_image = self.refiner_pipeline(  # type: ignore
                             generator=self.generator, image=image, **kwargs
-                        )["images"][0]  # type: ignore
+                        )["images"][
+                            0
+                        ]  # type: ignore
                         if image_scale != 1:
                             logger.debug(f"Scaling refined image back down to {width}×{height}")
-                            refined_image = refined_image.resize((width, height)) # type: ignore
-                        result["images"][i] = refined_image # type: ignore
+                            refined_image = refined_image.resize((width, height))  # type: ignore
+                        result["images"][i] = refined_image  # type: ignore
                     if self.pipeline_switch_mode == "offload":
                         self.offload_refiner()
                     elif self.pipeline_switch_mode == "unload":

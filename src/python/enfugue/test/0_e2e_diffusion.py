@@ -35,7 +35,7 @@ def split_text(text: str, maxlen: int = 40) -> str:
 def main() -> None:
     font = ImageFont.load_default()
     with DebugUnifiedLoggingContext():
-        save_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "test-images", "e2e")
+        save_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "test-results", "e2e")
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
 

@@ -357,7 +357,16 @@ class EnfugueAPIServerBase(
             is_initialized = self.user_config.get("enfugue.initialized", False)
             if not is_initialized:
                 directories = {}
-                for dirname in ["cache", "checkpoint", "diffusers", "lora", "lycoris", "inversion", "other", "tensorrt"]:
+                for dirname in [
+                    "cache",
+                    "checkpoint",
+                    "diffusers",
+                    "lora",
+                    "lycoris",
+                    "inversion",
+                    "other",
+                    "tensorrt",
+                ]:
                     directories[dirname] = self.configuration.get(
                         f"enfugue.engine.{dirname}", os.path.join(self.engine_root, dirname)
                     )

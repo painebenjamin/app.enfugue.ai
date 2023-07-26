@@ -1,7 +1,5 @@
 from enfugue.diffusion.support.edge.detect import EdgeDetector
 
-EdgeDetector # Silence importchecker
+EdgeDetector  # Silence importchecker
 
-__all__ = [
-    "EdgeDetector"
-]
+__all__ = ["EdgeDetector"]

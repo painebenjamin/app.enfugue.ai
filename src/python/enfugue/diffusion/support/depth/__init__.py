@@ -1,7 +1,5 @@
 from enfugue.diffusion.support.depth.detect import DepthDetector
 
-DepthDetector # Silence importchecker
+DepthDetector  # Silence importchecker
 
-__all__ = [
-    "DepthDetector"
-]
+__all__ = ["DepthDetector"]

@@ -9,9 +9,8 @@ from typing import Tuple
 from enfugue.diffusion.support.model import SupportModel
 from enfugue.diffusion.support.vision import ComputerVision
 
-__all__ = [
-    "DepthDetector"
-]
+__all__ = ["DepthDetector"]
+
 
 class DepthDetector(SupportModel):
     """
@@ -22,7 +21,7 @@ class DepthDetector(SupportModel):
     MIDAS_MODEL_TYPE = "DPT_Hybrid"
     MIDAS_TRANSFORM_TYPE = "transforms"
     MIDAS_PATH = "intel-isl/MiDaS"
-    
+
     def execute(self, image: PIL.Image.Image) -> Tuple[np.ndarray, PIL.Image.Image]:
         import torch
 

@@ -4,9 +4,8 @@ import cv2
 import PIL
 import numpy as np
 
-__all__ = [
-    "ComputerVision"
-]
+__all__ = ["ComputerVision"]
+
 
 class ComputerVision:
     """

@@ -1,7 +1,5 @@
 from enfugue.diffusion.support.pose.detect import PoseDetector
 
-PoseDetector # Silence importchecker
+PoseDetector  # Silence importchecker
 
-__all__ = [
-    "PoseDetector"
-]
+__all__ = ["PoseDetector"]

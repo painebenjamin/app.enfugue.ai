@@ -15,18 +15,29 @@ __all__ = [
     "remove_background",
     "image_from_uri",
     "IMAGE_FIT_LITERAL",
-    "IMAGE_ANCHOR_LITERAL"
+    "IMAGE_ANCHOR_LITERAL",
 ]
 
 IMAGE_FIT_LITERAL = Literal["actual", "stretch", "cover", "contain"]
-IMAGE_ANCHOR_LITERAL = Literal["top-left", "top-center", "top-right", "center-left", "center-center", "center-right", "bottom-left", "bottom-center", "bottom-right"]
+IMAGE_ANCHOR_LITERAL = Literal[
+    "top-left",
+    "top-center",
+    "top-right",
+    "center-left",
+    "center-center",
+    "center-right",
+    "bottom-left",
+    "bottom-center",
+    "bottom-right",
+]
+
 
 def fit_image(
     image: PIL.Image.Image,
     width: int,
     height: int,
     fit: Optional[IMAGE_FIT_LITERAL] = None,
-    anchor: Optional[IMAGE_ANCHOR_LITERAL] = None
+    anchor: Optional[IMAGE_ANCHOR_LITERAL] = None,
 ) -> PIL.Image.Image:
     """
     Given an image of unknown size, make it a known size with optional fit parameters.
@@ -155,6 +166,7 @@ def remove_background(image: PIL.Image.Image) -> PIL.Image.Image:
     buf = io.BytesIO()
     image.save(buf, "PNG")
     return PIL.Image.open(io.BytesIO(backgroundremover.bg.remove(buf.getvalue())))
+
 
 def image_from_uri(uri: str) -> PIL.Image.Image:
     """

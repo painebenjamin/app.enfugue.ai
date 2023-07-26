@@ -14,6 +14,7 @@ from PIL import Image
 from enfugue.diffusion.support.util import HWC3, nms, resize_image, safe_step
 from enfugue.diffusion.support.edge.pidi.model import pidinet
 
+
 class PidiNetDetector:
     def __init__(self, netNetwork):
         self.netNetwork = netNetwork
@@ -28,7 +29,9 @@ class PidiNetDetector:
             model_path = hf_hub_download(pretrained_model_or_path, filename, cache_dir=cache_dir)
 
         netNetwork = pidinet()
-        netNetwork.load_state_dict({k.replace('module.', ''): v for k, v in torch.load(model_path)['state_dict'].items()})
+        netNetwork.load_state_dict(
+            {k.replace("module.", ""): v for k, v in torch.load(model_path)["state_dict"].items()}
+        )
         netNetwork.eval()
 
         return cls(netNetwork)
@@ -36,13 +39,25 @@ class PidiNetDetector:
     def to(self, device):
         self.netNetwork.to(device)
         return self
-    
-    def __call__(self, input_image, detect_resolution=512, image_resolution=512, safe=False, output_type="pil", scribble=False, apply_filter=False, **kwargs):
+
+    def __call__(
+        self,
+        input_image,
+        detect_resolution=512,
+        image_resolution=512,
+        safe=False,
+        output_type="pil",
+        scribble=False,
+        apply_filter=False,
+        **kwargs
+    ):
         if "return_pil" in kwargs:
             warnings.warn("return_pil is deprecated. Use output_type instead.", DeprecationWarning)
             output_type = "pil" if kwargs["return_pil"] else "np"
         if type(output_type) is bool:
-            warnings.warn("Passing `True` or `False` to `output_type` is deprecated and will raise an error in future versions")
+            warnings.warn(
+                "Passing `True` or `False` to `output_type` is deprecated and will raise an error in future versions"
+            )
             if output_type:
                 output_type = "pil"
 
@@ -57,11 +72,11 @@ class PidiNetDetector:
         with torch.no_grad():
             image_pidi = torch.from_numpy(input_image).float().to(device)
             image_pidi = image_pidi / 255.0
-            image_pidi = rearrange(image_pidi, 'h w c -> 1 c h w')
+            image_pidi = rearrange(image_pidi, "h w c -> 1 c h w")
             edge = self.netNetwork(image_pidi)[-1]
             edge = edge.cpu().numpy()
             if apply_filter:
-                edge = edge > 0.5 
+                edge = edge > 0.5
             if safe:
                 edge = safe_step(edge)
             edge = (edge * 255.0).clip(0, 255).astype(np.uint8)
@@ -73,7 +88,7 @@ class PidiNetDetector:
         H, W, C = img.shape
 
         detected_map = cv2.resize(detected_map, (W, H), interpolation=cv2.INTER_LINEAR)
-        
+
         if scribble:
             detected_map = nms(detected_map, 127, 3.0)
             detected_map = cv2.GaussianBlur(detected_map, (0, 0), 3.0)

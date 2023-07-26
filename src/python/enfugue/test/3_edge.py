@@ -10,7 +10,7 @@ from pibble.util.log import DebugUnifiedLoggingContext
 
 def main() -> None:
     here = os.path.dirname(os.path.abspath(__file__))
-    output_dir = os.path.join(here, "test-images", "edge-detection")
+    output_dir = os.path.join(here, "test-results", "edge-detection")
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 

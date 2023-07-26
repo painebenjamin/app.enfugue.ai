@@ -1,7 +1,5 @@
 from enfugue.diffusion.support.line.detect import LineDetector
 
-LineDetector # Silence importchecker
+LineDetector  # Silence importchecker
 
-__all__ = [
-    "LineDetector"
-]
+__all__ = ["LineDetector"]

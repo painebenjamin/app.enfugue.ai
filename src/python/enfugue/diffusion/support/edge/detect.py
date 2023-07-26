@@ -6,14 +6,14 @@ import numpy as np
 
 from enfugue.diffusion.support.model import SupportModel
 
-__all__ = [
-    "EdgeDetector"
-]
+__all__ = ["EdgeDetector"]
+
 
 class EdgeDetector(SupportModel):
     """
     Provides edge detection methods
     """
+
     PRETRAINED_PATH = "lllyasviel/Annotators"
 
     @staticmethod
@@ -29,6 +29,7 @@ class EdgeDetector(SupportModel):
         Runs soft-edge detection using PIDI
         """
         from enfugue.diffusion.support.edge.pidi import PidiNetDetector  # type: ignore
+
         with self.context():
             detector = PidiNetDetector.from_pretrained(self.PRETRAINED_PATH, cache_dir=self.model_dir)
             detector.to(self.device)
@@ -41,6 +42,7 @@ class EdgeDetector(SupportModel):
         Runs holistically-nested edge detection on an image.
         """
         from enfugue.diffusion.support.edge.hed import HEDDetector  # type: ignore
+
         with self.context():
             detector = HEDDetector.from_pretrained(self.PRETRAINED_PATH)
             detector.to(self.device)

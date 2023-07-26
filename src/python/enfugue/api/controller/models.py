@@ -391,9 +391,7 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         if multi_scheduler:
             self.database.add(
                 self.orm.DiffusionModelScheduler(
-                    diffusion_model_name=model_name,
-                    name=multi_scheduler,
-                    context="multi_diffusion"
+                    diffusion_model_name=model_name, name=multi_scheduler, context="multi_diffusion"
                 )
             )
 

@@ -16,27 +16,28 @@ from enfugue.diffusion.constants import (
     MULTI_SCHEDULER_LITERAL,
     CONTROLNET_LITERAL,
     UPSCALE_LITERAL,
-    VAE_LITERAL
+    VAE_LITERAL,
 )
 from enfugue.util import logger
 from enfugue.client.invocation import RemoteInvocation
 
-__all__ = [
-    "WeightedModelDict",
-    "EnfugueClient"
-]
+__all__ = ["WeightedModelDict", "EnfugueClient"]
+
 
 class WeightedModelDict(TypedDict):
     """
     Represents a model and weight for LoRA and LyCORIS
     """
+
     model: str
     weight: float
+
 
 class EnfugueClient(UserExtensionClientBase, JSONWebServiceAPIClient):
     """
     Extend the client base to add helper method calls.
     """
+
     def on_configure(self) -> None:
         """
         On configuration, login.
@@ -63,7 +64,7 @@ class EnfugueClient(UserExtensionClientBase, JSONWebServiceAPIClient):
         Gets a list of installed lycoris.
         """
         return self.get("/api/lycoris").json()["data"]
-    
+
     def inversion(self) -> List[str]:
         """
         Gets a list of installed inversion.
@@ -76,19 +77,14 @@ class EnfugueClient(UserExtensionClientBase, JSONWebServiceAPIClient):
         url: str,
         filename: Optional[str] = None,
         polling_interval: int = 5,
-        overwrite: bool = False
+        overwrite: bool = False,
     ) -> None:
         """
         Downloads a file, waiting for it to complete.
         """
         if filename is None:
             filename = os.path.basename(urlparse(url).path)
-        data = {
-            "type": download_type,
-            "url": url,
-            "filename": filename,
-            "overwrite": overwrite
-        }
+        data = {"type": download_type, "url": url, "filename": filename, "overwrite": overwrite}
         status = self.post("/api/download", data=data).json()["data"]
         while status["status"] != "complete":
             time.sleep(polling_interval)
@@ -97,7 +93,7 @@ class EnfugueClient(UserExtensionClientBase, JSONWebServiceAPIClient):
                 if download_status["filename"] == filename:
                     status = download_status
                     break
-        
+
     def status(self) -> Dict[str, Any]:
         """
         Gets the status from the API.
@@ -156,7 +152,7 @@ class EnfugueClient(UserExtensionClientBase, JSONWebServiceAPIClient):
         upscale_diffusion_chunking_size: Optional[int] = None,
         upscale_diffusion_chunking_blur: Optional[int] = None,
         upscale_diffusion_scale_chunking_size: Optional[bool] = None,
-        upscale_diffusion_scale_chunking_blur: Optional[bool] = None
+        upscale_diffusion_scale_chunking_blur: Optional[bool] = None,
     ) -> RemoteInvocation:
         """
         Invokes the engine.

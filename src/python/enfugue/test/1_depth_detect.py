@@ -12,7 +12,7 @@ BASE_IMAGE = "https://huggingface.co/lllyasviel/sd-controlnet-normal/resolve/mai
 
 def main() -> None:
     with DebugUnifiedLoggingContext():
-        save_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "test-images", "depth-detection")
+        save_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "test-results", "depth-detection")
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
         image = PIL.Image.open(io.BytesIO(requests.get(BASE_IMAGE, stream=True).content))

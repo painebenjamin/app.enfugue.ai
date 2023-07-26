@@ -11,6 +11,7 @@ from enfugue.diffusion.support.model import SupportModel
 if TYPE_CHECKING:
     from realesrgan import RealESRGANer
 
+
 class Upscaler(SupportModel):
     """
     The upscaler user ESRGAN or GFGPGAN for up to 4x upscale
@@ -86,7 +87,9 @@ class Upscaler(SupportModel):
                 image = PIL.Image.open(image)
 
             esrganer = self.get_upsampler(tile=tile, tile_pad=tile_pad, pre_pad=pre_pad, anime=anime)
-            result = ComputerVision.revert_image(esrganer.enhance(ComputerVision.convert_image(image), outscale=outscale)[0])
+            result = ComputerVision.revert_image(
+                esrganer.enhance(ComputerVision.convert_image(image), outscale=outscale)[0]
+            )
             del esrganer
             return result
 

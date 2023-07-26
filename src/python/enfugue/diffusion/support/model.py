@@ -7,16 +7,13 @@ from typing import Iterator, TYPE_CHECKING
 if TYPE_CHECKING:
     import torch
 
+
 class SupportModel:
     """
     Provides a base class for AI models that support diffusion.
     """
-    def __init__(
-        self,
-        model_dir: str,
-        device: torch.device,
-        dtype: torch.dtype
-    ) -> None:
+
+    def __init__(self, model_dir: str, device: torch.device, dtype: torch.dtype) -> None:
         self.model_dir = model_dir
         self.device = device
         self.dtype = dtype

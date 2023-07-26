@@ -11,20 +11,17 @@ from enfugue.util import logger
 if TYPE_CHECKING:
     from enfugue.client.client import EnfugueClient
 
-__all__ = [
-    "RemoteInvocation"
-]
+__all__ = ["RemoteInvocation"]
+
 
 class RemoteInvocation:
     """
     Represents an invocation of the engine, which can be tracked
     synchronously or asynchronously.
     """
+
     def __init__(
-        self,
-        client: EnfugueClient,
-        uuid: str,
-        status: Literal["queued", "processing", "error", "completed"]
+        self, client: EnfugueClient, uuid: str, status: Literal["queued", "processing", "error", "completed"]
     ) -> None:
         self.client = client
         self.uuid = uuid
@@ -77,4 +74,3 @@ class RemoteInvocation:
             return images
         except KeyError:
             raise RuntimeError("Unparseable response sent from the server. Check logs for details.")
-

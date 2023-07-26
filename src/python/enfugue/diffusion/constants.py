@@ -19,11 +19,13 @@ __all__ = [
     "CONTROLNET_PIDI",
     "CONTROLNET_LINE",
     "CONTROLNET_ANIME",
-    "CONTROLNET_LITERAL"
+    "CONTROLNET_LITERAL",
 ]
 
 DEFAULT_MODEL = "https://huggingface.co/runwayml/stable-diffusion-v1-5/resolve/main/v1-5-pruned.ckpt"
-DEFAULT_INPAINTING_MODEL = "https://huggingface.co/runwayml/stable-diffusion-inpainting/resolve/main/sd-v1-5-inpainting.ckpt"
+DEFAULT_INPAINTING_MODEL = (
+    "https://huggingface.co/runwayml/stable-diffusion-inpainting/resolve/main/sd-v1-5-inpainting.ckpt"
+)
 DEFAULT_SDXL_MODEL = "sd_xl_base_0.9.safetensors"
 DEFAULT_SDXL_REFINER = "sd_xl_refiner_0.9.safetensors"
 
@@ -46,9 +48,13 @@ CONTROLNET_PIDI = "lllyasviel/control_v11p_sd15_softedge"
 CONTROLNET_LINE = "ControlNet-1-1-preview/control_v11p_sd15_lineart"
 CONTROLNET_ANIME = "lllyasviel/control_v11p_sd15s2_lineart_anime"
 
-CONTROLNET_LITERAL = Literal["canny", "mlsd", "hed", "scribble", "tile", "inpaint", "depth", "normal", "pose", "pidi", "line", "anime"]
+CONTROLNET_LITERAL = Literal[
+    "canny", "mlsd", "hed", "scribble", "tile", "inpaint", "depth", "normal", "pose", "pidi", "line", "anime"
+]
 
-SCHEDULER_LITERAL = Literal["ddim", "ddpm", "deis", "dpmsm", "dpmss", "heun", "dpmd", "adpmd", "dpmsde", "unipc", "lmsd", "pndm", "eds", "eads"]
+SCHEDULER_LITERAL = Literal[
+    "ddim", "ddpm", "deis", "dpmsm", "dpmss", "heun", "dpmd", "adpmd", "dpmsde", "unipc", "lmsd", "pndm", "eds", "eads"
+]
 MULTI_SCHEDULER_LITERAL = Literal["ddim", "ddpm", "deis", "dpmsm", "dpmss", "eds", "eads"]
 DEVICE_LITERAL = Literal["cpu", "cuda", "dml", "mps"]
 PIPELINE_SWITCH_MODE_LITERAL = Literal["offload", "unload"]

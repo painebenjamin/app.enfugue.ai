@@ -12,7 +12,7 @@ PROMPT = "A woman giving a speech at a podium"
 
 def main() -> None:
     here = os.path.dirname(os.path.abspath(__file__))
-    output_dir = os.path.join(here, "test-images", "depth-detection")
+    output_dir = os.path.join(here, "test-results", "depth-detection")
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 

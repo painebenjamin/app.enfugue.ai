@@ -22,8 +22,8 @@ install_requires = [
     "cheroot>=9.0.0",
     "nvidia-pyindex>=1.0.9",
     "pibble[cherrypy]>=0.6",
-    "torch>=1.13.1", # Minimum, works with 2.1.0 but not with TensorRT
-    "torchvision>=0.14.1", # Minimum, works with 0.16
+    "torch>=1.13.1",  # Minimum, works with 2.1.0 but not with TensorRT
+    "torchvision>=0.14.1",  # Minimum, works with 0.16
     "numpy>=1.24.3",
     "colored>=1.4,<1.5",
     "diffusers>=0.18,<0.19",
@@ -61,9 +61,7 @@ install_requires = [
 ]
 
 extras_require = {
-    "directml": [
-        "torch-directml==0.1.13.1.dev230413"
-    ],
+    "directml": ["torch-directml==0.1.13.1.dev230413"],
     "tensorrt": [
         "polygraphy>=0.47,<0.48",
         "onnx==1.12",

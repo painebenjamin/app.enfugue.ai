@@ -27,7 +27,7 @@ SCHEDULERS = [
 
 def main() -> None:
     with DebugUnifiedLoggingContext():
-        save_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "test-images", "scheduler")
+        save_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "test-results", "scheduler")
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
 

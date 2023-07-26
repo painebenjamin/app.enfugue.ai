@@ -24,10 +24,24 @@ class DoubleConvBlock(torch.nn.Module):
     def __init__(self, input_channel, output_channel, layer_number):
         super().__init__()
         self.convs = torch.nn.Sequential()
-        self.convs.append(torch.nn.Conv2d(in_channels=input_channel, out_channels=output_channel, kernel_size=(3, 3), stride=(1, 1), padding=1))
+        self.convs.append(
+            torch.nn.Conv2d(
+                in_channels=input_channel, out_channels=output_channel, kernel_size=(3, 3), stride=(1, 1), padding=1
+            )
+        )
         for i in range(1, layer_number):
-            self.convs.append(torch.nn.Conv2d(in_channels=output_channel, out_channels=output_channel, kernel_size=(3, 3), stride=(1, 1), padding=1))
-        self.projection = torch.nn.Conv2d(in_channels=output_channel, out_channels=1, kernel_size=(1, 1), stride=(1, 1), padding=0)
+            self.convs.append(
+                torch.nn.Conv2d(
+                    in_channels=output_channel,
+                    out_channels=output_channel,
+                    kernel_size=(3, 3),
+                    stride=(1, 1),
+                    padding=1,
+                )
+            )
+        self.projection = torch.nn.Conv2d(
+            in_channels=output_channel, out_channels=1, kernel_size=(1, 1), stride=(1, 1), padding=0
+        )
 
     def __call__(self, x, down_sampling=False):
         h = x
@@ -58,6 +72,7 @@ class ControlNetHED_Apache2(torch.nn.Module):
         h, projection5 = self.block5(h, down_sampling=True)
         return projection1, projection2, projection3, projection4, projection5
 
+
 class HEDDetector:
     def __init__(self, netNetwork):
         self.netNetwork = netNetwork
@@ -72,21 +87,32 @@ class HEDDetector:
             model_path = hf_hub_download(pretrained_model_or_path, filename, cache_dir=cache_dir)
 
         netNetwork = ControlNetHED_Apache2()
-        netNetwork.load_state_dict(torch.load(model_path, map_location='cpu'))
+        netNetwork.load_state_dict(torch.load(model_path, map_location="cpu"))
         netNetwork.float().eval()
 
         return cls(netNetwork)
-    
+
     def to(self, device):
         self.netNetwork.to(device)
         return self
-    
-    def __call__(self, input_image, detect_resolution=512, image_resolution=512, safe=False, output_type="pil", scribble=False, **kwargs):
+
+    def __call__(
+        self,
+        input_image,
+        detect_resolution=512,
+        image_resolution=512,
+        safe=False,
+        output_type="pil",
+        scribble=False,
+        **kwargs
+    ):
         if "return_pil" in kwargs:
             warnings.warn("return_pil is deprecated. Use output_type instead.", DeprecationWarning)
             output_type = "pil" if kwargs["return_pil"] else "np"
         if type(output_type) is bool:
-            warnings.warn("Passing `True` or `False` to `output_type` is deprecated and will raise an error in future versions")
+            warnings.warn(
+                "Passing `True` or `False` to `output_type` is deprecated and will raise an error in future versions"
+            )
             if output_type:
                 output_type = "pil"
 
@@ -101,7 +127,7 @@ class HEDDetector:
         H, W, C = input_image.shape
         with torch.no_grad():
             image_hed = torch.from_numpy(input_image.copy()).float().to(device)
-            image_hed = rearrange(image_hed, 'h w c -> 1 c h w')
+            image_hed = rearrange(image_hed, "h w c -> 1 c h w")
             edges = self.netNetwork(image_hed)
             edges = [e.detach().cpu().numpy().astype(np.float32)[0, 0] for e in edges]
             edges = [cv2.resize(e, (W, H), interpolation=cv2.INTER_LINEAR) for e in edges]
@@ -118,7 +144,7 @@ class HEDDetector:
         H, W, C = img.shape
 
         detected_map = cv2.resize(detected_map, (W, H), interpolation=cv2.INTER_LINEAR)
-        
+
         if scribble:
             detected_map = nms(detected_map, 127, 3.0)
             detected_map = cv2.GaussianBlur(detected_map, (0, 0), 3.0)

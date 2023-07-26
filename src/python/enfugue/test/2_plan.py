@@ -8,7 +8,7 @@ from enfugue.diffusion.manager import DiffusionPipelineManager
 
 def main() -> None:
     with DebugUnifiedLoggingContext():
-        save_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "test-images", "base")
+        save_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "test-results", "base")
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
         manager = DiffusionPipelineManager()

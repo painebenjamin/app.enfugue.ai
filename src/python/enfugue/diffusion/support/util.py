@@ -3,12 +3,8 @@
 import numpy as np
 import cv2
 
-__all__ = [
-    "HWC3",
-    "resize_image",
-    "nms",
-    "safe_step"
-]
+__all__ = ["HWC3", "resize_image", "nms", "safe_step"]
+
 
 def HWC3(x):
     assert x.dtype == np.uint8
@@ -41,6 +37,7 @@ def resize_image(input_image, resolution):
     img = cv2.resize(input_image, (W, H), interpolation=cv2.INTER_LANCZOS4 if k > 1 else cv2.INTER_AREA)
     return img
 
+
 def nms(x, t, s):
     x = cv2.GaussianBlur(x.astype(np.float32), (0, 0), s)
 
@@ -57,6 +54,7 @@ def nms(x, t, s):
     z = np.zeros_like(y, dtype=np.uint8)
     z[y > t] = 255
     return z
+
 
 def safe_step(x, step=2):
     y = x.astype(np.float32) * float(step + 1)

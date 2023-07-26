@@ -9,7 +9,7 @@ BASE_IMAGE = "https://github.com/pytorch/hub/raw/master/images/ssd.png"
 
 def main() -> None:
     with DebugUnifiedLoggingContext():
-        save_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "test-images", "edge-detection")
+        save_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "test-results", "edge-detection")
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
 

@@ -25,7 +25,7 @@ from enfugue.util import (
     remove_background,
     TokenMerger,
     IMAGE_FIT_LITERAL,
-    IMAGE_ANCHOR_LITERAL
+    IMAGE_ANCHOR_LITERAL,
 )
 
 if TYPE_CHECKING:
@@ -36,7 +36,7 @@ if TYPE_CHECKING:
         MULTI_SCHEDULER_LITERAL,
         CONTROLNET_LITERAL,
         VAE_LITERAL,
-        UPSCALE_LITERAL
+        UPSCALE_LITERAL,
     )
 
 DEFAULT_SIZE = 512
@@ -94,6 +94,8 @@ class DiffusionStep:
     """
 
     result: StableDiffusionPipelineOutput
+    crop_inpaint: bool = True
+    inpaint_feather: int = 16
 
     def __init__(
         self,
@@ -205,6 +207,69 @@ class DiffusionStep:
             "refiner_negative_aesthetic_score": self.refiner_negative_aesthetic_score,
         }
 
+    def get_inpaint_bounding_box(self, pipeline_size: int) -> List[Tuple[int, int]]:
+        """
+        Gets the bounding box of places inpainted
+        """
+        width, height = self.mask.size
+        x0, y0, x1, y1 = self.mask.getbbox()
+
+        # Add feather
+        x0 = max(0, x0 - self.inpaint_feather)
+        x1 = min(width - 1, x1 + self.inpaint_feather)
+        y0 = max(0, y0 - self.inpaint_feather)
+        y1 = min(height - 1, y1 + self.inpaint_feather)
+
+        # Create centered frame about the bounding box
+        bbox_width = x1 - x0
+        bbox_height = y1 - y0
+        if bbox_width < pipeline_size:
+            x0 = max(0, x0 - ((pipeline_size - bbox_width) // 2))
+            x1 = min(width - 1, x0 + pipeline_size)
+            x0 = max(0, x1 - pipeline_size)
+        if bbox_height < pipeline_size:
+            y0 = max(0, y0 - ((pipeline_size - bbox_height) // 2))
+            y1 = min(width - 1, y0 + pipeline_size)
+            y0 = max(0, y1 - pipeline_size)
+        return [(x0, y0), (x1, y1)]
+
+    def paste_inpaint_image(
+        self, background: PIL.Image.Image, foreground: PIL.Image.Image, position: Tuple[int, int]
+    ) -> PIL.Image.Image:
+        """
+        Pastes the inpaint image on the background with an appropriately feathered mask.
+        """
+        image = background.copy()
+
+        width, height = image.size
+        foreground_width, foreground_height = foreground.size
+        left, top = position
+        right, bottom = left + foreground_width, top + foreground_height
+
+        feather_left = left > 0
+        feather_top = top > 0
+        feather_right = right < width
+        feather_bottom = bottom < height
+
+        mask = PIL.Image.new("L", (foreground_width, foreground_height), 255)
+
+        for i in range(self.inpaint_feather):
+            multiplier = (i + 1) / (self.inpaint_feather + 1)
+            pixels = []
+            if feather_left:
+                pixels.extend([(i, j) for j in range(foreground_height)])
+            if feather_top:
+                pixels.extend([(j, i) for j in range(foreground_width)])
+            if feather_right:
+                pixels.extend([(foreground_width - i - 1, j) for j in range(foreground_height)])
+            if feather_bottom:
+                pixels.extend([(j, foreground_height - i - 1) for j in range(foreground_width)])
+            for x, y in pixels:
+                mask.putpixel((x, y), int(mask.getpixel((x, y)) * multiplier))
+
+        image.paste(foreground, position, mask=mask)
+        return image
+
     def check_process_control_image(
         self, pipeline: DiffusionPipelineManager, control_image: Optional[PIL.Image.Image]
     ) -> Optional[PIL.Image.Image]:
@@ -285,7 +350,8 @@ class DiffusionStep:
         invocation_kwargs = {**kwargs, **self.kwargs}
 
         image_scale = 1
-        image_width, image_height = None, None
+        pipeline_size = pipeline.size if mask is None else pipeline.inpainter_size
+        image_width, image_height, image_background, image_position = None, None, None, None
 
         if image is not None:
             image_width, image_height = image.size
@@ -297,6 +363,31 @@ class DiffusionStep:
                 image_width, image_height = control_image.size
             invocation_kwargs["control_image"] = control_image
         if mask is not None:
+            mask_width, mask_height = mask.size
+            if (
+                self.crop_inpaint
+                and (mask_width > pipeline_size or mask_height > pipeline.size)
+                and image is not None
+                and control_image is None
+            ):
+                mask.save("./mask.png")
+                (x0, y0), (x1, y1) = self.get_inpaint_bounding_box(pipeline_size)
+                bbox_width = x1 - x0
+                bbox_height = y1 - y0
+                pixel_ratio = (bbox_height * bbox_width) / (mask_width * mask_height)
+                pixel_savings = (1.0 - pixel_ratio) * 100
+                if pixel_ratio < 0.75:
+                    logger.debug(f"Calculated pixel area savings of {pixel_savings:.1f}% by cropping prior to inpaint")
+                    image_position = (x0, y0)
+                    image_background = image.copy()
+                    image = image.crop((x0, y0, x1, y1))
+                    mask = mask.crop((x0, y0, x1, y1))
+                    image_width, image_height = bbox_width, bbox_height
+                    invocation_kwargs["image"] = image  # Override what was set above
+                else:
+                    logger.debug(
+                        f"Calculated pixel area savings of {pixel_savings:.1f}% are insufficient, will not crop"
+                    )
             invocation_kwargs["mask"] = mask
             if image is not None:
                 assert image.size == mask.size
@@ -304,10 +395,9 @@ class DiffusionStep:
                 assert control_image.size == mask.size
             else:
                 image_width, image_height = mask.size
+
         if self.width is not None and self.height is not None and image_width is None and image_height is None:
             image_width, image_height = self.width, self.height
-
-        pipeline_size = pipeline.size if mask is None else pipeline.inpainter_size
 
         if image_width is None or image_height is None:
             logger.warning("No known invocation size, defaulting to engine size")
@@ -332,7 +422,21 @@ class DiffusionStep:
                 if invocation_kwargs.get(key, None) is not None:
                     invocation_kwargs[key] = self.scale_image(invocation_kwargs[key], image_scale)
 
+        latent_callback = invocation_kwargs.get("latent_callback", None)
+        if image_background is not None and image_position is not None and latent_callback is not None:
+            # Hijack latent callback to paste onto background
+            def pasted_latent_callback(images: List[PIL.Image.Image]) -> None:
+                images = [self.paste_inpaint_image(image_background, image, image_position) for image in images]
+                latent_callback(images)
+
+            invocation_kwargs["latent_callback"] = pasted_latent_callback
+            invocation_kwargs["latent_callback_steps"] = 5
+
         result = pipeline(**invocation_kwargs)
+
+        if image_background is not None and image_position is not None:
+            for i, image in enumerate(result["images"]):
+                result["images"][i] = self.paste_inpaint_image(image_background, image, image_position)
 
         if self.remove_background:
             for i, image in enumerate(result["images"]):
@@ -1047,7 +1151,7 @@ class DiffusionPlan:
                 "process_control_image": None,
                 "remove_background": None,
                 "invert": None,
-                "invert_mask": None
+                "invert_mask": None,
             }
         ]
         return DiffusionPlan.from_nodes(
@@ -1295,20 +1399,20 @@ class DiffusionPlan:
 
             node_prompt_tokens = TokenMerger()
             node_negative_prompt_tokens = TokenMerger()
-            
+
             if "w" in node_dict:
                 node_width = int(node_dict["w"])
-            elif node_image is not None: # type: ignore[unreachable]
+            elif node_image is not None:  # type: ignore[unreachable]
                 node_width, _ = node_image.size
             else:
                 raise ValueError(f"Node {i} missing width, pass 'w' or an image")
             if "h" in node_dict:
                 node_height = int(node_dict["h"])
-            elif node_image is not None: # type: ignore[unreachable]
+            elif node_image is not None:  # type: ignore[unreachable]
                 _, node_height = node_image.size
             else:
                 raise ValueError(f"Node {i} missing height, pass 'h' or an image")
-            
+
             node_bounds = [
                 (node_left, node_top),
                 (node_left + node_width, node_top + node_height),
@@ -1359,7 +1463,7 @@ class DiffusionPlan:
                 if node_inpaint:
                     if node_inpaint_mask:
                         # Inpaint prior to anything else.
-                        node_inpaint_mask = node_inpaint_mask.convert("1")
+                        node_inpaint_mask = node_inpaint_mask.convert("L")
                         if node_invert_mask:
                             node_inpaint_mask = PIL.ImageOps.invert(node_inpaint_mask)
                     else:
@@ -1380,6 +1484,7 @@ class DiffusionPlan:
                         prompt=str(node_prompt_tokens),
                         negative_prompt=str(node_negative_prompt_tokens),
                         guidance_scale=guidance_scale,
+                        num_inference_steps=node_inference_steps if node_inference_steps else num_inference_steps,
                         refiner_strength=refiner_strength,
                         refiner_guidance_scale=refiner_guidance_scale,
                         refiner_aesthetic_score=refiner_aesthetic_score,
@@ -1395,6 +1500,7 @@ class DiffusionPlan:
                             prompt=str(node_prompt_tokens),
                             negative_prompt=str(node_negative_prompt_tokens),
                             guidance_scale=guidance_scale,
+                            num_inference_steps=node_inference_steps if node_inference_steps else num_inference_steps,
                             refiner_strength=refiner_strength,
                             refiner_guidance_scale=refiner_guidance_scale,
                             refiner_aesthetic_score=refiner_aesthetic_score,
@@ -1434,7 +1540,7 @@ class DiffusionPlan:
                         if not node_process_control_image:
                             step.process_control_image = False
                             if node_invert and not isinstance(step_image, DiffusionStep):
-                                step.control_image = PIL.ImageOps.invert(step_image.convert("L")) # type: ignore[unreachable]
+                                step.control_image = PIL.ImageOps.invert(step_image.convert("L"))  # type: ignore[unreachable]
                         if node_conditioning_scale:
                             step.conditioning_scale = node_conditioning_scale
             elif node_prompt:
@@ -1448,6 +1554,7 @@ class DiffusionPlan:
 
             # Set common args for node
             if node_inference_steps:
+                logger.info("WTF")
                 step.num_inference_steps = node_inference_steps
             if node_guidance_scale:
                 step.guidance_scale = node_guidance_scale
@@ -1461,7 +1568,6 @@ class DiffusionPlan:
                 step.refiner_negative_aesthetic_score = node_refiner_negative_aesthetic_score
             if not node_scale_to_model_size:
                 step.scale_to_model_size = False
-
             # Add step to plan
             plan.nodes.append(DiffusionNode(node_bounds, step))
 

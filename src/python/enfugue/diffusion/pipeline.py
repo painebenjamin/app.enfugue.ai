@@ -143,7 +143,9 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             self.multi_scheduler_config = dict(**multi_scheduler.config)
         else:
             if not isinstance(scheduler, DDIMScheduler) and not isinstance(scheduler, EulerDiscreteScheduler):
-                logger.info(f"Default scheduler {type(scheduler).__name__} does not work well with multi-diffusion, setting default to DDIM.")
+                logger.info(
+                    f"Default scheduler {type(scheduler).__name__} does not work well with multi-diffusion, setting default to DDIM."
+                )
                 self.multi_scheduler = DDIMScheduler.from_config(self.scheduler_config)
             else:
                 self.multi_scheduler = scheduler
@@ -392,7 +394,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 "laion/CLIP-ViT-bigG-14-laion2B-39B-b160k",
                 prefix="conditioner.embedders.1.model.",
                 has_projection=True,
-                projection_dim=1280
+                projection_dim=1280,
             )
             pipe = cls(
                 vae=vae,
@@ -415,7 +417,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 "laion/CLIP-ViT-bigG-14-laion2B-39B-b160k",
                 prefix="conditioner.embedders.0.model.",
                 has_projection=True,
-                projection_dim=1280
+                projection_dim=1280,
             )
             pipe = cls(
                 vae=vae,
@@ -514,7 +516,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     attention_mask = text_inputs.attention_mask.to(device)
                 else:
                     attention_mask = None
-                
+
                 text_input_ids = text_input_ids.to(device=device)
                 prompt_embeds = text_encoder(
                     text_input_ids, output_hidden_states=self.is_sdxl, attention_mask=attention_mask
@@ -1686,10 +1688,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         return latents
 
     def prepare_extra_step_kwargs(
-        self,
-        scheduler: KarrasDiffusionSchedulers,
-        generator: Optional[torch.Generator],
-        eta: float
+        self, scheduler: KarrasDiffusionSchedulers, generator: Optional[torch.Generator], eta: float
     ) -> Dict[str, Any]:
         """
         Override this method to additionally accept the scheduler, since we have
