@@ -1359,7 +1359,7 @@ class DiffusionPlan:
                 if node_inpaint:
                     if node_inpaint_mask:
                         # Inpaint prior to anything else.
-                        node_inpaint_mask.convert("L")
+                        node_inpaint_mask = node_inpaint_mask.convert("1")
                         if node_invert_mask:
                             node_inpaint_mask = PIL.ImageOps.invert(node_inpaint_mask)
                     else:
