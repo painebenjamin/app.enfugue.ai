@@ -215,19 +215,30 @@ class SystemManager:
         (
             default_model_ckpt,
             default_inpaint_ckpt,
-            default_sdxl_ckpt,
-            default_sdxl_refiner_ckpt
         ) = (
             self.default_model_ckpt,
             self.default_inpaint_ckpt,
-            self.default_sdxl_ckpt,
-            self.default_sdxl_refiner_ckpt
         )
         pending = []
         if not os.path.exists(default_model_ckpt) and not self.is_downloading(DEFAULT_MODEL):
             pending.append((DEFAULT_MODEL, default_model_ckpt))
         if not os.path.exists(default_inpaint_ckpt) and not self.is_downloading(DEFAULT_INPAINTING_MODEL):
             pending.append((DEFAULT_INPAINTING_MODEL, default_inpaint_ckpt))
+        return pending
+
+    @property
+    def pending_xl_downloads(self) -> List[Tuple[str, str]]:
+        """
+        Gets XL downloads that can be started.
+        """
+        (
+            default_sdxl_ckpt,
+            default_sdxl_refiner_ckpt
+        ) = (
+            self.default_sdxl_ckpt,
+            self.default_sdxl_refiner_ckpt
+        )
+        pending = []
         if not os.path.exists(default_sdxl_ckpt) and not self.is_downloading(DEFAULT_SDXL_MODEL):
             pending.append((DEFAULT_SDXL_MODEL, default_sdxl_ckpt))
         if not os.path.exists(default_sdxl_refiner_ckpt) and not self.is_downloading(DEFAULT_SDXL_REFINER):

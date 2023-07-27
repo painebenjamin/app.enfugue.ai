@@ -48,7 +48,7 @@ class InitializationAnnouncementView extends View {
         node.append(E.h2().content("Welcome to Enfugue"));
         node.append(E.p().content("Thank you for downloading Enfugue! I hope you enjoy it. Please read the following brief disclaimers before you begin."));
         node.append(E.h3().content("Your Privacy"));
-        node.append(E.p().content("Enfugue does not track usage in any way. Your images, prompts, configurations, and all other details only exist on your computer and are never sent elsewhere over a network or otherwise, unless specifically required by the user."));
+        node.append(E.p().content("Enfugue does not track usage in any way. Your images, prompts, configurations, and all other details only exist on your computer and are never sent elsewhere over a network or otherwise, unless specifically requested by the user."));
         node.append(
             E.p().content(
                 E.span().content("Some resources, such as public model data, is provided by "),
@@ -72,7 +72,7 @@ class InitializationAnnouncementView extends View {
 };
 
 /**
- * This is another pure text class just for giving a preamble on updates
+ * This is another pure text class just for giving a preamble on downloads
  */
 class DownloadAnnouncementHeaderView extends View {
     /**
@@ -82,8 +82,27 @@ class DownloadAnnouncementHeaderView extends View {
         let node = await super.build();
         node.content(
             E.h2().content("Downloads"),
-            E.p().content("The following downloads are required by Enfugue to function. They are the base Stable Diffusion models, from which more tuned models are made. These models are used when you are not using any other models, as well as when calculating derived models."),
-            E.p().content("Click 'Download Now' to being downloading them. If you do not download them now, they will be downloaded the first time they are needed.")
+            E.p().content("The following downloads are required by Enfugue to function. They are the base Stable Diffusion models, from which more fine-tuned models are made. These models are used when you are not using any other models, as well as when calculating derived models."),
+            E.p().content("Click the icon in each row to being downloading them. If you do not download them now, they will be downloaded the first time they are needed.")
+        );
+        return node;
+    }
+};
+
+/**
+ * This is another pure text class just for giving a preamble on SDXL downloads
+ */
+class OptionalDownloadAnnouncementHeaderView extends View {
+    /**
+     * On build, add text
+     */
+    async build(){
+        let node = await super.build();
+        node.content(
+            E.h2().content("Optional Downloads"),
+            E.p().content("The following downloads are optional. They are newer, more powerful versions of Stable Diffusion that can be used in Enfugue."),
+            E.p().content("For Stable Diffusion XL, you will require a GPU with at least 12 GB of VRAM."),
+            E.p().content("Click the icon in each row to being downloading them. You can also select the appropriate checkpoint from the checkpoint picker at any time, and the file will be downloaded if it has not yet been.")
         );
         return node;
     }
@@ -193,6 +212,9 @@ class AnnouncementsController extends Controller {
                 downloadAnnouncements = activeAnnouncements.filter(
                     (announcement) => announcement.type === "download"
                 ),
+                optionalDownloadAnnouncements = activeAnnouncements.filter(
+                    (announcement) => announcement.type === "optional-download"
+                ),
                 updateAnnouncements = activeAnnouncements.filter(
                     (announcement) => announcement.type === "update"
                 ),
@@ -220,6 +242,19 @@ class AnnouncementsController extends Controller {
             if (!isEmpty(downloadAnnouncements)) {
                 await announcementsView.addChild(DownloadAnnouncementHeaderView);
                 let tableView = await announcementsView.addChild(DownloadTableView, downloadAnnouncements);
+                tableView.addButton("Download", "fa-solid fa-download", async (row) => {
+                    let tableRows = (await tableView.getNode()).find("tbody").findAll("tr");
+                    for (let tableRow of tableRows) {
+                        if (tableRow.find("td").getText() == row.model) {
+                            tableRow.find("button").disabled(true).addClass("disabled");
+                        }
+                    }
+                    this.download("checkpoint", row.url, row.model);
+                });
+            }
+            if (!isEmpty(optionalDownloadAnnouncements)) {
+                await announcementsView.addChild(OptionalDownloadAnnouncementHeaderView);
+                let tableView = await announcementsView.addChild(DownloadTableView, optionalDownloadAnnouncements);
                 tableView.addButton("Download", "fa-solid fa-download", async (row) => {
                     let tableRows = (await tableView.getNode()).find("tbody").findAll("tr");
                     for (let tableRow of tableRows) {

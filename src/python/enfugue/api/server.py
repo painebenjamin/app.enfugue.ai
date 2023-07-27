@@ -347,12 +347,14 @@ class EnfugueAPIServerBase(
         """
         announcements = []
 
-        snooze_time = self.user_config.get("enfugue.snooze", None)
+        current_version = get_version()
+        snooze_time = self.user_config.get("enfugue.snooze.time", None)
+        snooze_version = self.user_config.get("enfugue.snooze.version", None)
         snooze_duration = float("inf")
         if snooze_time is not None:
             snooze_duration = (datetime.datetime.now() - snooze_time).total_seconds()
 
-        is_snoozed = snooze_duration < (60 * 60 * 24)
+        is_snoozed = snooze_duration < (60 * 60 * 24 * 30) and snooze_version != current_version
 
         if not is_snoozed:
             is_initialized = self.user_config.get("enfugue.initialized", False)
@@ -374,19 +376,24 @@ class EnfugueAPIServerBase(
 
                 announcements.append({"type": "initialize", "directories": directories})
 
-            pending_downloads = self.manager.pending_default_downloads
-            for url, dest in pending_downloads:
-                model = os.path.basename(url)
-                announcements.append(
-                    {
-                        "type": "download",
-                        "url": url,
-                        "size": requests.head(url, allow_redirects=True).headers["Content-Length"],
-                        "model": model,
-                        "destination": dest,
-                    }
-                )
+            pending_default_downloads = self.manager.pending_default_downloads
+            pending_xl_downloads = self.manager.pending_xl_downloads
 
+            for typename, pending_downloads in [
+                ("download", pending_default_downloads),
+                ("optional-download", pending_xl_downloads)
+            ]:
+                for url, dest in pending_downloads:
+                    model = os.path.basename(url)
+                    announcements.append(
+                        {
+                            "type": typename,
+                            "url": url,
+                            "size": requests.head(url, allow_redirects=True).headers["Content-Length"],
+                            "model": model,
+                            "destination": dest,
+                        }
+                    )
             pending_versions = get_pending_versions()
             for version in pending_versions:
                 announcements.append(
@@ -409,7 +416,8 @@ class EnfugueAPIServerBase(
         Snoozes announcements for a day.
         """
         self.user_config["enfugue.initialized"] = True
-        self.user_config["enfugue.snooze"] = datetime.datetime.now()
+        self.user_config["enfugue.snooze.time"] = datetime.datetime.now()
+        self.user_config["enfugue.snooze.version"] = get_version()
 
     @classmethod
     def serve_icon(cls, configuration: Dict[str, Any]) -> None:
