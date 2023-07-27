@@ -1,7 +1,7 @@
 """
 Performs a simple unit test of CivitAI functionality
 """
-from enfugue.partner.civitai import CivitAI
+from enfugue.partner import CivitAI
 from enfugue.util import logger
 import json
 from pibble.util.log import DebugUnifiedLoggingContext

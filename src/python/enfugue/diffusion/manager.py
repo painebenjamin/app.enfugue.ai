@@ -21,6 +21,8 @@ from enfugue.util import logger, check_download, check_make_directory
 from enfugue.diffusion.constants import (
     DEFAULT_MODEL,
     DEFAULT_INPAINTING_MODEL,
+    DEFAULT_SDXL_MODEL,
+    DEFAULT_SDXL_REFINER,
     VAE_EMA,
     VAE_MSE,
     VAE_XL,
@@ -45,6 +47,11 @@ from enfugue.diffusion.constants import (
 )
 
 __all__ = ["DiffusionPipelineManager"]
+
+DEFAULT_MODEL_FILE = os.path.basename(DEFAULT_MODEL)
+DEFAULT_INPAINTING_MODEL_FILE = os.path.basename(DEFAULT_INPAINTING_MODEL)
+DEFAULT_SDXL_MODEL_FILE = os.path.basename(DEFAULT_SDXL_MODEL)
+DEFAULT_SDXL_REFINER_FILE = os.path.basename(DEFAULT_SDXL_REFINER)
 
 if TYPE_CHECKING:
     from diffusers.models import ControlNetModel, AutoencoderKL
@@ -1580,6 +1587,22 @@ class DiffusionPipelineManager:
 
             return EnfugueStableDiffusionPipeline
 
+    def check_get_default_model(self, model: str) -> str:
+        """
+        Checks if a model is a default model, in which case the remote URL is returned
+        to check if the resources has changed or needs to be downloaded
+        """
+        model_file = os.path.basename(model)
+        if model_file == DEFAULT_MODEL_FILE:
+            return DEFAULT_MODEL
+        elif model_file == DEFAULT_INPAINTING_MODEL_FILE:
+            return DEFAULT_INPAINTING_MODEL
+        elif model_file == DEFAULT_SDXL_MODEL_FILE:
+            return DEFAULT_SDXL_MODEL
+        elif model_file == DEFAULT_SDXL_REFINER_FILE:
+            return DEFAULT_SDXL_REFINER
+        return model
+
     @property
     def model(self) -> str:
         """
@@ -1596,6 +1619,7 @@ class DiffusionPipelineManager:
         """
         if new_model is None:
             new_model = self.configuration.get("enfugue.model", DEFAULT_MODEL)
+        new_model = self.check_get_default_model(new_model)
         if new_model.startswith("http"):
             new_model = self.check_download_checkpoint(new_model)
         elif not os.path.isabs(new_model):
@@ -1636,6 +1660,7 @@ class DiffusionPipelineManager:
         if new_refiner is None:
             self._refiner = None
             return
+        new_refiner = self.check_get_default_model(new_refiner)
         if new_refiner.startswith("http"):
             new_refiner = self.check_download_checkpoint(new_refiner)
         elif not os.path.isabs(new_refiner):
@@ -1678,6 +1703,7 @@ class DiffusionPipelineManager:
         if new_inpainter is None:
             self._inpainter = None
             return
+        new_inpainter = self.check_get_default_model(new_inpainter)
         if new_inpainter.startswith("http"):
             new_inpainter = self.check_download_checkpoint(new_inpainter)
         elif not os.path.isabs(new_inpainter):
@@ -2836,9 +2862,7 @@ class DiffusionPipelineManager:
                         self.stop_keepalive()  # This checks, we can call it all we want
                         refined_image = self.refiner_pipeline(  # type: ignore
                             generator=self.generator, image=image, **kwargs
-                        )["images"][
-                            0
-                        ]  # type: ignore
+                        )["images"][0]  # type: ignore
                         if image_scale != 1:
                             logger.debug(f"Scaling refined image back down to {width}×{height}")
                             refined_image = refined_image.resize((width, height))  # type: ignore

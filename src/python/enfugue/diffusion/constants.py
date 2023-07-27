@@ -26,8 +26,8 @@ DEFAULT_MODEL = "https://huggingface.co/runwayml/stable-diffusion-v1-5/resolve/m
 DEFAULT_INPAINTING_MODEL = (
     "https://huggingface.co/runwayml/stable-diffusion-inpainting/resolve/main/sd-v1-5-inpainting.ckpt"
 )
-DEFAULT_SDXL_MODEL = "sd_xl_base_0.9.safetensors"
-DEFAULT_SDXL_REFINER = "sd_xl_refiner_0.9.safetensors"
+DEFAULT_SDXL_MODEL = "https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_base_1.0.safetensors"
+DEFAULT_SDXL_REFINER = "https://huggingface.co/stabilityai/stable-diffusion-xl-refiner-1.0/resolve/main/sd_xl_refiner_1.0.safetensors"
 
 VAE_EMA = "stabilityai/sd-vae-ft-ema"
 VAE_MSE = "stabilityai/sd-vae-ft-mse"

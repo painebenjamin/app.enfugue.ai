@@ -223,7 +223,6 @@ class InstallationSummaryView extends View {
             tensorrtSummary = await this.controller.model.get("/tensorrt");
         
         await this.summaryTable.setData(Object.getOwnPropertyNames(installationSummary).map((directory) => {
-            console.log(directory);
             return {
                 "directory": directory,
                 "location": installationSummary[directory].path,

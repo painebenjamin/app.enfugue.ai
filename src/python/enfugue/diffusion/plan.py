@@ -211,8 +211,15 @@ class DiffusionStep:
         """
         Gets the bounding box of places inpainted
         """
-        width, height = self.mask.size
-        x0, y0, x1, y1 = self.mask.getbbox()
+        if isinstance(self.mask, str):
+            mask = PIL.Image.open(self.mask)
+        elif isinstance(self.mask, PIL.Image.Image):
+            mask =self.mask
+        else:
+            raise ValueError("Cannot get bounding box for empty or dynamic mask.")
+        
+        width, height = mask.size
+        x0, y0, x1, y1 = mask.getbbox()
 
         # Add feather
         x0 = max(0, x0 - self.inpaint_feather)
@@ -370,7 +377,6 @@ class DiffusionStep:
                 and image is not None
                 and control_image is None
             ):
-                mask.save("./mask.png")
                 (x0, y0), (x1, y1) = self.get_inpaint_bounding_box(pipeline_size)
                 bbox_width = x1 - x0
                 bbox_height = y1 - y0
@@ -378,6 +384,8 @@ class DiffusionStep:
                 pixel_savings = (1.0 - pixel_ratio) * 100
                 if pixel_ratio < 0.75:
                     logger.debug(f"Calculated pixel area savings of {pixel_savings:.1f}% by cropping prior to inpaint")
+                    # Disable refining
+                    invocation_kwargs["refiner_strength"] = 0
                     image_position = (x0, y0)
                     image_background = image.copy()
                     image = image.crop((x0, y0, x1, y1))
@@ -426,7 +434,7 @@ class DiffusionStep:
         if image_background is not None and image_position is not None and latent_callback is not None:
             # Hijack latent callback to paste onto background
             def pasted_latent_callback(images: List[PIL.Image.Image]) -> None:
-                images = [self.paste_inpaint_image(image_background, image, image_position) for image in images]
+                images = [self.paste_inpaint_image(image_background, image, image_position) for image in images] # type: ignore
                 latent_callback(images)
 
             invocation_kwargs["latent_callback"] = pasted_latent_callback
@@ -835,6 +843,7 @@ class DiffusionPlan:
         """
         Assigns pipeline-level variables.
         """
+        pipeline.start_keepalive() # Make sure this is going
         pipeline.model = self.model
         pipeline.refiner = self.refiner
         pipeline.inpainter = self.inpainter

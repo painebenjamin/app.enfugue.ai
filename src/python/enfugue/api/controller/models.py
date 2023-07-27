@@ -15,6 +15,12 @@ from enfugue.api.controller.base import EnfugueAPIControllerBase
 from enfugue.database.models import DiffusionModel
 from enfugue.diffusion.manager import DiffusionPipelineManager
 from enfugue.diffusion.plan import DiffusionPlan, DiffusionStep, DiffusionNode
+from enfugue.diffusion.constants import (
+    DEFAULT_MODEL,
+    DEFAULT_INPAINTING_MODEL,
+    DEFAULT_SDXL_MODEL,
+    DEFAULT_SDXL_REFINER
+)
 
 __all__ = ["EnfugueAPIModelsController"]
 
@@ -35,6 +41,13 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         "refiner_negative_aesthetic_score",
     ]
 
+    DEFAULT_CHECKPOINTS = [
+        os.path.basename(DEFAULT_MODEL),
+        os.path.basename(DEFAULT_INPAINTING_MODEL),
+        os.path.basename(DEFAULT_SDXL_MODEL),
+        os.path.basename(DEFAULT_SDXL_REFINER),
+    ]
+
     @handlers.path("^/api/checkpoints$")
     @handlers.methods("GET")
     @handlers.format()
@@ -49,6 +62,9 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         )
         if os.path.exists(checkpoints_dir):
             checkpoints = os.listdir(checkpoints_dir)
+        for checkpoint in self.DEFAULT_CHECKPOINTS:
+            if checkpoint not in checkpoints:
+                checkpoints.append(checkpoint)
         return checkpoints
 
     @handlers.path("^/api/lora$")
@@ -564,9 +580,15 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
             checkpoints = []
         else:
             checkpoints = os.listdir(checkpoints_dir)
+        
         checkpoints.sort(key=lambda item: os.path.getmtime(os.path.join(checkpoints_dir, item)))
+        for checkpoint in self.DEFAULT_CHECKPOINTS:
+            if checkpoint not in checkpoints:
+                checkpoints.append(checkpoint)
+        
         model_names = self.database.query(self.orm.DiffusionModel.name).all()
-
-        return [{"type": "checkpoint", "name": checkpoint} for checkpoint in checkpoints] + [
+        return [
+            {"type": "checkpoint", "name": checkpoint} for checkpoint in checkpoints
+        ] + [
             {"type": "model", "name": model[0]} for model in model_names
         ]
