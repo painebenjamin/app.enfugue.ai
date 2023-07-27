@@ -1563,7 +1563,6 @@ class DiffusionPlan:
 
             # Set common args for node
             if node_inference_steps:
-                logger.info("WTF")
                 step.num_inference_steps = node_inference_steps
             if node_guidance_scale:
                 step.guidance_scale = node_guidance_scale

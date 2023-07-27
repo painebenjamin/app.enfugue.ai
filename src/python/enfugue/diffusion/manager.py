@@ -2121,9 +2121,16 @@ class DiffusionPipelineManager:
             }
 
             vae = self.vae  # Load into memory here
-            controlnet = self.controlnet  # Load into memory here
+            if self.is_sdxl:
+                if self.controlnet_name is not None:
+                    logger.warning(f"SDXL does not yet support ControlNet, refusing to load '{self.controlnet_name}'")
+                controlnet = None
+            else:
+                controlnet = self.controlnet  # Load into memory here
 
             if self.use_tensorrt:
+                if self.is_sdxl:
+                    raise ValueError(f"Sorry, TensorRT is not yet supported for SDXL.")
                 if "unet" in self.TENSORRT_STAGES:
                     if self.controlnet is None and not self.TENSORRT_ALWAYS_USE_CONTROLLED_UNET:
                         kwargs["unet_engine_dir"] = self.model_tensorrt_unet_dir
@@ -2236,6 +2243,8 @@ class DiffusionPipelineManager:
                 vae = self.vae  # Load into memory here
 
             if self.refiner_is_sdxl:
+                if self.controlnet_name is not None:
+                    logger.warning(f"SDXL refiner does not support ControlNet, refusing to load '{self.controlnet_name}'")
                 controlnet = None
             else:
                 controlnet = self.controlnet # Load into memory here
@@ -2396,6 +2405,8 @@ class DiffusionPipelineManager:
                 vae = self.vae  # Load into memory here
 
             if self.inpainter_use_tensorrt:
+                if self.inpainter_is_sdxl: # Not possible yet
+                    raise ValueError(f"Sorry, TensorRT is not yet supported for SDXL.")
                 if "unet" in self.TENSORRT_STAGES:
                     kwargs["unet_engine_dir"] = self.inpainter_tensorrt_unet_dir
                 if "vae" in self.TENSORRT_STAGES:
