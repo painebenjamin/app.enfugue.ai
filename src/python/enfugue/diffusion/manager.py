@@ -2784,7 +2784,6 @@ class DiffusionPipelineManager:
 
             if inpainting:
                 size = self.inpainter_size
-                pipeline = self.inpainter_pipeline
                 if self.pipeline_switch_mode == "offload":
                     self.offload_pipeline()
                 elif self.pipeline_switch_mode == "unload":
@@ -2792,7 +2791,6 @@ class DiffusionPipelineManager:
                 self.reload_inpainter()
             else:
                 size = self.size
-                pipeline = self.pipeline
                 if self.pipeline_switch_mode == "offload":
                     self.offload_inpainter()
                 elif self.pipeline_switch_mode == "unload":
