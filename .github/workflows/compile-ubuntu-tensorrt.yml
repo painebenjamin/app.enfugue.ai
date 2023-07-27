@@ -6,4 +6,4 @@ jobs:
     uses: painebenjamin/app.enfugue.ai/.github/workflows/compile.yml@main
     with:
       os: ubuntu-latest
-      api: cuda
+      api: tensorrt
