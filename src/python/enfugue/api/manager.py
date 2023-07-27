@@ -15,8 +15,13 @@ from enfugue.api.downloads import Download
 from enfugue.api.invocations import Invocation
 from enfugue.diffusion.engine import DiffusionEngine
 from enfugue.diffusion.plan import DiffusionPlan
-from enfugue.diffusion.constants import DEFAULT_MODEL, DEFAULT_INPAINTING_MODEL
-from enfugue.util import logger, check_make_directory
+from enfugue.util import logger, check_make_directory, find_file_in_directory
+from enfugue.diffusion.constants import (
+    DEFAULT_MODEL,
+    DEFAULT_INPAINTING_MODEL,
+    DEFAULT_SDXL_MODEL,
+    DEFAULT_SDXL_REFINER
+)
 
 __all__ = ["SystemManagerThread", "SystemManager"]
 
@@ -172,7 +177,8 @@ class SystemManager:
         Returns the location where the default model should be.
         """
         default_model_ckpt = os.path.basename(DEFAULT_MODEL)
-        return os.path.join(self.engine_checkpoint_dir, default_model_ckpt)
+        found = find_file_in_directory(self.engine_checkpoint_dir, default_model_ckpt)
+        return found if found else os.path.join(self.engine_checkpoint_dir, default_model_ckpt)
 
     @property
     def default_inpaint_ckpt(self) -> str:
@@ -180,22 +186,52 @@ class SystemManager:
         Returns the location where the default inpaint model should be.
         """
         default_inpaint_ckpt = os.path.basename(DEFAULT_INPAINTING_MODEL)
-        return os.path.join(self.engine_checkpoint_dir, default_inpaint_ckpt)
+        found = find_file_in_directory(self.engine_checkpoint_dir, default_inpaint_ckpt)
+        return found if found else os.path.join(self.engine_checkpoint_dir, default_inpaint_ckpt)
+
+    @property
+    def default_sdxl_ckpt(self) -> str:
+        """
+        Returns the location where the default sdxl checkpoint should be.
+        """
+        default_sdxl_ckpt = os.path.basename(DEFAULT_SDXL_MODEL)
+        found = find_file_in_directory(self.engine_checkpoint_dir, default_sdxl_ckpt)
+        return found if found else os.path.join(self.engine_checkpoint_dir, default_sdxl_ckpt)
+
+    @property
+    def default_sdxl_refiner_ckpt(self) -> str:
+        """
+        Returns the location where the default sdxl_refiner model should be.
+        """
+        default_sdxl_refiner_ckpt = os.path.basename(DEFAULT_SDXL_REFINER)
+        found = find_file_in_directory(self.engine_checkpoint_dir, default_sdxl_refiner_ckpt)
+        return found if found else os.path.join(self.engine_checkpoint_dir, default_sdxl_refiner_ckpt)
 
     @property
     def pending_default_downloads(self) -> List[Tuple[str, str]]:
         """
         Gets default downloads that need to be started.
         """
-        default_model_ckpt, default_inpaint_ckpt = (
+        (
+            default_model_ckpt,
+            default_inpaint_ckpt,
+            default_sdxl_ckpt,
+            default_sdxl_refiner_ckpt
+        ) = (
             self.default_model_ckpt,
             self.default_inpaint_ckpt,
+            self.default_sdxl_ckpt,
+            self.default_sdxl_refiner_ckpt
         )
         pending = []
         if not os.path.exists(default_model_ckpt) and not self.is_downloading(DEFAULT_MODEL):
             pending.append((DEFAULT_MODEL, default_model_ckpt))
         if not os.path.exists(default_inpaint_ckpt) and not self.is_downloading(DEFAULT_INPAINTING_MODEL):
             pending.append((DEFAULT_INPAINTING_MODEL, default_inpaint_ckpt))
+        if not os.path.exists(default_sdxl_ckpt) and not self.is_downloading(DEFAULT_SDXL_MODEL):
+            pending.append((DEFAULT_SDXL_MODEL, default_sdxl_ckpt))
+        if not os.path.exists(default_sdxl_refiner_ckpt) and not self.is_downloading(DEFAULT_SDXL_REFINER):
+            pending.append((DEFAULT_SDXL_REFINER, default_sdxl_refiner_ckpt))
         return pending
 
     @property

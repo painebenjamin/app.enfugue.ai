@@ -11,6 +11,7 @@ from pibble.api.exceptions import BadRequestError, NotFoundError
 from pibble.util.files import load_json
 from pibble.ext.user.server.base import UserExtensionHandlerRegistry
 
+from enfugue.util import find_files_in_directory
 from enfugue.api.controller.base import EnfugueAPIControllerBase
 from enfugue.database.models import DiffusionModel
 from enfugue.diffusion.manager import DiffusionPipelineManager
@@ -56,12 +57,13 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         """
         Gets installed checkpoints.
         """
-        checkpoints = []
         checkpoints_dir = self.configuration.get(
             "enfugue.engine.checkpoint", os.path.join(self.engine_root, "checkpoint")
         )
-        if os.path.exists(checkpoints_dir):
-            checkpoints = os.listdir(checkpoints_dir)
+        checkpoints = [
+            os.path.basename(filename)
+            for filename in find_files_in_directory(checkpoints_dir)
+        ]
         for checkpoint in self.DEFAULT_CHECKPOINTS:
             if checkpoint not in checkpoints:
                 checkpoints.append(checkpoint)
@@ -75,10 +77,11 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         """
         Gets installed lora.
         """
-        lora = []
         lora_dir = self.configuration.get("enfugue.engine.lora", os.path.join(self.engine_root, "lora"))
-        if os.path.exists(lora_dir):
-            lora = os.listdir(lora_dir)
+        lora = [
+            os.path.basename(filename)
+            for filename in find_files_in_directory(lora_dir)
+        ]
         return lora
 
     @handlers.path("^/api/lycoris$")
@@ -91,8 +94,10 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         """
         lycoris = []
         lycoris_dir = self.configuration.get("enfugue.engine.lycoris", os.path.join(self.engine_root, "lycoris"))
-        if os.path.exists(lycoris_dir):
-            lycoris = os.listdir(lycoris_dir)
+        lycoris = [
+            os.path.basename(filename)
+            for filename in find_files_in_directory(lycoris_dir)
+        ]
         return lycoris
 
     @handlers.path("^/api/inversions$")
@@ -103,10 +108,11 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         """
         Gets installed textual inversions.
         """
-        inversions = []
         inversions_dir = self.configuration.get("enfugue.engine.inversion", os.path.join(self.engine_root, "inversion"))
-        if os.path.exists(inversions_dir):
-            inversions = os.listdir(inversions_dir)
+        inversions = [
+            os.path.basename(filename)
+            for filename in find_files_in_directory(inversions_dir)
+        ]
         return inversions
 
     @handlers.path("^/api/tensorrt$")
@@ -581,7 +587,15 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         else:
             checkpoints = os.listdir(checkpoints_dir)
         
+        checkpoints_dir = self.configuration.get(
+            "enfugue.engine.checkpoint", os.path.join(self.engine_root, "checkpoint")
+        )
+        checkpoints  = list(find_files_in_directory(checkpoints_dir))
         checkpoints.sort(key=lambda item: os.path.getmtime(os.path.join(checkpoints_dir, item)))
+        checkpoints = [
+            os.path.basename(checkpoint)
+            for checkpoint in checkpoints
+        ]
         for checkpoint in self.DEFAULT_CHECKPOINTS:
             if checkpoint not in checkpoints:
                 checkpoints.append(checkpoint)

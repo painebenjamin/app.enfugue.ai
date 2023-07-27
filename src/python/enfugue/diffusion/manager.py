@@ -17,7 +17,7 @@ from pibble.api.configuration import APIConfiguration
 from pibble.api.exceptions import ConfigurationError
 from pibble.util.files import dump_json
 
-from enfugue.util import logger, check_download, check_make_directory
+from enfugue.util import logger, check_download, check_make_directory, find_file_in_directory
 from enfugue.diffusion.constants import (
     DEFAULT_MODEL,
     DEFAULT_INPAINTING_MODEL,
@@ -1623,7 +1623,9 @@ class DiffusionPipelineManager:
         if new_model.startswith("http"):
             new_model = self.check_download_checkpoint(new_model)
         elif not os.path.isabs(new_model):
-            new_model = os.path.join(self.engine_checkpoints_dir, new_model)
+            new_model = find_file_in_directory(self.engine_checkpoints_dir, new_model)
+        if not new_model:
+            raise ValueError(f"Cannot find model {new_model}")
         new_model_name, _ = os.path.splitext(os.path.basename(new_model))
         if self.model_name != new_model_name:
             self.unload_pipeline("model changing")
@@ -1664,7 +1666,9 @@ class DiffusionPipelineManager:
         if new_refiner.startswith("http"):
             new_refiner = self.check_download_checkpoint(new_refiner)
         elif not os.path.isabs(new_refiner):
-            new_refiner = os.path.join(self.engine_checkpoints_dir, new_refiner)
+            new_refiner = find_file_in_directory(self.engine_checkpoints_dir, new_refiner)
+        if not new_refiner:
+            raise ValueError(f"Cannot find refiner {new_refiner}")
         new_refiner_name, _ = os.path.splitext(os.path.basename(new_refiner))
         if self.refiner_name != new_refiner_name:
             self.unload_refiner("model changing")
@@ -1707,7 +1711,9 @@ class DiffusionPipelineManager:
         if new_inpainter.startswith("http"):
             new_inpainter = self.check_download_checkpoint(new_inpainter)
         elif not os.path.isabs(new_inpainter):
-            new_inpainter = os.path.join(self.engine_checkpoints_dir, new_inpainter)
+            new_inpainter = find_file_in_directory(self.engine_checkpoints_dir, new_inpainter)
+        if not new_inpainter:
+            raise ValueError(f"Cannot find inpainter {new_inpainter}")
         new_inpainter_name, _ = os.path.splitext(os.path.basename(new_inpainter))
         if self.inpainter_name != new_inpainter_name:
             self.unload_inpainter("model changing")
@@ -1818,7 +1824,9 @@ class DiffusionPipelineManager:
 
         for i, (model, weight) in enumerate(lora):
             if not os.path.isabs(model):
-                model = os.path.join(self.engine_lora_dir, model)
+                model = find_file_in_directory(self.engine_lora_dir, model) # type: ignore[assignment]
+            if not model:
+                raise ValueError(f"Cannot find LoRA model {model}")
             lora[i] = (model, weight)
 
         if getattr(self, "_lora", []) != lora:
@@ -1866,7 +1874,9 @@ class DiffusionPipelineManager:
 
         for i, (model, weight) in enumerate(lycoris):
             if not os.path.isabs(model):
-                model = os.path.join(self.engine_lycoris_dir, model)
+                model = find_file_in_directory(self.engine_lycoris_dir, model) # type: ignore[assignment]
+            if not model:
+                raise ValueError(f"Cannot find LyCORIS model {model}")
             lycoris[i] = (model, weight)
 
         if getattr(self, "_lycoris", []) != lycoris:
@@ -1900,6 +1910,12 @@ class DiffusionPipelineManager:
 
         if not isinstance(new_inversion, list):
             new_inversion = [new_inversion]
+        for i, model in enumerate(new_inversion):
+            if not os.path.isabs(model):
+                model = find_file_in_directory(self.engine_inversion_dir, model) # type: ignore[assignment]
+            if not model:
+                raise ValueError(f"Cannot find inversion model {model}")
+            new_inversion[i] = model
         if getattr(self, "_inversion", []) != new_inversion:
             self.unload_pipeline("Textual Inversions changing")
             self._inversion = new_inversion
@@ -2092,6 +2108,9 @@ class DiffusionPipelineManager:
                 # Base model, make sure it's downloaded here
                 self.model = self.check_download_checkpoint(self.model)
 
+            if self.controlnet_name is not None and self.is_sdxl:
+                raise ValueError(f"Sorry, ControlNet is not yet supported by SDXL.")
+
             kwargs = {
                 "cache_dir": self.engine_cache_dir,
                 "engine_size": self.size,
@@ -2207,7 +2226,6 @@ class DiffusionPipelineManager:
                 "chunking_size": self.chunking_size,
                 "torch_dtype": self.dtype,
                 "requires_safety_checker": False,
-                "controlnet": None,
             }
 
             if self.vae_name == "xl" and not self.refiner_is_sdxl:
@@ -2216,6 +2234,11 @@ class DiffusionPipelineManager:
                 vae = None
             else:
                 vae = self.vae  # Load into memory here
+
+            if self.refiner_is_sdxl:
+                controlnet = None
+            else:
+                controlnet = self.controlnet # Load into memory here
 
             if self.refiner_use_tensorrt:
                 if "unet" in self.TENSORRT_STAGES:
@@ -2253,6 +2276,7 @@ class DiffusionPipelineManager:
                 refiner_pipeline = self.refiner_pipeline_class.from_pretrained(
                     self.refiner_diffusers_cache_dir,
                     safety_checker=None,
+                    controlnet=controlnet,
                     **kwargs,
                 )
             elif self.refiner_engine_cache_exists:
@@ -2271,7 +2295,7 @@ class DiffusionPipelineManager:
                 refiner_pipeline = self.refiner_pipeline_class.from_pretrained(
                     self.refiner_diffusers_cache_dir,
                     safety_checker=None,
-                    # controlnet=controlnet,
+                    controlnet=controlnet,
                     **kwargs,
                 )
             else:
@@ -2285,7 +2309,7 @@ class DiffusionPipelineManager:
                     self.refiner,
                     num_in_channels=4,
                     load_safety_checker=False,
-                    # controlnet=controlnet,
+                    controlnet=controlnet,
                     **kwargs,
                 )
                 if self.should_cache_refiner:
@@ -2723,6 +2747,9 @@ class DiffusionPipelineManager:
         """
         output_file = os.path.basename(remote_url)
         output_path = os.path.join(self.engine_checkpoints_dir, output_file)
+        found_path = find_file_in_directory(self.engine_checkpoints_dir, output_file)
+        if found_path:
+            return found_path
         check_download(remote_url, output_path)
         return output_path
 

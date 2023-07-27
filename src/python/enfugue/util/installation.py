@@ -1,8 +1,9 @@
 import os
+import re
 import requests
 import datetime
 
-from typing import TypedDict, List, Dict, Any, cast
+from typing import TypedDict, List, Dict, Any, Iterator, Optional, Union, cast
 
 from semantic_version import Version
 from pibble.util.files import load_yaml, load_json
@@ -17,6 +18,8 @@ __all__ = [
     "get_version",
     "get_versions",
     "get_pending_versions",
+    "find_file_in_directory",
+    "find_files_in_directory"
 ]
 
 
@@ -155,3 +158,36 @@ def get_pending_versions() -> List[VersionDict]:
     """
     current_version = get_version()
     return [version for version in get_versions() if version["version"] > current_version]
+
+def find_file_in_directory(directory: str, file: str) -> Optional[str]:
+    """
+    Finds a file in a directory and returns it.
+    Uses breadth-first search.
+    """
+    if not os.path.isdir(directory):
+        return None
+    check_file = os.path.join(directory, file)
+    if os.path.exists(check_file):
+        return check_file
+    for filename in os.listdir(directory):
+        check_path = os.path.join(directory, filename)
+        if os.path.isdir(check_path):
+            check_recursed = find_file_in_directory(check_path, file)
+            if check_recursed is not None:
+                return os.path.abspath(check_recursed)
+    return None
+
+def find_files_in_directory(directory: str, pattern: Optional[Union[str, re.Pattern]] = None) -> Iterator[str]:
+    """
+    Find files in a directory, optionally matching a pattern.
+    """
+    if pattern is not None and isinstance(pattern, str):
+        pattern = re.compile(pattern)
+    if os.path.isdir(directory):
+        for filename in os.listdir(directory):
+            check_path = os.path.join(directory, filename)
+            if os.path.isdir(check_path):
+                for sub_file in find_files_in_directory(check_path, pattern):
+                    yield sub_file
+            elif pattern is None or bool(pattern.match(filename)):
+                yield os.path.abspath(check_path)

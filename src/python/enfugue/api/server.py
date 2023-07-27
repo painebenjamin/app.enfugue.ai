@@ -15,6 +15,7 @@ from pibble.api.server.webservice.jsonapi import JSONWebServiceAPIServer
 from pibble.ext.user.server.base import UserExtensionHandlerRegistry
 from pibble.ext.rest.server.user import UserRESTExtensionServerBase
 from pibble.util.encryption import Password
+from pibble.util.helpers import OutputCatcher
 
 from enfugue.diffusion.plan import DiffusionPlan
 
@@ -419,6 +420,7 @@ class EnfugueAPIServerBase(
         from threading import Event
 
         stop_event = Event()
+        catcher = OutputCatcher()
 
         def stop(icon: pystray.Icon) -> None:
             """
@@ -447,6 +449,11 @@ class EnfugueAPIServerBase(
             server = cls()
             server.configure_start(signal=False, **configuration)
             while not stop_event.is_set():
+                out, err = catcher.output()
+                if out:
+                    logger.debug(f"STDOUT: {out}")
+                if err:
+                    logger.debug(f"STDERR: {err}")
                 stop_event.wait(1)
             server.stop()
             server.destroy()
@@ -456,8 +463,8 @@ class EnfugueAPIServerBase(
         icon_image = PIL.Image.open(os.path.join(static_dir, "img", icon_path))
         icon = pystray.Icon("enfugue", icon_image)
         icon.menu = pystray.Menu(pystray.MenuItem("Open App", open_app), pystray.MenuItem("Quit", stop))
-        icon.run(setup=setup)
-
+        with catcher:
+            icon.run(setup=setup)
 
 server_parents = tuple([EnfugueAPIServerBase] + list(EnfugueAPIControllerBase.enumerate()))
 

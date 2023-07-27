@@ -161,8 +161,8 @@ cython_debug/
 # Enfugue payload
 payload.txt
 
-# Test images
-**/test-images/*
+# Test results
+**/test-results/*
 
 # PyCharm
 #  JetBrains specific template is maintained in a separate JetBrains.gitignore that can
