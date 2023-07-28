@@ -738,6 +738,7 @@ class ModelManagerController extends Controller {
                         ? `${e}` 
                         : e.detail;
                 this.notify("Error", "Couldn't create model", errorMessage);
+                modelForm.enable();
             }
         });
         modelForm.onCancel(() => {
