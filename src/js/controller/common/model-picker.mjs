@@ -207,7 +207,7 @@ class ModelTensorRTStatusView extends View {
         "TensorRT is a technology created by Nvidia that transforms an AI model into one that takes advantage of hardware acceleration available on Nvidia GPUs.",
         "As there are numerous varying architectures used by Nvidia that support this technology, these engines must be compiled by an architecture compatible with your actual hardware, rather than distributed by AI model providers.",
         "The compilation time for each model varies, but generally takes between 15 and 30 minutes each. You can expect between 50% and 100% faster inference speeds during the engine's respective step(s).",
-        "The compiled engine is only useable for a model with the same checkpoint, LoRA, Textual Inversion and engine size. If you change any of those details about this model, it will require recompilation. You can safely change model prompts as desired without requiring a new engine.",
+        "The compiled engine is only useable for a model with the same checkpoint, LoRA, LyCORIS, Textual Inversion and engine size. If you change any of those details about this model, it will require recompilation. You can safely change model prompts as desired without requiring a new engine.",
     ];
 
     /**

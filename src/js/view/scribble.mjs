@@ -210,7 +210,7 @@ class ScribbleView extends View {
      * The 'wheel' handler
      */
     onNodeWheel(e){
-        if (e.ctrlKey) {
+        if (e.ctrlKey || e.metaKey) {
             e.preventDefault();
             return;
         }
