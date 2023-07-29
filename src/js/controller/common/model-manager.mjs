@@ -443,7 +443,7 @@ class ModelForm extends FormView {
                 "config": {
                     "tooltip": "The width of the canvas in pixels.",
                     "min": 128,
-                    "max": 4096,
+                    "max": 16384,
                     "step": 8,
                     "value": null
                 }
@@ -454,7 +454,7 @@ class ModelForm extends FormView {
                 "config": {
                     "tooltip": "The height of the canvas in pixels.",
                     "min": 128,
-                    "max": 4096,
+                    "max": 16384,
                     "step": 8,
                     "value": null
                 }

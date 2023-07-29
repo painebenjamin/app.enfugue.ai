@@ -33,7 +33,7 @@ class CanvasForm extends FormView {
                 "class": NumberInputView,
                 "config": {
                     "min": 64,
-                    "max": 4096,
+                    "max": 16384,
                     "value": defaultWidth,
                     "step": 8,
                     "tooltip": "The width of the canvas in pixels."
@@ -44,7 +44,7 @@ class CanvasForm extends FormView {
                 "class": NumberInputView,
                 "config": {
                     "min": 64,
-                    "max": 4096,
+                    "max": 16384,
                     "value": defaultHeight,
                     "step": 8,
                     "tooltip": "The height of the canvas in pixels."

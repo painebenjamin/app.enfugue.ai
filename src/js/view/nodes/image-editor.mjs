@@ -346,8 +346,7 @@ class ImageEditorBaseOptionsFormView extends FormView {
                 "label": "Scale to Model Size",
                 "class": CheckboxInputView,
                 "config": {
-                    "value": true,
-                    "tooltip": "When this node has any dimension smaller than the size of the configured model, scale it up so it's smallest dimension is the same size as the model, then scale it down after diffusion.<br />This generally improves image quality in rectangular shapes, but can also result in ghosting and increased processing time.<br />This will have no effect if your node is larger than the model size in all dimensions.<br />If unchecked and your node is smaller than the model size, TensorRT will be disabled for this node."
+                    "tooltip": "When this node has any dimension smaller than the size of the configured model, scale it up so it's smallest dimension is the same size as the model, then scale it down after diffusion.<br />This generally improves image quality in slightly rectangular shapes or square shapes smaller than the engine size, but can also result in ghosting and increased processing time.<br />This will have no effect if your node is larger than the model size in all dimensions.<br />If unchecked and your node is smaller than the model size, TensorRT will be disabled for this node."
                 },
             },
             "removeBackground": {
@@ -443,7 +442,6 @@ class ImageEditorImageNodeOptionsFormView extends FormView {
                 "label": "Scale to Model Size",
                 "class": CheckboxInputView,
                 "config": {
-                    "value": true,
                     "tooltip": "When this has any dimension smaller than the size of the configured model, scale it up so it's smallest dimension is the same size as the model, then scale it down after diffusion.<br />This generally improves image quality in rectangular shapes, but can also result in ghosting and increased processing time.<br />This will have no effect if your node is larger than the model size in all dimensions.<br />If unchecked and your node is smaller than the model size, TensorRT will be disabled for this node."
                 },
             },
@@ -686,7 +684,7 @@ class ImageEditorNodeView extends NodeView {
         state.guidanceScale = this.guidanceScale || null;
         state.inferenceSteps = this.inferenceSteps || null;
         state.removeBackground = this.removeBackground || false;
-        state.scaleToModelSize = this.scaleToModelSize || true;
+        state.scaleToModelSize = this.scaleToModelSize || false;
         return state;
     }
 };
@@ -1131,7 +1129,7 @@ class ImageEditorImageNodeView extends ImageEditorScribbleNodeView {
         state.conditioningScale = this.conditioningScale || 1.0;
         state.processControlImage = this.processControlImage !== false;
         state.removeBackground = this.removeBackground === true;
-        state.scaleToModelSize = this.scaleToModelSize !== false;
+        state.scaleToModelSize = this.scaleToModelSize === true;
         return state;
     }
 
@@ -1184,7 +1182,7 @@ class ImageEditorImageNodeView extends ImageEditorScribbleNodeView {
             "colorSpace": "invert",
             "conditioningScale": 1.0,
             "removeBackground": false,
-            "scaleToModelSize": true,
+            "scaleToModelSize": false,
         };
     }
 };

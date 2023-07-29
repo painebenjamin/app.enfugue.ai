@@ -47,29 +47,30 @@ class InvokeButtonController extends Controller {
     getNodes() {
         let canvasState = this.images.getState();
         return canvasState.map((datum) => {
-            let formattedState = {x: datum.x, y: datum.y, w: datum.w, h: datum.h};
+            let formattedState = {
+                "x": datum.x,
+                "y": datum.y,
+                "w": datum.w,
+                "h": datum.h,
+                "prompt": datum.prompt,
+                "negative_prompt": datum.negativePrompt,
+                "inference_steps": datum.inferenceSteps,
+                "guidance_scale": datum.guidanceScale,
+                "scale_to_model_size": datum.scaleToModelSize,
+                "remove_background": datum.removeBackground
+            };
             switch (datum.classname) {
                 case "ImageEditorPromptNodeView":
                     formattedState["type"] = "prompt";
                     formattedState["infer"] = true;
-                    formattedState["prompt"] = datum.prompt;
-                    formattedState["negative_prompt"] = datum.negativePrompt;
-                    formattedState["guidance_scale"] = datum.guidanceScale;
-                    formattedState["inference_steps"] = datum.inferenceSteps;
-                    formattedState["remove_background"] = datum.removeBackground;
                     break;
                 case "ImageEditorScribbleNodeView":
                     formattedState["type"] = "scribble";
                     formattedState["image"] = datum.src;
                     formattedState["control"] = true;
                     formattedState["controlnet"] = "scribble";
-                    formattedState["prompt"] = datum.prompt;
                     formattedState["invert"] = true;
                     formattedState["process_control_image"] = false;
-                    formattedState["negative_prompt"] = datum.negativePrompt;
-                    formattedState["guidance_scale"] = datum.guidanceScale;
-                    formattedState["inference_steps"] = datum.inferenceSteps;
-                    formattedState["remove_background"] = datum.removeBackground;
                     break;
                 case "ImageEditorImageNodeView":
                     formattedState["type"] = "image";
@@ -85,11 +86,6 @@ class InvokeButtonController extends Controller {
                     formattedState["controlnet"] = datum.controlnet;
                     formattedState["invert"] = datum.colorSpace == "invert";
                     formattedState["invert_mask"] = true; // The UI is inversed
-                    formattedState["prompt"] = datum.prompt;
-                    formattedState["negative_prompt"] = datum.negativePrompt;
-                    formattedState["guidance_scale"] = datum.guidanceScale;
-                    formattedState["inference_steps"] = datum.inferenceSteps;
-                    formattedState["remove_background"] = datum.removeBackground;
                     formattedState["process_control_image"] = datum.processControlImage;
                     break;
                 default:
