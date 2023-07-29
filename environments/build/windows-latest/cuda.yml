@@ -39,7 +39,7 @@ dependencies:
     - torchmetrics>=1.0.0,<1.1
     - kornia>=0.6,<0.7
     - polygraphy>=0.47,<0.48
-    - accelerate>=0.21<0.22
+    - accelerate>=0.21,<0.22
     - tqdm>=4.27
     - safetensors>=0.3,<0.4
     - realesrgan>=0.3,<0.4

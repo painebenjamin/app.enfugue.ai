@@ -3,17 +3,18 @@ channels:
   - pytorch
   - defaults
   - nvidia
-  - nvidia/label/cuda-11.7.1
+  - nvidia/label/cuda-11.7
   - conda-forge
 dependencies:
   - python=3.10.11
   - pip=23.1.2
   - cudatoolkit=11.7
-  - pytorch=2.0.1
   - numpy=1.24.3
   - torchvision=0.14.1
+  - pytorch=1.13.1
   - pip:
-    - torch==2.0.1+cu117
+    - torch==1.13.1+cu117
+    - brotli>=1.0.9
     - cheroot>=9.0.0
     - nvidia-pyindex>=1.0.9
     - pibble[cherrypy]>=0.6
@@ -53,9 +54,11 @@ dependencies:
     - pyarrow>=12.0.1,<13
     - torchsde>=0.2.5,<0.3
     - timm>=0.9.2,<1.0
-    - enfugue
+    - lycoris-lora==1.7.2
+    - certifi>=2023.5.7
     - git+https://github.com/CompVis/taming-transformers.git@master#egg=taming-transformers
     - git+https://github.com/openai/CLIP.git@main#egg=clip
     - git+https://github.com/CompVis/stable-diffusion.git@main#egg=latent-diffusion
+    - https://cdn.enfugue.ai/tensorrt-8.6.1-cp310-none-win_amd64.whl
     - --extra-index-url https://download.pytorch.org/whl/cu117
     - --extra-index-url https://pypi.ngc.nvidia.com
