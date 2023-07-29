@@ -6,12 +6,11 @@
 Enfugue is a feature-rich self-hosted Stable Diffusion web application.
 </h2>
 <p align="center">
-	<em>Forever open source, forever free.</em>
+<em>Forever open source and totally free.</em>
 </p>
 
 <p align="center">
-    <img width="400" src="https://github.com/painebenjamin/app.enfugue.ai/blob/main/docs/screencap.png?raw=true" alt="The ENFUGUE interface zoomed out" />
-    <img width="400" src="https://github.com/painebenjamin/app.enfugue.ai/blob/main/docs/screencap-zoomed-in.png?raw=true" alt="The ENFUGUE interface zoomed in">
+    <img src="https://github.com/painebenjamin/app.enfugue.ai/assets/57536852/6f6c6df9-dbb2-40d7-bd8c-834de9c22b20" alt="The ENFUGUE interface" />
 </p>
 
 # Feature Summary
@@ -27,7 +26,8 @@ Enfugue is a feature-rich self-hosted Stable Diffusion web application.
 - 🕹️ **Take Control:** Region prompting and Controlnet are standard.
 - 🔌 **Plug Away:** All features are available via JSON API, or can be added to your Python scripts using our `diffusers` extensions.
 - 👁️ **Eye Queue:** Have things to do? Send an unlimited\* number of invocations at once, let Enfugue take care of making sure they all get done.
-- ☁️ **Your Own Cloud:** All of the best features you would expect from a SaaS application, with the security of knowing nothing ever leaves your computer. Results are kept by the app until you no longer need them, and your browser keeps a lengthy history of workspaces so you can always revisit where you left off. 
+- ☁️ **Your Own Cloud:** All of the best features you would expect from a SaaS application, with the security of knowing nothing ever leaves your computer. Results are kept by the app until you no longer need them, and your browser keeps a lengthy history of workspaces so you can always revisit where you left off.
+- ⚙️ **Configurable:** Numerous configuration options are available, both in the GUI and via configuration file. Change IP addresses, ports, SSL configuration, directories, and much more.
 
 *\* configurable in-app, defaults to five queued invocations*
 
@@ -35,9 +35,9 @@ Enfugue is a feature-rich self-hosted Stable Diffusion web application.
 
 ## As Easy as Possible: Self-Contained Executable
 
-1. Navigate to [the Releases page](https://github.com/painebenjamin/app.enfugue.ai/releases) and download the latest release as a `.zip` (Windows) or `.tar.gz` (Linux).
+1. Navigate to [the Releases page](https://github.com/painebenjamin/app.enfugue.ai/releases) and download the latest release as `.zip` (Windows) or `.tar.gz` (MacOS & Linux).
 2. Extract the archive anywhere. See the releases page for details on extraction.
-3. Navigate to the archive folder and run the executable file - `enfugue-server.exe` for Windows, or `enfugue.sh` for Linux.
+3. Navigate to the archive folder and run the executable file - `enfugue-server.exe` for Windows, or `enfugue.sh` for Linux and MacOS. Some situations may require additional commands, see the releases page for more details.
 
 On windows, you will now see the Enfugue icon in the bottom-right-hand corner of your screen. Click on this to exit the server when you wish. To enable TensorRT for Windows follow the steps under **Windows TensorRT Support** below.
 
@@ -54,7 +54,7 @@ This instruction assumes you are using a variant of [Conda](https://docs.conda.i
 
 ## À la Carte
 
-You can install `enfugue` into any other latent diffusion environment using `pip install enfugue`. If you are on Linux and want to install TensorRT support as well, use `pip install enfugue[tensorrt]`. If you are on Windows, this will not work, you will need to install the python packages from source as detailed below.
+You can install `enfugue` into any other latent diffusion Python environment using `pip install enfugue`. If you are on Linux and want to install TensorRT support as well, use `pip install enfugue[tensorrt]`. If you are on Windows, this will not work, you will need to install the python packages from source as detailed below.
 
 ## Windows Nvidia TensorRT Support
 
@@ -124,9 +124,9 @@ While making images, the canvas will be replaced with in-progress samples, and t
     <img src="https://github.com/painebenjamin/app.enfugue.ai/blob/main/docs/samples.png?raw=true" alt="The ENFUGUE interface canvas showing in-progress samples" />
 </p>
 
-You can move the entire canvas (pan) by placing your cursor over it then holding down the **middle-mouse** button, or alternatively **Ctrl+Left-Mouse-Button**, and move the canvas around.
+You can move the entire canvas (pan) by placing your cursor over it then holding down the **middle-mouse** button, or alternatively **Ctrl+Left-Mouse-Button** or **Alt+Left-Mouse-Button** (**Option⌥+Left-Mouse-Button on MacOS**) , and move the canvas around.
 
-Zoom in and out using the scroll wheel or scroll gestures. You can also click the `+` and `-` icons in the bottom-right-hand corner. Click 'RESET' at any time to bring the canvas back.
+Zoom in and out using the scroll wheel or scroll gestures. You can also click the `+` and `-` icons in the bottom-right-hand corner. Click 'RESET' at any time to bring the canvas back to the initial position.
 
 <p align="center">
     <img src="https://github.com/painebenjamin/app.enfugue.ai/blob/main/docs/zoom-and-pan.png?raw=true" alt="The ENFUGUE interface zoomed in and panned to the side." />
@@ -186,13 +186,23 @@ The header contains useful information about your GPU, as well as two important 
 
 ### The Model Picker
 
-A special callout should be made to the Model Picker, the input in the top-left-hand corner of the Canvas:
+A special callout should be made to the Model Picker, the input in the top-left-hand corner of the Canvas. This allows you to pick between installed checkpoints and pre-configured models:
 
-![image](https://github.com/painebenjamin/app.enfugue.ai/assets/57536852/122837ea-52d7-45db-b1fe-47b655515efa)
+<p align="center">
+	<img src="https://github.com/painebenjamin/app.enfugue.ai/assets/57536852/82f32e7e-1775-40ab-96ca-771352dd22bc" /><br />
+ 	<em>Selecting between installed checkpoints and preconfigured models.</em>
+</p>
 
-This is essential to unlock the best results from enfugue. After downloading a model from Civit AI, uploading it through the menu at `System` -> `Installation`, or manually playing them into the correct directory (`~/.cache/enfugue/checkpoint`, `~/.cache/enfugue/lora`, etc, by default, or as configured by the user during initialization or using the `system > Installation Manager` menu item,) use the **Model Manager** from the `Models` menu to create a pre-configured set of model, LoRA, inversions, and default/trigger prompts.
+After downloading a model from Civit AI, or uploading one through the menu at `System` -> `Installation`, or manually playing one into the correct directory (`~/.cache/enfugue/checkpoint`, `~/.cache/enfugue/lora`, etc, by default, or as configured by the user during initialization or using the `System > Installation Manager` menu item,) use the **Model Manager** from the `Models` menu to create a pre-configured set of model, LoRA, LyCORIS, Textual Inversions, default/trigger prompts, and other default values.
 
 ![image](https://github.com/painebenjamin/app.enfugue.ai/assets/57536852/78c7c05f-4af5-47a0-ab2b-da80ae38e035)
+
+You can also create configurations on-the-fly when selecting a checkpoint from the model picker.
+
+<p align="center">
+	<img src="https://github.com/painebenjamin/app.enfugue.ai/assets/57536852/c4cb4497-dd60-4e47-90a4-64810d04c447" /><br />
+ 	<em>Using advanced configuration after selecting a checkpoint.</em>
+</p>
 
 ## Tensor RT
 
@@ -215,7 +225,7 @@ After selecting a model, you will see a small icon next to the model name with a
 When enabled, authentication will be required when using Enfugue. This enables system administrators to create a two-tiered hierarchy of users and administrators, where users are not permitted to modify models or the installation itself; they are only allowed to use the pre-configured setup. The primary impetus behind this was to create the ability for parents to curate an environment for children to safely experiment with generative AI.
 
 <p align="center">
-    <img src="https://github.com/painebenjamin/app.enfugue.ai/blob/main/docs/settings.png?raw=true" alt="A window in the ENFUGUE interface offering multiple settings options" />
+    <img src="https://github.com/painebenjamin/app.enfugue.ai/assets/57536852/c1603304-ad73-48a3-91c9-aecbffbe4841" alt="A window in the ENFUGUE interface offering multiple settings options" />
 </p>
 
 Once enabled in the settings menu, you will be taken to a login screen. The default user and password are both `enfugue`, all lowercase. You can change any other user's password as an administrator. 
@@ -261,7 +271,7 @@ Additional resources will be made available as they are needed, so don't hesitat
 
 ## The Enfugue Diffusion Pipeline
 
-Enfugue uses an extension of `transformers.StableDiffusionPipeline` that provides a number of additional arguments over the typical signature, weaving between `txt2img`, `img2img`, `inpaint` and `controlnet` as necessary. It also has TensorRT support for all models in the pipeline. Start [here](https://github.com/painebenjamin/app.enfugue.ai/tree/main/src/python/enfugue) for documentation on how it is used.
+Enfugue uses an extension of `diffusers.StableDiffusionPipeline` that provides a number of additional arguments over the typical signature, weaving between `txt2img`, `img2img`, `inpaint` and `controlnet` as necessary. It also has TensorRT support for all models in the pipeline. Start [here](https://github.com/painebenjamin/app.enfugue.ai/tree/main/src/python/enfugue) for documentation on how it is used.
 
 ## Building
 
@@ -283,4 +293,4 @@ For anyone interested in building from source themselves, simply check out this 
 
 ## Running directly from Source
 
-To run directly from source (in development mode,) use the `scripts/run-dev.sh` script. This works on Windows (in Cygwin) and on Linux.
+To run directly from source (in development mode,) use the `scripts/run-dev.sh` script. This works on Windows (in Cygwin) and on Linux, it has not been tested on MacOS.
