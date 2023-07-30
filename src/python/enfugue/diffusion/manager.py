@@ -2184,7 +2184,7 @@ class DiffusionPipelineManager:
                     pipeline.save_pretrained(self.model_diffusers_dir)
             if not self.tensorrt_is_ready:
                 for lora, weight in self.lora:
-                    logger.debug(f"Adding LoRA {lora} to pipeline")
+                    logger.debug(f"Adding LoRA {lora} to pipeline with weight {weight}")
                     pipeline.load_lora_weights(lora, multiplier=weight)
                 for lycoris, weight in self.lycoris:
                     logger.debug(f"Adding lycoris {lycoris} to pipeline")
@@ -2324,17 +2324,6 @@ class DiffusionPipelineManager:
                 if self.should_cache_refiner:
                     logger.debug("Saving pipeline to pretrained.")
                     refiner_pipeline.save_pretrained(self.refiner_diffusers_dir)
-            if not self.refiner_tensorrt_is_ready:
-                for lora, weight in self.lora:
-                    logger.debug(f"Adding LoRA {lora} to refiner pipeline")
-                    refiner_pipeline.load_lora_weights(lora, multiplier=weight)
-                for lycoris, weight in self.lycoris:
-                    logger.debug(f"Adding lycoris {lycoris} to refiner pipeline")
-                    refiner_pipeline.load_lycoris_weights(lycoris, multiplier=weight)
-                for inversion in self.inversion:
-                    logger.debug(f"Adding textual inversion {inversion} to refiner pipeline")
-                    refiner_pipeline.load_textual_inversion(inversion)
-
             # load scheduler
             if self.scheduler is not None:
                 refiner_pipeline.scheduler = self.scheduler.from_config(refiner_pipeline.scheduler_config)
@@ -2466,7 +2455,7 @@ class DiffusionPipelineManager:
                     inpainter_pipeline.save_pretrained(self.inpainter_diffusers_dir)
             if not self.inpainter_tensorrt_is_ready:
                 for lora, weight in self.lora:
-                    logger.debug(f"Adding LoRA {lora} to inpainter pipeline")
+                    logger.debug(f"Adding LoRA {lora} to inpainter pipeline with weight {weight}")
                     inpainter_pipeline.load_lora_weights(lora, multiplier=weight)
                 for lycoris, weight in self.lycoris:
                     logger.debug(f"Adding lycoris {lycoris} to inpainter pipeline")

@@ -630,7 +630,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
     def load_lycoris_weights(
         self,
         weights_path: str,
-        multiplier: int = 1,
+        multiplier: float = 1.0,
         dtype: torch.dtype = torch.float32,
         **kwargs: Any,
     ) -> None:
@@ -653,20 +653,83 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
     def load_lora_weights(
         self,
         pretrained_model_name_or_path_or_dict: Union[str, Dict[str, torch.Tensor]],
-        multiplier: int = 1,
+        multiplier: float = 1.0,
+        dtype: torch.dtype = torch.float32,
+        **kwargs: Any,
+    ) -> None:
+        """
+        Call the appropriate adapted fix based on pipeline class
+        """
+        if self.is_sdxl:
+            # Call SDXL fix
+            return self.load_sdxl_lora_weights(
+                pretrained_model_name_or_path_or_dict,
+                multiplier=multiplier,
+                dtype=dtype,
+                **kwargs
+            )
+        elif (
+            isinstance(pretrained_model_name_or_path_or_dict, str) and
+            pretrained_model_name_or_path_or_dict.endswith(".safetensors")
+        ):
+            # Call safetensors fix
+            return self.load_safetensors_lora_weights(
+                pretrained_model_name_or_path_or_dict,
+                multiplier=multiplier,
+                dtype=dtype,
+                **kwargs
+            )
+        # Return parent
+        return super(EnfugueStableDiffusionPipeline, self).load_lora_weights(
+            pretrained_model_name_or_path_or_dict, **kwargs
+        )
+
+    def load_sdxl_lora_weights(
+        self, 
+        pretrained_model_name_or_path_or_dict: Union[str, Dict[str, torch.Tensor]],
+        multiplier: float = 1.0,
+        **kwargs: Any
+    ) -> None:
+        """
+        Fix adapted from https://github.com/huggingface/diffusers/blob/4a4cdd6b07a36bbf58643e96c9a16d3851ca5bc5/src/diffusers/pipelines/stable_diffusion_xl/pipeline_stable_diffusion_xl.py
+        """
+        state_dict, network_alphas = self.lora_state_dict(
+            pretrained_model_name_or_path_or_dict,
+            unet_config=self.unet.config,
+            **kwargs,
+        )
+        self.load_lora_into_unet(state_dict, network_alphas=network_alphas, unet=self.unet)
+
+        text_encoder_state_dict = {k: v for k, v in state_dict.items() if "text_encoder." in k}
+        if len(text_encoder_state_dict) > 0:
+            self.load_lora_into_text_encoder(
+                text_encoder_state_dict,
+                network_alphas=network_alphas,
+                text_encoder=self.text_encoder,
+                prefix="text_encoder",
+                lora_scale=multiplier,
+            )
+
+        text_encoder_2_state_dict = {k: v for k, v in state_dict.items() if "text_encoder_2." in k}
+        if len(text_encoder_2_state_dict) > 0:
+            self.load_lora_into_text_encoder(
+                text_encoder_2_state_dict,
+                network_alphas=network_alphas,
+                text_encoder=self.text_encoder_2,
+                prefix="text_encoder_2",
+                lora_scale=multiplier,
+            )
+
+    def load_safetensors_lora_weights(
+        self,
+        pretrained_model_name_or_path_or_dict: Union[str, Dict[str, torch.Tensor]],
+        multiplier: float = 1.0,
         dtype: torch.dtype = torch.float32,
         **kwargs: Any,
     ) -> None:
         """
         Fix adapted from here: https://github.com/huggingface/diffusers/issues/3064#issuecomment-1545013909
         """
-        if not isinstance(
-            pretrained_model_name_or_path_or_dict, str
-        ) or not pretrained_model_name_or_path_or_dict.endswith(".safetensors"):
-            return super(EnfugueStableDiffusionPipeline, self).load_lora_weights(
-                pretrained_model_name_or_path_or_dict, **kwargs
-            )
-
         LORA_PREFIX_UNET = "lora_unet"
         LORA_PREFIX_TEXT_ENCODER = "lora_te"
 

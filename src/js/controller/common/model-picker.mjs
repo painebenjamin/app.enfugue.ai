@@ -402,7 +402,10 @@ class ModelPickerController extends Controller {
         }
         if (!isEmpty(newState.modelConfig)) {
             this.modelConfigurationFormView.setValues(newState.modelConfig).then(
-                () => this.modelConfigurationFormView.submit()
+                setTimeout(
+                    () => this.modelConfigurationFormView.submit(),
+                    250
+                )
             );
         }
     }
@@ -543,7 +546,6 @@ class ModelPickerController extends Controller {
         this.application.container.appendChild(await this.modelConfigurationFormView.render());
 
         this.subscribe("invocationError", (payload) => {
-            console.error(payload);
             if (!isEmpty(payload.metadata) && !isEmpty(payload.metadata.tensorrt_build)) {
                 let network = payload.metadata.tensorrt_build.network,
                     networkName = ModelTensorRTStatusView.supportedNetworks[network],

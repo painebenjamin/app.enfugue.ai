@@ -22,7 +22,6 @@ dependencies:
     - pibble[cherrypy]>=0.6
     - numpy>=1.24.3
     - colored>=1.4,<1.5
-    - diffusers>=0.18,<0.19
     - albumentations>=0.4.3,<0.5
     - opencv-python>=4.7.0.72,<4.8
     - pudb==2019.2
@@ -67,5 +66,6 @@ dependencies:
     - git+https://github.com/CompVis/taming-transformers.git@master#egg=taming-transformers
     - git+https://github.com/openai/CLIP.git@main#egg=clip
     - git+https://github.com/CompVis/stable-diffusion.git@main#egg=latent-diffusion
+    - git+https://github.com/huggingface/diffusers@main#egg=diffusers
     - --extra-index-url https://download.pytorch.org/whl/cu117
     - --extra-index-url https://pypi.ngc.nvidia.com
