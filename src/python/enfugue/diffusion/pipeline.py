@@ -446,6 +446,44 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         """
         return self.tokenizer_2 is not None and self.text_encoder_2 is not None
 
+    @property
+    def module_size(self) -> int:
+        """
+        Returns the size of the pipeline models in bytes.
+        """
+        size = 0
+        for module in self.get_modules():
+            module_size = 0
+            for param in module.parameters():
+                size += param.nelement() * param.element_size()
+            for buffer in module.buffers():
+                size += buffer.nelement() * buffer.element_size()
+        return size
+    
+    def get_size_from_module(self, module: torch.nn.Module) -> int:
+        """
+        Gets the size of a module in bytes
+        """
+        size = 0
+        for param in module.parameters():
+            size += param.nelement() * param.element_size()
+        for buffer in module.buffers():
+            size += buffer.nelement() * buffer.element_size()
+        return size
+
+    def get_modules(self) -> List[torch.nn.Module]:
+        """
+        Gets modules in this pipeline ordered in decreasing size.
+        """
+        modules = []
+        module_names, _ = self._get_signature_keys(self)
+        for name in module_names:
+            module = getattr(self, name, None)
+            if isinstance(module, torch.nn.Module):
+                modules.append(module)
+        modules.sort(key = lambda item: self.get_size_from_module(item), reverse=True)
+        return modules
+
     def encode_prompt(
         self,
         prompt: Optional[str],
@@ -1818,7 +1856,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         chunking_size: Optional[int] = None,
         chunking_blur: Optional[int] = None,
         strength: float = 0.8,
-        num_inference_steps: int = 50,
+        num_inference_steps: int = 40,
         guidance_scale: float = 7.5,
         conditioning_scale: float = 1.0,
         num_images_per_prompt: int = 1,

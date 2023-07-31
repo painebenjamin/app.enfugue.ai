@@ -170,6 +170,11 @@ class DiffusionEngine:
                     break
                 time.sleep(sleep_time)
         if hasattr(self, "process") and self.process.is_alive():
+            logger.debug("Sending term one more time...")
+            self.process.terminate()
+            time.sleep(sleep_time)
+
+        if hasattr(self, "process") and self.process.is_alive():
             raise IOError("Couldn't terminate process")
 
         del self.process
@@ -241,6 +246,8 @@ class DiffusionEngine:
         poll_delay_seconds = DiffusionEngineProcess.POLLING_DELAY_MS / 500
 
         while True:
+            if not self.is_alive():
+                raise IOError("Process died while waiting for result.")
             to_raise, to_return = None, None
             all_results = []
             try:

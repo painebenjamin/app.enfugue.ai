@@ -353,7 +353,7 @@ class UpscaleForm extends FormView {
                     "minimum": 32,
                     "maximum": 512,
                     "step": 8,
-                    "value": 64,
+                    "value": 128,
                     "tooltip": "The number of pixels to move the frame by during diffusion. Smaller values produce better results, but take longer."
                 }
             },
@@ -364,7 +364,7 @@ class UpscaleForm extends FormView {
                     "minimum": 32,
                     "maximum": 512,
                     "step": 8,
-                    "value": 64,
+                    "value": 128,
                     "tooltip": "The number of pixels to feather the edges of the frame by during diffusion. Smaller values result in more pronounced lines, and large values result in a smoother overall image."
                 }
             },
@@ -420,7 +420,8 @@ class UpscaleController extends Controller {
                 "upscaleDiffusionSteps": [100],
                 "upscaleDiffusionStrength": [0.2],
                 "upscaleDiffusionGuidanceScale": [12],
-                "upscaleDiffusionChunkingSize": 64,
+                "upscaleDiffusionChunkingSize": 128,
+                "upscaleDiffusionChunkingBlur": 128,
                 "upscaleDiffusionScaleChunkingSize": true,
                 "upscaleDiffusionScaleChunkingBlur": true
             }

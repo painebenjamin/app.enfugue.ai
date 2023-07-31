@@ -45,14 +45,14 @@ Configuration.model = {
         engineSize: 512,
         chunkingSize: 64,
         chunkingBlur: 64,
-        guidanceScale: 7.5,
-        inferenceSteps: 50,
+        guidanceScale: 7,
+        inferenceSteps: 40,
         interval: 1000,
-        upscaleDiffusionSteps: 80,
-        upscaleDiffusionGuidanceScale: 10,
-        upscaleDiffusionStrength: 0.15,
-        upscaleDiffusionChunkingSize: 64,
-        upscaleDiffusionChunkingBlur: 64,
+        upscaleDiffusionSteps: 100,
+        upscaleDiffusionGuidanceScale: 12,
+        upscaleDiffusionStrength: 0.2,
+        upscaleDiffusionChunkingSize: 128,
+        upscaleDiffusionChunkingBlur: 128,
         errors: {
             consecutive: 2
         }

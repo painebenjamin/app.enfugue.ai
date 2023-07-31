@@ -10,7 +10,7 @@ import datetime
 import traceback
 import threading
 
-from typing import Type, Union, Any, Optional, List, Tuple, Dict, Callable, TYPE_CHECKING
+from typing import Type, Union, Any, Optional, List, Tuple, Dict, Callable, Literal, TYPE_CHECKING
 from hashlib import md5
 
 from pibble.api.configuration import APIConfiguration
@@ -507,7 +507,7 @@ class DiffusionPipelineManager:
         Gets the base engine size in pixels when chunking (default always.)
         """
         if not hasattr(self, "_size"):
-            self._size = int(self.configuration.get("enfugue.size", DiffusionPipelineManager.DEFAULT_SIZE))
+            self._size = int(self.configuration.get("enfugue.size", 1024 if self.is_sdxl else 512))
         return self._size
 
     @size.setter
@@ -2098,6 +2098,20 @@ class DiffusionPipelineManager:
             del pipe
             self.clear_memory()
 
+    def swap_pipelines(self, to_gpu: EnfugueStableDiffusionPipeline, to_cpu: EnfugueStableDiffusionPipeline) -> None:
+        """
+        Swaps pipelines in and out of GPU.
+        """
+        modules_to_gpu = to_gpu.get_modules()
+        modules_to_cpu = to_cpu.get_modules()
+        modules = max(len(modules_to_gpu), len(modules_to_cpu))
+        for i in range(modules):
+            if i < len(modules_to_gpu):
+                modules_to_gpu[i].to(self.device, dtype=self.dtype)
+            if i < len(modules_to_cpu):
+                modules_to_cpu[i].to(torch.device("cpu"), dtype=torch.float32)
+            self.clear_memory()
+    
     @property
     def pipeline(self) -> EnfugueStableDiffusionPipeline:
         """
@@ -2500,15 +2514,23 @@ class DiffusionPipelineManager:
             logger.debug(f'Unloading pipeline for reason "{reason}"')
             del self.pipeline
 
-    def offload_pipeline(self) -> None:
+    def offload_pipeline(self, intention: Optional[Literal["inpainting", "refining"]] = None) -> None:
         """
         Offloads the pipeline to CPU if present.
         """
         if hasattr(self, "_pipeline") and not self.pipeline_is_offloaded:
-            import torch
-
-            logger.debug("Offloading pipeline to CPU.")
-            self._pipeline = self._pipeline.to("cpu", torch_dtype=torch.float32)
+            if intention == "inpainting" and self.inpainter_is_offloaded:
+                logger.debug("Swapping inpainter out of CPU and pipeline into CPU")
+                self.swap_pipelines(self._inpainter_pipeline, self._pipeline)
+                self._inpainter_pipeline_is_offloaded = False
+            elif intention == "refining" and self.refiner_is_offloaded:
+                logger.debug("Swapping refiner out of CPU and pipeline into CPU")
+                self.swap_pipelines(self._refiner_pipeline, self._pipeline)
+                self._refiner_pipeline_is_offloaded = False
+            else:
+                import torch
+                logger.debug("Offloading pipeline to CPU.")
+                self._pipeline = self._pipeline.to("cpu", torch_dtype=torch.float32)
             self._pipeline_is_offloaded = True
             self.clear_memory()
 
@@ -2536,15 +2558,23 @@ class DiffusionPipelineManager:
             logger.debug(f'Unloading refiner pipeline for reason "{reason}"')
             del self.refiner_pipeline
 
-    def offload_refiner(self) -> None:
+    def offload_refiner(self, intention: Optional[Literal["inpainting", "inference"]] = None) -> None:
         """
         Offloads the pipeline to CPU if present.
         """
         if hasattr(self, "_refiner_pipeline") and not self.refiner_is_offloaded:
-            import torch
-
-            logger.debug("Offloading refiner to CPU")
-            self._refiner_pipeline = self._refiner_pipeline.to("cpu", torch_dtype=torch.float32)
+            if intention == "inference" and self.pipeline_is_offloaded:
+                logger.debug("Swapping pipeline out of CPU and refiner into CPU")
+                self.swap_pipelines(self._pipeline, self._refiner_pipeline)
+                self._pipeline_is_offloaded = False
+            elif intention == "inpainting" and self.inpainter_is_offloaded:
+                logger.debug("Swapping inpainter out of CPU and refiner into CPU")
+                self.swap_pipelines(self._inpainter_pipeline, self._refiner_pipeline)
+                self._inpainter_pipeline_is_offloaded = False
+            else:
+                import torch
+                logger.debug("Offloading refiner to CPU")
+                self._refiner_pipeline = self._refiner_pipeline.to("cpu", torch_dtype=torch.float32)
             self._refiner_pipeline_is_offloaded = True
             self.clear_memory()
 
@@ -2572,7 +2602,7 @@ class DiffusionPipelineManager:
             logger.debug(f'Unloading inpainter pipeline for reason "{reason}"')
             del self.inpainter_pipeline
 
-    def offload_inpainter(self) -> None:
+    def offload_inpainter(self, intention: Optional[Literal["inference", "refining"]] = None) -> None:
         """
         Offloads the pipeline to CPU if present.
         """
@@ -2581,6 +2611,21 @@ class DiffusionPipelineManager:
 
             logger.debug("Offloading inpainter to CPU")
             self._inpainter_pipeline = self._inpainter_pipeline.to("cpu", torch_dtype=torch.float32)
+            self._inpainter_pipeline_is_offloaded = True
+            self.clear_memory()
+            
+            if intention == "inference" and self.pipeline_is_offloaded:
+                logger.debug("Swapping pipeline out of CPU and inpainter into CPU")
+                self.swap_pipelines(self._pipeline, self._inpainter_pipeline)
+                self._pipeline_is_offloaded = False
+            elif intention == "refining" and self.refiner_is_offloaded:
+                logger.debug("Swapping refiner out of CPU and inpainter into CPU")
+                self.swap_pipelines(self._refiner_pipeline, self._inpainter_pipeline)
+                self._refiner_pipeline_is_offloaded = False
+            else:
+                import torch
+                logger.debug("Offloading inpainter to CPU")
+                self._inpainter_pipeline = self._inpainter_pipeline.to("cpu", torch_dtype=torch.float32)
             self._inpainter_pipeline_is_offloaded = True
             self.clear_memory()
 
@@ -2770,18 +2815,18 @@ class DiffusionPipelineManager:
         self.start_keepalive()
         try:
             inpainting = kwargs.get("mask", None) is not None
-
+            intention = "inpainting" if inpainting else "inference"
             if inpainting:
                 size = self.inpainter_size
                 if self.pipeline_switch_mode == "offload":
-                    self.offload_pipeline()
+                    self.offload_pipeline(intention) # type: ignore
                 elif self.pipeline_switch_mode == "unload":
                     self.unload_pipeline("switching to inpainting")
                 self.reload_inpainter()
             else:
                 size = self.size
                 if self.pipeline_switch_mode == "offload":
-                    self.offload_inpainter()
+                    self.offload_inpainter(intention) # type: ignore
                 elif self.pipeline_switch_mode == "unload":
                     self.unload_inpainter("switching from inpainting")
                 self.reload_pipeline()
@@ -2832,9 +2877,9 @@ class DiffusionPipelineManager:
                             self.unload_pipeline("switching to refining")
                     elif should_offload:
                         if inpainting:
-                            self.offload_inpainter()
+                            self.offload_inpainter("refining")
                         else:
-                            self.offload_pipeline()
+                            self.offload_pipeline("refining")
                     else:
                         logger.debug("Keeping pipeline in memory")
 
@@ -2893,7 +2938,7 @@ class DiffusionPipelineManager:
                             refined_image = refined_image.resize((width, height))  # type: ignore
                         result["images"][i] = refined_image  # type: ignore
                     if self.pipeline_switch_mode == "offload":
-                        self.offload_refiner()
+                        self.offload_refiner(intention) # type: ignore
                     elif self.pipeline_switch_mode == "unload":
                         self.unload_refiner("unloading for next inference")
                     else:

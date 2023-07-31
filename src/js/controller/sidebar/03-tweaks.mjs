@@ -12,8 +12,8 @@ import {
     MultiDiffusionSchedulerInputView
 } from "../common/model-manager.mjs";
 
-let defaultGuidanceScale = 7.5,
-    defaultInferenceSteps = 50;
+let defaultGuidanceScale = 7,
+    defaultInferenceSteps = 40;
 
 /**
  * The forms that allow for tweak inputs
