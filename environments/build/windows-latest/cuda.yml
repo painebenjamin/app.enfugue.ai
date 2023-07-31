@@ -49,12 +49,8 @@ dependencies:
     - pydantic==1.10.10
     - html2text==2020.1.16
     - polygraphy>=0.47,<0.48
-    - onnx==1.12
-    - onnxruntime-gpu==1.12.1
-    - onnx-graphsurgeon==0.3.26
     - mypy==1.2.0
     - mypy-extensions==1.0.0
-    - types-protobuf>=4.23.0.1,<5.0
     - types-requests>=2.30,<3.0
     - types-setuptools>=67.7,<68
     - types-urllib3>=1.26.25,<2.0
@@ -71,6 +67,5 @@ dependencies:
     - git+https://github.com/openai/CLIP.git@main#egg=clip
     - git+https://github.com/CompVis/stable-diffusion.git@main#egg=latent-diffusion
     - git+https://github.com/huggingface/diffusers@main#egg=diffusers
-    - https://cdn.enfugue.ai/tensorrt-8.6.1-cp310-none-win_amd64.whl
     - --extra-index-url https://download.pytorch.org/whl/nightly/cu121
     - --extra-index-url https://pypi.ngc.nvidia.com
