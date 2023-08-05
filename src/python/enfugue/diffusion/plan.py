@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-import math
+import os
 import PIL
 import PIL.Image
 import PIL.ImageDraw
 import PIL.ImageOps
+import math
 
 from typing import (
     Optional,
@@ -17,6 +18,8 @@ from typing import (
     TypedDict,
     TYPE_CHECKING,
 )
+
+from pibble.util.strings import get_uuid
 
 from enfugue.util import (
     logger,
@@ -147,7 +150,7 @@ class DiffusionStep:
         self.process_control_image = process_control_image
         self.scale_to_model_size = scale_to_model_size
 
-    def get_serialization_dict(self) -> Dict[str, Any]:
+    def get_serialization_dict(self, image_directory: Optional[str]=None) -> Dict[str, Any]:
         """
         Gets the dictionary that will be returned to serialize
         """
@@ -179,10 +182,14 @@ class DiffusionStep:
                 else:
                     serialize_children.append(child)
                     serialized[key] = len(serialize_children) - 1
+            elif child is not None and image_directory is not None:
+                path = os.path.join(image_directory, f"{get_uuid()}.png")
+                child.save(path)
+                serialized[key] = path
             else:
                 serialized[key] = child
 
-        serialized["children"] = [child.get_serialization_dict() for child in serialize_children]
+        serialized["children"] = [child.get_serialization_dict(image_directory) for child in serialize_children]
         return serialized
 
     @property
@@ -214,7 +221,7 @@ class DiffusionStep:
         if isinstance(self.mask, str):
             mask = PIL.Image.open(self.mask)
         elif isinstance(self.mask, PIL.Image.Image):
-            mask =self.mask
+            mask = self.mask
         else:
             raise ValueError("Cannot get bounding box for empty or dynamic mask.")
         
@@ -223,20 +230,20 @@ class DiffusionStep:
 
         # Add feather
         x0 = max(0, x0 - self.inpaint_feather)
-        x1 = min(width - 1, x1 + self.inpaint_feather)
+        x1 = min(width, x1 + self.inpaint_feather)
         y0 = max(0, y0 - self.inpaint_feather)
-        y1 = min(height - 1, y1 + self.inpaint_feather)
-
+        y1 = min(height, y1 + self.inpaint_feather)
+        
         # Create centered frame about the bounding box
         bbox_width = x1 - x0
         bbox_height = y1 - y0
         if bbox_width < pipeline_size:
             x0 = max(0, x0 - ((pipeline_size - bbox_width) // 2))
-            x1 = min(width - 1, x0 + pipeline_size)
+            x1 = min(width, x0 + pipeline_size)
             x0 = max(0, x1 - pipeline_size)
         if bbox_height < pipeline_size:
             y0 = max(0, y0 - ((pipeline_size - bbox_height) // 2))
-            y1 = min(width - 1, y0 + pipeline_size)
+            y1 = min(height, y0 + pipeline_size)
             y0 = max(0, y1 - pipeline_size)
         return [(x0, y0), (x1, y1)]
 
@@ -383,7 +390,7 @@ class DiffusionStep:
                 pixel_ratio = (bbox_height * bbox_width) / (mask_width * mask_height)
                 pixel_savings = (1.0 - pixel_ratio) * 100
                 if pixel_ratio < 0.75:
-                    logger.debug(f"Calculated pixel area savings of {pixel_savings:.1f}% by cropping prior to inpaint")
+                    logger.debug(f"Calculated pixel area savings of {pixel_savings:.1f}% by cropping to ({x0}, {y0}), ({x1}, {y1}) ({bbox_width}px by {bbox_height}px)")
                     # Disable refining
                     invocation_kwargs["refiner_strength"] = 0
                     image_position = (x0, y0)
@@ -500,6 +507,9 @@ class DiffusionStep:
                 continue
             if isinstance(step_dict[key], int):
                 kwargs[key] = deserialized_children[step_dict[key]]
+
+            elif isinstance(step_dict[key], str) and os.path.exists(step_dict[key]):
+                kwargs[key] = PIL.Image.open(step_dict[key])
             else:
                 kwargs[key] = step_dict[key]
 
@@ -523,11 +533,11 @@ class DiffusionNode:
         w, h = self.bounds[1]
         return image.resize((w - x, h - y))
 
-    def get_serialization_dict(self) -> Dict[str, Any]:
+    def get_serialization_dict(self, image_directory: Optional[str] = None) -> Dict[str, Any]:
         """
         Gets the step's dict and adds bounds.
         """
-        step_dict = self.step.get_serialization_dict()
+        step_dict = self.step.get_serialization_dict(image_directory)
         step_dict["bounds"] = self.bounds
         return step_dict
 
@@ -833,8 +843,6 @@ class DiffusionPlan:
                         images[i] = image
                     if re_enable_safety:
                         pipeline.safe = True
-                elif j >= len(scales) - 1:
-                    pipeline.reload_pipeline()
                 if j < len(scales) - 1 and image_callback is not None:
                     image_callback(images)
         return StableDiffusionPipelineOutput(images=images, nsfw_content_detected=nsfw)
@@ -908,7 +916,11 @@ class DiffusionPlan:
             else:
                 node_image_callback = None  # type: ignore
             invocation_kwargs = {**self.kwargs, **callback_kwargs}
-            result = node.execute(pipeline, latent_callback=node_image_callback, **invocation_kwargs)
+            next_intention = "refining" if self.outscale > 1 and self.upscale_diffusion else None
+            if i < len(self.nodes) - 2:
+                next_node = self.nodes[i+1]
+                next_intention = "inpainting" if next_node.step.mask is not None else "inference"
+            result = node.execute(pipeline, latent_callback=node_image_callback, next_intention=next_intention, **invocation_kwargs)
             for j, image in enumerate(result["images"]):
                 image = node.resize_image(image)
                 if image.mode == "RGBA":
@@ -970,7 +982,7 @@ class DiffusionPlan:
 
         return images, nsfw_content_detected
 
-    def get_serialization_dict(self) -> Dict[str, Any]:
+    def get_serialization_dict(self, image_directory: Optional[str] = None) -> Dict[str, Any]:
         """
         Serializes the whole plan for storage or passing between processes.
         """
@@ -997,6 +1009,11 @@ class DiffusionPlan:
                 "diffusion": upscale_diffusion_dict,
             }
 
+        serialized_image = self.image
+        if image_directory is not None and isinstance(self.image, PIL.Image):
+            serialized_image = os.path.join(image_directory, f"{get_uuid()}.png")
+            self.image.save(serialized_image)
+
         return {
             "model": self.model,
             "refiner": self.refiner,
@@ -1015,9 +1032,9 @@ class DiffusionPlan:
             "seed": self.seed,
             "prompt": self.prompt,
             "negative_prompt": self.negative_prompt,
-            "image": self.image,
+            "image": serialized_image,
             "image_callback_steps": self.image_callback_steps,
-            "nodes": [node.get_serialization_dict() for node in self.nodes],
+            "nodes": [node.get_serialization_dict(image_directory) for node in self.nodes],
             "samples": self.samples,
             "upscale": upscale_dict,
             "chunking_size": self.chunking_size,
@@ -1050,7 +1067,6 @@ class DiffusionPlan:
             "width",
             "height",
             "image_callback_steps",
-            "image",
             "chunking_size",
             "chunking_blur",
             "samples",
@@ -1061,6 +1077,12 @@ class DiffusionPlan:
         ]:
             if arg in plan_dict:
                 kwargs[arg] = plan_dict[arg]
+
+        if "image" in plan_dict:
+            if isinstance(plan_dict["image"], str) and os.path.exists(plan_dict["image"]):
+                kwargs["image"] = PIL.Image.open(plan_dict["image"])
+            else:
+                kwargs["image"] = plan_dict["image"]
 
         upscale = plan_dict.get("upscale", None)
         if isinstance(upscale, dict):

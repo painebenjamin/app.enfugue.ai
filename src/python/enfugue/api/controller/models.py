@@ -479,6 +479,8 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
             self.database.delete(inversion)
         for refiner in model.refiner:
             self.database.delete(refiner)
+        for inpainter in model.inpainter:
+            self.database.delete(inpainter)
         for scheduler in model.scheduler:
             self.database.delete(scheduler)
         for vae in model.vae:

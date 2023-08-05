@@ -271,7 +271,7 @@ $(PYTHON_TEST_IMPORT): $(PYTHON_TEST_SRC)
 .PHONY: unittest
 unittest: $(PYTHON_TEST_UNIT)
 $(PYTHON_TEST_UNIT): $(PYTHON_TEST_SRC)
-	$(eval SRC_FILE=$(patsubst %.imottest,%,$(patsubst $(BUILD_DIR)%,.%,$@)))
+	$(eval SRC_FILE=$(patsubst %.unittest,%,$(patsubst $(BUILD_DIR)%,.%,$@)))
 	@mkdir -p $(shell dirname $@)
 	@if [ '$(RUN_UNIT_TEST)' != '0' ]; then \
 		echo "Running doctest on $(SRC_FILE)"; \

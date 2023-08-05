@@ -14,6 +14,8 @@ import {
 import { 
     NumberInputView, 
     FloatInputView, 
+    SliderInputView,
+    SliderPreciseInputView,
     DateInputView, 
     TimeInputView, 
     DateTimeInputView 
@@ -38,6 +40,8 @@ export {
     FileInputView,
     NumberInputView,
     FloatInputView,
+    SliderInputView,
+    SliderPreciseInputView,
     DateInputView,
     TimeInputView,
     DateTimeInputView,

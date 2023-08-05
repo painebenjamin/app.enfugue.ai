@@ -46,6 +46,12 @@ enfugue-node-editor enfugue-node-canvas > canvas {
     pointer-events: none;
 }
 
+enfugue-node-editor enfugue-node-canvas > canvas.adjuster {
+    position: absolute;
+    left: 0;
+    top: 0;
+    z-index: 1;
+}
 
 enfugue-nodes enfugue-node-canvas {
     position: relative;
@@ -340,12 +346,16 @@ enfugue-node-editor.image-editor enfugue-node-canvas .current-invocation-image-v
 }
 
 enfugue-node-editor.image-editor.zoom-out enfugue-node-canvas .current-invocation-image-view,
-enfugue-node-editor.image-editor.zoom-out enfugue-node-canvas enfugue-background-image-view {
+enfugue-node-editor.image-editor.zoom-out enfugue-node-canvas enfugue-background-image-view,
+enfugue-node-editor.image-editor.zoom-out enfugue-node-canvas canvas
+{
     image-rendering: auto;
 }
 
 enfugue-node-editor.image-editor.zoom-in enfugue-node-canvas .current-invocation-image-view,
-enfugue-node-editor.image-editor.zoom-in enfugue-node-canvas enfugue-background-image-view {
+enfugue-node-editor.image-editor.zoom-in enfugue-node-canvas enfugue-background-image-view,
+enfugue-node-editor.image-editor.zoom-in enfugue-node-canvas canvas 
+{
     image-rendering: pixelated;
 }
 

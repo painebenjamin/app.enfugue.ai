@@ -1,10 +1,12 @@
 /** @module view/nodes/image-editor */
+import { View } from "../base.mjs";
 import { NodeView, OptionsNodeView } from "./base.mjs";
 import { ImageView, BackgroundImageView } from "../image.mjs";
 import { NodeEditorView } from "./editor.mjs";
 import { ElementBuilder } from "../../base/builder.mjs";
 import { isEmpty } from "../../base/helpers.mjs";
 import { SimpleNotification } from "../../common/notify.mjs";
+import { ImageAdjuster } from "../../graphics/image-adjuster.mjs";
 import { FormView } from "../forms/base.mjs";
 import { ToolbarView } from "../menu.mjs";
 import { ScribbleView } from "../scribble.mjs";
@@ -13,6 +15,7 @@ import {
     CheckboxInputView,
     FloatInputView,
     NumberInputView,
+    SliderPreciseInputView,
     TextInputView
 } from "../forms/input.mjs";
 
@@ -32,6 +35,230 @@ const filterEmpty = (obj) => {
 };
 
 /**
+ * Creates a form view for controlling the ImageAdjuster
+ */
+class ImageAdjustmentFormView extends FormView {
+    /**
+     * @var bool autosubmit
+     */
+    static autoSubmit = true;
+
+    /**
+     * @var bool Disable disabling
+     */
+    static disableOnSubmit = false;
+
+    /**
+     * @var object Various options available
+     */
+    static fieldSets = {
+        "Color Channel Adjustments": {
+            "red": {
+                "label": "Red Amount",
+                "class": SliderPreciseInputView,
+                "config": {
+                    "min": -100,
+                    "max": 100,
+                    "value": 0
+                }
+            },
+            "green": {
+                "label": "Green Amount",
+                "class": SliderPreciseInputView,
+                "config": {
+                    "min": -100,
+                    "max": 100,
+                    "value": 0
+                }
+            },
+            "blue": {
+                "label": "Blue Amount",
+                "class": SliderPreciseInputView,
+                "config": {
+                    "min": -100,
+                    "max": 100,
+                    "value": 0
+                }
+            }
+        },
+        "Brightness and Contrast": {
+            "brightness": {
+                "label": "Brightness Adjustment",
+                "class": SliderPreciseInputView,
+                "config": {
+                    "min": -100,
+                    "max": 100,
+                    "value": 0
+                }
+            },
+            "contrast": {
+                "label": "Contrast Adjustment",
+                "class": SliderPreciseInputView,
+                "config": {
+                    "min": -100,
+                    "max": 100,
+                    "value": 0
+                }
+            }
+        },
+        "Hue, Saturation and Lightness": {
+            "hue": {
+                "label": "Hue Shift",
+                "class": SliderPreciseInputView,
+                "config": {
+                    "min": -100,
+                    "max": 100,
+                    "value": 0
+                }
+            },
+            "saturation": {
+                "label": "Saturation Adjustment",
+                "class": SliderPreciseInputView,
+                "config": {
+                    "min": -100,
+                    "max": 100,
+                    "value": 0
+                }
+            },
+            "lightness": {
+                "label": "Lightness Enhancement",
+                "class": SliderPreciseInputView,
+                "config": {
+                    "min": 0,
+                    "max": 100,
+                    "value": 0
+                }
+            }
+        },
+        "Noise": {
+            "hueNoise": {
+                "label": "Hue Noise",
+                "class": SliderPreciseInputView,
+                "config": {
+                    "min": 0,
+                    "max": 100,
+                    "value": 0
+                }
+            },
+            "saturationNoise": {
+                "label": "Saturation Noise",
+                "class": SliderPreciseInputView,
+                "config": {
+                    "min": 0,
+                    "max": 100,
+                    "value": 0
+                }
+            },
+            "lightnessNoise": {
+                "label": "Lightness Noise",
+                "class": SliderPreciseInputView,
+                "config": {
+                    "min": 0,
+                    "max": 100,
+                    "value": 0
+                }
+            }
+        }
+    };
+
+    /**
+     * @var object Default values
+     */
+    static defaultValues = {
+        "red": 0,
+        "green": 0,
+        "blue": 0,
+        "brightness": 0,
+        "contrast": 0,
+        "hue": 0,
+        "saturation": 0,
+        "lightness": 0,
+        "hueNoise": 0,
+        "saturationNoise": 0,
+        "lightnessNoise": 0
+    };
+};
+
+/**
+ * Combines the adjustment form view and various buttons
+ */
+class ImageAdjustmentView extends View {
+    /**
+     * On construct, build form and bind submit
+     */
+    constructor(config, adjuster) {
+        super(config);
+        this.cancelCallbacks = [];
+        this.saveCallbacks = [];
+        this.formView = new ImageAdjustmentFormView(config);
+        this.formView.onSubmit((values) => {
+            adjuster.adjust(values);
+        });
+    }
+
+    /**
+     * @param callable $callback Method to call when 'cancel' is clicked
+     */
+    onCancel(callback) {
+        this.cancelCallbacks.push(callback);
+    }
+
+    /**
+     * @param callable $callback Method to call when 'save' is clicked
+     */
+    onSave(callback) {
+        this.saveCallbacks.push(callback);
+    }
+
+    /**
+     * Call all save callbacks
+     */
+    async saved() {
+        for (let saveCallback of this.saveCallbacks) {
+            await saveCallback();
+        }
+    }
+    
+    /**
+     * Call all cancel callbacks
+     */
+    async canceled() {
+        for (let cancelCallback of this.cancelCallbacks) {
+            await cancelCallback();
+        }
+    }
+
+    /**
+     * On build, add buttons and bind callbacks
+     */
+    async build() {
+        let node = await super.build(),
+            reset = E.button().class("column").content("Reset"),
+            save = E.button().class("column").content("Save"),
+            cancel = E.button().class("column").content("Cancel"),
+            nodeButtons = E.div().class("flex-columns half-spaced margin-top padded-horizontal").content(
+                reset,
+                save,
+                cancel
+            );
+
+        reset.on("click", () => {
+            this.formView.setValues(ImageAdjustmentFormView.defaultValues);
+            setTimeout(() => { this.formView.submit(); }, 100);
+        });
+        save.on("click", () => this.saved());
+        cancel.on("click", () => this.canceled());
+        node.content(
+            await this.formView.getNode(),
+            nodeButtons
+        );
+        return node;
+    }
+};
+
+
+/**
+ * Extend the ToolbarView slightly to add mouse enter event listeners
  */
 class InvocationToolbarView extends ToolbarView {
     constructor(invocationNode) {
@@ -78,6 +305,16 @@ class CurrentInvocationImageView extends ImageView {
     static hideTime = 250;
 
     /**
+     * @var int The width of the adjustment window in pixels
+     */
+    static imageAdjustmentWindowWidth = 750;
+    
+    /**
+     * @var int The height of the adjustment window in pixels
+     */
+    static imageAdjustmentWindowHeight = 525;
+
+    /**
      * Gets the toolbar node, building if needed
      */
     async getTools() {
@@ -95,10 +332,23 @@ class CurrentInvocationImageView extends ImageView {
             this.saveImage = await this.toolbar.addItem("Save As", "fa-solid fa-floppy-disk");
             this.saveImage.onClick(() => this.saveToDisk());
 
+            this.adjustImage = await this.toolbar.addItem("Adjust Image", "fa-solid fa-sliders");
+            this.adjustImage.onClick(() => this.startImageAdjustment());
+
             this.editImage = await this.toolbar.addItem("Edit Image", "fa-solid fa-pen-to-square");
             this.editImage.onClick(() => this.sendToCanvas());
         }
         return this.toolbar;
+    }
+
+    /**
+     * Override parent setImage to also set the image on the adjustment canvas, if present
+     */
+    setImage(newImage) {
+        super.setImage(newImage);
+        if (!isEmpty(this.imageAdjuster)) {
+            this.imageAdjuster.setImage(newImage);
+        }
     }
 
     /**
@@ -128,6 +378,50 @@ class CurrentInvocationImageView extends ImageView {
      */
     async sendToCanvas() {
         this.editor.application.initializeStateFromImage(await this.getImageAsDataURL());
+    }
+
+    /**
+     * Starts adjusting the image
+     * Replaces the current visible canvas with an in-progress edit.
+     */
+    async startImageAdjustment() {
+        if (!isEmpty(this.imageAdjustmentWindow)) {
+            this.imageAdjustmentWindow.focus();
+            return;
+        }
+        this.imageAdjuster = new ImageAdjuster(this.src),
+        this.imageAdjustmentView = new ImageAdjustmentView(this.config, this.imageAdjuster),
+        this.imageAdjustmentWindow = await this.editor.application.windows.spawnWindow(
+            "Adjust Image",
+            this.imageAdjustmentView,
+            this.constructor.imageAdjustmentWindowWidth,
+            this.constructor.imageAdjustmentWindowHeight
+        );
+        let imageAdjustmentCanvas = await this.imageAdjuster.getCanvas();
+
+        this.node.element.parentElement.appendChild(imageAdjustmentCanvas);
+
+        let reset = () => {
+            try {
+                this.node.element.parentElement.removeChild(imageAdjustmentCanvas);
+            } catch(e) { }
+            this.imageAdjuster = null;
+            this.imageAdjustmentView = null;
+            this.imageAdjustmentWindow = null;
+        }
+
+        this.imageAdjustmentWindow.onClose(reset);
+        this.imageAdjustmentView.onSave(async () => {
+            this.setImage(this.imageAdjuster.imageSource);
+            setTimeout(() => {
+                this.imageAdjustmentWindow.remove();
+                reset();
+            }, 150);
+        });
+        this.imageAdjustmentView.onCancel(() => {
+            this.imageAdjustmentWindow.remove();
+            reset();
+        });
     }
 
     /**

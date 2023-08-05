@@ -133,7 +133,7 @@ class Invocation:
         """
         with self.lock:
             self.start_time = datetime.datetime.now()
-            payload = self.plan.get_serialization_dict()
+            payload = self.plan.get_serialization_dict(self.intermediate_dir)
             payload["intermediate_dir"] = self.intermediate_dir
             payload["intermediate_steps"] = self.intermediate_steps
             self.id = self.engine.dispatch("plan", payload)

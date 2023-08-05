@@ -182,6 +182,106 @@ class FloatInputView extends NumberInputView {
 }
 
 /**
+ * Extends the number type to use slider
+ */
+class SliderInputView extends NumberInputView {
+    /**
+     * @var string The input type
+     */
+    static inputType = "range";
+}
+
+/**
+ * Combines a slider and number input.
+ */
+class SliderPreciseInputView extends NumberInputView {
+    /**
+     * @var string The custom tag name for this input
+     */
+    static tagName = "enfugue-slider-precise-input-view";
+
+    /**
+     * @var class The class for the numberic precise input.
+     */
+    static numberInputClass = NumberInputView;
+
+    /**
+     * @var class The class for the slider input.
+     */
+    static sliderInputClass = SliderInputView;
+
+    /**
+     * The constructor passes the arguments to both child classes.
+     */
+    constructor(config, fieldName, fieldConfig) {
+        super(config, fieldName, fieldConfig);
+        this.sliderInput = new this.constructor.sliderInputClass(config, fieldName, fieldConfig);
+        this.numberInput = new this.constructor.numberInputClass(config, `${fieldName}Precise`, fieldConfig);
+
+        this.sliderInput.onInput((value) => {
+            this.value = value;
+            this.numberInput.setValue(value, false);
+            this.changed();
+        });
+
+        this.numberInput.onInput((value) => {
+            this.value = value;
+            this.sliderInput.setValue(value, false);
+            this.changed();
+        });
+    }
+
+    /**
+     * When disabling, pass to both inputs.
+     */
+    disable() {
+        super.disable();
+        this.sliderInput.disable();
+        this.numberInput.disable();
+    }
+
+    /**
+     * When enabling, pass to both inputs.
+     */
+    enable() {
+        super.enable();
+        this.sliderInput.enable();
+        this.numberInput.enable();
+    }
+
+    /**
+     * Always return the value from memory.
+     */
+    getValue() {
+        return this.value;
+    }
+
+    /**
+     * When setting value, set both child inputs.
+     */
+    setValue(value, triggerChange) {
+        let result = super.setValue(value, false);
+        this.sliderInput.setValue(value, false);
+        this.numberInput.setValue(value, false);
+        if (triggerChange) {
+            this.changed();
+        }
+    }
+
+    /**
+     * On build, get both child input nodes.
+     */
+    async build() {
+        let node = await super.build();
+        node.append(
+            await this.sliderInput.getNode(),
+            await this.numberInput.getNode()
+        );
+        return node;
+    }
+};
+
+/**
  * This class uses the base datetime-local type, but parses values as needed.
  */
 class DateTimeInputView extends NumberInputView {
@@ -298,6 +398,8 @@ class TimeInputView extends NumberInputView {
 export {
     NumberInputView,
     FloatInputView,
+    SliderInputView,
+    SliderPreciseInputView,
     DateInputView,
     TimeInputView,
     DateTimeInputView

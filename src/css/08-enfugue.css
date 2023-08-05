@@ -719,6 +719,19 @@ enfugue-repeatable-input.columns
     color: black;
 }
 
+enfugue-slider-precise-input-view {
+    display: flex;
+    flex-flow: row nowrap;
+    align-items: stretch;
+    justify-content: stretch;
+    gap: 2px;
+}
+
+enfugue-slider-precise-input-view input[type='number'] {
+    flex-basis: 100px;
+    flex-grow: 0;
+}
+
 form.model-picker {
     position: absolute;
     left: 40px;

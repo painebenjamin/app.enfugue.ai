@@ -460,18 +460,6 @@
     flex-basis: 200%;
 }
 
-.flex-columns.half-spaced .column:not(:last-child) {
-    margin-right: 0.5em;
-}
-
-.flex-columns.spaced .column:not(:last-child) {
-    margin-right: 1em;
-}
-
-.flex-columns.double-spaced .column:not(:last-child) {
-    margin-right: 2em;
-}
-
 .flex-rows {
     display: flex;
     flex-flow: column nowrap;
@@ -482,6 +470,22 @@
 .flex-rows .row {
     width: 100%;
 }
+
+.flex-columns.half-spaced,
+.flex-rows.half-spaced {
+    gap: 0.5em;
+}
+
+.flex-columns.spaced,
+.flex-rows.spaced {
+    gap: 1.0em;
+}
+
+.flex-columns.double-spaced,
+.flex-rows.double-spaced {
+    gap: 2.0em;
+}
+
 
 .column img {
     max-width: 100%;

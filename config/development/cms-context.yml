@@ -66,6 +66,7 @@ base:
         manifest:
             - href: /manifest.json
     scripts:
+        - src: /static/js/vendor/gpu/gpu-browser.min.js
         - src: /static/js/enfugue.mjs
           type: module
           async: null

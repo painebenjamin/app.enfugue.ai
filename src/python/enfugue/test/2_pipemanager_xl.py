@@ -22,7 +22,7 @@ def main() -> None:
         # Even if there's nothing on your machine, this should work by downloading everything needed.
         manager = DiffusionPipelineManager()
         manager.size = 1024
-        manager.model = "sd_xl_base_0.9.safetensors"
+        manager.model = "sd_xl_base_1.0.safetensors"
         
         def run_and_save(filename: str) -> None:
             manager.seed = 1238421 # set seed for reproduceability
@@ -31,7 +31,7 @@ def main() -> None:
         run_and_save("puppy-xl.png")
 
         # Add the refiner
-        manager.refiner = "sd_xl_refiner_0.9.safetensors"
+        manager.refiner = "sd_xl_refiner_1.0.safetensors"
         run_and_save("puppy-xl-refined.png")
         
 
