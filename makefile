@@ -148,7 +148,7 @@ $(LINUX_ARTIFACT): $(PYTHON_ARTIFACTS)
 	pip install $<
 	pyinstaller $(CONFIG_DIR)/$(PYINSTALLER_SPEC) --distpath $(BUILD_DIR)/dist
 	cp $(SCRIPT_DIR)/$(LINUX_RUN_SCRIPT) $(BUILD_DIR)/dist/$(PYINSTALLER_NAME)/
-	@if [ '$(MINIMAL_BUILD)' != '2' ]; then \
+	@if [ '$(MINIMAL_BUILD)' != '1' ]; then \
 		tar -cvzf $@ -C $(BUILD_DIR)/dist/ .; \
 	else \
 		tar -cvzf $@ --remove-files -C $(BUILD_DIR)/dist/ .; \
@@ -162,7 +162,7 @@ $(MACOS_ARTIFACT): $(PYTHON_ARTIFACTS)
 	pyinstaller $(CONFIG_DIR)/$(PYINSTALLER_SPEC) --distpath $(BUILD_DIR)/dist
 	cp $(SCRIPT_DIR)/$(LINUX_RUN_SCRIPT) $(BUILD_DIR)/dist/$(PYINSTALLER_NAME)/
 	cp $(SCRIPT_DIR)/$(MACOS_UNQUARANTINE_SCRIPT) $(BUILD_DIR)/dist/$(PYINSTALLER_NAME)/
-	@if [ '$(MINIMAL_BUILD)' != '2' ]; then \
+	@if [ '$(MINIMAL_BUILD)' != '1' ]; then \
 		tar -cvzf $@ -C $(BUILD_DIR)/dist/$(PYINSTALLER_NAME)/ .; \
 	else \
 		tar -cvzf $@ --remove-files -C $(BUILD_DIR)/dist/$(PYINSTALLER_NAME)/ .; \
@@ -172,6 +172,7 @@ $(MACOS_ARTIFACT): $(PYTHON_ARTIFACTS)
 .PHONY: docker
 docker: $(BUILD_DOCKERFILE_BUILD)
 $(BUILD_DOCKERFILE_BUILD): $(BUILD_DOCKERFILE)
+	cp $(SCRIPT_DIR)/$(DOCKER_SCRIPT) $(BUILD_DIR)/
 	cd $(BUILD_DIR) && $(DOCKER) build -t enfugue .
 	@touch $@
 
@@ -180,7 +181,7 @@ dockerfile: $(BUILD_DOCKERFILE)
 $(BUILD_DOCKERFILE): $(SRC_DOCKERFILE) $(PYTHON_ARTIFACTS)
 	cp $(SRC_DOCKERFILE) $@
 	$(eval SDIST=$(patsubst $(BUILD_DIR)/%,%,$(PYTHON_ARTIFACTS)))
-	$(PYTHON) -m pibble.scripts.templatefiles $@ --version_major "$(VERSION_MAJOR)" --version_minor "$(VERSION_MINOR)" --version_patch "$(VERSION_PATCH)" $(SDIST:%=--sdist %) --docker_container "$(DOCKER_CONTAINER)" --docker_command "$(DOCKER_COMMAND)"
+	$(PYTHON) -m pibble.scripts.templatefiles $@ --version_major "$(VERSION_MAJOR)" --version_minor "$(VERSION_MINOR)" --version_patch "$(VERSION_PATCH)" $(SDIST:%=--sdist %) --docker_container "$(DOCKER_CONTAINER)" --docker_command "$(DOCKER_COMMAND)" --docker_script "$(DOCKER_SCRIPT)"
 
 ## Split on Linux
 .PHONY: split
@@ -307,8 +308,18 @@ $(BUILD_VENDOR_SCRIPTS): $(VENDOR_SCRIPTS)
 js: $(BUILD_JS)
 $(BUILD_JS): $(BUILD_NODE_PACKAGE)
 	$(eval SRC_JS_FILE=$(patsubst $(BUILD_JS_DIR)/%.mjs,$(SRC_JS_DIR)/%.mjs,$@))
+	$(eval JS_SHEBANG=$(shell head -n 1 $(SRC_JS_FILE)))
 	@mkdir -p $(shell dirname $@)
-	$(abspath $(BUILD_TERSER)) --compress --mangle -- $(SRC_JS_FILE) > $@
+	@if [ '$(JS_SHEBANG)' = '/** NOCOMPRESS */' ]; then \
+		echo "Copying $(SRC_JS_FILE) with no compression"; \
+		$(abspath $(BUILD_TERSER)) -- $(SRC_JS_FILE) > $@; \
+	elif [ '$(JS_SHEBANG)' = '/** NOMANGLE */' ]; then \
+		echo "Compressing $(SRC_JS_FILE)"; \
+		$(abspath $(BUILD_TERSER)) --compress -- $(SRC_JS_FILE) > $@; \
+	else \
+		echo "Compressing and mangling $(SRC_JS_FILE)"; \
+		$(abspath $(BUILD_TERSER)) --compress --mangle -- $(SRC_JS_FILE) > $@; \
+	fi;
 
 ## Minify css
 .PHONY: css

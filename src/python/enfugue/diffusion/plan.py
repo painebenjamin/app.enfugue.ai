@@ -1010,7 +1010,7 @@ class DiffusionPlan:
             }
 
         serialized_image = self.image
-        if image_directory is not None and isinstance(self.image, PIL.Image):
+        if image_directory is not None and isinstance(self.image, PIL.Image.Image):
             serialized_image = os.path.join(image_directory, f"{get_uuid()}.png")
             self.image.save(serialized_image)
 

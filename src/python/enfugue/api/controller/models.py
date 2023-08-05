@@ -352,12 +352,6 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         if not model:
             raise NotFoundError(f"No model named {model_name}")
 
-        model.name = request.parsed.get("name", model.name)
-        model.model = request.parsed.get("checkpoint", model.model)
-        model.size = request.parsed.get("size", model.size)
-        model.prompt = request.parsed.get("prompt", model.prompt)
-        model.negative_prompt = request.parsed.get("negative_prompt", model.negative_prompt)
-
         for existing_lora in model.lora:
             self.database.delete(existing_lora)
 
@@ -382,6 +376,14 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         for existing_vae in model.vae:
             self.database.delete(existing_vae)
 
+        self.database.commit()
+        
+        model.name = request.parsed.get("name", model.name)
+        model.model = request.parsed.get("checkpoint", model.model)
+        model.size = request.parsed.get("size", model.size)
+        model.prompt = request.parsed.get("prompt", model.prompt)
+        model.negative_prompt = request.parsed.get("negative_prompt", model.negative_prompt)
+        
         self.database.commit()
 
         refiner = request.parsed.get("refiner", None)

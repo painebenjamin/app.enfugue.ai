@@ -1,3 +1,4 @@
+/** NOCOMPRESS */
 /** @module graphics/image-adjuster.mjs */
 import { sleep, waitFor } from "../base/helpers.mjs";
 
@@ -143,12 +144,20 @@ function performImageAdjustments(image) {
         blue = lightness;
     } else {
         function hueToRGB(p, q, t) {
-            if (t < 0) t += 1;
-            if (t > 1) t -= 1;
-            if (t < 1/6) return p + (q - p) * 6 * t;
-            if (t < 1/2) return q;
-            if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
-            return p;
+            if (t < 0) {
+                t += 1;
+            } else if (t > 1) {
+                t -= 1;
+            }
+            if (t < 1/6) {
+                return p + (q - p) * 6 * t;
+            } else if (t < 1/2) {
+                return q;
+            } else if (t < 2/3) {
+                return p + (q - p) * (2/3 - t) * 6;
+            } else {
+                return p;
+            }
         }
         let q = lightness < 0.5 
             ? lightness * (1 + saturation) 

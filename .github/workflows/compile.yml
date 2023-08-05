@@ -13,6 +13,7 @@ jobs:
     runs-on: ${{ inputs.os }}
     env:
       MINIMAL_BUILD: 1
+      RUN_INTEGRATION_TEST: 0
     steps:
     - uses: actions/checkout@v3
     - name: Setup Miniconda (MacOS)
