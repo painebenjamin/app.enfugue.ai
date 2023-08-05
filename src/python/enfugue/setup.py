@@ -26,7 +26,7 @@ install_requires = [
     "torchvision>=0.14.1",  # Minimum, works with 0.16
     "numpy>=1.24.3",
     "colored>=1.4,<1.5",
-    "diffusers>=0.18,<0.19",
+    "diffusers>=0.18", # Minimum, works with 0.20.dev
     "albumentations>=0.4.3,<0.5",
     "opencv-python>=4.7.0.72,<4.8",
     "pudb==2019.2",

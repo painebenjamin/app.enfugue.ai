@@ -12,6 +12,11 @@ WINDOWS_ARTIFACT=$(BUILD_DIR)/enfugue-server-$(VERSION_MAJOR).$(VERSION_MINOR).$
 LINUX_ARTIFACT=$(BUILD_DIR)/enfugue-server-$(VERSION_MAJOR).$(VERSION_MINOR).$(VERSION_PATCH)-manylinux-$(ARCH).tar.gz
 MACOS_ARTIFACT=$(BUILD_DIR)/enfugue-server-$(VERSION_MAJOR).$(VERSION_MINOR).$(VERSION_PATCH)-macos-ventura-$(ARCH).tar.gz
 
+# Docker configs
+SRC_DOCKERFILE=$(CONFIG_DIR)/$(DOCKERFILE).j2
+BUILD_DOCKERFILE=$(BUILD_DIR)/$(DOCKERFILE)
+BUILD_DOCKERFILE_BUILD=$(BUILD_DIR)/.$(DOCKERFILE).build
+
 # Default build is linux, we'll test in a moment
 ARTIFACT=$(LINUX_ARTIFACT)
 IS_WINDOWS=0
@@ -101,7 +106,7 @@ endif
 ##################
 ## CAPABILITIES ##
 ##################
-ifneq ($(shell where nvinfer.dll 2>/dev/null),)
+ifeq ($(shell $(PYTHON) -c "import tensorrt" 2>&1),)
 BUILD_TENSORRT=1
 else
 BUILD_TENSORRT=0
@@ -162,6 +167,20 @@ $(MACOS_ARTIFACT): $(PYTHON_ARTIFACTS)
 	else \
 		tar -cvzf $@ --remove-files -C $(BUILD_DIR)/dist/$(PYINSTALLER_NAME)/ .; \
 	fi;
+
+## Docker build
+.PHONY: docker
+docker: $(BUILD_DOCKERFILE_BUILD)
+$(BUILD_DOCKERFILE_BUILD): $(BUILD_DOCKERFILE)
+	cd $(BUILD_DIR) && $(DOCKER) build -t enfugue .
+	@touch $@
+
+.PHONY: dockerfile
+dockerfile: $(BUILD_DOCKERFILE)
+$(BUILD_DOCKERFILE): $(SRC_DOCKERFILE) $(PYTHON_ARTIFACTS)
+	cp $(SRC_DOCKERFILE) $@
+	$(eval SDIST=$(patsubst $(BUILD_DIR)/%,%,$(PYTHON_ARTIFACTS)))
+	$(PYTHON) -m pibble.scripts.templatefiles $@ --version_major "$(VERSION_MAJOR)" --version_minor "$(VERSION_MINOR)" --version_patch "$(VERSION_PATCH)" $(SDIST:%=--sdist %) --docker_container "$(DOCKER_CONTAINER)" --docker_command "$(DOCKER_COMMAND)"
 
 ## Split on Linux
 .PHONY: split
@@ -228,32 +247,45 @@ format: $(PYTHON_SRC)
 .PHONY: typecheck
 typecheck: $(PYTHON_TEST_TYPE)
 $(PYTHON_TEST_TYPE): $(PYTHON_TEST_SRC) 
+	$(eval SRC_FILE=$(patsubst %.typecheck,%,$(patsubst $(BUILD_DIR)%,.%,$@)))
 	@mkdir -p $(shell dirname $@)
-	$(PYTHON) -m mypy $(patsubst %.typecheck,%,$(patsubst $(BUILD_DIR)%,.%,$@))
+	@if [ '$(RUN_TYPE_CHECK)' != '0' ]; then \
+		echo "Running type check on $(SRC_FILE)"; \
+		$(PYTHON) -m mypy $(SRC_FILE); \
+	fi;
 	@touch $@
 
 ## Run importcheck
 .PHONY: importcheck
 importcheck: $(PYTHON_TEST_IMPORT)
 $(PYTHON_TEST_IMPORT): $(PYTHON_TEST_SRC) 
+	$(eval SRC_FILE=$(patsubst %.importcheck,%,$(patsubst $(BUILD_DIR)%,.%,$@)))
 	@mkdir -p $(shell dirname $@)
-	$(PYTHON) -m pibble.scripts.importcheck $(patsubst %.importcheck,%,$(patsubst $(BUILD_DIR)%,.%,$@))
+	@if [ '$(RUN_IMPORT_CHECK)' != '0' ]; then \
+		echo "Running import check on $(SRC_FILE)"; \
+		$(PYTHON) -m pibble.scripts.importcheck $(SRC_FILE); \
+	fi;
 	@touch $@
 
 ## Run doctest
 .PHONY: unittest
 unittest: $(PYTHON_TEST_UNIT)
-$(PYTHON_TEST_UNIT): $(PYTHON_TEST_SRC) 
+$(PYTHON_TEST_UNIT): $(PYTHON_TEST_SRC)
+	$(eval SRC_FILE=$(patsubst %.imottest,%,$(patsubst $(BUILD_DIR)%,.%,$@)))
 	@mkdir -p $(shell dirname $@)
-	PYTHONPATH=${PYTHONPATH_PREFIX}$(realpath $(SRC_DIR))/python $(PYTHON) -m doctest $(patsubst %.unittest,%,$(patsubst $(BUILD_DIR)%,.%,$@))
+	@if [ '$(RUN_UNIT_TEST)' != '0' ]; then \
+		echo "Running doctest on $(SRC_FILE)"; \
+		PYTHONPATH=${PYTHONPATH_PREFIX}$(realpath $(SRC_DIR))/python $(PYTHON) -m doctest $(SRC_FILE); \
+	fi;
 	@touch $@
 
 ## Run integration tests
 .PHONY: test
 test: $(PYTHON_TEST_INTEGRATION)
 $(PYTHON_TEST_INTEGRATION):
-	@if [ '$(MINIMAL_BUILD)' != '1' ]; then \
-		mkdir -p $(shell dirname $@); \
+	@mkdir -p $(shell dirname $@)
+	@if [ '$(RUN_INTEGRATION_TEST)' != '0' ]; then \
+		echo "Running integration tests"; \
 		PYTHONPATH=${PYTHONPATH_PREFIX}$(realpath $(SRC_DIR))/python $(PYTHON) -m $(patsubst %.test,%,$(patsubst $(BUILD_DIR)/%,%,$@)).test.run; \
 	fi;
 	@touch $@
