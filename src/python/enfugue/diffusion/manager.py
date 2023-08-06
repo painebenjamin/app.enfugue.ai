@@ -2805,7 +2805,7 @@ class DiffusionPipelineManager:
         refiner_aesthetic_score: Optional[float] = None,
         refiner_negative_aesthetic_score: Optional[float] = None,
         scale_to_refiner_size: bool = True,
-        next_intention: Optional[Literal["inpainting", "inference", "refining"]] = None,
+        next_intention: Optional[Literal["inpainting", "inference", "refining", "upscaling"]] = None,
         **kwargs: Any,
     ) -> Any:
         """
@@ -2940,6 +2940,10 @@ class DiffusionPipelineManager:
                         result["images"][i] = refined_image  # type: ignore
                     if next_intention == "refining":
                         logger.debug("Next intention is refining, leaving refiner in memory")
+                    elif next_intention == "upscaling":
+                        logger.debug("Next intention is upscaling, unloading pipeline and sending refiner to CPU")
+                        self.unload_pipeline("unloading for upscaling")
+                        self.offload_refiner()
                     elif self.pipeline_switch_mode == "offload":
                         self.offload_refiner(intention if next_intention is None else next_intention) # type: ignore
                     elif self.pipeline_switch_mode == "unload":

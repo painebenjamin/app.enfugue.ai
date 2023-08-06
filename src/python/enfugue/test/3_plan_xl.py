@@ -13,8 +13,8 @@ def main() -> None:
             os.makedirs(save_dir)
 
         kwargs = {
-            "model": "sd_xl_base_0.9.safetensors",
-            "refiner": "sd_xl_refiner_0.9.safetensors",
+            "model": "sd_xl_base_1.0.safetensors",
+            "refiner": "sd_xl_refiner_1.0.safetensors",
             "prompt": "A happy looking puppy",
             "upscale_diffusion_guidance_scale": 5.0,
             "upscale_diffusion_strength": 0.3,

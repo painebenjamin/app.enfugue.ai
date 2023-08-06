@@ -731,17 +731,19 @@ class DiffusionPlan:
                     upscale = get_item_for_scale(self.upscale).lower()
                     logger.debug(f"Upscaling sample {i} by {scale} using {upscale}")
 
+                    if upscale in ["esrgan", "esrganime", "gfpgan"]:
+                        if self.refiner:
+                            pipeline.unload_pipeline("clearing memory for upscaler")
+                            pipeline.offload_refiner()
+                        else:
+                            pipeline.offload_pipeline()
+                            pipeline.unload_refiner("clearing memory for upscaler")
+
                     if upscale == "esrgan":
-                        pipeline.offload_pipeline()
-                        pipeline.offload_refiner()
                         image = pipeline.upscaler.esrgan(image, tile=pipeline.size, outscale=scale)
                     elif upscale == "esrganime":
-                        pipeline.offload_pipeline()
-                        pipeline.offload_refiner()
                         image = pipeline.upscaler.esrgan(image, tile=pipeline.size, outscale=scale, anime=True)
                     elif upscale == "gfpgan":
-                        pipeline.offload_pipeline()
-                        pipeline.offload_refiner()
                         image = pipeline.upscaler.gfpgan(image, tile=pipeline.size, outscale=scale)
                     elif upscale in PIL_INTERPOLATION:
                         width, height = image.size
@@ -839,7 +841,9 @@ class DiffusionPlan:
                             )
 
                         logger.debug(f"Upscaling sample {i} with arguments {kwargs}")
+                        pipeline.stop_keepalive() # Stop here to kill during upscale diffusion
                         image = upscale_pipeline(**kwargs).images[0]
+                        pipeline.start_keepalive() # Return keepalive between iterations
                         images[i] = image
                     if re_enable_safety:
                         pipeline.safe = True
@@ -916,11 +920,20 @@ class DiffusionPlan:
 
             else:
                 node_image_callback = None  # type: ignore
+            
             invocation_kwargs = {**self.kwargs, **callback_kwargs}
-            next_intention = "refining" if self.outscale > 1 and self.upscale_diffusion else None
+            next_intention: Optional[str] = None
             if i < len(self.nodes) - 2:
                 next_node = self.nodes[i+1]
                 next_intention = "inpainting" if next_node.step.mask is not None else "inference"
+            elif self.outscale > 1:
+                upscale_check = self.upscale
+                if isinstance(upscale_check, list):
+                    upscale_check = upscale_check[0]
+                if "gan" in upscale_check:
+                    next_intention = "upscaling"
+                elif self.upscale_diffusion:
+                    next_intention = "refining"
             result = node.execute(pipeline, latent_callback=node_image_callback, next_intention=next_intention, **invocation_kwargs)
             for j, image in enumerate(result["images"]):
                 image = node.resize_image(image)
