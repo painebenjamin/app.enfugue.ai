@@ -4,21 +4,47 @@ on:
 jobs:
   compile-docker:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
     env:
       RUN_INTEGRATION_TEST: 0
       RUN_UNIT_TEST: 0
       RUN_TYPE_CHECK: 0
       RUN_IMPORT_CHECK: 0
     steps:
-      - uses: actions/checkout@v3
-      - name: Clean unneeded pre-installed code
+      - uses: actions/checkout@v3 
+      - name: Clean and Prune System
         run: |
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
           sudo docker system prune --all --force
-      - name: Build docker image
+      - name: Build source distribution
         run: |
           pip install pibble
-          make docker
-      - name: Test docker image
-        run: |
-          sudo docker run --rm enfugue enfugue version
+          make dockerfile
+      - name: Get Version
+        id: version
+        run: echo "::set-output name=version::$(make version)" 
+      - name: Get current datetime
+        id: datetime
+        run: echo "::set-output name=datetime::$(date +'%Y-%m-%dT%H:%M:%S')"
+      - name: Log in to the Container registry
+        uses: docker/login-action@65b78e6e13532edd9afa3aa52ac7964289d1a9c1
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}  
+      - name: Build and push Docker Image
+        uses: docker/build-push-action@3b5e8027fcad23fda98b2e3ac259d8d67585f671
+        with:
+          context: build/
+          push: true
+          tags: |
+            enfugue:${{ steps.version.outputs.version }}
+            painebenjamin/app.enfugue.ai:${{ steps.version.outputs.version }}
+          labels: |
+            org.opencontainers.image.title=Enfugue
+            org.opencontainers.image.description=The Enfugue Stable Diffusion Webapp
+            org.opencontainers.image.version=${{ steps.version.outputs.version }}
+            org.opencontainers.image.licenses=AGPL3
+            org.opencontainers.image.created=${{ steps.datetime.outputs.datetime }}
