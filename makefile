@@ -344,3 +344,8 @@ $(BUILD_IMAGES): $(SRC_IMAGES)
 	@mkdir -p $(shell dirname $@)
 	$(eval SRC_IMAGE=$(patsubst $(BUILD_IMAGES_DIR)/%,$(SRC_IMAGES_DIR)/%,$@))
 	cp $(SRC_IMAGE) $@
+
+## Output version
+.phony: version
+version:
+	@echo "$(VERSION_MAJOR).$(VERSION_MINOR).$(VERSION_PATCH)"
