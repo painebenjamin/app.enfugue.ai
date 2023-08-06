@@ -41,7 +41,11 @@ class DownloadProcess(Process):
             start = datetime.datetime.now()
             elapsed: Callable[[], float] = lambda: (datetime.datetime.now() - start).total_seconds()
             response = get(self.src, headers=self.headers, params=self.parameters, stream=True)
-            length = int(response.headers["Content-Length"])
+            try:
+                length = int(response.headers["Content-Length"])
+            except KeyError:
+                logger.warning(f"No content-length found in download. Exiting. Headers were: {response.headers}")
+                raise IOError(f"URL {self.src} did not respond with a content-length, cannot download.")
             if self.progress is not None:
                 self.progress.put_nowait((elapsed(), 0, length))
             with open(self.dest, "wb") as fh:

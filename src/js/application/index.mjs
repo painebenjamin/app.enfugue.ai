@@ -194,8 +194,8 @@ class Application {
         await this.startAutosave();
         await this.startAnnouncements();
         await this.startLogs();
-        await this.registerLogout();
         await this.startKeepalive();
+        await this.registerLogout();
 
         window.onpopstate = (e) => this.popState(e);
         document.addEventListener("paste", (e) => this.onPaste(e));
