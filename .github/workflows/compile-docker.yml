@@ -1,0 +1,24 @@
+name: Compile Docker Image
+on:
+  - workflow_dispatch
+jobs:
+  compile-docker:
+    runs-on: ubuntu-latest
+    env:
+        RUN_INTEGRATION_TEST: 0
+        RUN_UNIT_TEST: 0
+        RUN_TYPE_CHECK: 0
+        RUN_IMPORT_CHECK: 0
+    steps:
+      - uses: action/checkout@v3
+      - name: Clean unneeded pre-installed code
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          sudo docker system prune --all --force
+      - name: Build docker image
+        run: |
+          pip install pibble
+          make docker
+      - name: Test docker image
+        run: |
+          sudo docker run --rm enfugue enfugue version
