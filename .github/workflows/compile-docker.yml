@@ -24,10 +24,10 @@ jobs:
           make dockerfile
       - name: Get Version
         id: version
-        run: echo "::set-output name=version::$(make version)" 
+        run: echo "version=$(make version)" >> $GITHUB_OUTPUT
       - name: Get current datetime
         id: datetime
-        run: echo "::set-output name=datetime::$(date +'%Y-%m-%dT%H:%M:%S')"
+        run: echo "datetime=$(date +'%Y-%m-%dT%H:%M:%S')" >> $GITHUB_OUTPUT
       - name: Log in to the Container registry
         uses: docker/login-action@65b78e6e13532edd9afa3aa52ac7964289d1a9c1
         with:
