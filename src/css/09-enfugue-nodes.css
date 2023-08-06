@@ -46,7 +46,7 @@ enfugue-node-editor enfugue-node-canvas > canvas {
     pointer-events: none;
 }
 
-enfugue-node-editor enfugue-node-canvas > canvas.adjuster {
+enfugue-node-editor enfugue-node-canvas > canvas.image-filter {
     position: absolute;
     left: 0;
     top: 0;

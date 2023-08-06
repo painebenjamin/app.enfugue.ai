@@ -1,43 +1,44 @@
 /** @module view/nodes/image-editor */
+import { isEmpty, filterEmpty } from "../../base/helpers.mjs";
 import { View } from "../base.mjs";
 import { NodeView, OptionsNodeView } from "./base.mjs";
 import { ImageView, BackgroundImageView } from "../image.mjs";
 import { NodeEditorView } from "./editor.mjs";
 import { ElementBuilder } from "../../base/builder.mjs";
-import { isEmpty } from "../../base/helpers.mjs";
 import { SimpleNotification } from "../../common/notify.mjs";
 import { ImageAdjuster } from "../../graphics/image-adjuster.mjs";
+import { ImagePixelizer } from "../../graphics/image-pixelizer.mjs";
 import { FormView } from "../forms/base.mjs";
 import { ToolbarView } from "../menu.mjs";
 import { ScribbleView } from "../scribble.mjs";
 import { 
-    SelectInputView,
     CheckboxInputView,
     FloatInputView,
     NumberInputView,
     SliderPreciseInputView,
+    SelectInputView,
     TextInputView
 } from "../forms/input.mjs";
 
 const E = new ElementBuilder();
 
 /**
- * Filter out empty keys
+ * Creates a view for selecting filters
  */
-const filterEmpty = (obj) => {
-    let values = {};
-    for (let key in obj) {
-        if (!isEmpty(obj[key])) {
-            values[key] = obj[key];
-        }
-    }
-    return values;
-};
+class FilterSelectInputView extends SelectInputView {
+    /**
+     * @var object The options for this input
+     */
+    static defaultOptions = {
+        "pixelize": "Pixelize"
+    };
+}
+
 
 /**
- * Creates a form view for controlling the ImageAdjuster
+ * Creates a common form view base for filter forms
  */
-class ImageAdjustmentFormView extends FormView {
+class ImageFilterFormView extends FormView {
     /**
      * @var bool autosubmit
      */
@@ -48,6 +49,50 @@ class ImageAdjustmentFormView extends FormView {
      */
     static disableOnSubmit = false;
 
+    /**
+     * Fieldsets
+     */
+    static fieldSets = {
+        "Filter": {
+            "filter": {
+                "class": FilterSelectInputView,
+                "config": {
+                    "required": true
+                }
+            }
+        },
+        "Pixelize": {
+            "size": {
+                "class": SliderPreciseInputView,
+                "config": {
+                    "min": 2,
+                    "max": 128,
+                    "step": 1,
+                    "value": 10
+                }
+            }
+        }
+    };
+
+    /**
+     * @var object Default values
+     */
+    static defaultValues = {
+        "size": 10
+    };
+
+    /**
+     * @var object Callable conditions for fieldset display
+     */
+    static fieldSetConditions = {
+        "Pixelize": (values) => values.filter === "pixelize"
+    };
+};
+
+/**
+ * Creates a form view for controlling the ImageAdjuster
+ */
+class ImageAdjustmentFormView extends ImageFilterFormView {
     /**
      * @var object Various options available
      */
@@ -180,20 +225,86 @@ class ImageAdjustmentFormView extends FormView {
 };
 
 /**
- * Combines the adjustment form view and various buttons
+ * Combines the a filter form view and various buttons for executing
  */
-class ImageAdjustmentView extends View {
+class ImageFilterView extends View {
+    /**
+     * @var class The class of the filter form.
+     */
+    static filterFormView = ImageFilterFormView;
+
     /**
      * On construct, build form and bind submit
      */
-    constructor(config, adjuster) {
+    constructor(config, image, container) {
         super(config);
+        this.image = image;
+        this.container = container;
         this.cancelCallbacks = [];
         this.saveCallbacks = [];
-        this.formView = new ImageAdjustmentFormView(config);
+        this.formView = new this.constructor.filterFormView(config);
         this.formView.onSubmit((values) => {
-            adjuster.adjust(values);
+            this.setFilter(values);
         });
+    }
+
+    /**
+     * Creates a GPU-accelerated filter helper using the image
+     */
+    createFilter(filterType) {
+        switch (filterType) {
+            case "pixelize":
+            case "pixelizer":
+                return new ImagePixelizer(this.image);
+            case "adjust":
+            case "adjuster":
+                return new ImageAdjuster(this.image);
+            default:
+                this.editor.application.notifications.push("error", `Unknown filter ${filterType}`);
+        }
+    }
+
+    /**
+     * Gets the image source from the filter, if present
+     */
+    getImageSource() {
+        if (!isEmpty(this.filter)) {
+            return this.filter.imageSource;
+        }
+        return this.image;
+    }
+
+    /**
+     * Sets the filter and filter constants
+     */
+    setFilter(values) {
+        if (!isEmpty(values.filter)) {
+            if (this.filterType !== values.filter) {
+                // Filter changed
+                this.removeCanvas();
+                this.filter = this.createFilter(values.filter);
+                this.filterType = values.filter;
+                this.filter.getCanvas().then((canvas) => {
+                    this.canvas = canvas;
+                    this.container.appendChild(this.canvas);
+                });
+            }
+        }
+        if (!isEmpty(this.filter)) {
+            this.filter.setConstants(values);
+        }
+    }
+
+    /**
+     * Removes the canvas if its attached
+     */
+    removeCanvas() {
+        if (!isEmpty(this.canvas)) {
+            try {
+                this.container.removeChild(this.canvas);
+            } catch(e) { }
+            this.canvas = null;
+        }
     }
 
     /**
@@ -243,7 +354,7 @@ class ImageAdjustmentView extends View {
             );
 
         reset.on("click", () => {
-            this.formView.setValues(ImageAdjustmentFormView.defaultValues);
+            this.formView.setValues(this.constructor.filterFormView.defaultValues);
             setTimeout(() => { this.formView.submit(); }, 100);
         });
         save.on("click", () => this.saved());
@@ -256,6 +367,23 @@ class ImageAdjustmentView extends View {
     }
 };
 
+/**
+ * Combines the adjustment form view and application buttons
+ */
+class ImageAdjustmentView extends ImageFilterView {
+    /**
+     * @var class The class of the filter form.
+     */
+    static filterFormView = ImageAdjustmentFormView;
+    
+    /**
+     * On construct, build form and bind submit
+     */
+    constructor(config, image, container) {
+        super(config, image, container);
+        this.setFilter({"filter": "adjuster"});
+    }
+}
 
 /**
  * Extend the ToolbarView slightly to add mouse enter event listeners
@@ -313,6 +441,16 @@ class CurrentInvocationImageView extends ImageView {
      * @var int The height of the adjustment window in pixels
      */
     static imageAdjustmentWindowHeight = 525;
+    
+    /**
+     * @var int The width of the filter window in pixels
+     */
+    static imageFilterWindowWidth = 450;
+    
+    /**
+     * @var int The height of the filter window in pixels
+     */
+    static imageFilterWindowHeight = 350;
 
     /**
      * Gets the toolbar node, building if needed
@@ -334,6 +472,9 @@ class CurrentInvocationImageView extends ImageView {
 
             this.adjustImage = await this.toolbar.addItem("Adjust Image", "fa-solid fa-sliders");
             this.adjustImage.onClick(() => this.startImageAdjustment());
+
+            this.filterImage = await this.toolbar.addItem("Filter Image", "fa-solid fa-wand-magic-sparkles");
+            this.filterImage.onClick(() => this.startImageFilter());
 
             this.editImage = await this.toolbar.addItem("Edit Image", "fa-solid fa-pen-to-square");
             this.editImage.onClick(() => this.sendToCanvas());
@@ -381,6 +522,50 @@ class CurrentInvocationImageView extends ImageView {
     }
 
     /**
+     * Starts filtering the image
+     * Replaces the current visible canvas with an in-progress edit.
+     */
+    async startImageFilter() {
+        if (!isEmpty(this.imageFilterWindow)) {
+            this.imageFilterWindow.focus();
+            return;
+        }
+        if (!isEmpty(this.imageAdjustmentWindow)) {
+            this.editor.application.notifications.push("warning", "Complete image adjustments before trying to filter.");
+            return;
+        }
+
+        this.imageFilterView = new ImageFilterView(this.config, this.src, this.node.element.parentElement),
+        this.imageFilterWindow = await this.editor.application.windows.spawnWindow(
+            "Filter Image",
+            this.imageFilterView,
+            this.constructor.imageFilterWindowWidth,
+            this.constructor.imageFilterWindowHeight
+        );
+
+        let reset = () => {
+            try {
+                this.imageFilterView.removeCanvas();
+            } catch(e) { }
+            this.imageFilterView = null;
+            this.imageFilterWindow = null;
+        }
+
+        this.imageFilterWindow.onClose(reset);
+        this.imageFilterView.onSave(async () => {
+            this.setImage(this.imageFilterView.getImageSource());
+            setTimeout(() => {
+                this.imageFilterWindow.remove();
+                reset();
+            }, 150);
+        });
+        this.imageFilterView.onCancel(() => {
+            this.imageFilterWindow.remove();
+            reset();
+        });
+    }
+
+    /**
      * Starts adjusting the image
      * Replaces the current visible canvas with an in-progress edit.
      */
@@ -389,30 +574,29 @@ class CurrentInvocationImageView extends ImageView {
             this.imageAdjustmentWindow.focus();
             return;
         }
-        this.imageAdjuster = new ImageAdjuster(this.src),
-        this.imageAdjustmentView = new ImageAdjustmentView(this.config, this.imageAdjuster),
+        if (!isEmpty(this.imageFilterWindow)) {
+            this.editor.application.notifications.push("warning", "Complete image filters before trying to adjust.");
+            return;
+        }
+        this.imageAdjustmentView = new ImageAdjustmentView(this.config, this.src, this.node.element.parentElement),
         this.imageAdjustmentWindow = await this.editor.application.windows.spawnWindow(
             "Adjust Image",
             this.imageAdjustmentView,
             this.constructor.imageAdjustmentWindowWidth,
             this.constructor.imageAdjustmentWindowHeight
         );
-        let imageAdjustmentCanvas = await this.imageAdjuster.getCanvas();
-
-        this.node.element.parentElement.appendChild(imageAdjustmentCanvas);
 
         let reset = () => {
             try {
-                this.node.element.parentElement.removeChild(imageAdjustmentCanvas);
+                this.imageAdjustmentView.removeCanvas();
             } catch(e) { }
-            this.imageAdjuster = null;
             this.imageAdjustmentView = null;
             this.imageAdjustmentWindow = null;
         }
 
         this.imageAdjustmentWindow.onClose(reset);
         this.imageAdjustmentView.onSave(async () => {
-            this.setImage(this.imageAdjuster.imageSource);
+            this.setImage(this.imageAdjustmentView.getImageSource());
             setTimeout(() => {
                 this.imageAdjustmentWindow.remove();
                 reset();

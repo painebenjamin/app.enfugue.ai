@@ -1,6 +1,6 @@
 /** NOCOMPRESS */
 /** @module graphics/image-adjuster.mjs */
-import { sleep, waitFor } from "../base/helpers.mjs";
+import { ImageFilter } from "./image-filter.mjs";
 
 /**
  * The callable that gpu.js will execute.
@@ -188,208 +188,64 @@ function performImageAdjustments(image) {
  *          adjuster.brightness = -25; // -25%, will be visible show on screen
  *      });
  */
-class ImageAdjuster {
-    /**
-     * @param string $source The source of the image.
-     */
-    constructor(source) {
-        this.source = source;
-        this.image = new Image();
-        this.image.onload = () => this.onload();
-        this.image.src = source;
-        this.loaded = false;
-        this.constants = {};
-    }
 
+class ImageAdjuster extends ImageFilter {
     /**
-     * Called when the image has been loaded.
+     * @var callabel The filter function
      */
-    onload() {
-        this.loaded = true;
-        this.canvas = document.createElement("canvas");
-        this.canvas.width = this.image.width;
-        this.canvas.height = this.image.height;
-        this.canvas.classList.add("adjuster");
-        this.reset();
-    }
+    static filterFunction = performImageAdjustments;
 
-    /**
-     * Change the image source after instantiation.
-     * 
-     * @param string $newSource The new source of the image
-     */
-    setImage(newSource) {
-        this.source = newSource
-        this.loaded = false;
-        this.image = new Image();
-        this.image.onload = () => {
-            this.canvas.width = this.image.width;
-            this.canvas.height = this.image.height;
-            this.constants.seed = this.seed; // Reload seed
-            this.loaded = true;
-            this.execute();
-        }
-        this.image.src = newSource;
-    }
-
-    /**
-     * @return Promise A promise that will wait for the source image to be loaded.
-     */
-    awaitLoad() {
-        return waitFor(() => this.loaded);
-    }
-
-    /**
-     * @return CanvasRenderingContextWebGL The WebGL context for the canvas
-     */
-    get context() {
-        return this.canvas.getContext("webgl", {"preserveDrawingBuffer": true});
-    }
-    
-    /**
-     * @return string The current result as a data URL
-     */
-    get imageSource() {
-        return this.canvas.toDataURL("image/jpg");
-    }
-
-    /**
-     * Compiles a kernel using the current image and settings.
-     * 
-     * @return Promise<GPU.Kernel> The callable kernel as a promise.
-     */
-    compileKernel() {
-        return new Promise((resolve) => {
-            this.getGPU().then((gpu) => {
-                const kernel = gpu.createKernel(performImageAdjustments)
-                    .setConstants({...this.constants})
-                    .setOutput([this.image.width, this.image.height])
-                    .setGraphical(true);
-                resolve(kernel);
-            });
-        });
-    }
-
-    /**
-     * Compiles and executes the kernel.
-     *
-     * @return Promise A promise that resolves when complete.
-     */
-    execute() {
-        return new Promise((resolve) => {
-            this.compileKernel().then((kernel) => {
-                kernel(this.image);
-                resolve();
-            });
-        });
-    }
-
-    /**
-     * Generate a matrix of random values of the same size as the image.
-     *
-     * @return array<array<float>>
-     */
-    get seed() {
-        return (new Array(this.image.height).fill(null).map(
-            () => (new Array(this.image.width).fill(null).map(
-                () => Math.random()
-            ))
-        ));
-    }
-    
-    /**
-     * Gets a GPU instance, instantiates it if not yet done.
-     * 
-     * @return Promise<GPU.GPU>
-     */
-    getGPU() {
-        if (this.gpu !== undefined) {
-            return Promise.resolve(this.gpu);
-        }
-        return new Promise((resolve) => {
-            this.awaitLoad().then(() => {
-                this.gpu = new GPU.GPU({
-                    "canvas": this.canvas,
-                    "context": this.context
-                });
-                resolve(this.gpu);
-            });
-        });
-    }
-
-    /**
-     * Gets the canvas that the GPU is rendering on.
-     *
-     * @return Promise<HTMLCanvas>
-     */
-    getCanvas() {
-        return new Promise((resolve) => {
-            this.awaitLoad().then(() => {
-                resolve(this.canvas);
-            });
-        });
-    }
-
-    /**
-     * Gets the current canvas as an image element.
-     *
-     * @return Promise<HTMLImage>
-     */
-    getImage() {
-        return new Promise((resolve) => {
-            this.awaitLoad().then(() => {
-                let image = new Image();
-                image.onload = () => { resolve(image); };
-                image.src = this.imageSource;
-            });
-        });
-    }
-    
     /**
      * Resets constants to base values and executes.
      */
-    reset() {
+    reset(execute = true) {
+        super.reset(false);
         this.constants = {
-            "width": this.image.width,
-            "height": this.image.height,
-            "seed": this.seed,
-            "noiseExponent": 3,
-            "invert": 0,
-            "contrast": 0,
-            "brightness": 0,
-            "lightness": 0,
-            "saturation": 0,
-            "hue": 0,
-            "red": 0,
-            "green": 0,
-            "blue": 0,
-            "hueNoise": 0,
-            "saturationNoise": 0,
-            "lightnessNoise": 0,
+            ...this.constants,
+            ...{
+                "noiseExponent": 3,
+                "invert": 0,
+                "contrast": 0,
+                "brightness": 0,
+                "lightness": 0,
+                "saturation": 0,
+                "hue": 0,
+                "red": 0,
+                "green": 0,
+                "blue": 0,
+                "hueNoise": 0,
+                "saturationNoise": 0,
+                "lightnessNoise": 0,
+            }
         };
-        this.execute();
+        if (execute) {
+            this.execute();
+        }
     }
 
     /**
      * Performs multiple adjustments at once
      *
      * @param object $adjustents The adjustment values
+     * @param bool $execute Whether or not to execute after setting values. Default true.
      * @see reset()
      */
-    adjust(adjustments) {
-        this.constants.contrast = parseInt(adjustments.contrast === undefined ? this.constants.contrast : adjustments.contrast);
-        this.constants.brightness = parseInt(adjustments.brightness === undefined ? this.constants.brightness : adjustments.brightness);
-        this.constants.saturation = parseInt(adjustments.saturation === undefined ? this.constants.saturation : adjustments.saturation);
-        this.constants.lightness = parseInt(adjustments.lightness === undefined ? this.constants.lightness : adjustments.lightness);
-        this.constants.hue = parseInt(adjustments.hue === undefined ? this.constants.hue : adjustments.hue);
-        this.constants.red = parseInt(adjustments.red === undefined ? this.constants.red : adjustments.red);
-        this.constants.green = parseInt(adjustments.green === undefined ? this.constants.green : adjustments.green);
-        this.constants.blue = parseInt(adjustments.blue === undefined ? this.constants.blue : adjustments.blue);
-        this.constants.hueNoise = parseInt(adjustments.hueNoise === undefined ? this.constants.hueNoise : adjustments.hueNoise);
-        this.constants.saturationNoise = parseInt(adjustments.saturationNoise === undefined ? this.constants.saturationNoise : adjustments.saturationNoise);
-        this.constants.lightnessNoise = parseInt(adjustments.lightnessNoise === undefined ? this.constants.lightnessNoise : adjustments.lightnessNoise);
-        this.constants.invert = adjustments.invert === undefined ? this.constants.invert : adjustments.invert === true ? 1 : 0;
-        this.execute();
+    setConstants(constants, execute = true) {
+        this.constants.contrast = parseInt(constants.contrast === undefined ? this.constants.contrast : constants.contrast);
+        this.constants.brightness = parseInt(constants.brightness === undefined ? this.constants.brightness : constants.brightness);
+        this.constants.saturation = parseInt(constants.saturation === undefined ? this.constants.saturation : constants.saturation);
+        this.constants.lightness = parseInt(constants.lightness === undefined ? this.constants.lightness : constants.lightness);
+        this.constants.hue = parseInt(constants.hue === undefined ? this.constants.hue : constants.hue);
+        this.constants.red = parseInt(constants.red === undefined ? this.constants.red : constants.red);
+        this.constants.green = parseInt(constants.green === undefined ? this.constants.green : constants.green);
+        this.constants.blue = parseInt(constants.blue === undefined ? this.constants.blue : constants.blue);
+        this.constants.hueNoise = parseInt(constants.hueNoise === undefined ? this.constants.hueNoise : constants.hueNoise);
+        this.constants.saturationNoise = parseInt(constants.saturationNoise === undefined ? this.constants.saturationNoise : constants.saturationNoise);
+        this.constants.lightnessNoise = parseInt(constants.lightnessNoise === undefined ? this.constants.lightnessNoise : constants.lightnessNoise);
+        this.constants.invert = constants.invert === undefined ? this.constants.invert : constants.invert === true ? 1 : 0;
+        if (execute) {
+            this.execute();
+        }
     }
 
     /**

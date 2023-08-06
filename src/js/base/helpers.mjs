@@ -282,6 +282,22 @@ export let set = (arr) => {
 };
 
 /**
+ * Filters empty objects out of an opbject.
+ *
+ * @param object An object.
+ * @return object An object with empty items removed.
+ */
+export let filterEmpty = (obj) => {
+    let values = {};
+    for (let key in obj) {
+        if (!isEmpty(obj[key])) {
+            values[key] = obj[key];
+        }
+    }
+    return values;
+};
+
+/**
  * Merges any number of objects together recursively.
  *
  * @param object Any number of objects to merge together.
