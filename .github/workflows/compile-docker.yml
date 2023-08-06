@@ -4,11 +4,14 @@ on:
 jobs:
   compile-docker:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
     env:
-        RUN_INTEGRATION_TEST: 0
-        RUN_UNIT_TEST: 0
-        RUN_TYPE_CHECK: 0
-        RUN_IMPORT_CHECK: 0
+      RUN_INTEGRATION_TEST: 0
+      RUN_UNIT_TEST: 0
+      RUN_TYPE_CHECK: 0
+      RUN_IMPORT_CHECK: 0
     steps:
       - uses: action/checkout@v3
       - name: Clean unneeded pre-installed code
