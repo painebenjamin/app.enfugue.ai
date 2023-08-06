@@ -1,4 +1,5 @@
 /** @module view/nodes/image-editor/scribble.mjs */
+import { isEmpty } from "../../../base/helpers.mjs";
 import { ScribbleView } from "../../scribble.mjs";
 import { 
     ImageEditorNodeView,
