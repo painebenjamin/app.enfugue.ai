@@ -42,10 +42,11 @@ jobs:
           context: build/
           push: true
           tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}
           labels: |
             org.opencontainers.image.title=Enfugue
             org.opencontainers.image.description=The Enfugue Stable Diffusion Webapp
-            org.opencontainers.image.version=${{ steps.version.outputs.version }}
             org.opencontainers.image.licenses=AGPL3
+            org.opencontainers.image.version=${{ steps.version.outputs.version }}
             org.opencontainers.image.created=${{ steps.datetime.outputs.datetime }}
