@@ -845,6 +845,7 @@ class DiffusionPlan:
                         pipeline.safe = True
                 if j < len(scales) - 1 and image_callback is not None:
                     image_callback(images)
+        pipeline.stop_keepalive() # Make sure this is stopped
         return StableDiffusionPipelineOutput(images=images, nsfw_content_detected=nsfw)
 
     def prepare_pipeline(self, pipeline: DiffusionPipelineManager) -> None:
