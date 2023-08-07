@@ -930,7 +930,7 @@ class DiffusionPlan:
                 upscale_check = self.upscale
                 if isinstance(upscale_check, list):
                     upscale_check = upscale_check[0]
-                if "gan" in upscale_check:
+                if isinstance(upscale_check, str) and "gan" in upscale_check:
                     next_intention = "upscaling"
                 elif self.upscale_diffusion:
                     next_intention = "refining"
