@@ -18,8 +18,11 @@ class EnfugueSecureServer(EnfugueAPIServer):
         """
         At configuration, get cached or remote resources.
         """
-        secure = server.get("secure", True)
-        domain = server.get("domain", True)
+        secure = os.getenv("SERVER_SECURE", server.get("secure", True))
+        if isinstance(secure, str):
+            secure = secure.lower()[0] in ["1", "y", "t"]
+        
+        domain = os.getenv("SERVER_DOMAIN", server.get("domain", True))
         if secure and domain == "app.enfugue.ai":
             try:
                 key, cert, chain = get_signature()

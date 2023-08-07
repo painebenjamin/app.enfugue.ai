@@ -50,8 +50,9 @@ class EnfugueInterfaceServer(
 
     def configure(self, **configuration: Any) -> None:
         """
-        Intercept configure() to add the static directory.
+        Intercept configure() to add the static directory and paths.
         """
+
         production_root = get_local_static_directory()
         production_templates = os.path.join(production_root, "html")
 
@@ -75,6 +76,28 @@ class EnfugueInterfaceServer(
         static_config["directories"] = static_directories
         server["static"] = static_config
 
+        cms_config = server.get("cms", {})
+        cms_path_config = cms_config.get("path", {})
+        
+        server_secure = os.getenv("SERVER_SECURE", server.get("secure", False))
+        if isinstance(server_secure, str):
+            server_secure = server_secure[0].lower() in ["1", "t", "y"]
+
+        server_domain = os.getenv("SERVER_DOMAIN", server.get("domain", "127.0.0.1"))
+        server_port = os.getenv("SERVER_PORT", server.get("port", 45554))
+        
+        server_protocol = "https" if server_secure else "http"
+
+        if "root" not in cms_path_config:
+            cms_path_config["root"] = f"{server_protocol}://{server_domain}:{server_port}/"
+        if "static" not in cms_path_config:
+            cms_path_config["static"] = f"{cms_path_config['root']}static/"
+        if "api" not in cms_path_config:
+            cms_path_config["api"] = f"{cms_path_config['root']}api/"
+        
+        cms_config["path"] = cms_path_config
+        server["cms"] = cms_config
+
         template_config = server.get("template", {})
         template_directories = template_config.get("directories", [])
         template_directories.extend(template_dirs)
@@ -82,6 +105,7 @@ class EnfugueInterfaceServer(
         server["template"] = template_config
 
         configuration["server"] = server
+
         super(EnfugueInterfaceServer, self).configure(**configuration)
 
     def on_configure(self):

@@ -74,8 +74,4 @@ configuration:
             recurse: true
         cms:
             name: Enfugue
-            path:
-                root: https://app.enfugue.ai:45554/
-                static: https://app.enfugue.ai:45554/static/
-                api: https://app.enfugue.ai:45554/api/
             context: !include ./cms-context.yml

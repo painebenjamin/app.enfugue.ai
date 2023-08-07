@@ -354,7 +354,7 @@ class EnfugueAPISystemController(EnfugueAPIControllerBase):
     @handlers.path("^/api/logs$")
     @handlers.methods("GET")
     @handlers.format()
-    @handlers.secured("System", "read")
+    @handlers.secured() # No specific permission, logs are redacted
     def read_logs(self, request: Request, response: Response) -> List[LogDict]:
         """
         Reads the log file and returns requested logs.
