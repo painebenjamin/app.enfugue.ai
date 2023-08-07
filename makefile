@@ -180,8 +180,7 @@ dockerfile: $(BUILD_DOCKERFILE)
 $(BUILD_DOCKERFILE): $(SRC_DOCKERFILE) $(PYTHON_ARTIFACTS)
 	cp $(SRC_DOCKERFILE) $@
 	$(eval SDIST=$(patsubst $(BUILD_DIR)/%,%,$(PYTHON_ARTIFACTS)))
-	$(PYTHON) -m pibble.scripts.templatefiles $@ --version_major "$(VERSION_MAJOR)" --version_minor "$(VERSION_MINOR)" --version_patch "$(VERSION_PATCH)" $(SDIST:%=--sdist %) --docker_container "$(DOCKER_CONTAINER)" --docker_command "$(DOCKER_COMMAND)" --docker_script "$(DOCKER_SCRIPT)"
-	cp $(SCRIPT_DIR)/$(DOCKER_SCRIPT) $(BUILD_DIR)/
+	$(PYTHON) -m pibble.scripts.templatefiles $@ --version_major "$(VERSION_MAJOR)" --version_minor "$(VERSION_MINOR)" --version_patch "$(VERSION_PATCH)" $(SDIST:%=--sdist %) --docker_container "$(DOCKER_CONTAINER)"
 
 ## Split on Linux
 .PHONY: split
