@@ -9,6 +9,9 @@ function noop(image) {
     this.color(pixel[0], pixel[1], pixel[2], pixel[3]);
 }
 
+/**
+ * Provides a base class for GPU-accelerated image filters
+ */
 class ImageFilter {
     /**
      * @var callable The filter function
@@ -190,20 +193,132 @@ class ImageFilter {
     }
 
     /**
-     * Sets constants and then executes.
-     *
-     * @param object $constants New constants.
-     * @param bool $execute Whether or not to execute, default true
+     * Tests the filter function using a full transparent image.
+     * @param int $imageHeight The height of the test image.
+     * @param int $imageWidth The width of the test image.
+     * @return array<array<int>> The result image after executing the filter function.
      */
-    setConstants(constants, execute = true) {
-        this.constants = {
-            ...this.constants,
-            ...constants
-        };
+    static testFilter(imageHeight = 10, imageWidth = 10) {
+        let instance = new this();
+        instance.reset(false);
+        let constants = {...instance.constants},
+            thread = {x: 0, y: 0},
+            result = new Array(imageHeight).fill(null).map(() => { return new Array(imageWidth).fill(null); }),
+            image = new Array(imageHeight).fill(null).map(() => { return new Array(imageWidth).fill([Math.random(), Math.random(), Math.random(), 1.0]); }),
+            color = (r, g, b, a) => result[thread.y][thread.x] = [r, g, b, a],
+            state = {
+                constants: constants,
+                thread: thread,
+                color: color
+            };
+        constants.width = imageWidth;
+        constants.height = imageHeight;
+        for (let i = 0; i < imageHeight; i++) {
+            for (let j = 0; j < imageWidth; j++) {
+                state.thread.y = i;
+                state.thread.x = j;
+                this.filterFunction.call(state, image);
+            }
+        }
+
+        return result;
+    }
+}
+
+/**
+ * The callable executed by gpu.js for performing matrix convolution
+ * Important values:
+ *      image: a width × height matrix of floating-point RGBA values (i.e., image[n][m] = [0-1,0-1,0-1,0-1])
+ *      this.thread.x: x dimension of the particular GPU thread.
+ *      this.thread.y: y dimension of the particular GPU thread.
+ *      this.constants.width: This width of the image.
+ *      this.constants.height: This height of the image.
+ *      this.constants.radius: The radius about (x, y) to convolve.
+ *      this.constants.matrix: A normalized ((radius * 2) + 1)² matrix to multiply (adds up to 1)
+ */
+function matrixConvolution(image) {
+    const sampleStartX = Math.max(0, this.thread.x - this.constants.radius);
+    const sampleEndX = Math.min(this.constants.width, this.thread.x + this.constants.radius);
+    const matrixOffsetX = this.thread.x < this.constants.radius
+        ? this.constants.radius - this.thread.x
+        : 0;
+    const sampleStartY = Math.max(0, this.thread.y - this.constants.radius);
+    const sampleEndY = Math.min(this.constants.height, this.thread.y + this.constants.radius);
+    const matrixOffsetY = this.thread.y < this.constants.radius
+        ? this.constants.radius - this.thread.y
+        : 0;
+
+    let rgb = [0, 0, 0];
+    for (let i = sampleStartY; i < sampleEndY; i++) {
+        for (let j = sampleStartX; j < sampleEndX; j++) {
+            let matrixValue = this.constants.matrix[i - sampleStartY + matrixOffsetY][j - sampleStartX + matrixOffsetX];
+            let pixelValue = image[i][j];
+            rgb[0] = rgb[0] + (pixelValue[0] * matrixValue);
+            rgb[1] = rgb[1] + (pixelValue[1] * matrixValue);
+            rgb[2] = rgb[2] + (pixelValue[2] * matrixValue);
+        }
+    }
+    this.color(rgb[0], rgb[1], rgb[2], 1.0);
+}
+
+/**
+ * An extension of the ImageFilter that allows for M×M matrix functions
+ * The matrix will be moved over the image and each pixel at (x, y) will 
+ * set to the product of the matrix convolution over the pixel window centered
+ * around (x, y) - this must always be an odd-sized matrix
+ */
+class MatrixImageFilter extends ImageFilter {
+    /**
+     * Set the filter function to the matrix convolution function
+     */
+    static filterFunction = matrixConvolution;
+
+    /**
+     * Gets the matrix
+     * Default does nothing
+     */
+    getMatrix() {
+        let matrix = new Array((this.constants.radius*2)+1).fill(null).map(() => {
+            return new Array((this.constants.radius*2)+1).fill(0.0);
+        });
+        matrix[this.constants.radius][this.constants.radius] = 1.0;
+        return matrix;
+    }
+
+    /**
+     * Override parent reset to additionally set radius
+     */
+    reset(execute) {
+        super.reset(false);
+        this.constants.radius = 1;
+        this.constants.matrix = this.getMatrix();
         if (execute) {
             this.execute();
         }
     }
+
+    /**
+     * Override setConstants to include radius
+     */
+    setConstants(constants, execute = true) {
+        this.constants.radius = parseInt(constants.radius === undefined ? this.constants.radius : constants.radius);
+        this.constants.matrix = this.getMatrix();
+        if (execute) {
+            this.execute();
+        }
+    }
+
+    /**
+     * Sets the new radius value and executes
+     * @param int $newRadius The new radius, >= 1
+     */
+    set radius(newRadius) {
+        this.constants.radius = parseInt(newRadius);
+        this.constants.matrix = this.getMatrix();
+        this.execute();
+    }
 }
 
-export { ImageFilter };
+//console.log(MatrixImageFilter.testFilter());
+
+export { ImageFilter, MatrixImageFilter };

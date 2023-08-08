@@ -2,8 +2,9 @@
 import { isEmpty } from "../../../base/helpers.mjs";
 import { ElementBuilder } from "../../../base/builder.mjs";
 import { View } from "../../base.mjs";
-import { ImageAdjuster } from "../../../graphics/image-adjuster.mjs";
-import { ImagePixelizer } from "../../../graphics/image-pixelizer.mjs";
+import { ImageAdjustmentFilter } from "../../../graphics/image-adjust.mjs";
+import { ImagePixelizeFilter } from "../../../graphics/image-pixelize.mjs";
+import { ImageGaussianBlurFilter } from "../../../graphics/image-blur.mjs";
 import { FormView } from "../../forms/base.mjs";
 import {
     SliderPreciseInputView,
@@ -20,7 +21,8 @@ class FilterSelectInputView extends SelectInputView {
      * @var object The options for this input
      */
     static defaultOptions = {
-        "pixelize": "Pixelize"
+        "pixelize": "Pixelize",
+        "gaussian": "Gaussian Blur"
     };
 }
 
@@ -39,7 +41,7 @@ class ImageFilterFormView extends FormView {
     static disableOnSubmit = false;
 
     /**
-     * Fieldsets
+     * Fieldsets include the main filter, then inputs for filter types
      */
     static fieldSets = {
         "Filter": {
@@ -55,10 +57,22 @@ class ImageFilterFormView extends FormView {
                 "label": "Pixel Size",
                 "class": SliderPreciseInputView,
                 "config": {
-                    "min": 2,
-                    "max": 128,
+                    "min": 1,
+                    "max": 64,
                     "step": 1,
-                    "value": 10
+                    "value": 1
+                }
+            }
+        },
+        "Blur": {
+            "radius": {
+                "label": "Blur Radius",
+                "class": SliderPreciseInputView,
+                "config": {
+                    "min": 1,
+                    "max": 64,
+                    "step": 1,
+                    "value": 1
                 }
             }
         }
@@ -75,12 +89,13 @@ class ImageFilterFormView extends FormView {
      * @var object Callable conditions for fieldset display
      */
     static fieldSetConditions = {
-        "Pixelize": (values) => values.filter === "pixelize"
+        "Pixelize": (values) => values.filter === "pixelize",
+        "Blur": (values) => values.filter === "gaussian"
     };
 };
 
 /**
- * Creates a form view for controlling the ImageAdjuster
+ * Creates a form view for controlling the ImageAdjustmentFilter
  */
 class ImageAdjustmentFormView extends ImageFilterFormView {
     /**
@@ -243,12 +258,12 @@ class ImageFilterView extends View {
      */
     createFilter(filterType) {
         switch (filterType) {
+            case "gaussian":
+                return new ImageGaussianBlurFilter(this.image);
             case "pixelize":
-            case "pixelizer":
-                return new ImagePixelizer(this.image);
+                return new ImagePixelizeFilter(this.image);
             case "adjust":
-            case "adjuster":
-                return new ImageAdjuster(this.image);
+                return new ImageAdjustmentFilter(this.image);
             default:
                 this.editor.application.notifications.push("error", `Unknown filter ${filterType}`);
         }
@@ -371,7 +386,7 @@ class ImageAdjustmentView extends ImageFilterView {
      */
     constructor(config, image, container) {
         super(config, image, container);
-        this.setFilter({"filter": "adjuster"});
+        this.setFilter({"filter": "adjust"});
     }
 }
 

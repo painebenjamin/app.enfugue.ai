@@ -90,6 +90,9 @@ class CurrentInvocationImageView extends ImageView {
         if (isEmpty(this.toolbar)) {
             this.toolbar = new InvocationToolbarView(this);
             
+            this.hideImage = await this.toolbar.addItem("Hide Image", "fa-solid fa-eye-slash");
+            this.hideImage.onClick(() => this.editor.application.images.hideCurrentInvocation());
+
             if (!!navigator.clipboard && typeof ClipboardItem === "function") {
                 this.copyImage = await this.toolbar.addItem("Copy to Clipboard", "fa-solid fa-clipboard");
                 this.copyImage.onClick(() => this.copyToClipboard());

@@ -176,20 +176,20 @@ function performImageAdjustments(image) {
  * Provides a class that allows a number of adjustments to an image using GPU acceleration.
  * Usage is very simple. To adjust off-screen:
  *
- *      let adjuster = new ImageAdjuster("/images/myimage.png");
+ *      let adjuster = new ImageAdjustmentFilter("/images/myimage.png");
  *      adjuster.brightness = -25; // -25%
  *      adjuster.getImage().then((image) => document.body.appendChild(image));
  *
  * To adjust on-screen:
  * 
- *      let adjuster = new ImageAdjuster("/images/myimage.png");
+ *      let adjuster = new ImageAdjustmentFilter("/images/myimage.png");
  *      adjuster.getCanvas().then((canvas) => {
  *          document.body.appendChild(canvas);
  *          adjuster.brightness = -25; // -25%, will be visible show on screen
  *      });
  */
 
-class ImageAdjuster extends ImageFilter {
+class ImageAdjustmentFilter extends ImageFilter {
     /**
      * @var callabel The filter function
      */
@@ -368,4 +368,4 @@ class ImageAdjuster extends ImageFilter {
     }
 }
 
-export { ImageAdjuster };
+export { ImageAdjustmentFilter };

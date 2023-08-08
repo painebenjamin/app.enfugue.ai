@@ -16,34 +16,29 @@ function performPixelize(image) {
     // Get top-left pixel position
     let topLeftY = this.thread.y - (this.thread.y % this.constants.size);
     let topLeftX = this.thread.x - (this.thread.x % this.constants.size);
-
-    if (this.thread.x === topLeftX && this.thread.y === topLeftY) {
-    } else {
-        // Already calculated average, take it
-        let pixel = image[topLeftY][topLeftX];
-        this.color(pixel[0], pixel[1], pixel[2], pixel[3]);
-    }
+    let pixel = image[topLeftY][topLeftX];
+    this.color(pixel[0], pixel[1], pixel[2], pixel[3]);
 }
 
 /**
  * Provides a class that allows a pixelizing filter on an image.
  * Usage is very simple. To filter off-screen:
  *
- *      let pixelizer = new ImagePixelizer("/images/myimage.png");
+ *      let pixelizer = new ImagePixelizeFilter("/images/myimage.png");
  *      pixelizer.size = 10; // 10px
  *      pixelizer.getImage().then((image) => document.body.appendChild(image));
  *
  * To filter on-screen:
  * 
- *      let pixelizer = new ImagePixelizer("/images/myimage.png");
+ *      let pixelizer = new ImagePixelizeFilter("/images/myimage.png");
  *      pixelizer.getCanvas().then((canvas) => {
  *          document.body.appendChild(canvas);
  *          pixelizer.size = 10; // 10px, will change on-screen
  *      });
  */
-class ImagePixelizer extends ImageFilter {
+class ImagePixelizeFilter extends ImageFilter {
     /**
-     * @var callabel The filter function
+     * @var callable The filter function
      */
     static filterFunction = performPixelize;
 
@@ -52,12 +47,7 @@ class ImagePixelizer extends ImageFilter {
      */
     reset(execute = true) {
         super.reset(false);
-        this.constants = {
-            ...this.constants,
-            ...{
-                "size": 10
-            }
-        };
+        this.constants.size = 2;
         if (execute) {
             this.execute();
         }
@@ -83,4 +73,4 @@ class ImagePixelizer extends ImageFilter {
     }
 }
 
-export { ImagePixelizer };
+export { ImagePixelizeFilter };

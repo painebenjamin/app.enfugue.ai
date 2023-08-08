@@ -1,31 +1,19 @@
 /** @module controller/file/history */
 import { MenuController } from "../menu.mjs";
 import { ModelTableView } from "../../view/table.mjs";
-import { ImageView, ImageInspectorView } from "../../view/image.mjs";
+import { ImageView } from "../../view/image.mjs";
 import { isEmpty, humanDuration, sleep } from "../../base/helpers.mjs";
 import { ElementBuilder } from "../../base/builder.mjs";
 
-const imageWidthPadding = 2,
-      imageHeightPadding = 100,
-      E = new ElementBuilder({
-        "invocationOutputs": "enfugue-invocation-outputs",
-        "invocationOutput": "enfugue-invocation-output"
-      });
+const E = new ElementBuilder({
+    "invocationOutputs": "enfugue-invocation-outputs",
+    "invocationOutput": "enfugue-invocation-output"
+});
 
 /**
  * Extends the ModelTableView to add formatters for columns
  */
 class InvocationTableView extends ModelTableView {
-    /**
-     * @var int The width of the image inspector view when it's made
-     */
-    static imageInspectorWidth = 550;
-    
-    /**
-     * @var int The height of the image inspector view when it's made
-     */
-    static imageInspectorHeight = 550;
-
     /**
      * @var string The classname for the node
      */
@@ -92,28 +80,10 @@ class InvocationTableView extends ModelTableView {
                         imageSource = `/api/invocation/images/${imageName}`,
                         thumbnailSource = `/api/invocation/thumbnails/${imageName}`,
                         imageView = new ImageView(this.config, thumbnailSource),
-                        imageInspector = new ImageInspectorView(
-                            this.config,
-                            imageSource,
-                            imageName,
-                            InvocationTableView.imageInspectorWidth,
-                            InvocationTableView.imageInspectorHeight
-                        ),
                         imageContainer = E.invocationOutput()
                             .content(await imageView.getNode())
                             .on("click", async () => {
-                                let invocationWindow = await InvocationTableView.spawnWindow( // Set at init
-                                    `${datum.id} sample ${i+1}`,
-                                    imageInspector,
-                                    InvocationTableView.imageInspectorWidth + 2,
-                                    InvocationTableView.imageInspectorHeight + 32
-                                );
-                                invocationWindow.onResize((arg) => {
-                                    imageInspector.setDimension(
-                                        invocationWindow.visibleWidth - 23,
-                                        invocationWindow.visibleHeight - 53
-                                    );
-                                });
+                                InvocationTableView.setCurrentInvocationImage(imageSource); // Set at init
                             });
                     outputContainer.append(imageContainer);
                 }
@@ -166,8 +136,9 @@ class ResultsController extends MenuController {
      */
     async initialize() {
         await super.initialize();
-        InvocationTableView.spawnWindow = (name, content, width, height) => this.spawnWindow(name, content, width, height);
         InvocationTableView.deleteInvocation = (id) => { this.model.delete(`/invocation/${id}`); };
+        InvocationTableView.setCurrentInvocationImage = (image) => this.application.images.setCurrentInvocationImage(image);
+
     }
 
     /**
