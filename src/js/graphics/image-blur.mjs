@@ -3,20 +3,7 @@
 import { MatrixImageFilter } from "./image-filter.mjs";
 
 /**
- * Provides a class that allows a blurring filter on an image.
- * Usage is very simple. To filter off-screen:
- *
- *      let blurFilter = new ImageGaussianBlurFilter("/images/myimage.png");
- *      blurFilter.radius = 10; // 10px
- *      blurFilter.getImage().then((image) => document.body.appendChild(image));
- *
- * To filter on-screen:
- * 
- *      let blurFilter = new ImageGaussianBlurFilter("/images/myimage.png");
- *      blurFilter.getCanvas().then((canvas) => {
- *          document.body.appendChild(canvas);
- *          blurFilter.radius = 10; // 10px, will change on-screen
- *      });
+ * Provides a class that allows a gaussian blurring filter on an image.
  */
 class ImageGaussianBlurFilter extends MatrixImageFilter {
     /**
@@ -40,7 +27,7 @@ class ImageGaussianBlurFilter extends MatrixImageFilter {
                 sum += matrixValue;
             }
         }
-        
+
         for (let i = 0; i < matrixSize; i++) {
             for (let j = 0; j < matrixSize; j++) {
                 matrix[i][j] /= sum;
@@ -49,6 +36,24 @@ class ImageGaussianBlurFilter extends MatrixImageFilter {
 
         return matrix;
     }
+};
+
+/**
+ * Provides a class that allows a box blurring filter on an image.
+ */
+class ImageBoxBlurFilter extends MatrixImageFilter {
+    /**
+     * Gets the gaussian distribution matrix
+     */
+    getMatrix() {
+        let matrixSize = this.constants.radius * 2 + 1,
+            matrixTotal = Math.pow(matrixSize, 2),
+            matrix = new Array(matrixSize).fill(null).map(() => new Array(matrixSize).fill(1/matrixTotal));
+        return matrix;
+    }
 }
 
-export { ImageGaussianBlurFilter };
+export { 
+    ImageGaussianBlurFilter,
+    ImageBoxBlurFilter
+};

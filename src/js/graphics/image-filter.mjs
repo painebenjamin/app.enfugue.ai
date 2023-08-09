@@ -21,9 +21,10 @@ class ImageFilter {
     /**
      * @param string $source The source of the image.
      */
-    constructor(source) {
+    constructor(source, execute = true) {
         this.source = source;
         this.image = new Image();
+        this.executeOnLoad = execute;
         this.image.onload = () => this.onload();
         this.image.src = source;
         this.loaded = false;
@@ -39,7 +40,7 @@ class ImageFilter {
         this.canvas.width = this.image.width;
         this.canvas.height = this.image.height;
         this.canvas.classList.add("image-filter");
-        this.reset();
+        this.reset(this.executeOnLoad);
     }
 
     /**
@@ -191,6 +192,15 @@ class ImageFilter {
             this.execute();
         }
     }
+    
+    /**
+     * setConstants does nothing at root
+     */
+    setConstants(constants, execute = true) {
+        if (execute) {
+            this.execute();
+        }
+    }
 
     /**
      * Tests the filter function using a full transparent image.
@@ -204,7 +214,7 @@ class ImageFilter {
         let constants = {...instance.constants},
             thread = {x: 0, y: 0},
             result = new Array(imageHeight).fill(null).map(() => { return new Array(imageWidth).fill(null); }),
-            image = new Array(imageHeight).fill(null).map(() => { return new Array(imageWidth).fill([Math.random(), Math.random(), Math.random(), 1.0]); }),
+            image = new Array(imageHeight).fill(null).map(() => { return new Array(imageWidth).fill(null).map(() => [Math.random(), Math.random(), Math.random(), 1.0]); }),
             color = (r, g, b, a) => result[thread.y][thread.x] = [r, g, b, a],
             state = {
                 constants: constants,
@@ -237,27 +247,24 @@ class ImageFilter {
  *      this.constants.matrix: A normalized ((radius * 2) + 1)² matrix to multiply (adds up to 1)
  */
 function matrixConvolution(image) {
-    const sampleStartX = Math.max(0, this.thread.x - this.constants.radius);
-    const sampleEndX = Math.min(this.constants.width, this.thread.x + this.constants.radius);
-    const matrixOffsetX = this.thread.x < this.constants.radius
-        ? this.constants.radius - this.thread.x
-        : 0;
-    const sampleStartY = Math.max(0, this.thread.y - this.constants.radius);
-    const sampleEndY = Math.min(this.constants.height, this.thread.y + this.constants.radius);
-    const matrixOffsetY = this.thread.y < this.constants.radius
-        ? this.constants.radius - this.thread.y
-        : 0;
+    const pixelX = this.thread.x;
+    const pixelY = this.thread.y;
+    
+    let rgb = [0.0, 0.0, 0.0];
+    
+    for (let i = -this.constants.radius; i <= this.constants.radius; i++) {
+        for (let j = -this.constants.radius; j <= this.constants.radius; j++) {
+            const sampleY = Math.min(Math.max(0, pixelY + i), this.constants.height - 1);
+            const sampleX = Math.min(Math.max(0, pixelX + j), this.constants.width - 1);
+            const pixelValue = image[sampleY][sampleX];
+            const matrixValue = this.constants.matrix[i + this.constants.radius][j + this.constants.radius];
 
-    let rgb = [0, 0, 0];
-    for (let i = sampleStartY; i < sampleEndY; i++) {
-        for (let j = sampleStartX; j < sampleEndX; j++) {
-            let matrixValue = this.constants.matrix[i - sampleStartY + matrixOffsetY][j - sampleStartX + matrixOffsetX];
-            let pixelValue = image[i][j];
             rgb[0] = rgb[0] + (pixelValue[0] * matrixValue);
             rgb[1] = rgb[1] + (pixelValue[1] * matrixValue);
             rgb[2] = rgb[2] + (pixelValue[2] * matrixValue);
         }
     }
+    
     this.color(rgb[0], rgb[1], rgb[2], 1.0);
 }
 
@@ -288,7 +295,7 @@ class MatrixImageFilter extends ImageFilter {
     /**
      * Override parent reset to additionally set radius
      */
-    reset(execute) {
+    reset(execute = true) {
         super.reset(false);
         this.constants.radius = 1;
         this.constants.matrix = this.getMatrix();
@@ -319,4 +326,39 @@ class MatrixImageFilter extends ImageFilter {
     }
 }
 
-export { ImageFilter, MatrixImageFilter };
+class WeightedMatrixImageFilter extends MatrixImageFilter {
+    /**
+     * Override reset to include weight
+     */
+    reset(execute = true) {
+        super.reset(false);
+        this.constants.weight = 0;
+        this.constants.matrix = this.getMatrix();
+        if (execute) {
+            this.execute();
+        }
+    }
+    
+    /**
+     * Overrset setConstants to include weight
+     */
+    setConstants(constants, execute = true) {
+        this.constants.weight = parseInt(constants.weight === undefined ? this.constants.weight : constants.weight);
+        super.setConstants(constants, execute);
+    }
+
+    /**
+     * Set weight and execute
+     */
+    set weight(newWeight) {
+        this.constants.weight = parseInt(newWeight);
+        this.constants.matrix = this.getMatrix();
+        this.execute();
+    }
+}
+
+export {
+    ImageFilter,
+    MatrixImageFilter,
+    WeightedMatrixImageFilter
+};

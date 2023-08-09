@@ -1742,8 +1742,8 @@ class DiffusionPipelineManager:
                 logger.debug("Inferencing on cpu, must use dtype bfloat16")
                 self._torch_dtype = torch.bfloat16
             elif device_type == "mps":
-                logger.debug("Inferencing on mps, must use dtype float32")
-                self._torch_dtype = torch.float32
+                logger.debug("Inferencing on mps, trying to use float16")
+                self._torch_dtype = torch.float16
             elif device_type == "cuda" and torch.version.hip:
                 logger.debug("Inferencing on rocm, must use dtype float32")  # type: ignore[unreachable]
                 self._torch_dtype = torch.float

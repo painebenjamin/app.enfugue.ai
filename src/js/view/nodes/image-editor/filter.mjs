@@ -4,7 +4,13 @@ import { ElementBuilder } from "../../../base/builder.mjs";
 import { View } from "../../base.mjs";
 import { ImageAdjustmentFilter } from "../../../graphics/image-adjust.mjs";
 import { ImagePixelizeFilter } from "../../../graphics/image-pixelize.mjs";
-import { ImageGaussianBlurFilter } from "../../../graphics/image-blur.mjs";
+import {
+    ImageBoxBlurFilter,
+    ImageGaussianBlurFilter
+} from "../../../graphics/image-blur.mjs";
+import {
+    ImageSharpenFilter
+} from "../../../graphics/image-sharpen.mjs";
 import { FormView } from "../../forms/base.mjs";
 import {
     SliderPreciseInputView,
@@ -22,7 +28,9 @@ class FilterSelectInputView extends SelectInputView {
      */
     static defaultOptions = {
         "pixelize": "Pixelize",
-        "gaussian": "Gaussian Blur"
+        "box": "Box Blur",
+        "gaussian": "Gaussian Blur",
+        "sharpen": "Sharpen"
     };
 }
 
@@ -52,9 +60,8 @@ class ImageFilterFormView extends FormView {
                 }
             }
         },
-        "Pixelize": {
+        "Size": {
             "size": {
-                "label": "Pixel Size",
                 "class": SliderPreciseInputView,
                 "config": {
                     "min": 1,
@@ -64,15 +71,25 @@ class ImageFilterFormView extends FormView {
                 }
             }
         },
-        "Blur": {
+        "Radius": {
             "radius": {
-                "label": "Blur Radius",
                 "class": SliderPreciseInputView,
                 "config": {
                     "min": 1,
                     "max": 64,
                     "step": 1,
                     "value": 1
+                }
+            }
+        },
+        "Weight": {
+            "weight": {
+                "class": SliderPreciseInputView,
+                "config": {
+                    "min": 0,
+                    "max": 100,
+                    "step": 1,
+                    "value": 0
                 }
             }
         }
@@ -82,15 +99,18 @@ class ImageFilterFormView extends FormView {
      * @var object Default values
      */
     static defaultValues = {
-        "size": 10
+        "size": 16,
+        "radius": 2,
+        "weight": 0
     };
 
     /**
      * @var object Callable conditions for fieldset display
      */
     static fieldSetConditions = {
-        "Pixelize": (values) => values.filter === "pixelize",
-        "Blur": (values) => values.filter === "gaussian"
+        "Size": (values) => ["pixelize"].indexOf(values.filter) !== -1,
+        "Radius": (values) => ["gaussian", "box", "sharpen"].indexOf(values.filter) !== -1,
+        "Weight": (values) => ["sharpen"].indexOf(values.filter) !== -1
     };
 };
 
@@ -256,14 +276,18 @@ class ImageFilterView extends View {
     /**
      * Creates a GPU-accelerated filter helper using the image
      */
-    createFilter(filterType) {
+    createFilter(filterType, execute = true) {
         switch (filterType) {
+            case "box":
+                return new ImageBoxBlurFilter(this.image, execute);
             case "gaussian":
-                return new ImageGaussianBlurFilter(this.image);
+                return new ImageGaussianBlurFilter(this.image, execute);
+            case "sharpen":
+                return new ImageSharpenFilter(this.image, execute);
             case "pixelize":
-                return new ImagePixelizeFilter(this.image);
+                return new ImagePixelizeFilter(this.image, execute);
             case "adjust":
-                return new ImageAdjustmentFilter(this.image);
+                return new ImageAdjustmentFilter(this.image, execute);
             default:
                 this.editor.application.notifications.push("error", `Unknown filter ${filterType}`);
         }
@@ -287,9 +311,10 @@ class ImageFilterView extends View {
             if (this.filterType !== values.filter) {
                 // Filter changed
                 this.removeCanvas();
-                this.filter = this.createFilter(values.filter);
+                this.filter = this.createFilter(values.filter, false);
                 this.filterType = values.filter;
                 this.filter.getCanvas().then((canvas) => {
+                    this.filter.setConstants(values);
                     this.canvas = canvas;
                     this.container.appendChild(this.canvas);
                 });

@@ -1,4 +1,5 @@
 /** @module view/nodes/image-editor/invocation.mjs */
+import { SimpleNotification } from "../../../common/notify.mjs";
 import { isEmpty } from "../../../base/helpers.mjs";
 import { ImageView } from "../../image.mjs";
 import { ToolbarView } from "../../menu.mjs";
