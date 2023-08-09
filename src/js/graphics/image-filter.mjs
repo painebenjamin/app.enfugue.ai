@@ -319,6 +319,4 @@ class MatrixImageFilter extends ImageFilter {
     }
 }
 
-//console.log(MatrixImageFilter.testFilter());
-
 export { ImageFilter, MatrixImageFilter };
