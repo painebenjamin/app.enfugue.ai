@@ -1,5 +1,6 @@
 FROM {{ docker_container }}
 
+# Install general dependencies
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get clean
 RUN apt-get update
@@ -10,6 +11,11 @@ RUN apt-get install python3.10 python3.10-distutils ffmpeg libsm6 libxext6 -y
 RUN wget https://bootstrap.pypa.io/get-pip.py
 RUN python3.10 get-pip.py
 
+# Add user
+RUN groupadd --gid 1000 {{ docker_username }}
+RUN useradd --uid 1000 --gid 1000 -m {{ docker_username }}
+
+USER {{ docker_username }}
 COPY {{ sdist }} .
 RUN python3.10 -m pip install nvidia-pyindex
 RUN python3.10 -m pip install {{ sdist }}[tensorrt] git+https://github.com/CompVis/taming-transformers.git@master#egg=taming-transformers git+https://github.com/openai/CLIP.git@main#egg=clip git+https://github.com/CompVis/stable-diffusion.git@main#egg=latent-diffusion git+https://github.com/huggingface/diffusers@main#egg=diffusers torch==1.13.1
