@@ -3,7 +3,7 @@ import glob
 import PIL
 import PIL.Image
 
-from typing import Dict, List, Any, Union, Tuple
+from typing import Dict, List, Any, Union, Tuple, Optional
 from webob import Request, Response
 
 from pibble.ext.user.server.base import (
@@ -17,32 +17,67 @@ from pibble.api.middleware.database.orm import ORMMiddlewareBase
 from pibble.api.exceptions import NotFoundError, BadRequestError
 
 from enfugue.diffusion.plan import DiffusionPlan
+from enfugue.diffusion.constants import (
+    DEFAULT_MODEL,
+    DEFAULT_INPAINTING_MODEL,
+    DEFAULT_SDXL_MODEL,
+    DEFAULT_SDXL_REFINER,
+)
 from enfugue.api.controller.base import EnfugueAPIControllerBase
 
 __all__ = ["EnfugueAPIInvocationController"]
 
+DEFAULT_MODEL_CKPT = os.path.basename(DEFAULT_MODEL)
+DEFAULT_INPAINTING_MODEL_CKPT = os.path.basename(DEFAULT_INPAINTING_MODEL)
+DEFAULT_SDXL_MODEL_CKPT = os.path.basename(DEFAULT_SDXL_MODEL)
+DEFAULT_SDXL_REFINER_CKPT = os.path.basename(DEFAULT_SDXL_REFINER)
 
 class EnfugueAPIInvocationController(EnfugueAPIControllerBase):
     handlers = UserExtensionHandlerRegistry()
+
+    @property
+    def thumbnail_height(self) -> int:
+        """
+        Gets the height of thumbnails.
+        """
+        return self.configuration.get("enfugue.thumbnail", 200)
+
+    def get_default_model(self, model: str) -> Optional[str]:
+        """
+        Gets a default model link by model name, if one exists
+        """
+        base_model_name = os.path.basename(model)
+        if base_model_name == DEFAULT_MODEL_CKPT:
+            return DEFAULT_MODEL
+        if base_model_name == DEFAULT_INPAINTING_MODEL_CKPT:
+            return DEFAULT_INPAINTING_MODEL
+        if base_model_name == DEFAULT_SDXL_MODEL_CKPT:
+            return DEFAULT_SDXL_MODEL
+        if base_model_name == DEFAULT_SDXL_REFINER_CKPT:
+            return DEFAULT_SDXL_REFINER
+        return None
 
     def check_find_model(self, model_type: str, model: str) -> str:
         """
         Tries to find a model in a configured directory, if the
         passed model is not an absolute path.
         """
-        if not os.path.exists(model):
-            check_model = os.path.abspath(
-                os.path.join(
-                    self.configuration.get(
-                        f"enfugue.engine.{model_type}", os.path.join(self.engine_root, model_type)
-                    ),
-                    model
-                )
+        if os.path.exists(model):
+            return model
+        check_model = os.path.abspath(
+            os.path.join(
+                self.configuration.get(
+                    f"enfugue.engine.{model_type}", os.path.join(self.engine_root, model_type)
+                ),
+                model
             )
-            if not os.path.exists(check_model):
-                raise BadRequestError(f"Cannot find or access {model} (tried {check_model})")
-            model = check_model
-        return model
+        )
+        if os.path.exists(check_model):
+            return check_model
+        check_default_model = self.get_default_model(check_model)
+        if check_default_model:
+            return check_default_model
+        raise BadRequestError(f"Cannot find or access {model} (tried {check_model})")
 
     def check_find_adaptations(
         self,
@@ -72,13 +107,6 @@ class EnfugueAPIInvocationController(EnfugueAPIControllerBase):
                 models.extend(self.check_find_adaptations(model_type, is_weighted, item))
             return models
         raise BadRequestError(f"Bad format for {model_type} - must be either a single string, a dictionary with the key `model` and optionally `weight`, or a list of the same (got {model})")
-
-    @property
-    def thumbnail_height(self) -> int:
-        """
-        Gets the height of thumbnails.
-        """
-        return self.configuration.get("enfugue.thumbnail", 200)
 
     @handlers.path("^/api/invoke$")
     @handlers.methods("POST")

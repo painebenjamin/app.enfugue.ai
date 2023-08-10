@@ -223,7 +223,10 @@ class AnnouncementsController extends Controller {
             let announcementsView = new ParentView(this.config);
             await announcementsView.addClass("announcements-view");
             if (!isEmpty(initializeAnnouncement)) {
-                let initializationAnnouncementView = await announcementsView.addChild(InitializationAnnouncementView, initializeAnnouncement[0].directories),
+                let initializationAnnouncementView = await announcementsView.addChild(
+                        InitializationAnnouncementView, 
+                        initializeAnnouncement[0].directories
+                    ),
                     directoryForm = initializationAnnouncementView.formView;
 
                 directoryForm.onChange(() => {
@@ -232,7 +235,26 @@ class AnnouncementsController extends Controller {
                 });
 
                 directoryForm.onSubmit(async (newDirectories) => {
-                    await this.model.post("installation", null, null, {"directories": newDirectories});
+                    try {
+                        await this.model.post("installation", null, null, {"directories": newDirectories});
+                    } catch(e) {
+                        let errorMessage = `${e}`;
+                        if (!isEmpty(e.status) && e.status == 400) {
+                            // one or more directory doesn't exist, offer to create
+                            let hasMultiple = `${e.detail}`.indexOf(",") !== -1,
+                                itThem = hasMultiple ? "them" : "it";
+                            if (await this.application.yesNo(`${e.detail}<br/><br/>Create ${itThem}?`)) {
+                                // pass create, raise details
+                                await this.model.post("installation", null, null, {"directories": newDirectories, "create": true});
+                            } else {
+                                directoryForm.setError(e);
+                                directoryForm.enable();
+                                return;
+                            }
+                        } else {
+                            throw e;
+                        }
+                    }
                     this.notify("info", "Success", "Directories successfully set.");
                     directoryForm.clearError();
                     directoryForm.enable();

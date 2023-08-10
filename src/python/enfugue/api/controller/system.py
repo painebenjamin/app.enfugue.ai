@@ -263,16 +263,25 @@ class EnfugueAPISystemController(EnfugueAPIControllerBase):
         """
         Changes all configured directories.
         """
+        not_created = []
         for dirname in request.parsed["directories"]:
             path = request.parsed["directories"][dirname]
-            if not os.path.exists(path):
-                if Path(path).is_relative_to(self.engine_root):
+            exists = os.path.exists(path)
+            if not exists:
+                if Path(path).is_relative_to(self.engine_root) or request.parsed.get("create", False):
                     os.makedirs(path)
+                    exists = True
                 else:
-                    # If the user tries to pass a path that is not the default directory but doesn't exist, error
-                    raise BadRequestError(f"Unknown directory {path}")
-            self.user_config[f"enfugue.engine.{dirname}"] = path  # Save config to database
-            self.configuration[f"enfugue.engine.{dirname}"] = path  # Save config to memory
+                    not_created.append(path)
+            if exists:
+                self.user_config[f"enfugue.engine.{dirname}"] = path  # Save config to database
+                self.configuration[f"enfugue.engine.{dirname}"] = path  # Save config to memory
+        if not_created:
+            not_created = list(set(not_created)) # remove duplicates
+            y_ies = "ies" if len(not_created) > 1 else "y"
+            do_does = "do" if len(not_created) > 1 else "does"
+            not_created = ", ".join(not_created) # type: ignore
+            raise BadRequestError(f"Director{y_ies} {do_does} not exist: {not_created}")
 
     @handlers.path("^/api/installation/(?P<dirname>[a-zA-Z0-9_]+)$")
     @handlers.methods("GET")
@@ -344,7 +353,7 @@ class EnfugueAPISystemController(EnfugueAPIControllerBase):
         """
         path = os.path.realpath(os.path.abspath(request.parsed["directory"]))
         if not os.path.exists(path):
-            if Path(path).is_relative_to(self.engine_root):
+            if Path(path).is_relative_to(self.engine_root) or request.parsed.get("create", False):
                 os.makedirs(path)
             else:
                 raise BadRequestError(f"Couldn't find directory {path}")

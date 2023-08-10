@@ -720,8 +720,7 @@ class Application {
             // Ignore HTML paste
             return;
         }
-        console.warn("Text paste", text);
-        // TODO
+        // TODO, maybe make a prompt node? Or automatically paste to prompt input?
     }
 
     /**
