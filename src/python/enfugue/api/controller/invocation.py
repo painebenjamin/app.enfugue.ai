@@ -3,7 +3,7 @@ import glob
 import PIL
 import PIL.Image
 
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Union, Tuple
 from webob import Request, Response
 
 from pibble.ext.user.server.base import (
@@ -25,6 +25,54 @@ __all__ = ["EnfugueAPIInvocationController"]
 class EnfugueAPIInvocationController(EnfugueAPIControllerBase):
     handlers = UserExtensionHandlerRegistry()
 
+    def check_find_model(self, model_type: str, model: str) -> str:
+        """
+        Tries to find a model in a configured directory, if the
+        passed model is not an absolute path.
+        """
+        if not os.path.exists(model):
+            check_model = os.path.abspath(
+                os.path.join(
+                    self.configuration.get(
+                        f"enfugue.engine.{model_type}", os.path.join(self.engine_root, model_type)
+                    ),
+                    model
+                )
+            )
+            if not os.path.exists(check_model):
+                raise BadRequestError(f"Cannot find or access {model} (tried {check_model})")
+            model = check_model
+        return model
+
+    def check_find_adaptations(
+        self,
+        model_type: str,
+        is_weighted: bool,
+        model: Union[str, Dict[str, Any], List[Union[str, Dict[str, Any]]]],
+    ) -> List[Union[str, Tuple[str, float]]]:
+        """
+        Tries to find a model or list of models in a configured directory,
+        with or without weights.
+        """
+        if isinstance(model, str):
+            if is_weighted:
+                return [(self.check_find_model(model_type, model), 1.0)]
+            return [self.check_find_model(model_type, model)]
+        elif isinstance(model, dict):
+            model_name = model.get("model", None)
+            model_weight = model.get("weight", 1.0)
+            if not model_name:
+                raise BadRequestError(f"Bad model format - missing required dictionary key `model`")
+            if is_weighted:
+                return [(self.check_find_model(model_type, model_name), model_weight)]
+            return [self.check_find_model(model_type, model_name)]
+        elif isinstance(model, list):
+            models = []
+            for item in model:
+                models.extend(self.check_find_adaptations(model_type, is_weighted, item))
+            return models
+        raise BadRequestError(f"Bad format for {model_type} - must be either a single string, a dictionary with the key `model` and optionally `weight`, or a list of the same (got {model})")
+
     @property
     def thumbnail_height(self) -> int:
         """
@@ -43,86 +91,33 @@ class EnfugueAPIInvocationController(EnfugueAPIControllerBase):
         """
         # Get details about model
         model_name = request.parsed.pop("model", None)
-        refiner_name = request.parsed.pop("refiner", None)
-        inpainter_name = request.parsed.get("inpainter", None)
         model_type = request.parsed.pop("model_type", None)
         plan_kwargs: Dict[str, Any] = {}
-        if model_name is not None and model_type == "model":
+
+        # Infer type if not passed
+        if model_name and not model_type:
+            model_type = "checkpoint" if ".ckpt" in model_name or ".safetensors" in model_name else "model"
+
+        if model_name and model_type == "model":
             plan_kwargs = self.get_plan_kwargs_from_model(model_name)
-        elif model_name is not None and model_type == "checkpoint":
-            plan_kwargs = {
-                "model": os.path.abspath(
-                    os.path.join(
-                        self.configuration.get(
-                            "enfugue.engine.checkpoint", os.path.join(self.engine_root, "checkpoint")
-                        ),
-                        model_name,
-                    )
-                ),
-                "refiner": None
-                if refiner_name is None
-                else os.path.abspath(
-                    os.path.join(
-                        self.configuration.get(
-                            "enfugue.engine.checkpoint", os.path.join(self.engine_root, "checkpoint")
-                        ),
-                        refiner_name,
-                    )
-                ),
-                "inpainter": None
-                if inpainter_name is None
-                else os.path.abspath(
-                    os.path.join(
-                        self.configuration.get(
-                            "enfugue.engine.checkpoint", os.path.join(self.engine_root, "checkpoint")
-                        ),
-                        inpainter_name,
-                    )
-                ),
-            }
-            try:
-                plan_kwargs["lora"] = [
-                    (
-                        os.path.abspath(
-                            os.path.join(
-                                self.configuration.get("enfugue.engine.lora", os.path.join(self.engine_root, "lora")),
-                                lora["model"],
-                            )
-                        ),
-                        float(lora["weight"]),
-                    )
-                    for lora in request.parsed.pop("lora", [])
-                ]
-            except KeyError as ex:
-                raise BadRequestError(f"Missing required LoRA configuration '{ex}'")
+        elif model_name and model_type == "checkpoint":
+            plan_kwargs["model"] = self.check_find_model("checkpoint", model_name)
+            
+            refiner = request.parsed.pop("refiner", None)
+            plan_kwargs["refiner"] = self.check_find_model("checkpoint", refiner) if refiner else None
 
-            try:
-                plan_kwargs["lycoris"] = [
-                    (
-                        os.path.abspath(
-                            os.path.join(
-                                self.configuration.get(
-                                    "enfugue.engine.lycoris", os.path.join(self.engine_root, "lycoris")
-                                ),
-                                lycoris["model"],
-                            )
-                        ),
-                        float(lycoris["weight"]),
-                    )
-                    for lycoris in request.parsed.pop("lycoris", [])
-                ]
-            except KeyError as ex:
-                raise BadRequestError(f"Missing required LyCORIS configuration '{ex}'")
+            inpainter = request.parsed.pop("inpainter", None)
+            plan_kwargs["inpainter"] = self.check_find_model("checkpoint", inpainter) if inpainter else None
+            
+            lora = request.parsed.pop("lora", [])
+            plan_kwargs["lora"] = self.check_find_adaptations("lora", True, lora) if lora else None
 
-            plan_kwargs["inversion"] = [
-                os.path.abspath(
-                    os.path.join(
-                        self.configuration.get("enfugue.engine.inversion", os.path.join(self.engine_root, "inversion")),
-                        inversion,
-                    )
-                )
-                for inversion in request.parsed.pop("inversion", [])
-            ]
+            lycoris = request.parsed.pop("lycoris", [])
+            plan_kwargs["lycoris"] = self.check_find_adaptations("lycoris", True, lycoris) if lycoris else None
+            
+            inversion = request.parsed.pop("inversion", [])
+            plan_kwargs["inversion"] = self.check_find_adaptations("inversion", False, inversion) if inversion else None
+             
         # Always take passed scheduler
         scheduler = request.parsed.pop("scheduler", None)
         multi_scheduler = request.parsed.pop("multi_scheduler", None)
@@ -131,7 +126,7 @@ class EnfugueAPIInvocationController(EnfugueAPIControllerBase):
         if multi_scheduler:
             plan_kwargs["multi_scheduler"] = multi_scheduler
         disable_decoding = request.parsed.pop("intermediates", None) == False
-        plan = DiffusionPlan.from_nodes(**{**request.parsed, **plan_kwargs})
+        plan = DiffusionPlan.assemble(**{**request.parsed, **plan_kwargs})
         return self.invoke(request.token.user.id, plan, disable_intermediate_decoding=disable_decoding).format()
 
     @handlers.path("^/api/invocation$")

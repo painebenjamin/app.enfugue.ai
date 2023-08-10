@@ -26,6 +26,7 @@ from enfugue.diffusion.constants import (
     VAE_EMA,
     VAE_MSE,
     VAE_XL,
+    VAE_XL16,
     VAE_LITERAL,
     CONTROLNET_CANNY,
     CONTROLNET_MLSD,
@@ -390,25 +391,25 @@ class DiffusionPipelineManager:
     @multi_scheduler.setter
     def multi_scheduler(self, new_multi_scheduler: Optional[MULTI_SCHEDULER_LITERAL]) -> None:
         """
-        Sets the multi_scheduler class
+        Sets the multi-diffusion scheduler class
         """
         if not new_multi_scheduler:
             if hasattr(self, "_multi_scheduler"):
                 delattr(self, "_multi_scheduler")
-                self.unload_pipeline("returning to default multi_scheduler")
+                self.unload_pipeline("returning to default multi-diffusion scheduler")
             return
         multi_scheduler_class = self.get_scheduler_class(new_multi_scheduler)
         if not hasattr(self, "_multi_scheduler") or self._multi_scheduler is not multi_scheduler_class:
-            logger.debug(f"Changing to multi_scheduler {multi_scheduler_class.__name__} ({new_multi_scheduler})")
+            logger.debug(f"Changing to multi-diffusion scheduler {multi_scheduler_class.__name__} ({new_multi_scheduler})")
             self._multi_scheduler = multi_scheduler_class
         if hasattr(self, "_pipeline"):
-            logger.debug(f"Hot-swapping pipeline multi_scheduler.")
+            logger.debug(f"Hot-swapping pipeline multi-diffusion scheduler.")
             self._pipeline.multi_scheduler = self.multi_scheduler.from_config(self._pipeline.multi_scheduler_config)  # type: ignore
         if hasattr(self, "_inpainter_pipeline"):
-            logger.debug(f"Hot-swapping inpainter pipeline multi_scheduler.")
+            logger.debug(f"Hot-swapping inpainter pipeline multi-diffusion scheduler.")
             self._inpainter_pipeline.multi_scheduler = self.multi_scheduler.from_config(self._inpainter_pipeline.multi_scheduler_config)  # type: ignore
         if hasattr(self, "_refiner_pipeline"):
-            logger.debug(f"Hot-swapping refiner pipeline multi_scheduler.")
+            logger.debug(f"Hot-swapping refiner pipeline multi-diffusion scheduler.")
             self._refiner_pipeline.multi_scheduler = self.multi_scheduler.from_config(self._refiner_pipeline.multi_scheduler_config)  # type: ignore
 
     def get_vae(self, vae: Optional[str] = None) -> Optional[AutoencoderKL]:
@@ -455,7 +456,8 @@ class DiffusionPipelineManager:
             pretrained_path = VAE_MSE
         elif new_vae == "xl":
             pretrained_path = VAE_XL
-
+        elif new_vae == "xl16":
+            pretrained_path = VAE_XL16
         if pretrained_path is None and new_vae:
             logger.error(f"Unsupported VAE {new_vae}")
 
@@ -481,16 +483,28 @@ class DiffusionPipelineManager:
                 elif hasattr(self, "_pipeline"):
                     logger.debug(f"Hot-swapping pipeline VAE to {new_vae}")
                     self._pipeline.vae = self._vae
+                    if self.is_sdxl:
+                        self._pipeline.register_to_config(
+                            force_full_precision_vae = new_vae == "xl"
+                        )
                 if self.refiner_tensorrt_is_ready and "vae" in self.TENSORRT_STAGES:
                     self.unload_refiner("VAE changing")
                 elif hasattr(self, "_refiner_pipeline"):
                     logger.debug(f"Hot-swapping refiner pipeline VAE to {new_vae}")
                     self._refiner_pipeline.vae = self._vae
+                    if self.refiner_is_sdxl:
+                        self._refiner_pipeline.register_to_config(
+                            force_full_precision_vae = new_vae == "xl"
+                        )
                 if self.inpainter_tensorrt_is_ready and "vae" in self.TENSORRT_STAGES:
                     self.unload_inpainter("VAE changing")
                 elif hasattr(self, "_inpainter_pipeline"):
                     logger.debug(f"Hot-swapping inpainter pipeline VAE to {new_vae}")
                     self._inpainter_pipeline.vae = self._vae
+                    if self.inpainter_is_sdxl:
+                        self._inpainter_pipeline.register_to_config(
+                            force_full_precision_vae = new_vae == "xl"
+                        )
 
     @property
     def vae_name(self) -> Optional[str]:
@@ -1742,7 +1756,7 @@ class DiffusionPipelineManager:
                 logger.debug("Inferencing on cpu, must use dtype bfloat16")
                 self._torch_dtype = torch.bfloat16
             elif device_type == "mps":
-                logger.debug("Inferencing on mps, trying to use float16")
+                logger.debug("Inferencing on mps, defaulting to dtype float16")
                 self._torch_dtype = torch.float16
             elif device_type == "cuda" and torch.version.hip:
                 logger.debug("Inferencing on rocm, must use dtype float32")  # type: ignore[unreachable]
@@ -2132,6 +2146,7 @@ class DiffusionPipelineManager:
                 "requires_safety_checker": self.safe,
                 "torch_dtype": self.dtype,
                 "cache_dir": self.engine_cache_dir,
+                "force_full_precision_vae": self.is_sdxl and self.vae_name != "xl16"
             }
 
             vae = self.vae  # Load into memory here
@@ -2247,11 +2262,12 @@ class DiffusionPipelineManager:
                 "chunking_size": self.chunking_size,
                 "torch_dtype": self.dtype,
                 "requires_safety_checker": False,
+                "force_full_precision_vae": self.refiner_is_sdxl and self.vae_name != "xl16"
             }
 
-            if self.vae_name == "xl" and not self.refiner_is_sdxl:
+            if self.vae_name in ["xl", "xl16"] and not self.refiner_is_sdxl:
                 vae = None
-            elif self.vae_name != "xl" and self.refiner_is_sdxl:
+            elif self.vae_name not in ["xl", "xl16"] and self.refiner_is_sdxl:
                 vae = None
             else:
                 vae = self.vae  # Load into memory here
@@ -2400,9 +2416,10 @@ class DiffusionPipelineManager:
                 "requires_safety_checker": self.safe,
                 "requires_aesthetic_score": False,
                 "controlnet": None,
+                "force_full_precision_vae": self.inpainter_is_sdxl and self.vae_name != "xl16"
             }
 
-            if self.vae_name == "xl" and not self.inpainter_is_sdxl:
+            if self.vae_name in ["xl", "xl16"] and not self.inpainter_is_sdxl:
                 vae = None
             else:
                 vae = self.vae  # Load into memory here

@@ -32,8 +32,9 @@ DEFAULT_SDXL_REFINER = "https://huggingface.co/stabilityai/stable-diffusion-xl-r
 VAE_EMA = "stabilityai/sd-vae-ft-ema"
 VAE_MSE = "stabilityai/sd-vae-ft-mse"
 VAE_XL = "stabilityai/sdxl-vae"
+VAE_XL16 = "madebyollin/sdxl-vae-fp16-fix"
 
-VAE_LITERAL = Literal["ema", "mse", "xl"]
+VAE_LITERAL = Literal["ema", "mse", "xl", "xl16"]
 
 CONTROLNET_CANNY = "lllyasviel/sd-controlnet-canny"
 CONTROLNET_MLSD = "lllyasviel/control_v11p_sd15_mlsd"

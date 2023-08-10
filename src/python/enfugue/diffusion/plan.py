@@ -25,7 +25,7 @@ from enfugue.util import (
     logger,
     feather_mask,
     fit_image,
-    remove_background,
+    remove_background as execute_remove_background,
     TokenMerger,
     IMAGE_FIT_LITERAL,
     IMAGE_ANCHOR_LITERAL,
@@ -351,6 +351,9 @@ class DiffusionStep:
 
         if not self.prompt:
             if image:
+                if self.remove_background:
+                    image = execute_remove_background(image)
+
                 samples = kwargs.get("samples", 1)
                 from diffusers.pipelines.stable_diffusion import StableDiffusionPipelineOutput
 
@@ -455,7 +458,7 @@ class DiffusionStep:
 
         if self.remove_background:
             for i, image in enumerate(result["images"]):
-                result["images"][i] = remove_background(image)
+                result["images"][i] = execute_remove_background(image)
 
         if image_scale > 1:
             for i, image in enumerate(result["images"]):
@@ -1199,7 +1202,7 @@ class DiffusionPlan:
                 "invert_mask": None,
             }
         ]
-        return DiffusionPlan.from_nodes(
+        return DiffusionPlan.assemble(
             size=size,
             refiner_size=refiner_size,
             inpainter_size=inpainter_size,
@@ -1231,7 +1234,7 @@ class DiffusionPlan:
         )
 
     @staticmethod
-    def from_nodes(
+    def assemble(
         size: Optional[int] = None,
         refiner_size: Optional[int] = None,
         inpainter_size: Optional[int] = None,
@@ -1257,6 +1260,20 @@ class DiffusionPlan:
         prompt: Optional[str] = None,
         negative_prompt: Optional[str] = None,
         num_inference_steps: Optional[int] = DEFAULT_INFERENCE_STEPS,
+        mask: Optional[Union[str, PIL.Image.Image]] = None,
+        image: Optional[Union[str, PIL.Image.Image]] = None,
+        fit: Optional[IMAGE_FIT_LITERAL] = None,
+        anchor: Optional[IMAGE_ANCHOR_LITERAL] = None,
+        strength: Optional[float] = None,
+        control_image: Optional[Union[str, PIL.Image.Image]] = None,
+        controlnet: Optional[CONTROLNET_LITERAL] = None,
+        conditioning_scale: Optional[float] = None,
+        process_control_image: bool = True,
+        remove_background: bool = False,
+        fill_background: bool = False,
+        scale_to_model_size: bool = True,
+        invert_control_image: bool = False,
+        invert_mask: bool = False,
         guidance_scale: Optional[float] = DEFAULT_GUIDANCE_SCALE,
         refiner_strength: Optional[float] = DEFAULT_REFINER_STRENGTH,
         refiner_guidance_scale: Optional[float] = DEFAULT_REFINER_GUIDANCE_SCALE,
@@ -1267,9 +1284,7 @@ class DiffusionPlan:
         upscale_diffusion: bool = False,
         upscale_iterative: bool = False,
         upscale_diffusion_steps: Optional[Union[int, List[int]]] = DEFAULT_UPSCALE_DIFFUSION_STEPS,
-        upscale_diffusion_guidance_scale: Optional[
-            Union[float, int, List[Union[float, int]]]
-        ] = DEFAULT_UPSCALE_DIFFUSION_GUIDANCE_SCALE,
+        upscale_diffusion_guidance_scale: Optional[Union[float, int, List[Union[float, int]]]] = DEFAULT_UPSCALE_DIFFUSION_GUIDANCE_SCALE,
         upscale_diffusion_strength: Optional[Union[float, List[float]]] = DEFAULT_UPSCALE_DIFFUSION_STRENGTH,
         upscale_diffusion_prompt: Optional[Union[str, List[str]]] = DEFAULT_UPSCALE_PROMPT,
         upscale_diffusion_negative_prompt: Optional[Union[str, List[str]]] = DEFAULT_UPSCALE_NEGATIVE_PROMPT,
@@ -1284,7 +1299,8 @@ class DiffusionPlan:
         Assembles a diffusion plan from step dictionaries.
         """
         if kwargs:
-            logger.warning(f"Plan `from_nodes` keyword arguments ignored: {kwargs}")
+            logger.warning(f"Plan `assemble` keyword arguments ignored: {kwargs}")
+
         # First instantiate the plan
         plan = DiffusionPlan(
             model=model,
@@ -1368,7 +1384,7 @@ class DiffusionPlan:
         # Now assemble the diffusion steps
         node_count = len(nodes)
         if node_count == 0:
-            # Basic txt2img
+            # No nodes/canvas, create a plan from one given step
             prompt_tokens = TokenMerger()
             if prompt:
                 prompt_tokens.add(prompt)
@@ -1381,6 +1397,47 @@ class DiffusionPlan:
             if model_negative_prompt:
                 negative_prompt_tokens.add(model_negative_prompt, MODEL_PROMPT_WEIGHT)
 
+            if image:
+                if isinstance(image, str):
+                    image = PIL.Image.open(image)
+                if width and height:
+                    image = fit_image(image, width, height, fit, anchor)
+                else:
+                    width, height = image.size
+                
+            if mask:
+                if isinstance(mask, str):
+                    mask = PIL.Image.open(mask)
+                if width and height:
+                    mask = fit_image(mask, width, height, fit, anchor)
+                else:
+                    width, height = mask.size
+            
+            if control_image:
+                if isinstance(control_image, str):
+                    control_image = PIL.Image.open(control_image)
+                if width and height:
+                    control_image = fit_image(control_image, width, height, fit, anchor)
+                else:
+                    width, height = control_image.size
+
+            if mask and invert_mask:
+                mask = PIL.ImageOps.invert(mask.convert("L"))
+            
+            if control_image and not process_control_image and invert_control_image:
+                control_image = PIL.ImageOps.invert(control_image)
+            
+            if image and remove_background and fill_background:
+                image = execute_remove_background(image)
+                remove_background = False
+                
+                if not mask:
+                    mask = PIL.Image.new("RGB", image.size, (255, 255, 255))
+
+                alpha = image.split()[-1]
+                black = PIL.Image.new("RGB", image.size, (0, 0, 0))
+                mask.paste(black, mask=alpha)
+
             step = DiffusionStep(
                 width=width,
                 height=height,
@@ -1388,15 +1445,34 @@ class DiffusionPlan:
                 negative_prompt=str(negative_prompt_tokens),
                 num_inference_steps=num_inference_steps,
                 guidance_scale=guidance_scale,
+                strength=strength,
                 refiner_strength=refiner_strength,
                 refiner_guidance_scale=refiner_guidance_scale,
                 refiner_aesthetic_score=refiner_aesthetic_score,
                 refiner_negative_aesthetic_score=refiner_negative_aesthetic_score,
+                image=image,
+                mask=mask,
+                remove_background=remove_background,
+                process_control_image=process_control_image,
+                scale_to_model_size=scale_to_model_size,
+                controlnet=controlnet,
+                control_image=control_image,
+                conditioning_scale=conditioning_scale,
             )
 
-            plan.nodes = [DiffusionNode([(0, 0), (plan.width, plan.height)], step)]
-
-            plan.upscale_diffusion_prompt = [str(merger) for merger in upscale_diffusion_prompt_tokens]
+            if not width:
+                width = plan.width # Default
+            if not height:
+                height = plan.height # Default
+            # Change plan defaults if passed
+            plan.width = width
+            plan.height = height
+            
+            # Assemble node
+            plan.nodes = [DiffusionNode([(0, 0), (width, height)], step)]
+            plan.upscale_diffusion_prompt = [
+                str(merger) for merger in upscale_diffusion_prompt_tokens
+            ]
             plan.upscale_diffusion_negative_prompt = [
                 str(merger) for merger in upscale_diffusion_negative_prompt_tokens
             ]
@@ -1485,7 +1561,7 @@ class DiffusionPlan:
 
             if node_image:
                 if node_remove_background:
-                    node_image = remove_background(node_image)
+                    node_image = execute_remove_background(node_image)
 
                 # Resize node image to nearest multiple of 8
                 node_image_width, node_image_height = node_image.size

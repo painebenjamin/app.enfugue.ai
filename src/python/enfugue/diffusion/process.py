@@ -369,8 +369,11 @@ class DiffusionEngineProcess(Process):
                         except Exception as ex:
                             response["error"] = qualify(type(ex))
                             response["message"] = str(ex)
+                            # Also log so this appears in the engine log
+                            logger.error(f"Received error {response['error']}: {response['message']}")
                             if logger.isEnabledFor(logging.DEBUG):
                                 response["trace"] = traceback.format_exc()
+                                logger.debug(response["trace"])
 
                         del self.pipemanager.keepalive_callback
                         self.results.put(Serializer.serialize(response))

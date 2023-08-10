@@ -4,6 +4,7 @@ import os
 import time
 
 from typing import Dict, Any, Optional, Literal, TypedDict, List, Union
+from PIL.Image import Image
 
 from urllib.parse import urlparse
 
@@ -18,7 +19,11 @@ from enfugue.diffusion.constants import (
     UPSCALE_LITERAL,
     VAE_LITERAL,
 )
-from enfugue.util import logger
+from enfugue.util import (
+    logger,
+    IMAGE_FIT_LITERAL,
+    IMAGE_ANCHOR_LITERAL
+)
 from enfugue.client.invocation import RemoteInvocation
 
 __all__ = ["WeightedModelDict", "EnfugueClient"]
@@ -134,11 +139,25 @@ class EnfugueClient(UserExtensionClientBase, JSONWebServiceAPIClient):
         refiner: Optional[str] = None,
         lora: Optional[List[WeightedModelDict]] = None,
         lycoris: Optional[List[WeightedModelDict]] = None,
-        inversion: Optional[str] = None,
+        inversion: Optional[List[str]] = None,
         scheduler: Optional[SCHEDULER_LITERAL] = None,
         multi_scheduler: Optional[MULTI_SCHEDULER_LITERAL] = None,
         vae: Optional[VAE_LITERAL] = None,
         seed: Optional[int] = None,
+        image: Optional[Union[str, Image]] = None,
+        mask: Optional[Union[str, Image]] = None,
+        control_image: Optional[Union[str, Image]] = None,
+        controlnet: Optional[CONTROLNET_LITERAL] = None,
+        strength: Optional[float] = None,
+        fit: Optional[IMAGE_FIT_LITERAL] = None,
+        anchor: Optional[IMAGE_ANCHOR_LITERAL] = None,
+        remove_background: Optional[bool] = None,
+        fill_background: Optional[bool] = None,
+        scale_to_model_size: Optional[bool] = None,
+        invert_control_image: Optional[bool] = None,
+        invert_mask: Optional[bool] = None,
+        process_control_image: Optional[bool] = True,
+        conditioning_scale: Optional[float] = None,
         outscale: Optional[int] = 1,
         upscale: Optional[Union[UPSCALE_LITERAL, List[UPSCALE_LITERAL]]] = None,
         upscale_diffusion: bool = False,
@@ -159,6 +178,10 @@ class EnfugueClient(UserExtensionClientBase, JSONWebServiceAPIClient):
         """
         kwargs: Dict[str, Any] = {}
 
+        if model is not None:
+            kwargs["model"] = model
+        if model_type is not None:
+            kwargs["model_type"] = model_type
         if prompt is not None:
             kwargs["prompt"] = prompt
         if negative_prompt is not None:
@@ -193,8 +216,6 @@ class EnfugueClient(UserExtensionClientBase, JSONWebServiceAPIClient):
             kwargs["refiner_negative_aesthetic_score"] = refiner_negative_aesthetic_score
         if nodes is not None:
             kwargs["nodes"] = nodes
-        if model is not None:
-            kwargs["model"] = model
         if size is not None:
             kwargs["size"] = size
         if refiner_size is not None:
@@ -217,6 +238,34 @@ class EnfugueClient(UserExtensionClientBase, JSONWebServiceAPIClient):
             kwargs["vae"] = vae
         if seed is not None:
             kwargs["seed"] = seed
+        if image is not None:
+            kwargs["image"] = image
+        if mask is not None:
+            kwargs["mask"] = mask
+        if control_image is not None:
+            kwargs["control_image"] = control_image
+        if controlnet is not None:
+            kwargs["controlnet"] = controlnet
+        if strength is not None:
+            kwargs["strength"] = strength
+        if fit is not None:
+            kwargs["fit"] = fit
+        if anchor is not None:
+            kwargs["anchor"] = anchor
+        if remove_background is not None:
+            kwargs["remove_background"] = remove_background
+        if fill_background is not None:
+            kwargs["fill_background"] = fill_background
+        if scale_to_model_size is not None:
+            kwargs["scale_to_model_size"] = scale_to_model_size
+        if invert_control_image is not None:
+            kwargs["invert_control_image"] = invert_control_image
+        if invert_mask is not None:
+            kwargs["invert_mask"] = invert_mask
+        if process_control_image is not None:
+            kwargs["process_control_image"] = process_control_image
+        if conditioning_scale is not None:
+            kwargs["conditioning_scale"] = conditioning_scale
         if outscale is not None:
             kwargs["outscale"] = outscale
         if upscale is not None:
@@ -245,11 +294,9 @@ class EnfugueClient(UserExtensionClientBase, JSONWebServiceAPIClient):
             kwargs["upscale_diffusion_scale_chunking_size"] = upscale_diffusion_scale_chunking_size
         if upscale_diffusion_scale_chunking_blur is not None:
             kwargs["upscale_diffusion_scale_chunking_blur"] = upscale_diffusion_scale_chunking_blur
-        if model_type is not None:
-            kwargs["model_type"] = model_type
-        elif model is not None:
-            kwargs["model_type"] = "checkpoint" if "." in model else "model"
+        
         logger.info(f"Invoking with keyword arguments {kwargs}")
+        
         try:
             response = self.post("/api/invoke", data=kwargs).json()
         except Exception as ex:

@@ -49,6 +49,7 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         requires_safety_checker: bool = True,
         force_zeros_for_empty_prompt: bool = True,
         requires_aesthetic_score: bool = False,
+        force_full_precision_vae: bool = False,
         engine_size: int = 512,  # Recommended even for machines that can handle more
         chunking_size: int = 32,
         chunking_blur: int = 64,
@@ -79,6 +80,7 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
             multi_scheduler=multi_scheduler,
             requires_safety_checker=requires_safety_checker,
             force_zeros_for_empty_prompt=force_zeros_for_empty_prompt,
+            force_full_precision_vae=force_full_precision_vae,
             requires_aesthetic_score=requires_aesthetic_score,
             engine_size=engine_size,
             chunking_size=chunking_size,

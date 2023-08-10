@@ -303,6 +303,15 @@ class EnfugueInterfaceServer(
             self.handle_request(request, response)  # type: ignore
         else:
             self.redirect(response, "/login", 302)
+    
+    @handlers.errors(403)
+    def handle_permission_error(self, request: Request, response: Response) -> None:
+        """
+        Determine what to do when a permission error occurs, then do it.
+        """
+        if self.configuration.get("enfugue.noauth", False):
+            self.bypass_login(request, response)
+            self.handle_request(request, response)  # type: ignore
 
     @handlers.cache(86400)
     @handlers.template("content-login.html.j2")

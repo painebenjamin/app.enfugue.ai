@@ -58,7 +58,8 @@ class VAEInputView extends SelectInputView {
     static defaultOptions = {
         "ema": "EMA 560000",
         "mse": "MSE 840000",
-        "xl": "SDXL"
+        "xl": "SDXL",
+        "xl16": "SDXL FP16"
     };
     
     /**

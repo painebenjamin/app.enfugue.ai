@@ -104,6 +104,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         requires_safety_checker: bool = True,
         force_zeros_for_empty_prompt: bool = True,
         requires_aesthetic_score: bool = False,
+        force_full_precision_vae: bool = False,
         engine_size: int = 512,
         chunking_size: int = 64,
         chunking_blur: int = 64,
@@ -118,6 +119,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             feature_extractor,
             requires_safety_checker,
         )
+
         # Save scheduler config for hotswapping
         self.scheduler_config = {**dict(scheduler.config)}
 
@@ -131,7 +133,9 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
         # Add config for xl
         self.register_to_config(
-            requires_aesthetic_score=requires_aesthetic_score, force_zeros_for_empty_prompt=force_zeros_for_empty_prompt
+            force_full_precision_vae=force_full_precision_vae,
+            requires_aesthetic_score=requires_aesthetic_score,
+            force_zeros_for_empty_prompt=force_zeros_for_empty_prompt
         )
 
         # Add an image processor for later
@@ -952,11 +956,11 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         Encodes an image without chunking using the VAE.
         """
         logger.debug("Encoding image (unchunked).")
-        if self.is_sdxl:
+        if self.config.force_full_precision_vae:
             self.vae.to(dtype=torch.float32)
             image = image.float()
         latents = self.vae.encode(image).latent_dist.sample(generator) * self.vae.config.scaling_factor
-        if self.is_sdxl:
+        if self.config.force_full_precision_vae:
             self.vae.to(dtype=dtype)
         return latents.to(dtype=dtype)
 
@@ -992,7 +996,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         count = torch.zeros((1, num_channels, latent_height, latent_width)).to(device=device)
         value = torch.zeros_like(count)
 
-        if self.is_sdxl:
+        if self.config.force_full_precision_vae:
             self.vae.to(dtype=torch.float32)
             image = image.float()
         else:
@@ -1032,7 +1036,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
             if progress_callback is not None:
                 progress_callback()
-        if self.is_sdxl:
+        if self.config.force_full_precision_vae:
             self.vae.to(dtype=dtype)
         return (torch.where(count > 0, value / count, value) * self.vae.config.scaling_factor).to(dtype=dtype)
 
@@ -1719,7 +1723,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
         revert_dtype = None
 
-        if self.is_sdxl:
+        if self.config.force_full_precision_vae:
             # Resist overflow
             revert_dtype = latents.dtype
             self.vae.to(dtype=torch.float32)
@@ -1729,7 +1733,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             result = self.decode_latents_unchunked(latents, device)
             if progress_callback is not None:
                 progress_callback()
-            if self.is_sdxl:
+            if self.config.force_full_precision_vae:
                 self.vae.to(dtype=latents.dtype)
             return result
 
@@ -1957,6 +1961,14 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             f"Calculated overall steps to be {overall_num_steps} ({num_chunks} chunks, {num_inference_steps} steps, {num_scheduled_inference_steps} scheduled steps)"
         )
         step_complete = self.get_step_complete_callback(overall_num_steps, progress_callback)
+                
+        if self.config.force_full_precision_vae:
+            logger.debug(f"Configuration indicates VAE must be used in full precision")
+            # make sure the VAE is in float32 mode, as it overflows in float16
+            self.vae.to(dtype=torch.float32)
+        elif self.is_sdxl:
+            logger.debug(f"Configuration indicates VAE may operate in half precision")
+            self.vae.to(dtype=torch.float16)
 
         with self.get_runtime_context(batch_size, device):
             # Base runtime has no context, but extensions do
@@ -2203,9 +2215,6 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
             if output_type != "latent":
                 if self.is_sdxl:
-                    # make sure the VAE is in float32 mode, as it overflows in float16
-                    self.vae.to(dtype=torch.float32)
-                if self.is_sdxl:
                     use_torch_2_0_or_xformers = self.vae.decoder.mid_block.attentions[0].processor in [
                         AttnProcessor2_0,
                         XFormersAttnProcessor,
@@ -2223,7 +2232,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
                 prepared_latents = self.decode_latents(prepared_latents, device=device, progress_callback=step_complete)
 
-                if self.is_sdxl:
+                if self.config.force_full_precision_vae:
                     self.vae.to(dtype=prepared_latents.dtype)
         if output_type == "latent":
             output = prepared_latents

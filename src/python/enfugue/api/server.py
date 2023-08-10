@@ -320,7 +320,7 @@ class EnfugueAPIServerBase(
         Add a __del__ in case this gets deleted before on_destroy is called
         """
         self.on_destroy()
-
+    
     @handlers.path("^/api(/?)$")
     @handlers.methods("GET")
     @handlers.format()

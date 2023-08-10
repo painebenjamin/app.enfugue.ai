@@ -63,7 +63,7 @@ def main() -> None:
             existing_results = [
                 filename for filename 
                 in os.listdir(save_dir) 
-                if re.match(f"^{name}-\d+$", filename)
+                if re.match(f"^{name}\-\d+\..*$", filename)
             ]
             if existing_results:
                 results = [
@@ -75,7 +75,7 @@ def main() -> None:
                 all_results[name] = results
                 return results
             results = []
-            kwargs["seed"] = 1234567
+            kwargs["seed"] = 54321
             if "model" not in kwargs:
                 kwargs["model"] = CHECKPOINT
             kwargs["intermediates"] = False
@@ -119,12 +119,7 @@ def main() -> None:
         invoke(
             "img2img",
             prompt=prompt,
-            nodes=[
-                {
-                    "image": base,
-                    "infer": True
-                }
-            ]
+            image=base
         )
         
         # Base inpaint + fit
@@ -133,51 +128,34 @@ def main() -> None:
         invoke(
             "inpaint", 
             prompt="a handsome man with ray-ban sunglasses",
-            nodes=[
-                {
-                    "image": inpaint_image,
-                    "mask": inpaint_mask,
-                    "inpaint": True,
-                    "w": 512,
-                    "h": 512,
-                    "fit": "cover"
-                }
-            ]
+            image=inpaint_image,
+            mask=inpaint_mask,
+            width=512,
+            height=512,
+            fit="cover"
         )
+
         # Automatic background removal with no inference
         invoke(
             "background", 
-            nodes=[
-                {
-                    "image": inpaint_image,
-                    "remove_background": True,
-                    "w": 512,
-                    "h": 512,
-                    "fit": "cover"
-                }
-            ]
+            image=inpaint_image,
+            remove_background=True,
         )
         
         # Automatic background removal with outpaint
         invoke(
             "background-fill",
             prompt="a handsome man outside on a sunny day, green forest in the distance",
-            nodes=[
-                {
-                    "image": inpaint_image,
-                    "remove_background": True,
-                    "w": 512,
-                    "h": 512,
-                    "fit": "cover",
-                }
-            ]
+            image=inpaint_image,
+            remove_background=True,
+            fill_background=True
         )
         
         # Sizing, fitting and outpaint
         invoke(
             "outpaint", 
             prompt="a handsome man outside on a boardwalk, overcast day",
-            negative_prompt="frame, framing, comic book paneling, multiple images, awning, roof",
+            negative_prompt="frame, framing, comic book paneling, multiple images, awning, roof, shelter, trellice",
             nodes=[
                 {
                     "image": inpaint_image,
@@ -220,20 +198,54 @@ def main() -> None:
         
         # Controlnets
         for controlnet in ["canny", "hed", "pidi", "scribble", "depth", "normal", "mlsd", "line", "anime", "pose"]:
-            invoke(f"txt2img-controlnet-{controlnet}", prompt=prompt, nodes=[{"image": base, "control": True, "controlnet": controlnet}])
-            invoke(f"img2img-controlnet-{controlnet}", prompt=prompt, nodes=[{"image": base, "control": True, "infer": True, "controlnet": controlnet}])
+            invoke(
+                f"txt2img-controlnet-{controlnet}",
+                prompt=prompt,
+                control_image=base,
+                controlnet=controlnet
+            )
+            
+            invoke(
+                f"img2img-controlnet-{controlnet}",
+                prompt=prompt,
+                image=base,
+                control_image=base,
+                controlnet=controlnet
+            )
         
         # Schedulers
         for scheduler in ["ddim", "ddpm", "dpmsm", "dpmss", "heun", "dpmd", "adpmd", "dpmsde", "unipc", "lmsd", "pndm", "eds", "eads"]:
-            invoke(f"txt2img-scheduler-{scheduler}", prompt=prompt, scheduler=scheduler)
+            invoke(
+                f"txt2img-scheduler-{scheduler}",
+                prompt=prompt,
+                scheduler=scheduler
+            )
         
         # Multi Schedulers
         for scheduler in ["ddim", "ddpm", "deis", "dpmsm", "dpmss", "eds", "eads"]:
-            invoke(f"txt2img-multi-scheduler-{scheduler}", prompt=prompt, multi_scheduler=scheduler, height=768, width=786, chunking_size=256, chunking_blur=256)
+            invoke(
+                f"txt2img-multi-scheduler-{scheduler}",
+                prompt=prompt,
+                multi_scheduler=scheduler,
+                height=768,
+                width=786,
+                chunking_size=256,
+                chunking_blur=256
+            )
 
         # Upscalers
-        invoke(f"upscale-standalone-esrgan", outscale=2, upscale="esrgan", nodes=[{"image": base}])
-        invoke(f"upscale-standalone-gfpgan", outscale=2, upscale="gfpgan", nodes=[{"image": base}])
+        invoke(
+            f"upscale-standalone-esrgan",
+            outscale=2,
+            upscale="esrgan", 
+            image=base
+        )
+        invoke(
+            f"upscale-standalone-gfpgan",
+            outscale=2,
+            upscale="gfpgan",
+            image=base
+        )
         invoke(
             f"upscale-iterative-diffusion",
             prompt="A green tree frog",
@@ -250,9 +262,20 @@ def main() -> None:
 
         # SDXL
         if DEFAULT_SDXL_MODEL in checkpoints:
-            invoke("sdxl", model=DEFAULT_SDXL_MODEL, prompt="A bride and groom on their wedding day", guidance_scale=6)
+            invoke(
+                "sdxl",
+                model=DEFAULT_SDXL_MODEL,
+                prompt="A bride and groom on their wedding day",
+                guidance_scale=6
+            )
             if DEFAULT_SDXL_REFINER in checkpoints:
-                invoke("sdxl-refined", model=DEFAULT_SDXL_MODEL, refiner=DEFAULT_SDXL_REFINER, prompt="A bride and groom on their wedding day", guidance_scale=6)
+                invoke(
+                    "sdxl-refined",
+                    model=DEFAULT_SDXL_MODEL,
+                    refiner=DEFAULT_SDXL_REFINER,
+                    prompt="A bride and groom on their wedding day",
+                    guidance_scale=6
+                )
 
         # Make grid
         total_results = sum([len(arr) for arr in all_results.values()])
