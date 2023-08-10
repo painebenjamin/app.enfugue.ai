@@ -560,6 +560,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     attention_mask = None
 
                 text_input_ids = text_input_ids.to(device=device)
+
                 prompt_embeds = text_encoder(
                     text_input_ids, output_hidden_states=self.is_sdxl, attention_mask=attention_mask
                 )
@@ -568,7 +569,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     pooled_prompt_embeds = prompt_embeds[0]  # type: ignore
                     prompt_embeds = prompt_embeds.hidden_states[-2]  # type: ignore
                 else:
-                    prompt_embeds = prompt_embeds[0].to(dtype=self.text_encoder.dtype, device=device)  # type: ignore
+                    prompt_embeds = prompt_embeds[0].to(dtype=text_encoder.dtype, device=device)  # type: ignore
 
                 bs_embed, seq_len, _ = prompt_embeds.shape  # type: ignore
                 # duplicate text embeddings for each generation per prompt, using mps friendly method
@@ -1375,6 +1376,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         encoder_hidden_states: torch.Tensor,
         controlnet_cond: Optional[torch.Tensor],
         conditioning_scale: float,
+        added_cond_kwargs: Optional[Dict[str, Any]],
     ) -> Tuple[Optional[List[torch.Tensor]], Optional[torch.Tensor]]:
         """
         Executes the controlnet
@@ -1388,6 +1390,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             encoder_hidden_states=encoder_hidden_states,
             controlnet_cond=controlnet_cond,
             conditioning_scale=conditioning_scale,
+            added_cond_kwargs=added_cond_kwargs,
             return_dict=False,
         )
 
@@ -1438,6 +1441,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     encoder_hidden_states=prompt_embeds,
                     controlnet_cond=control_image,
                     conditioning_scale=conditioning_scale,
+                    added_cond_kwargs=added_cond_kwargs,
                 )
             else:
                 down_block, mid_block = None, None
@@ -1600,6 +1604,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                         encoder_hidden_states=prompt_embeds,
                         controlnet_cond=control_image[:, :, top_px:bottom_px, left_px:right_px],
                         conditioning_scale=conditioning_scale,
+                        added_cond_kwargs=added_cond_kwargs
                     )
                 else:
                     down_block, mid_block = None, None

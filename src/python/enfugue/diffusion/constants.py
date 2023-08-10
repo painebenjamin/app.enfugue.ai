@@ -3,16 +3,20 @@ from typing import Literal
 __all__ = [
     "DEFAULT_MODEL",
     "DEFAULT_INPAINTING_MODEL",
+    "DEFAULT_SDXL_MODEL",
+    "DEFAULT_SDXL_REFINER",
     "VAE_EMA",
     "VAE_MSE",
     "VAE_XL",
+    "VAE_XL16",
     "VAE_LITERAL",
     "CONTROLNET_CANNY",
+    "CONTROLNET_CANNY_XL",
     "CONTROLNET_MLSD",
     "CONTROLNET_HED",
     "CONTROLNET_SCRIBBLE",
     "CONTROLNET_TILE",
-    "CONTR0LNET_INPAINT",
+    "CONTROLNET_INPAINT",
     "CONTROLNET_DEPTH",
     "CONTROLNET_NORMAL",
     "CONTROLNET_POSE",
@@ -20,6 +24,11 @@ __all__ = [
     "CONTROLNET_LINE",
     "CONTROLNET_ANIME",
     "CONTROLNET_LITERAL",
+    "SCHEDULER_LITERAL",
+    "MULTI_SCHEDULER_LITERAL",
+    "DEVICE_LITERAL",
+    "PIPELINE_SWITCH_MODE_LITERAL",
+    "UPSCALE_LITERAL"
 ]
 
 DEFAULT_MODEL = "https://huggingface.co/runwayml/stable-diffusion-v1-5/resolve/main/v1-5-pruned.ckpt"
@@ -48,6 +57,8 @@ CONTROLNET_POSE = "lllyasviel/control_v11p_sd15_openpose"
 CONTROLNET_PIDI = "lllyasviel/control_v11p_sd15_softedge"
 CONTROLNET_LINE = "ControlNet-1-1-preview/control_v11p_sd15_lineart"
 CONTROLNET_ANIME = "lllyasviel/control_v11p_sd15s2_lineart_anime"
+
+CONTROLNET_CANNY_XL = "diffusers/controlnet-sdxl-1.0"
 
 CONTROLNET_LITERAL = Literal[
     "canny", "mlsd", "hed", "scribble", "tile", "inpaint", "depth", "normal", "pose", "pidi", "line", "anime"

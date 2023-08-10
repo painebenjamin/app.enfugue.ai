@@ -358,6 +358,7 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         encoder_hidden_states: torch.Tensor,
         controlnet_cond: Optional[torch.Tensor],
         conditioning_scale: float,
+        added_cond_kwargs: Optional[Dict[str, Any]]
     ) -> Tuple[Optional[List[torch.Tensor]], Optional[torch.Tensor]]:
         """
         Executes the controlnet inference
@@ -370,6 +371,7 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
                 encoder_hidden_states=encoder_hidden_states,
                 controlnet_cond=controlnet_cond,
                 conditioning_scale=conditioning_scale,
+                added_cond_kwargs=added_cond_kwargs,
             )
         if controlnet_cond is None:
             return None, None

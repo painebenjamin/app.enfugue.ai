@@ -18,34 +18,7 @@ from pibble.api.exceptions import ConfigurationError
 from pibble.util.files import dump_json
 
 from enfugue.util import logger, check_download, check_make_directory, find_file_in_directory
-from enfugue.diffusion.constants import (
-    DEFAULT_MODEL,
-    DEFAULT_INPAINTING_MODEL,
-    DEFAULT_SDXL_MODEL,
-    DEFAULT_SDXL_REFINER,
-    VAE_EMA,
-    VAE_MSE,
-    VAE_XL,
-    VAE_XL16,
-    VAE_LITERAL,
-    CONTROLNET_CANNY,
-    CONTROLNET_MLSD,
-    CONTROLNET_HED,
-    CONTROLNET_SCRIBBLE,
-    CONTROLNET_TILE,
-    CONTROLNET_INPAINT,
-    CONTROLNET_DEPTH,
-    CONTROLNET_NORMAL,
-    CONTROLNET_POSE,
-    CONTROLNET_ANIME,
-    CONTROLNET_LINE,
-    CONTROLNET_PIDI,
-    CONTROLNET_LITERAL,
-    SCHEDULER_LITERAL,
-    MULTI_SCHEDULER_LITERAL,
-    DEVICE_LITERAL,
-    PIPELINE_SWITCH_MODE_LITERAL,
-)
+from enfugue.diffusion.constants import *
 
 __all__ = ["DiffusionPipelineManager"]
 
@@ -2136,9 +2109,6 @@ class DiffusionPipelineManager:
                 # Base model, make sure it's downloaded here
                 self.model = self.check_download_checkpoint(self.model)
 
-            if self.controlnet_name is not None and self.is_sdxl:
-                raise ValueError(f"Sorry, ControlNet is not yet supported by SDXL.")
-
             kwargs = {
                 "cache_dir": self.engine_cache_dir,
                 "engine_size": self.size,
@@ -2150,12 +2120,7 @@ class DiffusionPipelineManager:
             }
 
             vae = self.vae  # Load into memory here
-            if self.is_sdxl:
-                if self.controlnet_name is not None:
-                    logger.warning(f"SDXL does not yet support ControlNet, refusing to load '{self.controlnet_name}'")
-                controlnet = None
-            else:
-                controlnet = self.controlnet  # Load into memory here
+            controlnet = self.controlnet  # Load into memory here
 
             if self.use_tensorrt:
                 if self.is_sdxl:
@@ -2750,32 +2715,40 @@ class DiffusionPipelineManager:
         Sets a new controlnet.
         """
         pretrained_path = None
-        if new_controlnet == "canny":
-            pretrained_path = CONTROLNET_CANNY
-        elif new_controlnet == "mlsd":
-            pretrained_path = CONTROLNET_MLSD
-        elif new_controlnet == "hed":
-            pretrained_path = CONTROLNET_HED
-        elif new_controlnet == "tile":
-            pretrained_path = CONTROLNET_TILE
-        elif new_controlnet == "scribble":
-            pretrained_path = CONTROLNET_SCRIBBLE
-        elif new_controlnet == "inpaint":
-            pretrained_path = CONTROLNET_INPAINT
-        elif new_controlnet == "depth":
-            pretrained_path = CONTROLNET_DEPTH
-        elif new_controlnet == "normal":
-            pretrained_path = CONTROLNET_NORMAL
-        elif new_controlnet == "pose":
-            pretrained_path = CONTROLNET_POSE
-        elif new_controlnet == "line":
-            pretrained_path = CONTROLNET_LINE
-        elif new_controlnet == "anime":
-            pretrained_path = CONTROLNET_ANIME
-        elif new_controlnet == "pidi":
-            pretrained_path = CONTROLNET_PIDI
-        if pretrained_path is None and new_controlnet is not None:
-            logger.error(f"Unsupported controlnet {new_controlnet}")
+        if self.is_sdxl:
+            if new_controlnet == "canny":
+                pretrained_path = CONTROLNET_CANNY_XL
+            elif new_controlnet is not None:
+                self.stop_keepalive()
+                raise ValueError(f"Sorry, ControlNet “{new_controlnet}” is not yet supported by SDXL. Check back soon!")
+        else:
+            if new_controlnet == "canny":
+                pretrained_path = CONTROLNET_CANNY
+            elif new_controlnet == "mlsd":
+                pretrained_path = CONTROLNET_MLSD
+            elif new_controlnet == "hed":
+                pretrained_path = CONTROLNET_HED
+            elif new_controlnet == "tile":
+                pretrained_path = CONTROLNET_TILE
+            elif new_controlnet == "scribble":
+                pretrained_path = CONTROLNET_SCRIBBLE
+            elif new_controlnet == "inpaint":
+                pretrained_path = CONTROLNET_INPAINT
+            elif new_controlnet == "depth":
+                pretrained_path = CONTROLNET_DEPTH
+            elif new_controlnet == "normal":
+                pretrained_path = CONTROLNET_NORMAL
+            elif new_controlnet == "pose":
+                pretrained_path = CONTROLNET_POSE
+            elif new_controlnet == "line":
+                pretrained_path = CONTROLNET_LINE
+            elif new_controlnet == "anime":
+                pretrained_path = CONTROLNET_ANIME
+            elif new_controlnet == "pidi":
+                pretrained_path = CONTROLNET_PIDI
+            elif new_controlnet is not None:
+                self.stop_keepalive() # type: ignore[unreachable]
+                raise ValueError(f"Unknown or unsupported ControlNet {new_controlnet}")
 
         existing_controlnet = getattr(self, "_controlnet", None)
 

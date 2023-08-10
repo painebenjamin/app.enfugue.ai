@@ -75,7 +75,11 @@ def main() -> None:
                 all_results[name] = results
                 return results
             results = []
-            kwargs["seed"] = 54321
+            if "seed" not in kwargs:
+                # Two seeds for controlled/non-controlled:
+                # Controlnet doesn't change enough if it uses the same
+                # seed as the prompt the image was generated with
+                kwargs["seed"] = 12345 if "controlnet" in kwargs else 54321
             if "model" not in kwargs:
                 kwargs["model"] = CHECKPOINT
             kwargs["intermediates"] = False
@@ -154,13 +158,13 @@ def main() -> None:
         # Sizing, fitting and outpaint
         invoke(
             "outpaint", 
-            prompt="a handsome man outside on a boardwalk, overcast day",
+            prompt="a handsome man walking outside on a boardwalk, distant house, foggy weather, dark clouds overhead",
             negative_prompt="frame, framing, comic book paneling, multiple images, awning, roof, shelter, trellice",
             nodes=[
                 {
                     "image": inpaint_image,
                     "x": 128,
-                    "y": 128,
+                    "y": 256,
                     "w": 256,
                     "h": 256,
                     "fit": "cover"
@@ -261,21 +265,68 @@ def main() -> None:
         )
 
         # SDXL
-        if DEFAULT_SDXL_MODEL in checkpoints:
+        if os.getenv("TEST_SDXL", "0").lower()[0] in ["1", "y", "t"]:
             invoke(
                 "sdxl",
                 model=DEFAULT_SDXL_MODEL,
                 prompt="A bride and groom on their wedding day",
                 guidance_scale=6
             )
-            if DEFAULT_SDXL_REFINER in checkpoints:
+            control = invoke(
+                "sdxl-refined",
+                model=DEFAULT_SDXL_MODEL,
+                refiner=DEFAULT_SDXL_REFINER,
+                prompt="A bride and groom on their wedding day",
+                guidance_scale=6
+            )[0]
+            
+            # SDXL ControlNet
+            for controlnet in ["canny"]:
                 invoke(
-                    "sdxl-refined",
+                    f"sdxl-{controlnet}-txt2img",
                     model=DEFAULT_SDXL_MODEL,
-                    refiner=DEFAULT_SDXL_REFINER,
+                    controlnet=controlnet,
+                    control_image=control,
+                    conditioning_scale=0.5,
                     prompt="A bride and groom on their wedding day",
                     guidance_scale=6
-                )
+                )[0]
+                
+                invoke(
+                    f"sdxl-{controlnet}-txt2img-refined",
+                    model=DEFAULT_SDXL_MODEL,
+                    refiner=DEFAULT_SDXL_REFINER,
+                    controlnet=controlnet,
+                    control_image=control,
+                    conditioning_scale=0.5,
+                    prompt="A bride and groom on their wedding day",
+                    guidance_scale=6
+                )[0]
+                
+                invoke(
+                    f"sdxl-{controlnet}-img2img",
+                    model=DEFAULT_SDXL_MODEL,
+                    refiner=DEFAULT_SDXL_REFINER,
+                    controlnet=controlnet,
+                    image=control,
+                    control_image=control,
+                    conditioning_scale=0.5,
+                    prompt="A bride and groom on their wedding day",
+                    guidance_scale=6
+                )[0]
+                
+                invoke(
+                    f"sdxl-{controlnet}-img2img-refined",
+                    model=DEFAULT_SDXL_MODEL,
+                    refiner=DEFAULT_SDXL_REFINER,
+                    controlnet=controlnet,
+                    image=control,
+                    control_image=control,
+                    conditioning_scale=0.5,
+                    prompt="A bride and groom on their wedding day",
+                    guidance_scale=6
+                )[0]
+
 
         # Make grid
         total_results = sum([len(arr) for arr in all_results.values()])
