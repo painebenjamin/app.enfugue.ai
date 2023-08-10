@@ -32,7 +32,7 @@ def main() -> None:
             width, height = image.size
             prompt, negative_prompt = PROMPTS[size]
             
-            plan = DiffusionPlan.from_nodes(
+            plan = DiffusionPlan.assemble(
                 prompt = prompt,
                 negative_prompt = negative_prompt,
                 num_inference_steps = 20,

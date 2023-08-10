@@ -29,16 +29,13 @@ from enfugue.diffusion.rt.model import BaseModel, UNet, VAE, CLIP, ControlledUNe
 class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
     models: Dict[str, BaseModel]
     engine: Dict[str, Engine]
-    unet: UNet2DConditionModel
-    scheduler: KarrasDiffusionSchedulers
-    multi_scheduler: Optional[KarrasDiffusionSchedulers]
 
     def __init__(
         self,
         vae: AutoencoderKL,
-        text_encoder: CLIPTextModel,
+        text_encoder: Optional[CLIPTextModel],
         text_encoder_2: Optional[CLIPTextModelWithProjection],
-        tokenizer: CLIPTokenizer,
+        tokenizer: Optional[CLIPTokenizer],
         tokenizer_2: Optional[CLIPTokenizer],
         unet: UNet2DConditionModel,
         controlnet: Optional[ControlNetModel],
@@ -146,6 +143,8 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         """
         Loads pipeline models to build later.
         """
+        if not self.text_encoder:
+            raise ValueError("Missing text encoder, cannot get embedding dimensions.")
         self.embedding_dim = self.text_encoder.config.hidden_size
         models_args = {
             "device": self.torch_device,

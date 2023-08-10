@@ -40,6 +40,7 @@ def main() -> None:
             os.makedirs(save_dir)
 
         client = EnfugueClient()
+        # Override client variables with ENFUGUE_CLIENT_HOST, ENFUGUE_CLIENT_PORT, etc. env vars
         client.configure(
             client = {
                 "host": "app.enfugue.ai",

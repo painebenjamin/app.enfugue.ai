@@ -25,7 +25,7 @@ def main() -> None:
         
         # Base plan
         manager.seed = 123456
-        plan = DiffusionPlan.from_nodes(**kwargs)
+        plan = DiffusionPlan.assemble(**kwargs)
         plan.execute(manager)["images"][0].save(os.path.join(save_dir, "./puppy-plan-xl.png"))
 
         # Upscale

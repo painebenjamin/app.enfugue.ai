@@ -42,6 +42,9 @@ class EnfugueClient(UserExtensionClientBase, JSONWebServiceAPIClient):
     """
     Extend the client base to add helper method calls.
     """
+    def __init__(self) -> None:
+        super(EnfugueClient, self).__init__()
+        self.configuration.environment_prefix = "ENFUGUE"
 
     def on_configure(self) -> None:
         """
