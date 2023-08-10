@@ -871,16 +871,16 @@ form ul.list-input-view li.selected {
 .tooltip-container {
     position: fixed;
     background-color: var(--darker-color);
-    color: var(--light-color);
+    color: var(--lighter-color);
     font-weight: 300;
     padding: 10px;
     border-radius: 5px;
-    border: 1px solid var(--light-color);
+    border: 1px solid var(--lighter-color);
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.25s ease-in-out;
     white-space: break-spaces;
-    max-width: 75vw;
+    max-width: 50vw;
     z-index: 99;
     pointer-events: none;
 }
