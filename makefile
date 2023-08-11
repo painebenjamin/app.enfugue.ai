@@ -176,7 +176,7 @@ dockerfile: $(BUILD_DOCKERFILE)
 $(BUILD_DOCKERFILE): $(SRC_DOCKERFILE) $(PYTHON_ARTIFACTS)
 	cp $(SRC_DOCKERFILE) $@
 	$(eval SDIST=$(patsubst $(BUILD_DIR)/%,%,$(PYTHON_ARTIFACTS)))
-	$(PYTHON) -m pibble.scripts.templatefiles $@ --version_major "$(VERSION_MAJOR)" --version_minor "$(VERSION_MINOR)" --version_patch "$(VERSION_PATCH)" $(SDIST:%=--sdist %) --docker_container "$(DOCKER_CONTAINER)"
+	$(PYTHON) -m pibble.scripts.templatefiles $@ --version_major "$(VERSION_MAJOR)" --version_minor "$(VERSION_MINOR)" --version_patch "$(VERSION_PATCH)" $(SDIST:%=--sdist %) --docker_container "$(DOCKER_CONTAINER)" --docker_username "$(DOCKER_USERNAME)"
 
 ## Split on Linux
 .PHONY: split

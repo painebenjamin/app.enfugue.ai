@@ -87,13 +87,18 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
     """
 
     controlnet: Optional[ControlNetModel]
+    text_encoder: Optional[CLIPTextModel]
+    text_encoder_2: Optional[CLIPTextModelWithProjection]
+    unet: UNet2DConditionModel
+    scheduler: KarrasDiffusionSchedulers
+    multi_scheduler: KarrasDiffusionSchedulers
 
     def __init__(
         self,
         vae: AutoencoderKL,
-        text_encoder: CLIPTextModel,
+        text_encoder: Optional[CLIPTextModel],
         text_encoder_2: Optional[CLIPTextModelWithProjection],
-        tokenizer: CLIPTokenizer,
+        tokenizer: Optional[CLIPTokenizer],
         tokenizer_2: Optional[CLIPTokenizer],
         unet: UNet2DConditionModel,
         controlnet: Optional[ControlNetModel],
@@ -524,9 +529,13 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
         text_encoders = []
         if self.text_encoder:
-            text_encoders.append(self.text_encoder.to(device=device, dtype=self.text_encoder.dtype))
+            self.text_encoder = self.text_encoder.to(device=device)
+            logger.debug(f"Encoding using text_encoder on {device} of type {self.text_encoder.dtype}")
+            text_encoders.append(self.text_encoder)
         if self.text_encoder_2:
-            text_encoders.append(self.text_encoder_2.to(device=device, dtype=self.text_encoder_2.dtype))
+            logger.debug(f"Encoding using text_encoder_2 on {device} of type {self.text_encoder_2.dtype}")
+            self.text_encoder_2 = self.text_encoder_2.to(device=device)
+            text_encoders.append(self.text_encoder_2)
 
         if prompt_embeds is None:
             prompt_embeds_list = []
@@ -560,7 +569,6 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     attention_mask = None
 
                 text_input_ids = text_input_ids.to(device=device)
-
                 prompt_embeds = text_encoder(
                     text_input_ids, output_hidden_states=self.is_sdxl, attention_mask=attention_mask
                 )
@@ -795,10 +803,12 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             if "text" in layer:
                 layer_infos = layer.split(LORA_PREFIX_TEXT_ENCODER + "_")[-1].split("_")
                 curr_layer = self.text_encoder
+                if not curr_layer:
+                    raise ValueError("No text encoder, cannot load LoRA weights.")
             else:
                 layer_infos = layer.split(LORA_PREFIX_UNET + "_")[-1].split("_")
                 curr_layer = self.unet
-
+            
             # find the target layer
             temp_name = layer_infos.pop(0)
             while len(layer_infos) > -1:
@@ -1160,6 +1170,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         """
         Gets added time embedding vectors for SDXL
         """
+        if not self.text_encoder_2:
+            raise ValueError("Missing text encoder 2, incorrect call of `get_add_time_ids` on non-SDXL pipeline.")
         if (
             aesthetic_score is not None
             and negative_aesthetic_score is not None

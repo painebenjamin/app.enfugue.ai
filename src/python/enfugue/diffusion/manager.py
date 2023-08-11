@@ -2203,8 +2203,6 @@ class DiffusionPipelineManager:
         if hasattr(self, "_pipeline"):
             logger.debug("Deleting pipeline.")
             del self._pipeline
-            if hasattr(self, "_pipeline_is_offloaded"):
-                del self._pipeline_is_offloaded
             self.clear_memory()
         else:
             logger.debug("Pipeline delete called, but no pipeline present. This is not an error.")
@@ -2335,8 +2333,6 @@ class DiffusionPipelineManager:
         if hasattr(self, "_refiner_pipeline"):
             logger.debug("Deleting refiner pipeline.")
             del self._refiner_pipeline
-            if hasattr(self, "_refiner_pipeline_is_offloaded"):
-                del self._refiner_pipeline_is_offloaded
             self.clear_memory()
         else:
             logger.debug("Refiner pipeline delete called, but no refiner pipeline present. This is not an error.")
@@ -2477,16 +2473,7 @@ class DiffusionPipelineManager:
         if hasattr(self, "_inpainter_pipeline"):
             logger.debug("Deleting inpainter pipeline.")
             del self._inpainter_pipeline
-            if hasattr(self, "_inpainter_pipeline_is_offloaded"):
-                del self._inpainter_pipeline_is_offloaded
             self.clear_memory()
-
-    @property
-    def pipeline_is_offloaded(self) -> bool:
-        """
-        Returns true if the pipeline has been sent to CPU.
-        """
-        return hasattr(self, "_pipeline") and getattr(self, "_pipeline_is_offloaded", False)
 
     def unload_pipeline(self, reason: str) -> None:
         """
@@ -2500,37 +2487,25 @@ class DiffusionPipelineManager:
         """
         Offloads the pipeline to CPU if present.
         """
-        if hasattr(self, "_pipeline") and not self.pipeline_is_offloaded:
-            if intention == "inpainting" and self.inpainter_is_offloaded:
+        if hasattr(self, "_pipeline"):
+            if intention == "inpainting" and hasattr(self, "_inpainter_pipeline"):
                 logger.debug("Swapping inpainter out of CPU and pipeline into CPU")
                 self.swap_pipelines(self._inpainter_pipeline, self._pipeline)
-                self._inpainter_pipeline_is_offloaded = False
-            elif intention == "refining" and self.refiner_is_offloaded:
+            elif intention == "refining" and hasattr(self, "_refiner_pipeline"):
                 logger.debug("Swapping refiner out of CPU and pipeline into CPU")
                 self.swap_pipelines(self._refiner_pipeline, self._pipeline)
-                self._refiner_pipeline_is_offloaded = False
             else:
                 import torch
                 logger.debug("Offloading pipeline to CPU.")
                 self._pipeline = self._pipeline.to("cpu", torch_dtype=torch.float32)
-            self._pipeline_is_offloaded = True
             self.clear_memory()
 
     def reload_pipeline(self) -> None:
         """
         Reloads the pipeline to the device if present.
         """
-        if self.pipeline_is_offloaded:
-            logger.debug("Reloading pipeline from CPU.")
+        if hasattr(self, "_pipeline"):
             self._pipeline = self._pipeline.to(self.device, torch_dtype=self.dtype)
-            self._pipeline_is_offloaded = False
-
-    @property
-    def refiner_is_offloaded(self) -> bool:
-        """
-        Returns true if the refiner has been sent to CPU.
-        """
-        return hasattr(self, "_refiner_pipeline") and getattr(self, "_refiner_pipeline_is_offloaded", False)
 
     def unload_refiner(self, reason: str) -> None:
         """
@@ -2544,37 +2519,26 @@ class DiffusionPipelineManager:
         """
         Offloads the pipeline to CPU if present.
         """
-        if hasattr(self, "_refiner_pipeline") and not self.refiner_is_offloaded:
-            if intention == "inference" and self.pipeline_is_offloaded:
+        if hasattr(self, "_refiner_pipeline"):
+            if intention == "inference" and hasattr(self, "_pipeline"):
                 logger.debug("Swapping pipeline out of CPU and refiner into CPU")
                 self.swap_pipelines(self._pipeline, self._refiner_pipeline)
-                self._pipeline_is_offloaded = False
-            elif intention == "inpainting" and self.inpainter_is_offloaded:
+            elif intention == "inpainting" and hasattr(self, "_inpainter_pipeline"):
                 logger.debug("Swapping inpainter out of CPU and refiner into CPU")
                 self.swap_pipelines(self._inpainter_pipeline, self._refiner_pipeline)
-                self._inpainter_pipeline_is_offloaded = False
             else:
                 import torch
                 logger.debug("Offloading refiner to CPU")
                 self._refiner_pipeline = self._refiner_pipeline.to("cpu", torch_dtype=torch.float32)
-            self._refiner_pipeline_is_offloaded = True
             self.clear_memory()
 
     def reload_refiner(self) -> None:
         """
         Reloads the pipeline to the device if present.
         """
-        if self.refiner_is_offloaded:
+        if hasattr(self, "_refiner_pipeline"):
             logger.debug("Reloading refiner from CPU")
             self._refiner_pipeline = self._refiner_pipeline.to(self.device, torch_dtype=self.dtype)
-            self._refiner_pipeline_is_offloaded = False
-
-    @property
-    def inpainter_is_offloaded(self) -> bool:
-        """
-        Returns true if the inpainter has been sent to CPU.
-        """
-        return hasattr(self, "_inpainter_pipeline") and getattr(self, "_inpainter_pipeline_is_offloaded", False)
 
     def unload_inpainter(self, reason: str) -> None:
         """
@@ -2588,36 +2552,27 @@ class DiffusionPipelineManager:
         """
         Offloads the pipeline to CPU if present.
         """
-        if hasattr(self, "_inpainter_pipeline") and not self.inpainter_is_offloaded:
+        if hasattr(self, "_inpainter_pipeline"):
             import torch
-
-            logger.debug("Offloading inpainter to CPU")
-            self._inpainter_pipeline = self._inpainter_pipeline.to("cpu", torch_dtype=torch.float32)
-            self._inpainter_pipeline_is_offloaded = True
-            self.clear_memory()
             
-            if intention == "inference" and self.pipeline_is_offloaded:
+            if intention == "inference" and hasattr(self, "_pipeline"):
                 logger.debug("Swapping pipeline out of CPU and inpainter into CPU")
                 self.swap_pipelines(self._pipeline, self._inpainter_pipeline)
-                self._pipeline_is_offloaded = False
-            elif intention == "refining" and self.refiner_is_offloaded:
+            elif intention == "refining" and hasattr(self, "_refiner_pipeline"):
                 logger.debug("Swapping refiner out of CPU and inpainter into CPU")
                 self.swap_pipelines(self._refiner_pipeline, self._inpainter_pipeline)
-                self._refiner_pipeline_is_offloaded = False
             else:
                 import torch
                 logger.debug("Offloading inpainter to CPU")
                 self._inpainter_pipeline = self._inpainter_pipeline.to("cpu", torch_dtype=torch.float32)
-            self._inpainter_pipeline_is_offloaded = True
             self.clear_memory()
 
     def reload_inpainter(self) -> None:
         """
         Reloads the pipeline to the device if present.
         """
-        if self.inpainter_is_offloaded:
+        if hasattr(self, "_inpainter_pipeline"):
             logger.debug("Reloading inpainter from CPU")
-            self._inpainter_pipeline_is_offloaded = False
             self._inpainter_pipeline = self._inpainter_pipeline.to(self.device, torch_dtype=self.dtype)
 
     @property

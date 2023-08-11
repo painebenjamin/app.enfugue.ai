@@ -15,11 +15,11 @@ def main() -> None:
         
         # Base plan
         manager.seed = 123456
-        plan = DiffusionPlan.from_nodes(prompt="A happy looking puppy", upscale_diffusion_guidance_scale=10.0)
+        plan = DiffusionPlan.assemble(prompt="A happy looking puppy", upscale_diffusion_guidance_scale=10.0)
         plan.execute(manager)["images"][0].save(os.path.join(save_dir, "./puppy-plan.png"))
 
         # Inpainting + region prompt + background removal
-        plan = DiffusionPlan.from_nodes(
+        plan = DiffusionPlan.assemble(
             prompt="A cat and dog laying on a couch",
             nodes=[
                 {
