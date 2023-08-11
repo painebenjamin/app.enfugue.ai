@@ -68,20 +68,14 @@ jobs:
         . /c/Miniconda/etc/profile.d/conda.sh
         conda activate base
         make
-    - name: Upload Linux artifact
-      if: ${{ contains(inputs.os, 'ubuntu') }} 
-      uses: actions/upload-artifact@v3.1.2
-      with:
-        name: ${{ inputs.os }}-${{ inputs.api }}
-        path: ./enfugue-server*tar.gz*
     - name: Upload Windows artifact
       if: ${{ contains(inputs.os, 'windows') }} 
       uses: actions/upload-artifact@v3.1.2
       with:
         name: ${{ inputs.os }}-${{ inputs.api }}
         path: ./build/enfugue-server*zip*
-    - name: Upload MacOS artifact
-      if: ${{ contains(inputs.os, 'mac') }} 
+    - name: Upload MacOS/Linux artifact
+      if: ${{ !contains(inputs.os, 'windows') }} 
       uses: actions/upload-artifact@v3.1.2
       with:
         name: ${{ inputs.os }}-${{ inputs.api }}
