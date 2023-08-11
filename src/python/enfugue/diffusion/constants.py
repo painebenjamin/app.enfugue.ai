@@ -58,7 +58,7 @@ CONTROLNET_PIDI = "lllyasviel/control_v11p_sd15_softedge"
 CONTROLNET_LINE = "ControlNet-1-1-preview/control_v11p_sd15_lineart"
 CONTROLNET_ANIME = "lllyasviel/control_v11p_sd15s2_lineart_anime"
 
-CONTROLNET_CANNY_XL = "diffusers/controlnet-sdxl-1.0"
+CONTROLNET_CANNY_XL = "diffusers/controlnet-canny-sdxl-1.0"
 
 CONTROLNET_LITERAL = Literal[
     "canny", "mlsd", "hed", "scribble", "tile", "inpaint", "depth", "normal", "pose", "pidi", "line", "anime"

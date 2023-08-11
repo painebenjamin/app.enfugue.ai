@@ -12,7 +12,6 @@ jobs:
   compile-distribution:
     runs-on: ${{ inputs.os }}
     env:
-      MINIMAL_BUILD: 1
       RUN_INTEGRATION_TEST: 0
     steps:
     - uses: actions/checkout@v3
@@ -69,13 +68,6 @@ jobs:
         . /c/Miniconda/etc/profile.d/conda.sh
         conda activate base
         make
-    - name: Clean space and split artifact
-      if: ${{ contains(inputs.os, 'ubuntu') }} 
-      run: |
-        conda install --revision 0
-        conda install make
-        conda clean -aqy
-        make split
     - name: Upload Linux artifact
       if: ${{ contains(inputs.os, 'ubuntu') }} 
       uses: actions/upload-artifact@v3.1.2
