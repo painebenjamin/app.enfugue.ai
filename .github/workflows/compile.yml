@@ -8,10 +8,14 @@ on:
       api:
         required: true
         type: string
+      release:
+        required: true
+        type: boolean
 jobs:
   compile-distribution:
     runs-on: ${{ inputs.os }}
     env:
+      ARTIFACT_SUFFIX: ${{ inputs.api }}-
       MINIMAL_BUILD: 1
       RUN_INTEGRATION_TEST: 0
     steps:
@@ -28,6 +32,9 @@ jobs:
       run: |
         # $CONDA is an environment variable pointing to the root of the miniconda directory
         echo $CONDA/bin >> $GITHUB_PATH
+    - name: Get Version
+      id: version
+      run: echo "version=$(make version)" >> $GITHUB_OUTPUT
     - name: Clean unneeded pre-installed code
       if: ${{ contains(inputs.os, 'ubuntu') }}
       run: |
@@ -76,20 +83,32 @@ jobs:
         conda install make
         conda clean -aqy
         make split
+    - name: Release Linux Artifact
+      if: ${{ contains(inputs.os, 'ubuntu') && inputs.release }}
+      run: |
+        gh release ${{ steps.version.outputs.version }} --clobber ./enfugue-server*tar.gz*
     - name: Upload Linux artifact
-      if: ${{ contains(inputs.os, 'ubuntu') }} 
+      if: ${{ contains(inputs.os, 'ubuntu') && !inputs.release }}
       uses: actions/upload-artifact@v3.1.2
       with:
         name: ${{ inputs.os }}-${{ inputs.api }}
         path: ./enfugue-server*tar.gz*
+    - name: Release Windows Artifact
+      if: ${{ contains(inputs.os, 'windows') && inputs.release }}
+      run: |
+        gh release ${{ steps.version.outputs.version }} --clobber ./build/enfugue-server*zip*
     - name: Upload Windows artifact
-      if: ${{ contains(inputs.os, 'windows') }} 
+      if: ${{ contains(inputs.os, 'windows') && !inputs.release }} 
       uses: actions/upload-artifact@v3.1.2
       with:
         name: ${{ inputs.os }}-${{ inputs.api }}
         path: ./build/enfugue-server*zip*
+    - name: Release MacOS Artifact
+      if: ${{ contains(inputs.os, 'mac') && inputs.release }}
+      run: |
+        gh release ${{ steps.version.outputs.version }} --clobber ./build/enfugue-server*tar.gz*
     - name: Upload MacOS artifact
-      if: ${{ contains(inputs.os, 'mac') }} 
+      if: ${{ contains(inputs.os, 'mac') && !inputs.release }} 
       uses: actions/upload-artifact@v3.1.2
       with:
         name: ${{ inputs.os }}-${{ inputs.api }}

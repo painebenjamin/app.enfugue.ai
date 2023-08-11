@@ -1,9 +1,15 @@
 name: Compile Windows CUDA with TensorRT Portable Distribution
 on:
-  - workflow_dispatch
+  workflow_dispatch:
+    inputs:
+      release:
+        description: Upload to a tagged release?
+        required: true
+        type: boolean
 jobs:
   compile-windows-tensorrt:
     uses: painebenjamin/app.enfugue.ai/.github/workflows/compile.yml@main
     with:
       os: windows-latest
       api: tensorrt
+      release: ${{ inputs.release }}

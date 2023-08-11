@@ -9,11 +9,12 @@ from typing import Any, Dict, List
 
 from webob import Request, Response
 
-from pibble.api.exceptions import NotFoundError
+from pibble.api.exceptions import NotFoundError, BadRequestError
 from pibble.api.server.webservice.template import TemplateServer
 from pibble.api.server.webservice.jsonapi import JSONWebServiceAPIServer
 from pibble.ext.user.server.base import UserExtensionHandlerRegistry
 from pibble.ext.rest.server.user import UserRESTExtensionServerBase
+from pibble.ext.user.database import AuthenticationToken
 from pibble.util.encryption import Password
 from pibble.util.helpers import OutputCatcher
 
@@ -52,6 +53,9 @@ EnfugueAPIRESTConfiguration = {
         },
     ],
 }
+
+# Don't confuse people, we can't do OAuth
+AuthenticationToken.Hide("refresh_token")
 
 __all__ = ["EnfugueAPIServerBase", "EnfugueAPIServer"]
 
@@ -336,6 +340,15 @@ class EnfugueAPIServerBase(
             "version": get_version(),
             "uptime": (datetime.datetime.now() - self.start_time).total_seconds(),
         }
+
+    @handlers.path("^/api/login$")
+    @handlers.methods("POST")
+    @handlers.format()
+    def api_login(self, request: Request, response: Response) -> AuthenticationToken:
+        """
+        Logs in through the API (and returns the token in JSON)
+        """
+        return self.login(request, response)
 
     @handlers.path("^/api/announcements$")
     @handlers.methods("GET")

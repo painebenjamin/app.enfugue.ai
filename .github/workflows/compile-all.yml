@@ -1,6 +1,11 @@
 name: Compile All Portable Distributions
 on:
-  - workflow_dispatch
+  workflow_dispatch:
+    inputs:
+      release:
+        description: Upload to a tagged release?
+        required: true
+        type: boolean
 jobs:
   compile-all:
     strategy:
@@ -8,14 +13,19 @@ jobs:
         include:
           - os: ubuntu-latest
             api: tensorrt
+            release: ${{ inputs.release }}
           - os: ubuntu-latest
             api: cuda
+            release: ${{ inputs.release }}
           - os: windows-latest
             api: tensorrt
+            release: ${{ inputs.release }}
           - os: windows-latest
             api: cuda
+            release: ${{ inputs.release }}
           - os: macos-13
             api: mps
+            release: ${{ inputs.release }}
     uses: painebenjamin/app.enfugue.ai/.github/workflows/compile.yml@main
     with:
       os: ${{ matrix.os }}

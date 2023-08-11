@@ -1,9 +1,15 @@
 name: Compile Windows CUDA Portable Distribution
 on:
-  - workflow_dispatch
+  workflow_dispatch:
+    inputs:
+      release:
+        description: Upload to a tagged release?
+        required: true
+        type: boolean
 jobs:
   compile-windows-cuda:
     uses: painebenjamin/app.enfugue.ai/.github/workflows/compile.yml@main
     with:
       os: windows-latest
       api: cuda
+      release: ${{ inputs.release }}
