@@ -237,6 +237,7 @@ class DiffusionStep:
         # Create centered frame about the bounding box
         bbox_width = x1 - x0
         bbox_height = y1 - y0
+
         if bbox_width < pipeline_size:
             x0 = max(0, x0 - ((pipeline_size - bbox_width) // 2))
             x1 = min(width, x0 + pipeline_size)
@@ -245,6 +246,7 @@ class DiffusionStep:
             y0 = max(0, y0 - ((pipeline_size - bbox_height) // 2))
             y1 = min(height, y0 + pipeline_size)
             y0 = max(0, y1 - pipeline_size)
+
         return [(x0, y0), (x1, y1)]
 
     def paste_inpaint_image(
@@ -388,8 +390,10 @@ class DiffusionStep:
                 and control_image is None
             ):
                 (x0, y0), (x1, y1) = self.get_inpaint_bounding_box(pipeline_size)
+
                 bbox_width = x1 - x0
                 bbox_height = y1 - y0
+
                 pixel_ratio = (bbox_height * bbox_width) / (mask_width * mask_height)
                 pixel_savings = (1.0 - pixel_ratio) * 100
                 if pixel_ratio < 0.75:
@@ -430,8 +434,8 @@ class DiffusionStep:
             # Refuse it's too oblong. We'll just calculate at the appropriate size.
             image_scale = 1
 
-        invocation_kwargs["width"] = 8 * round((image_width * image_scale) / 8)
-        invocation_kwargs["height"] = 8 * round((image_height * image_scale) / 8)
+        invocation_kwargs["width"] = 8 * math.ceil((image_width * image_scale) / 8)
+        invocation_kwargs["height"] = 8 * math.ceil((image_height * image_scale) / 8)
         invocation_kwargs["control_image"] = self.check_process_control_image(pipeline, control_image)
 
         if image_scale > 1:
@@ -444,7 +448,10 @@ class DiffusionStep:
         if image_background is not None and image_position is not None and latent_callback is not None:
             # Hijack latent callback to paste onto background
             def pasted_latent_callback(images: List[PIL.Image.Image]) -> None:
-                images = [self.paste_inpaint_image(image_background, image, image_position) for image in images] # type: ignore
+                images = [
+                    self.paste_inpaint_image(image_background, image, image_position) # type: ignore
+                    for image in images
+                ]
                 latent_callback(images)
 
             invocation_kwargs["latent_callback"] = pasted_latent_callback
