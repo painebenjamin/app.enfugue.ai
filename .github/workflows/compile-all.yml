@@ -13,20 +13,16 @@ jobs:
         include:
           - os: ubuntu-latest
             api: tensorrt
-            release: ${{ inputs.release }}
           - os: ubuntu-latest
             api: cuda
-            release: ${{ inputs.release }}
           - os: windows-latest
             api: tensorrt
-            release: ${{ inputs.release }}
           - os: windows-latest
             api: cuda
-            release: ${{ inputs.release }}
           - os: macos-13
-            api: mps
-            release: ${{ inputs.release }}
+            api: mps            
     uses: painebenjamin/app.enfugue.ai/.github/workflows/compile.yml@main
     with:
       os: ${{ matrix.os }}
       api: ${{ matrix.api }}
+      release: ${{ inputs.release }}
