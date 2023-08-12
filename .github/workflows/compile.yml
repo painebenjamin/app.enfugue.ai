@@ -16,6 +16,7 @@ jobs:
     runs-on: ${{ inputs.os }}
     env:
       ARTIFACT_SUFFIX: ${{ inputs.api }}-
+      GH_TOKEN: ${{ github.token }}
       MINIMAL_BUILD: 1
       RUN_INTEGRATION_TEST: 0
     steps:
