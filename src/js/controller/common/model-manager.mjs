@@ -665,7 +665,7 @@ class ModelManagerController extends Controller {
             });
             modelForm.onSubmit(async (updatedValues) => {
                 try {
-                    await this.model.put(`/models/${row.name}`, null, null, updatedValues);
+                    await this.model.patch(`/models/${row.name}`, null, null, updatedValues);
                     if (!isEmpty(modelWindow)) {
                         modelWindow.remove();
                     }

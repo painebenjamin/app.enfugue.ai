@@ -336,7 +336,7 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         ).format()
 
     @handlers.path("^/api/models/(?P<model_name>[^\/]+)$")
-    @handlers.methods("PUT")
+    @handlers.methods("PATCH")
     @handlers.format()
     @handlers.secured("DiffusionModel", "update")
     def modify_model(self, request: Request, response: Response, model_name: str) -> DiffusionModel:

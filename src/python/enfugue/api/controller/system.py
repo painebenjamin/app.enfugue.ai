@@ -125,6 +125,7 @@ class EnfugueAPISystemController(EnfugueAPIControllerBase):
             if key in request.parsed:
                 self.user_config[f"enfugue.{key}"] = request.parsed[key]
         self.configuration.update(**self.user_config.dict())
+        return self.get_settings(request, response)
 
     @handlers.path("^/api/users$")
     @handlers.methods("POST")

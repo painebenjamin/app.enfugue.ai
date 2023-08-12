@@ -14,7 +14,7 @@ from pibble.api.server.webservice.template import TemplateServer
 from pibble.api.server.webservice.jsonapi import JSONWebServiceAPIServer
 from pibble.ext.user.server.base import UserExtensionHandlerRegistry
 from pibble.ext.rest.server.user import UserRESTExtensionServerBase
-from pibble.ext.user.database import AuthenticationToken
+from pibble.ext.user.database import AuthenticationToken, User
 from pibble.util.encryption import Password
 from pibble.util.helpers import OutputCatcher
 
@@ -55,7 +55,8 @@ EnfugueAPIRESTConfiguration = {
 }
 
 # Don't confuse people, we can't do OAuth
-AuthenticationToken.Hide("refresh_token")
+AuthenticationToken.Hide(["refresh_token", "id"])
+User.Hide(["password", "superuser", "password_expires", "verified"])
 
 __all__ = ["EnfugueAPIServerBase", "EnfugueAPIServer"]
 
