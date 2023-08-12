@@ -16,6 +16,7 @@ jobs:
     runs-on: ${{ inputs.os }}
     env:
       ARTIFACT_SUFFIX: ${{ inputs.api }}-
+      GH_TOKEN: ${{ github.token }}
       MINIMAL_BUILD: 1
       RUN_INTEGRATION_TEST: 0
     steps:
@@ -86,7 +87,7 @@ jobs:
     - name: Release Linux Artifact
       if: ${{ contains(inputs.os, 'ubuntu') && inputs.release }}
       run: |
-        gh release ${{ steps.version.outputs.version }} --clobber ./enfugue-server*tar.gz*
+        gh release upload ${{ steps.version.outputs.version }} --clobber ./enfugue-server*tar.gz*
     - name: Upload Linux artifact
       if: ${{ contains(inputs.os, 'ubuntu') && !inputs.release }}
       uses: actions/upload-artifact@v3.1.2
@@ -96,7 +97,7 @@ jobs:
     - name: Release Windows Artifact
       if: ${{ contains(inputs.os, 'windows') && inputs.release }}
       run: |
-        gh release ${{ steps.version.outputs.version }} --clobber ./build/enfugue-server*zip*
+        gh release upload ${{ steps.version.outputs.version }} --clobber ./build/enfugue-server*zip*
     - name: Upload Windows artifact
       if: ${{ contains(inputs.os, 'windows') && !inputs.release }} 
       uses: actions/upload-artifact@v3.1.2
@@ -106,7 +107,7 @@ jobs:
     - name: Release MacOS Artifact
       if: ${{ contains(inputs.os, 'mac') && inputs.release }}
       run: |
-        gh release ${{ steps.version.outputs.version }} --clobber ./build/enfugue-server*tar.gz*
+        gh release upload ${{ steps.version.outputs.version }} --clobber ./build/enfugue-server*tar.gz*
     - name: Upload MacOS artifact
       if: ${{ contains(inputs.os, 'mac') && !inputs.release }} 
       uses: actions/upload-artifact@v3.1.2

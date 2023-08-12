@@ -273,6 +273,10 @@ Additional resources will be made available as they are needed, so don't hesitat
 
 Enfugue uses an extension of `diffusers.StableDiffusionPipeline` that provides a number of additional arguments over the typical signature, weaving between `txt2img`, `img2img`, `inpaint` and `controlnet` as necessary. It also has TensorRT support for all models in the pipeline. Start [here](https://github.com/painebenjamin/app.enfugue.ai/tree/main/src/python/enfugue) for documentation on how it is used.
 
+## Enfugue JSON API
+
+The entirety of Enfugue's capabilities are available via JSON API. Find the documentation in [the wiki.](https://github.com/painebenjamin/app.enfugue.ai/wiki/JSON-API)
+
 ## Building
 
 For anyone interested in building from source themselves, simply check out this repository and issue a `make` command to build the associated binary release. See below for all make targets.
