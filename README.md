@@ -294,6 +294,8 @@ For anyone interested in building from source themselves, simply check out this 
 | **html**, **img** | These step simply copy the relevant static directories (`/html`, `/img`) to the build directory. | `src/html/*.html` files, `src/img/*.*` files |
 | **sdist** | This step compiles the source distribution into an installable `.tar.gz` file, suitable for passing to `pip install`. Contains all the results of the previous steps | Python source files, passing `typecheck`, `importcheck`, `unittest`, and `test`, running `vendor`, compiling `js`, `css`, `html`, and `img` |
 | **dist** | This step compiles the relevant executable artifact (and zips/tars it). | sdist |
+| **dockerfile** | This step compiles the dockerfile and prepares it for building. | sdist |
+| **docker** | This step builds the docker image. | dockerfile |
 
 ## Running directly from Source
 
