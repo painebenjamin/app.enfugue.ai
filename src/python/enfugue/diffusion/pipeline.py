@@ -2200,7 +2200,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
                 prompt_embeds = prompt_embeds.to(device)
                 add_text_embeds = add_text_embeds.to(device)
-                add_time_ids = add_time_ids.to(device).repeat(batch_size * num_images_per_prompt, 1)
+                add_time_ids = add_time_ids.to(device).repeat(batch_size, 1)
                 added_cond_kwargs = {"text_embeds": add_text_embeds, "time_ids": add_time_ids}
             else:
                 added_cond_kwargs = None

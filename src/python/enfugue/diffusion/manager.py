@@ -33,6 +33,10 @@ if TYPE_CHECKING:
     from enfugue.diffusion.pipeline import EnfugueStableDiffusionPipeline
     from enfugue.diffusion.support import EdgeDetector, DepthDetector, PoseDetector, LineDetector, Upscaler
 
+def noop(*args: Any) -> None:
+    """
+    The default callback, does nothing.
+    """
 
 def redact(kwargs: Dict[str, Any]) -> Dict[str, Any]:
     """
@@ -2806,11 +2810,16 @@ class DiffusionPipelineManager:
                     logger.debug("Refinement strength is zero, not refining.")
                 else:
                     self.start_keepalive()
-                    if kwargs.get("latent_callback", None) is not None:
-                        kwargs["latent_callback"](result["images"])  # type: ignore
+                    latent_callback = noop
+                    if kwargs.get("latent_callback", None) is not None and kwargs.get("latent_callback_type", "pil") == "pil":
+                        latent_callback = kwargs["latent_callback"]
 
-                    # Issues seem to exist with loading both sdxl 0.9 ckpts into memory at once, unless they're cached.
-                    # add a catch here to unload the main pipeline if loading the refiner pipeline and it's not cached.
+                    latent_callback(result["images"]) # type: ignore
+
+                    # Loading both SDXL checkpoints into memory at once requires a LOT of VRAM - more than 24GB, at least.
+                    # If the refiner is not cached, it takes even more; possibly too much.
+                    # Add a catch here to unload the main pipeline if loading the refiner pipeline and it's not cached.
+                    
                     should_offload = self.pipeline_switch_mode == "offload"
                     should_unload = self.pipeline_switch_mode == "unload" or (
                         self.refiner_is_sdxl and not self.refiner_engine_cache_exists
@@ -2830,6 +2839,7 @@ class DiffusionPipelineManager:
                         logger.debug("Keeping pipeline in memory")
 
                     self.reload_refiner()
+
                     for i, image in enumerate(result["images"]):  # type: ignore
                         is_nsfw = "nsfw_content_detected" in result and result["nsfw_content_detected"][i]  # type: ignore
                         if is_nsfw:
@@ -2837,7 +2847,9 @@ class DiffusionPipelineManager:
                             continue
                         kwargs.pop("image", None)  # Remove any previous image
                         kwargs.pop("mask", None)  # Remove any previous mask
+                        kwargs.pop("num_images_per_prompt", None) # Remove samples, we'll refine one at a time
 
+                        kwargs["latent_callback"] = latent_callback # Revert to original callback, we'll wrap later if needed
                         kwargs["strength"] = refiner_strength if refiner_strength else self.refiner_strength
                         kwargs["guidance_scale"] = (
                             refiner_guidance_scale if refiner_guidance_scale else self.refiner_guidance_scale
@@ -2850,9 +2862,11 @@ class DiffusionPipelineManager:
                             if refiner_negative_aesthetic_score
                             else self.refiner_negative_aesthetic_score
                         )
-
+                        
                         width, height = image.size
                         image_scale = 1
+
+                        # Check if we need to scale up for refiner (e.g. refining 1.5 with XL)
                         if (width < self.refiner_size or height < self.refiner_size) and scale_to_refiner_size:
                             if width < self.refiner_size:
                                 image_scale = self.refiner_size / width
@@ -2873,7 +2887,15 @@ class DiffusionPipelineManager:
                             logger.debug(
                                 f"Scaling image up to {new_width}×{new_height} (×{image_scale:.3f}) for refiner"
                             )
+                        
+                        # Change callback to include other samples, if present
+                        if "latent_callback" in kwargs and kwargs.get("latent_callback_type", "pil") == "pil":
+                            original_callback = kwargs["latent_callback"]
 
+                            def mixed_result_callback(images: List[PIL.Image.Image]) -> None:
+                                original_callback(result["images"][:i] + images + result["images"][i+1:]) # type: ignore
+
+                            kwargs["latent_callback"] = mixed_result_callback
                         logger.debug(f"Refining result {i} with arguments {kwargs}")
                         self.stop_keepalive()  # This checks, we can call it all we want
                         refined_image = self.refiner_pipeline(  # type: ignore
