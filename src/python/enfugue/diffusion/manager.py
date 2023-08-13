@@ -1973,7 +1973,7 @@ class DiffusionPipelineManager:
         """
         Returns true if the model should always be cached.
         """
-        configured = self.configuration.get("enfugue.engine.cache", "xl")
+        configured = self.configuration.get("enfugue.pipeline.cache", "xl")
         if configured == "xl":
             return self.is_sdxl
         return configured in ["always", True]
@@ -1983,7 +1983,7 @@ class DiffusionPipelineManager:
         """
         Returns true if the inpainter model should always be cached.
         """
-        configured = self.configuration.get("enfugue.engine.cache", "xl")
+        configured = self.configuration.get("enfugue.pipeline.cache", "xl")
         if configured == "xl":
             return self.inpainter_is_sdxl
         return configured in ["always", True]
@@ -1993,7 +1993,7 @@ class DiffusionPipelineManager:
         """
         Returns true if the refiner model should always be cached.
         """
-        configured = self.configuration.get("enfugue.engine.cache", "xl")
+        configured = self.configuration.get("enfugue.pipeline.cache", "xl")
         if configured == "xl":
             return self.refiner_is_sdxl
         return configured in ["always", True]
