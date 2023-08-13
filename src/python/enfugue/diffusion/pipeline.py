@@ -202,15 +202,19 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         https://github.com/huggingface/diffusers/blob/49949f321d9b034440b52e54937fd2df3027bf0a/src/diffusers/pipelines/stable_diffusion/convert_from_ckpt.py
         """
         logger.debug(f"Reading checkpoint file {checkpoint_path}")
-        if checkpoint_path.endswith("safetensors"):
-            from safetensors import safe_open
+        try:
+            if checkpoint_path.endswith("safetensors"):
+                from safetensors import safe_open
 
-            checkpoint = {}
-            with safe_open(checkpoint_path, framework="pt", device="cpu") as f:
-                for key in f.keys():
-                    checkpoint[key] = f.get_tensor(key)
-        else:
-            checkpoint = torch.load(checkpoint_path, map_location="cpu")
+                checkpoint = {}
+                with safe_open(checkpoint_path, framework="pt", device="cpu") as f:
+                    for key in f.keys():
+                        checkpoint[key] = f.get_tensor(key)
+            else:
+                checkpoint = torch.load(checkpoint_path, map_location="cpu")
+        except Exception as ex:
+            # Usually a bad file
+            raise IOError(f"Recevied exception reading checkpoint {checkpoint_path}, please ensure file integrity.\n{type(ex).__name__}: {ex}")
 
         # Sometimes models don't have the global_step item
         if "global_step" in checkpoint:
