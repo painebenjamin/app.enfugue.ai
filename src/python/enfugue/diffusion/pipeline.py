@@ -315,7 +315,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             }
             scheduler = EulerDiscreteScheduler.from_config(scheduler_dict)
             scheduler_type = "euler"
-            vae_path = "stabilityai/sdxl-vae"
+            if vae_path is None:
+                vae_path = "stabilityai/sdxl-vae"
         else:
             beta_start = original_config.model.params.linear_start
             beta_end = original_config.model.params.linear_end
@@ -364,11 +365,16 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
         # Convert the VAE model.
         if vae_path is None:
-            vae_config = create_vae_diffusers_config(original_config, image_size=image_size)
-            converted_vae_checkpoint = convert_ldm_vae_checkpoint(checkpoint, vae_config)
+            try:
+                vae_config = create_vae_diffusers_config(original_config, image_size=image_size)
+                converted_vae_checkpoint = convert_ldm_vae_checkpoint(checkpoint, vae_config)
 
-            vae = AutoencoderKL(**vae_config)
-            vae.load_state_dict(converted_vae_checkpoint)
+                vae = AutoencoderKL(**vae_config)
+                vae.load_state_dict(converted_vae_checkpoint)
+            except KeyError as ex:
+                default_path = "stabilityai/sdxl-vae" if model_type in ["SDXL", "SDXL-Refiner"] else "stabilityai/sd-vae-ft-ema"
+                logger.error(f"Malformed VAE state dictionary detected; missing required key '{ex}'. Reverting to default model {default_path}")
+                vae = AutoencoderKL.from_pretrained(default_path, cache_dir=cache_dir)
         else:
             vae = AutoencoderKL.from_pretrained(vae_path, cache_dir=cache_dir)
 

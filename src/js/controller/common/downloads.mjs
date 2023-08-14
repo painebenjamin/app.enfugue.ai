@@ -153,6 +153,15 @@ class DownloadsController extends Controller {
     }
 
     /**
+     * Starts the timer only if it's not started.
+     */
+    checkStartTimer() {
+        if (isEmpty(this.timer)) {
+            this.startTimer();
+        }
+    }
+
+    /**
      * Gets the CSS to display in the header regarding the most downloaded item
      */
     getDownloadStatusCSS(ratio) {
@@ -166,13 +175,14 @@ class DownloadsController extends Controller {
      */
     async download(type, url, filename) {
         let payload = {
-            "type": type,
-            "url": url,
-            "filename": filename
-        };
+                "type": type,
+                "url": url,
+                "filename": filename
+            },
+            response;
             
         try {
-            let response = await this.model.post("download", null, null, payload);
+            response = await this.model.post("download", null, null, payload);
             this.checkDownloads();
         } catch(e) {
             if (!isEmpty(e) && e.status == 409) {
@@ -198,6 +208,7 @@ class DownloadsController extends Controller {
         if (!isEmpty(this.downloadWindow)) {
             this.downloadWindow.focus();
         } else {
+            await this.checkDownloads();
             let downloadsView = new DownloadsView(this.config, this.currentDownloads);
             this.downloadWindow = await this.spawnWindow(
                 "Downloads", 
@@ -214,6 +225,7 @@ class DownloadsController extends Controller {
      */
     async checkDownloads() {
         clearTimeout(this.timer);
+        this.timer = null;
         this.currentDownloads = await this.model.get("download");
 
         let activeDownloads = 0,

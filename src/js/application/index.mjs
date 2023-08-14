@@ -425,6 +425,10 @@ class Application {
             ),
             statusViewNode = await statusView.getNode();
 
+        if (!isEmpty(status.system) && !isEmpty(status.system.downloads) && status.system.downloads.active > 0) {
+            this.downloads.checkStartTimer(); // Start the download timer if it's not already going
+        }
+
         triggerStateChange(status.status);
         header.appendChild(statusViewNode.render());
         setInterval(async () => {
@@ -433,6 +437,11 @@ class Application {
                 if (status.status !== newStatus.status) {
                     triggerStateChange(newStatus.status);
                 }
+
+                if (!isEmpty(status.system) && !isEmpty(status.system.downloads) && status.system.downloads.active > 0) {
+                    this.downloads.checkStartTimer();
+                }
+
                 statusView.updateStatus(newStatus);
                 status = newStatus;
             } catch {

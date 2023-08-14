@@ -314,7 +314,7 @@ class InstallationController extends MenuController {
     /**
      * @var array The directories that can be uploaded to
      */
-    static uploadableDirectories = ["lora", "checkpoint", "inversion"];
+    static uploadableDirectories = ["lora", "checkpoint", "inversion", "lycoris"];
 
     /**
      * On initialize, add local object to maintain window state

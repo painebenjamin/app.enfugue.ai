@@ -902,6 +902,7 @@ input.new-model-input-view,
 input.upload-file-input-view {
     float: right;
     margin-right: 1em;
+    margin-bottom: 1em;
 }
 
 input.upload-file-input-view {
