@@ -761,10 +761,10 @@ class DiffusionPlan:
                     else:
                         logger.error(f"Unknown upscaler {upscale}")
                         return images
-                    images[i] = image
 
-                if image_callback is not None and (j < len(scales) - 1 or self.upscale_diffusion):
-                    image_callback(images)
+                    images[i] = image
+                    if image_callback is not None:
+                        image_callback(images)
 
                 if self.upscale_diffusion:
                     if self.refiner:
@@ -855,10 +855,10 @@ class DiffusionPlan:
                         image = upscale_pipeline(**kwargs).images[0]
                         pipeline.start_keepalive() # Return keepalive between iterations
                         images[i] = image
+                        if image_callback is not None:
+                            image_callback(images)
                     if re_enable_safety:
                         pipeline.safe = True
-                if j < len(scales) - 1 and image_callback is not None:
-                    image_callback(images)
         pipeline.stop_keepalive() # Make sure this is stopped
         return StableDiffusionPipelineOutput(images=images, nsfw_content_detected=nsfw)
 
