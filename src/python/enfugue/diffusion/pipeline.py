@@ -192,7 +192,6 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         torch_dtype: Optional[torch.dtype] = None,
         upcast_attention: Optional[bool] = None,
         extract_ema: Optional[bool] = None,
-        num_in_channels: Optional[int] = None,
         **kwargs: Any,
     ) -> EnfugueStableDiffusionPipeline:
         """
@@ -255,13 +254,13 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
         original_config = OmegaConf.load(original_config_file)
 
-        if num_in_channels is not None:
-            if "unet_config" in original_config["model"]["params"]:  # type: ignore
-                # SD 1 or 2
-                original_config["model"]["params"]["unet_config"]["params"]["in_channels"] = num_in_channels  # type: ignore
-            elif "network_config" in original_config["model"]["params"]:  # type: ignore
-                # SDXL
-                original_config["model"]["params"]["network_config"]["params"]["in_channels"] = num_in_channels  # type: ignore
+        num_in_channels = 9 if "inpaint" in os.path.basename(checkpoint_path).lower() else 4
+        if "unet_config" in original_config["model"]["params"]:  # type: ignore
+            # SD 1 or 2
+            original_config["model"]["params"]["unet_config"]["params"]["in_channels"] = num_in_channels  # type: ignore
+        elif "network_config" in original_config["model"]["params"]:  # type: ignore
+            # SDXL
+            original_config["model"]["params"]["network_config"]["params"]["in_channels"] = num_in_channels  # type: ignore
 
         if (
             "parameterization" in original_config["model"]["params"]  # type: ignore
@@ -865,7 +864,11 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         self,
         mask: Union[np.ndarray, PIL.Image.Image, torch.Tensor],
         image: Union[np.ndarray, PIL.Image.Image, torch.Tensor],
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        return_image: bool = False
+    ) -> Union[
+        Tuple[torch.Tensor, torch.Tensor],
+        Tuple[torch.Tensor, torch.Tensor, torch.Tensor]
+    ]:
         """
         Prepares a mask and image for inpainting.
         """
@@ -936,12 +939,14 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             elif isinstance(mask, list) and isinstance(mask[0], np.ndarray):
                 mask = np.concatenate([m[None, None, :] for m in mask], axis=0)
 
+            # binarize mask
             mask[mask < 0.5] = 0
             mask[mask >= 0.5] = 1
             mask = torch.from_numpy(mask)
 
         masked_image = image * (mask < 0.5)
-
+        if return_image:
+            return mask, masked_image, image
         return mask, masked_image
 
     def create_latents(
@@ -1427,8 +1432,10 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         prompt_embeds: torch.Tensor,
         guidance_scale: float,
         do_classifier_free_guidance: bool = False,
+        is_inpainting_unet: bool = False,
         mask: Optional[torch.Tensor] = None,
         mask_image: Optional[torch.Tensor] = None,
+        image: Optional[torch.Tensor] = None,
         control_image: Optional[torch.Tensor] = None,
         progress_callback: Optional[Callable[[], None]] = None,
         latent_callback: Optional[Callable[[Union[torch.Tensor, np.ndarray, List[PIL.Image.Image]]], None]] = None,
@@ -1447,6 +1454,12 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
         num_steps = len(timesteps)
         num_warmup_steps = num_steps - num_inference_steps * self.scheduler.order
+        
+        noise = None
+        if mask is not None and mask_image is not None and not is_inpainting_unet:
+            noise = latents.detach().clone() / self.scheduler.init_noise_sigma
+            noise = noise.to(device=device)
+
         logger.debug(f"Denoising image in {num_steps} steps on {device} (unchunked)")
 
         for i, t in enumerate(timesteps):
@@ -1469,7 +1482,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 down_block, mid_block = None, None
 
             # add other dimensions to unet input if set
-            if mask is not None and mask_image is not None:
+            if mask is not None and mask_image is not None and is_inpainting_unet:
                 latent_model_input = torch.cat(
                     [latent_model_input, mask, mask_image],
                     dim=1,
@@ -1498,6 +1511,23 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 latents,
                 **extra_step_kwargs,
             ).prev_sample
+
+            # If using mask and not using fine-tuned inpainting, then we calculate
+            # the same denoising on the image without unet and cross with the
+            # calculated unet input * mask
+            if mask is not None and image is not None and not is_inpainting_unet:
+                init_latents = image[:1]
+                init_mask = mask[:1]
+
+                if i < len(timesteps) - 1:
+                    noise_timestep = timesteps[i + 1]
+                    init_latents = self.scheduler.add_noise(
+                        init_latents,
+                        noise,
+                        torch.tensor([noise_timestep])
+                    )
+
+                latents = (1 - init_mask) * init_latents + init_mask * latents
 
             if progress_callback is not None:
                 progress_callback()
@@ -1535,8 +1565,10 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         prompt_embeds: torch.Tensor,
         guidance_scale: float,
         do_classifier_free_guidance: bool = False,
+        is_inpainting_unet: bool = False,
         mask: Optional[torch.Tensor] = None,
         mask_image: Optional[torch.Tensor] = None,
+        image: Optional[torch.Tensor] = None,
         control_image: Optional[torch.Tensor] = None,
         progress_callback: Optional[Callable[[], None]] = None,
         latent_callback: Optional[Callable[[Union[torch.Tensor, np.ndarray, List[PIL.Image.Image]]], None]] = None,
@@ -1566,9 +1598,11 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 latents=latents,
                 prompt_embeds=prompt_embeds,
                 guidance_scale=guidance_scale,
+                is_inpainting_unet=is_inpainting_unet,
                 do_classifier_free_guidance=do_classifier_free_guidance,
                 mask=mask,
                 mask_image=mask_image,
+                image=image,
                 control_image=control_image,
                 conditioning_scale=conditioning_scale,
                 progress_callback=progress_callback,
@@ -1594,6 +1628,11 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         logger.debug(
             f"Denoising image in {total_num_steps} steps on {device} ({num_inference_steps} inference steps * {num_chunks} chunks)"
         )
+
+        noise = None
+        if mask is not None and mask_image is not None and not is_inpainting_unet:
+            noise = latents.detach().clone() / self.multi_scheduler.init_noise_sigma
+            noise = noise.to(device=device)
 
         for i, t in enumerate(timesteps):
             # zero view latents
@@ -1632,7 +1671,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     down_block, mid_block = None, None
 
                 # add other dimensions to unet input if set
-                if mask is not None and mask_image is not None:
+                if mask is not None and mask_image is not None and is_inpainting_unet:
                     latent_model_input = torch.cat(
                         [
                             latent_model_input,
@@ -1665,6 +1704,23 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     latents_for_view,
                     **extra_step_kwargs,
                 ).prev_sample
+
+                # If using mask and not using fine-tuned inpainting, then we calculate
+                # the same denoising on the image without unet and cross with the
+                # calculated unet input * mask
+                if mask is not None and image is not None and noise is not None and not is_inpainting_unet:
+                    init_latents = (image[:, :, top:bottom, left:right])[:1]
+                    init_mask = (mask[:, :, top:bottom, left:right])[:1]
+
+                    if i < len(timesteps) - 1:
+                        noise_timestep = timesteps[i + 1]
+                        init_latents = self.multi_scheduler.add_noise(
+                            init_latents,
+                            noise[:, :, top:bottom, left:right],
+                            torch.tensor([noise_timestep])
+                        )
+
+                    denoised_latents = (1 - init_mask) * init_latents + init_mask * denoised_latents
 
                 # Blur edges as needed
                 multiplier = torch.ones_like(denoised_latents)
@@ -1920,7 +1976,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         height = height or self.unet.config.sample_size * self.vae_scale_factor
         width = width or self.unet.config.sample_size * self.vae_scale_factor
 
-        # TODO: figure out what this does
+        # Training details
         original_size = original_size or (height, width)
         target_size = target_size or (height, width)
 
@@ -1935,6 +1991,9 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         prepared_control_image: Optional[torch.Tensor] = None
         output_nsfw: Optional[List[bool]] = None
 
+        # Determine dimensionality
+        is_inpainting_unet = self.unet.config.in_channels == 9
+
         # 2. Define call parameters
         if prompt is not None:
             batch_size = 1
@@ -1943,7 +2002,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         else:
             raise ValueError("Prompt or prompt embeds are required.")
 
-        if self.unet.config.in_channels == 9:
+        if is_inpainting_unet:
             if not image:
                 logger.warning("No image present, but using inpainting model. Adding blank image.")
                 image = PIL.Image.new("RGB", (width, height))
@@ -1958,14 +2017,16 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         num_chunks = max(1, len(self.get_chunks(height, width)))
 
         if num_chunks > 1:
-            logger.debug(f"Using multi-scheduler {type(self.multi_scheduler).__name__}")
+            logger.debug(f"Using multi-diffusion scheduler {type(self.multi_scheduler).__name__}")
             scheduler = self.multi_scheduler
         else:
             logger.debug(f"Using base scheduler {type(self.scheduler).__name__}")
             scheduler = self.scheduler
 
         scheduler.set_timesteps(num_inference_steps, device=device)
+
         if image and not mask:
+            # Scale timesteps by strength
             timesteps, num_inference_steps = self.get_timesteps(num_inference_steps, strength, device, num_chunks > 1)
         else:
             timesteps = scheduler.timesteps
@@ -1973,7 +2034,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         batch_size *= num_images_per_prompt
         num_scheduled_inference_steps = len(timesteps)
 
-        # Calculate total steps
+        # Calculate total steps including all unet and vae calls
         chunked_steps = 1
 
         if image is not None:
@@ -2000,6 +2061,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         with self.get_runtime_context(batch_size, device):
             # Base runtime has no context, but extensions do
             if self.is_sdxl:
+                # XL uses more inputs for prompts than 1.5
                 (
                     prompt_embeds,
                     negative_prompt_embeds,
@@ -2028,12 +2090,14 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 negative_prompt_embeds = None
                 negative_pooled_prompt_embeds = None
 
+            # Open images if they're files
             if image and isinstance(image, str):
                 image = PIL.Image.open(image)
 
             if mask and isinstance(mask, str):
                 mask = PIL.Image.open(mask)
 
+            # Scale images if requested
             if scale_image and image:
                 image_width, image_height = image.size
                 if image_width != width or image_height != height:
@@ -2046,18 +2110,23 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     logger.debug(f"Resizing input mask from {mask_width}x{mask_height} to {width}x{height}")
                     mask = mask.resize((width, height), resample=PIL_INTERPOLATION["lanczos"])
 
+            # Remove any alpha mask on image, convert mask to grayscale
             if image:
                 image = image.convert("RGB")
             if mask:
                 mask = mask.convert("L")
 
             if image and mask:
-                prepared_mask, prepared_image = self.prepare_mask_and_image(mask, image)
+                if is_inpainting_unet:
+                    prepared_mask, prepared_image = self.prepare_mask_and_image(mask, image, False) # type: ignore
+                    init_image = None
+                else:
+                    prepared_mask, prepared_image, init_image = self.prepare_mask_and_image(mask, image, True) # type: ignore
             elif image:
                 prepared_image = self.image_processor.preprocess(image)
-                prepared_mask, prepared_image_latents = None, None
+                prepared_mask, prepared_image_latents, init_image = None, None, None
             else:
-                prepared_image, prepared_mask, prepared_image_latents = None, None, None
+                prepared_image, prepared_mask, prepared_image_latents, init_image = None, None, None, None
 
             if width < self.engine_size or height < self.engine_size:
                 # Disable chunking
@@ -2065,9 +2134,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 self.chunking_size = 0
 
             prompt_embeds = cast(torch.Tensor, prompt_embeds)
-
             if prepared_image is not None and prepared_mask is not None:
-                # Running the pipeline on an image with a mask
+                # Inpainting
                 num_channels_latents = self.vae.config.latent_channels
 
                 if latents:
@@ -2097,19 +2165,21 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     progress_callback=step_complete,
                 )
 
-                num_channels_mask = prepared_mask.shape[1]
-                num_channels_masked_image = prepared_image_latents.shape[1]
-
-                if num_channels_latents + num_channels_mask + num_channels_masked_image != self.unet.config.in_channels:
-                    raise ValueError(
-                        f"Incorrect configuration settings! The config of `pipeline.unet`: {self.unet.config} expects"
-                        f" {self.unet.config.in_channels} but received `num_channels_latents`: {num_channels_latents} +"
-                        f" `num_channels_mask`: {num_channels_mask} + `num_channels_masked_image`: {num_channels_masked_image}"
-                        f" = {num_channels_latents+num_channels_masked_image+num_channels_mask}. Please verify the config of"
-                        " `pipeline.unet` or your `mask_image` or `image` input."
+                if init_image is not None:
+                    init_image = init_image.to(device=device, dtype=prompt_embeds.dtype)
+                    init_image = self.encode_image(
+                        init_image,
+                        device=device,
+                        dtype=prompt_embeds.dtype,
+                        generator=generator
                     )
+
+                # prepared_latents = noise or init latents + noise
+                # prepared_mask = only mask
+                # prepared_image_latents = masked image
+                # init_image = only image when not using inpainting unet
             elif prepared_image is not None:
-                # Running the pipeline on an image, start with that
+                # img2img
                 prepared_latents = self.prepare_image_latents(
                     prepared_image,
                     timesteps[:1].repeat(batch_size),
@@ -2120,11 +2190,12 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     progress_callback=step_complete,
                     scheduler=scheduler,
                 )
+                # prepared_latents = img + noise
             elif latents:
-                # Running the pipeline on existing latents, add some noise
                 prepared_latents = latents.to(device) * scheduler.init_noise_sigma
+                # prepared_latents = passed latents + noise
             else:
-                # Create random latents for the whole unet
+                # txt2img
                 prepared_latents = self.create_latents(
                     batch_size,
                     self.unet.config.in_channels,
@@ -2135,6 +2206,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     generator,
                     scheduler=scheduler,
                 )
+                # prepared_latents = noise
 
             # Look for controlnet and conditioning image
             if control_image is not None:
@@ -2223,8 +2295,10 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 conditioning_scale=conditioning_scale,
                 guidance_scale=guidance_scale,
                 do_classifier_free_guidance=do_classifier_free_guidance,
+                is_inpainting_unet=is_inpainting_unet,
                 mask=prepared_mask,
                 mask_image=prepared_image_latents,
+                image=init_image,
                 control_image=prepared_control_image,
                 progress_callback=step_complete,
                 latent_callback=latent_callback,

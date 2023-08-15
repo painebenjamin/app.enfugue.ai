@@ -98,7 +98,7 @@ class DiffusionStep:
 
     result: StableDiffusionPipelineOutput
     crop_inpaint: bool = True
-    inpaint_feather: int = 16
+    inpaint_feather: int = 32
 
     def __init__(
         self,
@@ -372,7 +372,7 @@ class DiffusionStep:
         invocation_kwargs = {**kwargs, **self.kwargs}
 
         image_scale = 1
-        pipeline_size = pipeline.size if mask is None else pipeline.inpainter_size
+        pipeline_size = pipeline.inpainter_size if pipeline.inpainter_size is not None and mask is not None else pipeline.size
         image_width, image_height, image_background, image_position = None, None, None, None
 
         if image is not None:

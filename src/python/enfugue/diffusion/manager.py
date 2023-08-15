@@ -1471,6 +1471,13 @@ class DiffusionPipelineManager:
         self._pipeline_switch_mode = mode
 
     @property
+    def create_inpainter(self) -> bool:
+        """
+        Defines how to switch to inpainting.
+        """
+        return self.configuration.get("enfugue.pipeline.inpainter", not self.is_sdxl)
+
+    @property
     def refiner_strength(self) -> float:
         """
         Gets the denoising strength of the refiner
@@ -1679,7 +1686,7 @@ class DiffusionPipelineManager:
         """
         Returns true if the inpainter is set.
         """
-        return self.inpainter is not None
+        return self.inpainter is not None or os.path.exists(self.default_inpainter_path)
 
     @property
     def inpainter(self) -> Optional[str]:
@@ -2049,7 +2056,6 @@ class DiffusionPipelineManager:
             pipe = download_from_original_stable_diffusion_ckpt(
                 checkpoint_path=self.model,
                 from_safetensors=ext == ".safetensors",
-                num_in_channels=4,
             ).to(torch_dtype=self.dtype)
             pipe.save_pretrained(self.model_diffusers_dir)
             del pipe
@@ -2066,7 +2072,8 @@ class DiffusionPipelineManager:
 
             _, ext = os.path.splitext(self.refiner)
             pipe = download_from_original_stable_diffusion_ckpt(
-                checkpoint_path=self.refiner, from_safetensors=ext == ".safetensors", num_in_channels=4
+                checkpoint_path=self.refiner,
+                from_safetensors=ext == ".safetensors",
             ).to(torch_dtype=self.dtype)
             pipe.save_pretrained(self.refiner_diffusers_dir)
             del pipe
@@ -2083,7 +2090,8 @@ class DiffusionPipelineManager:
 
             _, ext = os.path.splitext(self.inpainter)
             pipe = download_from_original_stable_diffusion_ckpt(
-                checkpoint_path=self.inpainter, from_safetensors=ext == ".safetensors", num_in_channels=9
+                checkpoint_path=self.inpainter,
+                from_safetensors=ext == ".safetensors"
             ).to(torch_dtype=self.dtype)
             pipe.save_pretrained(self.inpainter_diffusers_dir)
             del pipe
@@ -2176,7 +2184,7 @@ class DiffusionPipelineManager:
                     elif self.vae_name == "ema":
                         kwargs["vae_path"] = VAE_EMA
                 logger.debug(f"Initializing pipeline from checkpoint at {self.model}. Arguments are {kwargs}")
-                pipeline = self.pipeline_class.from_ckpt(self.model, num_in_channels=4, controlnet=controlnet, **kwargs)
+                pipeline = self.pipeline_class.from_ckpt(self.model, controlnet=controlnet, **kwargs)
                 if self.should_cache:
                     logger.debug("Saving pipeline to pretrained.")
                     pipeline.save_pretrained(self.model_diffusers_dir)
@@ -2313,7 +2321,6 @@ class DiffusionPipelineManager:
                 logger.debug(f"Initializing refiner pipeline from checkpoint at {self.refiner}. Arguments are {kwargs}")
                 refiner_pipeline = self.refiner_pipeline_class.from_ckpt(
                     self.refiner,
-                    num_in_channels=4,
                     load_safety_checker=False,
                     controlnet=controlnet,
                     **kwargs,
@@ -2342,34 +2349,38 @@ class DiffusionPipelineManager:
             logger.debug("Refiner pipeline delete called, but no refiner pipeline present. This is not an error.")
 
     @property
+    def default_inpainter_path(self) -> str:
+        """
+        Gets the default path for an auto-created inpainter
+        """
+        current_checkpoint_path = self.model
+        default_checkpoint_name, _ = os.path.splitext(os.path.basename(DEFAULT_MODEL))
+        checkpoint_name, ext = os.path.splitext(os.path.basename(current_checkpoint_path))
+
+        if default_checkpoint_name == checkpoint_name:
+            return DEFAULT_INPAINTING_MODEL
+        else:
+            target_checkpoint_name = f"{checkpoint_name}-inpainting"
+            return os.path.join(
+                os.path.dirname(current_checkpoint_path), f"{target_checkpoint_name}{ext}"
+            )
+
+    @property
     def inpainter_pipeline(self) -> EnfugueStableDiffusionPipeline:
         """
         Instantiates the inpainter pipeline.
         """
         if not hasattr(self, "_inpainter_pipeline"):
             if not self.inpainter:
-                if self.is_sdxl:
-                    logger.warning(
-                        f"Main model is SDXL, and no configured inpainting checkpoint. There is no inpainting checkpoint for SDXL; switching to default SD 1.5 inpainting checkpoint. You may wish to configure a more fine-tuned SD 1.5 inpainting checkpoint for better results."
-                    )
-                    self.inpainter = DEFAULT_INPAINTING_MODEL
-                else:
-                    current_checkpoint_path = self.model
-                    default_checkpoint_name, _ = os.path.splitext(os.path.basename(DEFAULT_MODEL))
-                    default_inpainting_name, _ = os.path.splitext(os.path.basename(DEFAULT_INPAINTING_MODEL))
-                    checkpoint_name, ext = os.path.splitext(os.path.basename(current_checkpoint_path))
-
-                    if default_checkpoint_name == checkpoint_name:
-                        self.inpainter = DEFAULT_INPAINTING_MODEL
+                target_checkpoint_path = self.default_inpainter_path
+                if not os.path.exists(target_checkpoint_path):
+                    if self.create_inpainter:
+                        logger.info(f"Creating inpainting checkpoint from {self.model}")
+                        self.create_inpainting_checkpoint(self.model, target_checkpoint_path)
                     else:
-                        target_checkpoint_name = f"{checkpoint_name}-inpainting"
-                        target_checkpoint_path = os.path.join(
-                            os.path.dirname(current_checkpoint_path), f"{target_checkpoint_name}{ext}"
-                        )
-                        if not os.path.exists(target_checkpoint_path):
-                            logger.info(f"Creating inpainting checkpoint from {current_checkpoint_path}")
-                            self.create_inpainting_checkpoint(current_checkpoint_path, target_checkpoint_path)
-                        self.inpainter = target_checkpoint_path
+                        raise ConfigurationError(f"No target inpainter, creation is disabled, and default inpainter does not exist at {target_checkpoint_path}")
+                self.inpainter = target_checkpoint_path
+
             if self.inpainter.startswith("http"):
                 self.inpainter = self.check_download_checkpoint(self.inpainter)
 
@@ -2444,7 +2455,7 @@ class DiffusionPipelineManager:
                     elif self.vae_name == "ema":
                         kwargs["vae_path"] = VAE_EMA
                 inpainter_pipeline = self.inpainter_pipeline_class.from_ckpt(
-                    self.inpainter, num_in_channels=9, load_safety_checker=self.safe, **kwargs
+                    self.inpainter, load_safety_checker=self.safe, **kwargs
                 )
                 if self.should_cache_inpainter:
                     logger.debug("Saving inpainter pipeline to pretrained cache.")
@@ -2772,7 +2783,7 @@ class DiffusionPipelineManager:
             inpainting = kwargs.get("mask", None) is not None
             intention = "inpainting" if inpainting else "inference"
             task_callback(f"Preparing {intention} pipeline")
-            if inpainting:
+            if inpainting and (self.has_inpainter or self.create_inpainter):
                 size = self.inpainter_size
                 if self.pipeline_switch_mode == "offload":
                     self.offload_pipeline(intention) # type: ignore
@@ -2803,7 +2814,7 @@ class DiffusionPipelineManager:
             else:
                 self.tenssort_is_enabled = True
 
-            if inpainting:
+            if inpainting and (self.has_inpainter or self.create_inpainter):
                 pipe = self.inpainter_pipeline
             else:
                 pipe = self.pipeline
