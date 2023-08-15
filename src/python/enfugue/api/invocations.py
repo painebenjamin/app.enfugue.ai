@@ -66,6 +66,7 @@ class Invocation:
         self.last_total = None
         self.last_rate = None
         self.last_images = None
+        self.last_task = None
         self.results = None
 
     def _communicate(self) -> None:
@@ -80,7 +81,7 @@ class Invocation:
             start_comm = datetime.datetime.now()
             last_intermediate = self.engine.last_intermediate(self.id)
             if last_intermediate is not None:
-                for key in ["step", "total", "images", "rate"]:
+                for key in ["step", "total", "images", "rate", "task"]:
                     if key in last_intermediate:
                         setattr(self, f"last_{key}", last_intermediate[key])
                 self.last_intermediate_time = datetime.datetime.now()
@@ -235,6 +236,7 @@ class Invocation:
                 "total": total,
                 "images": images,
                 "rate": rate,
+                "task": self.last_task
             }
             if self.metadata:
                 formatted["metadata"] = self.metadata

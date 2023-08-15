@@ -162,12 +162,14 @@ class CurrentInvocationImageView extends ImageView {
      */
     async startImageFilter() {
         if (!isEmpty(this.imageFilterWindow)) {
-            this.imageFilterWindow.focus();
-            return;
+            return this.imageFilterWindow.focus();
         }
         if (!isEmpty(this.imageAdjustmentWindow)) {
-            this.editor.application.notifications.push("warning", "Complete image adjustments before trying to filter.");
-            return;
+            return this.editor.application.notifications.push(
+                "warn",
+                "Can't Filter Right Now",
+                "Complete image adjustments before trying to filter."
+            );
         }
 
         this.imageFilterView = new ImageFilterView(this.config, this.src, this.node.element.parentElement),
@@ -206,12 +208,14 @@ class CurrentInvocationImageView extends ImageView {
      */
     async startImageAdjustment() {
         if (!isEmpty(this.imageAdjustmentWindow)) {
-            this.imageAdjustmentWindow.focus();
-            return;
+            return this.imageAdjustmentWindow.focus();
         }
         if (!isEmpty(this.imageFilterWindow)) {
-            this.editor.application.notifications.push("warning", "Complete image filters before trying to adjust.");
-            return;
+            return this.editor.application.notifications.push(
+                "warn",
+                "Can't Adjust Right Now",
+                "Complete image filters before trying to adjust."
+            );
         }
         this.imageAdjustmentView = new ImageAdjustmentView(this.config, this.src, this.node.element.parentElement),
         this.imageAdjustmentWindow = await this.editor.application.windows.spawnWindow(

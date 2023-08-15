@@ -21,13 +21,14 @@ class ImageFilter {
     /**
      * @param string $source The source of the image.
      */
-    constructor(source, execute = true) {
+    constructor(source, execute = true, constants = {}) {
         this.source = source;
         this.image = new Image();
         this.executeOnLoad = execute;
         this.image.onload = () => this.onload();
         this.image.src = source;
         this.loaded = false;
+        this.initializationConstants = {...constants};
         this.constants = {};
     }
 
@@ -187,7 +188,9 @@ class ImageFilter {
             "width": this.image.width,
             "height": this.image.height,
             "seed": this.seed,
+            ...this.initializationConstants
         };
+
         if (execute) {
             this.execute();
         }

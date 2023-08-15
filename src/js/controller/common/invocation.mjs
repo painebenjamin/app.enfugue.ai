@@ -4,6 +4,7 @@ import { ElementBuilder } from "../../base/builder.mjs";
 import { Controller } from "../base.mjs";
 
 const E = new ElementBuilder({
+    "invocationTask": "enfugue-invocation-task",
     "invocationLoading": "enfugue-invocation-loading",
     "invocationLoaded": "enfugue-invocation-loaded",
     "invocationDuration": "enfugue-invocation-duration",
@@ -737,6 +738,7 @@ class InvocationController extends Controller {
             E.invocationLoaded().addClass("sliding-gradient"),
             E.invocationDuration(),
             E.invocationIterations(),
+            E.invocationTask().hide(),
             E.invocationRemaining().hide()
         );
         this.invocationSampleChooser = E.invocationSampleChooser().hide();
@@ -845,16 +847,18 @@ class InvocationController extends Controller {
      * @param callable onError A callback that is called when an error occur.
      * @param callable onEstimatedDuration A callback that will receive (int $millisecondsRemaining) when new estimates are available.
      */
-    async monitorInvocation(uuid, onImagesReceived, onError, onEstimatedDuration) {
+    async monitorInvocation(uuid, onTaskChanged, onImagesReceived, onError, onEstimatedDuration) {
         const initialInterval = this.application.config.model.invocation.interval || 1000;
         const queuedInterval = this.application.config.model.queue.interval || 5000;
         const consecutiveErrorCutoff = this.application.config.model.invocation.errors.consecutive || 2;
 
         if (onImagesReceived === undefined) onImagesReceived = () => {};
+        if (onTaskChanged === undefined) onTaskChanged = () => {};
         if (onError === undefined) onError = () => {};
         if (onEstimatedDuration === undefined) onEstimatedDuration = () => {};
 
         let start = (new Date()).getTime(),
+            lastTask,
             lastStep,
             lastTotal,
             lastRate,
@@ -896,7 +900,10 @@ class InvocationController extends Controller {
                 if (invokeResult.rate !== lastRate) {
                     lastRate = invokeResult.rate;
                 }
-
+                if (invokeResult.task !== lastTask) {
+                    onTaskChanged(invokeResult.task);
+                    lastTask = invokeResult.task;
+                }
                 lastDuration = invokeResult.duration;
                 if (!isEmpty(invokeResult.images)) {
                     let imagePaths = invokeResult.images.map((imageName) => `/api/invocation/${imageName}`),
@@ -948,8 +955,10 @@ class InvocationController extends Controller {
             lastTotal,
             lastRate,
             lastDuration,
+            lastTask,
             visibleInvocation = 0,
             invocationSampleChooserImageNodes = [],
+            taskNode = this.loadingBar.find(E.getCustomTag("invocationTask")),
             loadedNode = this.loadingBar.find(E.getCustomTag("invocationLoaded")),
             durationNode = this.loadingBar.find(E.getCustomTag("invocationDuration")),
             iterationsNode = this.loadingBar.find(E.getCustomTag("invocationIterations")),
@@ -1057,11 +1066,20 @@ class InvocationController extends Controller {
                     updateImages();
                 }
             },
+            onTaskChanged = (newTask) => {
+                lastTask = newTask;
+                if (isEmpty(newTask)) {
+                    taskNode.empty().hide();
+                } else {
+                    taskNode.content(newTask).show();
+                }
+            },
             onError = () => {
                 invocationComplete = true;
                 complete = true;
                 remainingNode.empty().hide();
                 iterationsNode.empty().hide();
+                taskNode.empty().hide();
             },
             onEstimatedDuration = (milliseconds, step, total, rate, duration) => {
                 lastEstimate = milliseconds;
@@ -1078,7 +1096,6 @@ class InvocationController extends Controller {
                         lastStep = 0;
                         lastPercentComplete = null;
                         lastStepChangeTime = lastEstimateTime;
-
                     }
                 }
                 lastTotal = total;
@@ -1089,8 +1106,9 @@ class InvocationController extends Controller {
         this.invocationSampleChooser.empty();
 
         window.requestAnimationFrame(() => updateEstimate());
-        this.monitorInvocation(uuid, onImagesReceived, onError, onEstimatedDuration);
+        this.monitorInvocation(uuid, onTaskChanged, onImagesReceived, onError, onEstimatedDuration);
         await waitFor(() => complete);
+        taskNode.empty().hide();
         this.loadingBar.removeClass("loading");
     }
 

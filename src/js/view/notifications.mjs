@@ -87,6 +87,12 @@ class NotificationCenterView extends ParentView {
             info: InfoNotificationView
         }[level.toLowerCase()];
 
+        if (isEmpty(className)) {
+            console.error(`Bad level ${level}, using error.`);
+            console.trace();
+            className = ErrorNotificationView;
+        };
+
         return this.addChild(className, title, messageString);
     }
 }

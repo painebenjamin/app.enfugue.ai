@@ -200,23 +200,22 @@ class ImageAdjustmentFilter extends ImageFilter {
      */
     reset(execute = true) {
         super.reset(false);
+
         this.constants = {
-            ...this.constants,
-            ...{
-                "noiseExponent": 3,
-                "invert": 0,
-                "contrast": 0,
-                "brightness": 0,
-                "lightness": 0,
-                "saturation": 0,
-                "hue": 0,
-                "red": 0,
-                "green": 0,
-                "blue": 0,
-                "hueNoise": 0,
-                "saturationNoise": 0,
-                "lightnessNoise": 0,
-            }
+            "noiseExponent": 3,
+            "invert": 0,
+            "contrast": 0,
+            "brightness": 0,
+            "lightness": 0,
+            "saturation": 0,
+            "hue": 0,
+            "red": 0,
+            "green": 0,
+            "blue": 0,
+            "hueNoise": 0,
+            "saturationNoise": 0,
+            "lightnessNoise": 0,
+            ...this.constants
         };
         if (execute) {
             this.execute();

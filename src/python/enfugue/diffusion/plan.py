@@ -102,6 +102,7 @@ class DiffusionStep:
 
     def __init__(
         self,
+        name: str = "Step", # Can be set later
         width: Optional[int] = None,
         height: Optional[int] = None,
         prompt: Optional[str] = None,
@@ -122,6 +123,7 @@ class DiffusionStep:
         process_control_image: bool = True,
         scale_to_model_size: bool = True,
     ) -> None:
+        self.name = name
         self.width = width
         self.height = height
         self.prompt = prompt
@@ -155,6 +157,7 @@ class DiffusionStep:
         Gets the dictionary that will be returned to serialize
         """
         serialized: Dict[str, Any] = {
+            "name": self.name,
             "width": self.width,
             "height": self.height,
             "prompt": self.prompt,
@@ -491,6 +494,7 @@ class DiffusionStep:
         """
         kwargs: Dict[str, Any] = {}
         for key in [
+            "name",
             "prompt",
             "negative_prompt",
             "controlnet",
@@ -560,6 +564,13 @@ class DiffusionNode:
         Passes through the execution to the step.
         """
         return self.step.execute(pipeline, **kwargs)
+
+    @property
+    def name(self) -> str:
+        """
+        Pass-through the step name
+        """
+        return self.step.name
 
     @staticmethod
     def deserialize_dict(step_dict: Dict[str, Any]) -> DiffusionNode:
@@ -649,6 +660,7 @@ class DiffusionPlan:
         self.chunking_blur = chunking_blur if chunking_blur is not None else self.size // 8  # Pass 0 to disable
         self.samples = samples if samples is not None else 1
         self.seed = seed
+
         self.build_tensorrt = build_tensorrt
         self.nodes = nodes
         self.outscale = outscale if outscale is not None else 1
@@ -700,6 +712,7 @@ class DiffusionPlan:
     def execute(
         self,
         pipeline: DiffusionPipelineManager,
+        task_callback: Optional[Callable[[str], None]] = None,
         progress_callback: Optional[Callable[[int, int, float], None]] = None,
         image_callback: Optional[Callable[[List[PIL.Image.Image]], None]] = None,
         image_callback_steps: Optional[int] = None,
@@ -714,8 +727,9 @@ class DiffusionPlan:
         # We import here so this file can be imported by processes without initializing torch
         from diffusers.utils.pil_utils import PIL_INTERPOLATION
         from diffusers.pipelines.stable_diffusion import StableDiffusionPipelineOutput
-
-        images, nsfw = self.execute_nodes(pipeline, progress_callback, image_callback, image_callback_steps)
+        if task_callback is None:
+            task_callback = lambda arg: None
+        images, nsfw = self.execute_nodes(pipeline, task_callback, progress_callback, image_callback, image_callback_steps)
         if self.upscale is not None and self.outscale > 1:
             if self.upscale_iterative:
                 scales = [2] * int(math.log(self.outscale, 2))
@@ -740,6 +754,7 @@ class DiffusionPlan:
 
                     upscale = get_item_for_scale(self.upscale).lower()
                     logger.debug(f"Upscaling sample {i} by {scale} using {upscale}")
+                    task_callback(f"Upscaling sample {i+1}")
 
                     if upscale in ["esrgan", "esrganime", "gfpgan"]:
                         if self.refiner:
@@ -767,6 +782,7 @@ class DiffusionPlan:
                         image_callback(images)
 
                 if self.upscale_diffusion:
+                    task_callback("Preparing upscale pipeline")
                     if self.refiner:
                         # Refiners have safety disabled from the jump
                         logger.debug("Using refiner for upscaling.")
@@ -852,6 +868,7 @@ class DiffusionPlan:
 
                         logger.debug(f"Upscaling sample {i} with arguments {kwargs}")
                         pipeline.stop_keepalive() # Stop here to kill during upscale diffusion
+                        task_callback(f"Re-diffusing Upscaled Sample {i+1}")
                         image = upscale_pipeline(**kwargs).images[0]
                         pipeline.start_keepalive() # Return keepalive between iterations
                         images[i] = image
@@ -885,6 +902,7 @@ class DiffusionPlan:
     def execute_nodes(
         self,
         pipeline: DiffusionPipelineManager,
+        task_callback: Callable[[str], None],
         progress_callback: Optional[Callable[[int, int, float], None]] = None,
         image_callback: Optional[Callable[[List[PIL.Image.Image]], None]] = None,
         image_callback_steps: Optional[int] = None,
@@ -898,7 +916,7 @@ class DiffusionPlan:
                 raise ValueError("No image and no steps; cannot execute plan.")
             return [self.image], [False]
 
-        # Define callback kwargs
+        # Define progress and latent callback kwargs, we'll add task callbacks ourself later
         callback_kwargs = {
             "progress_callback": progress_callback,
             "latent_callback_steps": image_callback_steps,
@@ -922,8 +940,11 @@ class DiffusionPlan:
 
         for i, node in enumerate(self.nodes):
             if image_callback is not None:
-
+                
                 def node_image_callback(callback_images: List[PIL.Image.Image]) -> None:
+                    """
+                    Wrap the original image callback so we're actually pasting the initial image on the main canvas
+                    """
                     for j, callback_image in enumerate(callback_images):
                         images[j].paste(node.resize_image(callback_image), node.bounds[0])
                     image_callback(images)  # type: ignore
@@ -931,7 +952,14 @@ class DiffusionPlan:
             else:
                 node_image_callback = None  # type: ignore
             
+            def node_task_callback(task: str) -> None:
+                """
+                Wrap the task callback so we indicate what node we're on
+                """
+                task_callback(f"{node.name}: {task}")
+
             invocation_kwargs = {**self.kwargs, **callback_kwargs}
+            invocation_kwargs["task_callback"] = node_task_callback
             next_intention: Optional[str] = None
             if i < len(self.nodes) - 2:
                 next_node = self.nodes[i+1]
@@ -987,6 +1015,12 @@ class DiffusionPlan:
                 outpaint_prompt_tokens.add(self.prompt, 2)  # Weighted
             if self.negative_prompt is not None:
                 outpaint_negative_prompt_tokens.add(self.negative_prompt, 2)
+
+            def outpaint_task_callback(task: str) -> None:
+                """
+                Wrap the outpaint task callback to include the overall plan task itself
+                """
+                task_callback(f"Outpaint: {task}")
 
             for i, image in enumerate(images):
                 pipeline.controlnet = None
@@ -1392,6 +1426,7 @@ class DiffusionPlan:
         node_count = len(nodes)
         if node_count == 0:
             # No nodes/canvas, create a plan from one given step
+            name = "Text to Image"
             prompt_tokens = TokenMerger()
             if prompt:
                 prompt_tokens.add(prompt)
@@ -1405,6 +1440,7 @@ class DiffusionPlan:
                 negative_prompt_tokens.add(model_negative_prompt, MODEL_PROMPT_WEIGHT)
 
             if image:
+                name = "Image to Image"
                 if isinstance(image, str):
                     image = PIL.Image.open(image)
                 if width and height:
@@ -1413,6 +1449,7 @@ class DiffusionPlan:
                     width, height = image.size
                 
             if mask:
+                name = "Text to Image"
                 if isinstance(mask, str):
                     mask = PIL.Image.open(mask)
                 if width and height:
@@ -1421,6 +1458,7 @@ class DiffusionPlan:
                     width, height = mask.size
             
             if control_image:
+                name = "Controlled Image to Image" if image else "Controlled Text to Image"
                 if isinstance(control_image, str):
                     control_image = PIL.Image.open(control_image)
                 if width and height:
@@ -1446,6 +1484,7 @@ class DiffusionPlan:
                 mask.paste(black, mask=alpha)
 
             step = DiffusionStep(
+                name=name,
                 width=width,
                 height=height,
                 prompt=str(prompt_tokens),
@@ -1607,6 +1646,7 @@ class DiffusionPlan:
                         node_mask.paste(node_inpaint_mask)
 
                     inpaint_image_step = DiffusionStep(
+                        name=f"Inpaint Node {i+1}",
                         image=node_image,
                         mask=feather_mask(node_mask.convert("1")),
                         prompt=str(node_prompt_tokens),
@@ -1623,6 +1663,7 @@ class DiffusionPlan:
                     # There are gaps; add an outpaint step before the infer/control
                     if node_infer or node_process_control_image:
                         outpaint_image_step = DiffusionStep(
+                            name=f"In-place Outpaint Node {i+1}",
                             image=node_image,
                             mask=feather_mask(node_mask.convert("1")),
                             prompt=str(node_prompt_tokens),
@@ -1650,10 +1691,12 @@ class DiffusionPlan:
 
                 if not node_infer and not node_inpaint and not node_control:
                     # Just paste image
+                    step.name = f"Pass-through Node {i+1}"
                     step.image = step_image
                 elif not node_infer and node_inpaint and not node_control:
                     # Just inpaint image
                     step = step_image
+                    step.name = f"Inpaint Node {i+1}"
                 else:
                     # Some combination of ops
                     step.prompt = str(node_prompt_tokens)
@@ -1662,7 +1705,12 @@ class DiffusionPlan:
                         step.strength = node_strength
                     if node_infer:
                         step.image = step_image
+                        step.name="Image to Image Node {i+1}"
                     if node_control and node_controlnet:
+                        if node_infer:
+                            step.name = f"Controlled Image to Image Node {i+1}"
+                        else:
+                            step.name = f"Controlled Text to Image Node {i+1}"
                         step.controlnet = node_controlnet  # type: ignore
                         step.control_image = step_image
                         if not node_process_control_image:
@@ -1672,6 +1720,7 @@ class DiffusionPlan:
                         if node_conditioning_scale:
                             step.conditioning_scale = node_conditioning_scale
             elif node_prompt:
+                step.name = f"Region Prompt Node {i+1}"
                 step.prompt = str(node_prompt_tokens)
                 step.negative_prompt = str(node_negative_prompt_tokens)
                 step.width = node_width

@@ -227,14 +227,23 @@ class SelectInputView extends EnumerableInputView {
      */
     setValue(newValue, triggerChange) {
         if (this.node !== undefined) {
-            this.node.value(newValue);
-            for (let optionNode of this.node.findAll("option")) {
-                if (optionNode.value() == this.value) {
-                    optionNode.selected(true);
-                } else {
-                    optionNode.selected(false);
+            this.node.element.value = newValue;
+            requestAnimationFrame(() => {
+                let toSelect;
+                for (let optionNode of this.node.findAll("option")) {
+                    if ((isEmpty(optionNode.value()) && isEmpty(newValue)) || optionNode.value() == newValue) {
+                        toSelect = optionNode;
+                    } else {
+                        optionNode.selected(false);
+                    }
                 }
-            }
+                if (!isEmpty(toSelect)) {
+                    toSelect.selected(true);
+                    requestAnimationFrame(() => {
+                        toSelect.element.selected = "selected";
+                    });
+                }
+            });
         }
         super.setValue(newValue, triggerChange);
     }

@@ -102,6 +102,7 @@ class DiffusionEngineProcess(Process):
         """
 
         progress_callback = self.create_progress_callback(instruction_id)
+        task_callback = self.create_task_callback(instruction_id)
         if intermediate_dir is not None:
             image_callback = self.create_image_callback(instruction_id, intermediate_dir=intermediate_dir)
         else:
@@ -114,6 +115,7 @@ class DiffusionEngineProcess(Process):
             image_callback=image_callback,
             image_callback_steps=intermediate_steps,
             progress_callback=progress_callback,
+            task_callback=task_callback
         )
 
     def create_progress_callback(
@@ -153,6 +155,21 @@ class DiffusionEngineProcess(Process):
 
         return callback
 
+    def create_task_callback(
+        self,
+        instruction_id: int
+    ) -> Callable[[str], None]:
+        """
+        Creates a callback that sends the current task to the pipe (for multi-step plans.)
+        """
+
+        def callback(task: str) -> None:
+            logger.debug(f"Instruction {instruction_id} beginning task “{task}”")
+            payload = {"id": instruction_id, "task": task}
+            self.intermediates.put_nowait(Serializer.serialize(payload))
+        
+        return callback
+
     def check_invoke_kwargs(
         self,
         instruction_id: int,
@@ -183,6 +200,7 @@ class DiffusionEngineProcess(Process):
         Sets local vars which will rebuild the pipeline if required
         """
         kwargs["progress_callback"] = self.create_progress_callback(instruction_id)
+        kwargs["task_callback"] = self.create_task_callback(instruction_id)
         if intermediate_dir is not None and image_callback_steps is not None:
             kwargs["latent_callback"] = self.create_image_callback(instruction_id, intermediate_dir=intermediate_dir)
             kwargs["latent_callback_steps"] = image_callback_steps
@@ -369,6 +387,7 @@ class DiffusionEngineProcess(Process):
                         except Exception as ex:
                             response["error"] = qualify(type(ex))
                             response["message"] = str(ex)
+                            
                             # Also log so this appears in the engine log
                             logger.error(f"Received error {response['error']}: {response['message']}")
                             if logger.isEnabledFor(logging.DEBUG):

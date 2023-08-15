@@ -27,11 +27,22 @@ class FilterSelectInputView extends SelectInputView {
      * @var object The options for this input
      */
     static defaultOptions = {
+        "invert": "Invert",
         "pixelize": "Pixelize",
         "box": "Box Blur",
         "gaussian": "Gaussian Blur",
         "sharpen": "Sharpen"
     };
+
+    /**
+     * @var bool Enable the default option
+     */
+    static allowEmpty = true;
+
+    /**
+     * @var str The text for the default option
+     */
+    static placeholder = "None";
 }
 
 /**
@@ -55,9 +66,6 @@ class ImageFilterFormView extends FormView {
         "Filter": {
             "filter": {
                 "class": FilterSelectInputView,
-                "config": {
-                    "required": true
-                }
             }
         },
         "Size": {
@@ -99,6 +107,7 @@ class ImageFilterFormView extends FormView {
      * @var object Default values
      */
     static defaultValues = {
+        "filter": null,
         "size": 16,
         "radius": 2,
         "weight": 0
@@ -288,6 +297,8 @@ class ImageFilterView extends View {
                 return new ImagePixelizeFilter(this.image, execute);
             case "adjust":
                 return new ImageAdjustmentFilter(this.image, execute);
+            case "invert":
+               return new ImageAdjustmentFilter(this.image, execute, {invert: 1});
             default:
                 this.editor.application.notifications.push("error", `Unknown filter ${filterType}`);
         }
@@ -307,19 +318,20 @@ class ImageFilterView extends View {
      * Sets the filter and filter constants
      */
     setFilter(values) {
-        if (!isEmpty(values.filter)) {
-            if (this.filterType !== values.filter) {
-                // Filter changed
-                this.removeCanvas();
-                this.filter = this.createFilter(values.filter, false);
-                this.filterType = values.filter;
-                this.filter.getCanvas().then((canvas) => {
-                    this.filter.setConstants(values);
-                    this.canvas = canvas;
-                    this.container.appendChild(this.canvas);
-                });
-            }
+        if (isEmpty(values.filter)) {
+            this.removeCanvas();
+        } else if (this.filterType !== values.filter) {
+            // Filter changed
+            this.removeCanvas();
+            this.filter = this.createFilter(values.filter, false);
+            this.filterType = values.filter;
+            this.filter.getCanvas().then((canvas) => {
+                this.filter.setConstants(values);
+                this.canvas = canvas;
+                this.container.appendChild(this.canvas);
+            });
         }
+
         if (!isEmpty(this.filter)) {
             this.filter.setConstants(values);
         }

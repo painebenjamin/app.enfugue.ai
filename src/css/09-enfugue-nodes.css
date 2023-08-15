@@ -397,20 +397,6 @@ enfugue-node-editor.image-editor.has-image enfugue-node-canvas enfugue-node {
     display: none;
 }
 
-enfugue-node-editor.image-editor enfugue-invocation-loading {
-    display: block;
-    position: absolute;
-    left: 175px;
-    right: 175px;
-    bottom: 5px;
-    border-radius: 10px;
-    border: 1px solid var(--dark-color);
-    transition: all 0.25s ease-in-out;
-    height: 20px;
-    line-height: 18px;
-    z-index: 1;
-}
-
 enfugue-node-editor.image-editor enfugue-invocation-sample-chooser {
     display: flex;
     flex-flow: row nowrap;
@@ -419,7 +405,7 @@ enfugue-node-editor.image-editor enfugue-invocation-sample-chooser {
     position: absolute;
     left: 175px;
     right: 175px;
-    bottom: 30px;
+    bottom: 44px;
     gap: 5px;
 }
 
@@ -493,10 +479,19 @@ enfugue-engine-stop.ready:active {
 
 enfugue-node-editor.image-editor enfugue-invocation-loading {
     display: flex;
+    position: absolute;
+    left: 175px;
+    right: 175px;
+    bottom: 5px;
+    border-radius: 10px;
+    border: 1px solid var(--dark-color);
+    transition: all 0.25s ease-in-out;
+    height: 20px;
+    line-height: 18px;
+    z-index: 1;
     flex-flow: row nowrap;
     align-items: center;
     justify-content: space-between;
-    overflow: hidden;
 }
 
 enfugue-node-editor.image-editor enfugue-invocation-loading enfugue-invocation-loaded {
@@ -506,6 +501,7 @@ enfugue-node-editor.image-editor enfugue-invocation-loading enfugue-invocation-l
     height: 100%;
     transition: all 0.1s linear;
     z-index: -1;
+    border-radius: 10px;
 }
 
 enfugue-node-editor.image-editor enfugue-invocation-loading.loading enfugue-invocation-loaded {
@@ -513,6 +509,7 @@ enfugue-node-editor.image-editor enfugue-invocation-loading.loading enfugue-invo
 }
 
 enfugue-node-editor.image-editor enfugue-invocation-loading enfugue-invocation-duration,
+enfugue-node-editor.image-editor enfugue-invocation-loading enfugue-invocation-task,
 enfugue-node-editor.image-editor enfugue-invocation-loading enfugue-invocation-iterations, 
 enfugue-node-editor.image-editor enfugue-invocation-loading enfugue-invocation-remaining {
     display: block;
@@ -521,6 +518,15 @@ enfugue-node-editor.image-editor enfugue-invocation-loading enfugue-invocation-r
     font-size: 10px;
     color: white;
     text-shadow: 1px 1px 1px black;
+}
+
+enfugue-node-editor.image-editor enfugue-invocation-loading enfugue-invocation-task {
+    position: absolute;
+    left: 0;
+    top: -20px;
+    width: 100%;
+    height: 100%;
+    text-align: center;
 }
 
 enfugue-node-editor.image-editor enfugue-invocation-loading enfugue-invocation-duration {
@@ -540,12 +546,18 @@ enfugue-node-editor.image-editor enfugue-node form {
     position: absolute;
     top: 0;
     height: 0;
+    align-items: center;
     width: 100%;
     overflow-y: auto;
     padding-bottom: 1em;
     transition: all 0.25s ease-in-out;
     font-size: 11px;
     opacity: 0;
+}
+
+enfugue-node-editor.image-editor enfugue-node form fieldset {
+    max-width: 800px;
+    width: 100%;
 }
 
 enfugue-node-editor.image-editor enfugue-node.image-editor-prompt-node-view form {

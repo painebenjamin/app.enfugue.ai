@@ -2677,6 +2677,8 @@ class DiffusionPipelineManager:
         if self.is_sdxl:
             if new_controlnet == "canny":
                 pretrained_path = CONTROLNET_CANNY_XL
+            elif new_controlnet == "depth":
+                pretrained_path = CONTROLNET_DEPTH_XL
             elif new_controlnet is not None:
                 self.stop_keepalive()
                 raise ValueError(f"Sorry, ControlNet “{new_controlnet}” is not yet supported by SDXL. Check back soon!")
@@ -2754,6 +2756,7 @@ class DiffusionPipelineManager:
         refiner_aesthetic_score: Optional[float] = None,
         refiner_negative_aesthetic_score: Optional[float] = None,
         scale_to_refiner_size: bool = True,
+        task_callback: Optional[Callable[[str], None]] = None,
         next_intention: Optional[Literal["inpainting", "inference", "refining", "upscaling"]] = None,
         **kwargs: Any,
     ) -> Any:
@@ -2762,10 +2765,13 @@ class DiffusionPipelineManager:
         Will switch between inpainting and non-inpainting models
         """
         logger.debug(f"Calling pipeline with arguments {redact(kwargs)}")
+        if task_callback is None:
+            task_callback = lambda arg: None
         self.start_keepalive()
         try:
             inpainting = kwargs.get("mask", None) is not None
             intention = "inpainting" if inpainting else "inference"
+            task_callback(f"Preparing {intention} pipeline")
             if inpainting:
                 size = self.inpainter_size
                 if self.pipeline_switch_mode == "offload":
@@ -2803,6 +2809,7 @@ class DiffusionPipelineManager:
                 pipe = self.pipeline
 
             self.stop_keepalive()
+            task_callback("Executing inference")
             result = pipe(generator=self.generator, **kwargs)
 
             if self.refiner is not None:
@@ -2824,6 +2831,8 @@ class DiffusionPipelineManager:
                     should_unload = self.pipeline_switch_mode == "unload" or (
                         self.refiner_is_sdxl and not self.refiner_engine_cache_exists
                     )
+
+                    task_callback("Preparing refining pipeline")
 
                     if should_unload:
                         if inpainting:
@@ -2897,8 +2906,11 @@ class DiffusionPipelineManager:
 
                             kwargs["latent_callback"] = mixed_result_callback
                         logger.debug(f"Refining result {i} with arguments {kwargs}")
+                        pipe = self.refiner_pipeline # Instantiate if needed
                         self.stop_keepalive()  # This checks, we can call it all we want
-                        refined_image = self.refiner_pipeline(  # type: ignore
+                        task_callback(f"Refining sample {i+1}")
+                        
+                        refined_image = pipe(  # type: ignore
                             generator=self.generator, image=image, **kwargs
                         )["images"][0]  # type: ignore
                         if image_scale != 1:
