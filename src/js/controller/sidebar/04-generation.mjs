@@ -34,6 +34,16 @@ class GenerationForm extends FormView {
                     "tooltip": "The number of concurrent samples to generate. Each sample linearly increases the amount of VRAM required, but only logarithmically increases the inference time."
                 }
             },
+            "iterations": {
+                "label": "Iterations",
+                "class": NumberInputView,
+                "config": {
+                    "min": 1,
+                    "value": 1,
+                    "step": 1,
+                    "tooltip": "The number of times to generate samples. Each iteration will generate the passed number of samples and keep a running array of result images."
+                }
+            },
             "seed": {
                 "label": "Seed",
                 "class": NumberInputView,
@@ -63,6 +73,7 @@ class GenerationController extends Controller {
         return {
             "generation": {
                 "samples": 1,
+                "iterations": 1,
                 "seed": null
             }
         }
@@ -84,6 +95,7 @@ class GenerationController extends Controller {
         this.generationForm = new GenerationForm(this.config);
         this.generationForm.onSubmit(async (values) => {
             this.engine.samples = values.samples;
+            this.engine.iterations = values.iterations;
             this.engine.seed = values.seed;
         });
         this.application.sidebar.addChild(this.generationForm);

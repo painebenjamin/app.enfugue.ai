@@ -202,6 +202,24 @@ class InvocationController extends Controller {
             
         this.kwargs.samples = newSamples;
     }
+    
+    /**
+     * @return int The numbers of times to generate samples.
+     */
+    get iterations() {
+        return this.kwargs.iterations || 1;
+    }
+
+    /**
+     * @param int newIterations The new number of iterations to generate.
+     */
+    set iterations(newIterations) {
+        if (this.iterations !== newIterations) {
+            this.publish("engineIterationsChange", newIterations);
+        }
+            
+        this.kwargs.iterations = newIterations;
+    }
 
     /**
      * @return ?int Either the set seed, or empty (random generation)

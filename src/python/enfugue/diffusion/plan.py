@@ -332,12 +332,13 @@ class DiffusionStep:
     def execute(
         self,
         pipeline: DiffusionPipelineManager,
+        use_cached: bool = True,
         **kwargs: Any,
     ) -> StableDiffusionPipelineOutput:
         """
         Executes this pipeline step.
         """
-        if hasattr(self, "result"):
+        if hasattr(self, "result") and use_cached:
             return self.result
 
         samples = kwargs.pop("samples", 1)
@@ -632,6 +633,7 @@ class DiffusionPlan:
         chunking_size: Optional[int] = None,
         chunking_blur: Optional[int] = None,
         samples: Optional[int] = 1,
+        iterations: Optional[int] = 1,
         seed: Optional[int] = None,
         build_tensorrt: bool = False,
         outscale: Optional[int] = 1,
@@ -676,6 +678,7 @@ class DiffusionPlan:
         self.chunking_size = chunking_size if chunking_size is not None else self.size // 8  # Pass 0 to disable
         self.chunking_blur = chunking_blur if chunking_blur is not None else self.size // 8  # Pass 0 to disable
         self.samples = samples if samples is not None else 1
+        self.iterations = iterations if iterations is not None else 1
         self.seed = seed
 
         self.build_tensorrt = build_tensorrt
@@ -748,7 +751,15 @@ class DiffusionPlan:
         from diffusers.pipelines.stable_diffusion import StableDiffusionPipelineOutput
         if task_callback is None:
             task_callback = lambda arg: None
-        images, nsfw = self.execute_nodes(pipeline, task_callback, progress_callback, image_callback, image_callback_steps)
+
+        images, nsfw = self.execute_nodes(
+            pipeline,
+            task_callback,
+            progress_callback,
+            image_callback,
+            image_callback_steps
+        )
+
         if self.upscale is not None and self.outscale > 1:
             if self.upscale_iterative:
                 scales = [2] * int(math.log(self.outscale, 2))
@@ -951,28 +962,15 @@ class DiffusionPlan:
             # Set up the RNG
             pipeline.seed = self.seed
 
-        images = [PIL.Image.new("RGBA", (self.width, self.height)) for i in range(self.samples)]
+        images = [PIL.Image.new("RGBA", (self.width, self.height)) for i in range(self.samples * self.iterations)]
         image_draw = [PIL.ImageDraw.Draw(image) for image in images]
-        nsfw_content_detected = [False] * self.samples
+        nsfw_content_detected = [False] * self.samples * self.iterations
 
         # Keep a final mask of all nodes to outpaint in the end
         outpaint_mask = PIL.Image.new("RGB", (self.width, self.height), (255, 255, 255))
         outpaint_draw = PIL.ImageDraw.Draw(outpaint_mask)
 
         for i, node in enumerate(self.nodes):
-            if image_callback is not None:
-                
-                def node_image_callback(callback_images: List[PIL.Image.Image]) -> None:
-                    """
-                    Wrap the original image callback so we're actually pasting the initial image on the main canvas
-                    """
-                    for j, callback_image in enumerate(callback_images):
-                        images[j].paste(node.resize_image(callback_image), node.bounds[0])
-                    image_callback(images)  # type: ignore
-
-            else:
-                node_image_callback = None  # type: ignore
-            
             def node_task_callback(task: str) -> None:
                 """
                 Wrap the task callback so we indicate what node we're on
@@ -981,7 +979,9 @@ class DiffusionPlan:
 
             invocation_kwargs = {**self.kwargs, **callback_kwargs}
             invocation_kwargs["task_callback"] = node_task_callback
+            this_intention = "inpainting" if node.step.mask is not None else "inference"
             next_intention: Optional[str] = None
+
             if i < len(self.nodes) - 2:
                 next_node = self.nodes[i+1]
                 next_intention = "inpainting" if next_node.step.mask is not None else "inference"
@@ -993,28 +993,51 @@ class DiffusionPlan:
                     next_intention = "upscaling"
                 elif self.upscale_diffusion:
                     next_intention = "refining"
-            result = node.execute(pipeline, latent_callback=node_image_callback, next_intention=next_intention, **invocation_kwargs)
-            for j, image in enumerate(result["images"]):
-                image = node.resize_image(image)
-                if image.mode == "RGBA":
-                    # Draw the alpha mask of the return image onto the outpaint mask
-                    alpha = image.split()[-1]
-                    black = PIL.Image.new("RGB", alpha.size, (0, 0, 0))
-                    outpaint_mask.paste(black, node.bounds[0], mask=alpha)
-                    image_draw[j].rectangle((*node.bounds[0], *node.bounds[1]), fill=(0, 0, 0, 0))
-                    images[j].paste(image, node.bounds[0], mask=alpha)
+            
+            for it in range(self.iterations):
+                if image_callback is not None:
+                    def node_image_callback(callback_images: List[PIL.Image.Image]) -> None:
+                        """
+                        Wrap the original image callback so we're actually pasting the initial image on the main canvas
+                        """
+                        for j, callback_image in enumerate(callback_images):
+                            image_index = (it * self.samples) + j
+                            images[image_index].paste(node.resize_image(callback_image), node.bounds[0])
+                        image_callback(images)  # type: ignore
+
                 else:
-                    # Draw a rectangle directly
-                    outpaint_draw.rectangle(node.bounds, fill="#000000")
-                    images[j].paste(node.resize_image(image), node.bounds[0])
+                    node_image_callback = None  # type: ignore
 
-                nsfw_content_detected[j] = nsfw_content_detected[j] or (
-                    "nsfw_content_detected" in result and result["nsfw_content_detected"][j]
+                result = node.execute(
+                    pipeline,
+                    latent_callback=node_image_callback,
+                    next_intention=this_intention if it < self.iterations - 1 else next_intention,
+                    use_cached=False,
+                    **invocation_kwargs
                 )
+                
+                for j, image in enumerate(result["images"]):
+                    image_index = (it * self.samples) + j
+                    image = node.resize_image(image)
+                    if image.mode == "RGBA":
+                        # Draw the alpha mask of the return image onto the outpaint mask
+                        alpha = image.split()[-1]
+                        black = PIL.Image.new("RGB", alpha.size, (0, 0, 0))
+                        outpaint_mask.paste(black, node.bounds[0], mask=alpha)
+                        image_draw[image_index].rectangle((*node.bounds[0], *node.bounds[1]), fill=(0, 0, 0, 0))
+                        images[image_index].paste(image, node.bounds[0], mask=alpha)
+                    else:
+                        # Draw a rectangle directly
+                        outpaint_draw.rectangle(node.bounds, fill="#000000")
+                        images[image_index].paste(node.resize_image(image), node.bounds[0])
 
-            # Call the callback
-            if image_callback is not None:
-                image_callback(images)
+                    nsfw_content_detected[image_index] = nsfw_content_detected[image_index] or (
+                        "nsfw_content_detected" in result and result["nsfw_content_detected"][j]
+                    )
+
+                # Call the callback
+                if image_callback is not None:
+                    image_callback(images)
 
         # Determine if there's anything left to outpaint
         image_r_min, image_r_max = outpaint_mask.getextrema()[1]
@@ -1132,6 +1155,7 @@ class DiffusionPlan:
             "image_callback_steps": self.image_callback_steps,
             "nodes": [node.get_serialization_dict(image_directory) for node in self.nodes],
             "samples": self.samples,
+            "iterations": self.iterations,
             "upscale": upscale_dict,
             "chunking_size": self.chunking_size,
             "chunking_blur": self.chunking_blur,
@@ -1166,6 +1190,7 @@ class DiffusionPlan:
             "chunking_size",
             "chunking_blur",
             "samples",
+            "iterations",
             "seed",
             "prompt",
             "prompt_2",
@@ -1339,6 +1364,7 @@ class DiffusionPlan:
         model_negative_prompt: Optional[str] = None,
         model_negative_prompt_2: Optional[str] = None,
         samples: int = 1,
+        iterations: int = 1,
         seed: Optional[int] = None,
         width: Optional[int] = None,
         height: Optional[int] = None,
@@ -1406,6 +1432,7 @@ class DiffusionPlan:
             multi_scheduler=multi_scheduler,
             vae=vae,
             samples=samples,
+            iterations=iterations,
             size=size,
             refiner_size=refiner_size,
             inpainter_size=inpainter_size,

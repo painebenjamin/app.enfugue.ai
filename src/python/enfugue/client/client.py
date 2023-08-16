@@ -130,6 +130,7 @@ class EnfugueClient(UserExtensionClientBase, JSONWebServiceAPIClient):
         chunking_size: Optional[int] = None,
         chunking_blur: Optional[int] = None,
         samples: Optional[int] = None,
+        iterations: Optional[int] = None,
         num_inference_steps: Optional[int] = None,
         guidance_scale: Optional[float] = None,
         refiner_strength: Optional[float] = None,
@@ -219,6 +220,8 @@ class EnfugueClient(UserExtensionClientBase, JSONWebServiceAPIClient):
             kwargs["chunking_blur"] = chunking_blur
         if samples is not None:
             kwargs["samples"] = samples
+        if iterations is not None:
+            kwargs["iterations"] = iterations
         if num_inference_steps is not None:
             kwargs["num_inference_steps"] = num_inference_steps
         if guidance_scale is not None:
