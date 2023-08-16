@@ -399,7 +399,7 @@ enfugue-node-editor.image-editor.has-image enfugue-node-canvas enfugue-node {
 
 enfugue-node-editor.image-editor enfugue-invocation-sample-chooser {
     display: flex;
-    flex-flow: row nowrap;
+    flex-flow: row wrap;
     align-items: center;
     justify-content: center;
     position: absolute;

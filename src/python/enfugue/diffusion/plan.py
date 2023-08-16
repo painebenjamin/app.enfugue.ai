@@ -1077,8 +1077,19 @@ class DiffusionPlan:
                 """
                 task_callback(f"Outpaint: {task}")
 
+            invocation_kwargs["task_callback"] = outpaint_task_callback
+
             for i, image in enumerate(images):
                 pipeline.controlnet = None
+                if image_callback is not None:
+                    def outpaint_image_callback(callback_images: List[PIL.Image.Image]) -> None:
+                        """
+                        Wrap the original image callback so we're actually pasting the initial image on the main canvas
+                        """
+                        images[i] = callback_images[0]
+                        image_callback(images)  # type: ignore
+                else:
+                    outpaint_image_callback = None  # type: ignore
                 result = pipeline(
                     image=image,
                     mask=outpaint_mask,
@@ -1086,7 +1097,7 @@ class DiffusionPlan:
                     prompt_2=str(outpaint_prompt_2_tokens),
                     negative_prompt=str(outpaint_negative_prompt_tokens),
                     negative_prompt_2=str(outpaint_negative_prompt_2_tokens),
-                    latent_callback=image_callback,
+                    latent_callback=outpaint_image_callback,
                     num_images_per_prompt=1,
                     **invocation_kwargs,
                 )
