@@ -498,7 +498,7 @@ class DiffusionPipelineManager:
         Gets the base engine size in pixels when chunking (default always.)
         """
         if not hasattr(self, "_size"):
-            self._size = int(self.configuration.get("enfugue.size", 1024 if self.is_sdxl else 512))
+            return int(self.configuration.get("enfugue.size", 1024 if self.is_sdxl else 512))
         return self._size
 
     @size.setter
@@ -555,10 +555,8 @@ class DiffusionPipelineManager:
         Gets the inpainter engine size in pixels when chunking (default always.)
         """
         if not hasattr(self, "_inpainter_size"):
-            if self.is_sdxl and not self.inpainter_is_sdxl:
-                return 512
-            elif not self.is_sdxl and self.inpainter_is_sdxl:
-                return 1024
+            if self.inpainter:
+                return 1024 if self.inpainter_is_sdxl else 512
             return self.size
         return self._inpainter_size
 

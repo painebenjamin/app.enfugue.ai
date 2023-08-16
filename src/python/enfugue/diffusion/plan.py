@@ -372,7 +372,7 @@ class DiffusionStep:
         invocation_kwargs = {**kwargs, **self.kwargs}
 
         image_scale = 1
-        pipeline_size = pipeline.inpainter_size if pipeline.inpainter_size is not None and mask is not None else pipeline.size
+        pipeline_size = pipeline.inpainter_size if mask is not None else pipeline.size
         image_width, image_height, image_background, image_position = None, None, None, None
 
         if image is not None:
