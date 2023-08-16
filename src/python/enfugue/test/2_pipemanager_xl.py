@@ -30,9 +30,18 @@ def main() -> None:
 
         run_and_save("puppy-xl.png")
 
+        # Add prompt 2
+        kwargs["prompt_2"] = "golden retriever"
+        run_and_save("puppy-xl-2.png")
+
         # Add the refiner
         manager.refiner = "sd_xl_refiner_1.0.safetensors"
+        del kwargs["prompt_2"]
         run_and_save("puppy-xl-refined.png")
+
+        # Add prompt 2
+        kwargs["prompt_2"] = "golden retriever"
+        run_and_save("puppy-xl-refined-2.png")
         
 
 if __name__ == "__main__":

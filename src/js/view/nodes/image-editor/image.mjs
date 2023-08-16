@@ -207,6 +207,22 @@ class ImageEditorImageNodeOptionsFormView extends FormView {
                 }
             },
         },
+        "Secondary Prompts": {
+            "prompt2": {
+                "label": "Secondary Prompt",
+                "class": TextInputView,
+                "config": {
+                    "tooltip": "This prompt will control what is in this frame. When left blank, the global secondary prompt will be used. Secondary prompts are input into the secondary text encoder when using SDXL. When not using SDXL, secondary prompts will be merged with primary prompts."
+                }
+            },
+            "negativePrompt2": {
+                "label": "Secondary Negative Prompt",
+                "class": TextInputView,
+                "config": {
+                    "tooltip": "This prompt will control what is in not this frame. When left blank, the global secondary negative prompt will be used. Secondary negative prompts are input ito the secondary text encoder when using SDXL. When not using SDXL, secondary prompts will be merged with primary prompts."
+                }
+            },
+        },
         "Tweaks": {
             "guidanceScale": {
                 "label": "Guidance Scale",
@@ -282,6 +298,7 @@ class ImageEditorImageNodeOptionsFormView extends FormView {
      */
     static fieldSetConditions = {
         "Prompts": (values) => values.infer || values.inpaint || values.control,
+        "Secondary Prompts": (values) => values.infer || values.inpaint || values.control,
         "Tweaks": (values) => values.infer || values.inpaint || values.control,
         "Inference": (values) => values.infer,
         "Control": (values) => values.control,
@@ -299,6 +316,11 @@ class ImageEditorImageNodeOptionsFormView extends FormView {
      * @var string An additional classname for this form
      */
     static className = "image-options-form-view";
+
+    /**
+     * @var array Field sets to collapse
+     */
+    static collapseFieldSets = ["Secondary Prompts", "Tweaks"];
 };
 
 /**

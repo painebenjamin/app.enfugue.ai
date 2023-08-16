@@ -133,6 +133,23 @@ class InvocationController extends Controller {
         }
         this.kwargs.prompt = newPrompt;
     }
+    
+    /**
+     * @return string Either the configured secondary prompt or empty string.
+     */
+    get prompt2() {
+        return this.kwargs.prompt_2 || "";
+    }
+
+    /**
+     * @param string newPrompt Sets the prompt to invoke with.
+     */
+    set prompt2(newPrompt) {
+        if (this.prompt2 !== newPrompt) {
+            this.publish("enginePrompt2Change", newPrompt);
+        }
+        this.kwargs.prompt_2 = newPrompt;
+    }
 
     /**
      * @return string Either the configured negative prompt or empty string.
@@ -149,6 +166,23 @@ class InvocationController extends Controller {
             this.publish("engineNegativePromptChange", newPrompt);
         }
         this.kwargs.negative_prompt = newPrompt;
+    }
+
+    /**
+     * @return string Either the configured secondary negative prompt or empty string.
+     */
+    get negativePrompt2() {
+        return this.kwargs.negative_prompt_2 || "";
+    }
+
+    /**
+     * @param string newPrompt Sets the secondary negative prompt to invoke with.
+     */
+    set negativePrompt2(newPrompt) {
+        if (this.negativePrompt2 !== newPrompt) {
+            this.publish("engineNegativePrompt2Change", newPrompt);
+        }
+        this.kwargs.negative_prompt_2 = newPrompt;
     }
 
     /**
@@ -338,6 +372,23 @@ class InvocationController extends Controller {
         }
         this.kwargs.upscale_diffusion_prompt = newPrompt;
     }
+
+    /**
+     * @return ?str|array<str> The secondary prompt(s) to use during upscale diffusion. Default null.
+     */
+    get upscaleDiffusionPrompt2() {
+        return this.kwargs.upscale_diffusion_prompt_2;
+    }
+
+    /**
+     * @param str|array<str> The new secondary prompt(s) to use during upscale diffusion.
+     */
+    set upscaleDiffusionPrompt2(newPrompt) {
+        if (!isEquivalent(this.upscaleDiffusionPrompt2, newPrompt)) {
+            this.publish("engineUpscaleDiffusionPrompt2Change", newPrompt);
+        }
+        this.kwargs.upscale_diffusion_prompt_2 = newPrompt;
+    }
    
     /**
      * @return ?str|array<str> The prompt(s) to use during upscale diffusion. Default null.
@@ -355,7 +406,24 @@ class InvocationController extends Controller {
         }
         this.kwargs.upscale_diffusion_negative_prompt = newNegativePrompt;
     }
+   
+    /**
+     * @return ?str|array<str> The secondary prompt(s) to use during upscale diffusion. Default null.
+     */
+    get upscaleDiffusionNegativePrompt2() {
+        return this.kwargs.upscale_diffusion_negative_prompt_2;
+    }
 
+    /**
+     * @param str|array<str> The new secondary prompt(s) to use during upscale diffusion.
+     */
+    set upscaleDiffusionNegativePrompt2(newNegativePrompt) {
+        if (!isEquivalent(this.upscaleDiffusionNegativePrompt2, newNegativePrompt)) {
+            this.publish("engineUpscaleDiffusionNegativePrompt2Change", newNegativePrompt);
+        }
+        this.kwargs.upscale_diffusion_negative_prompt_2 = newNegativePrompt;
+    }
+    
     /**
      * @return ?int|array<int> The steps to use during upscale diffusion. Default 100.
      */

@@ -70,7 +70,7 @@ from diffusers.pipelines.stable_diffusion.convert_from_ckpt import (
 from diffusers.utils import randn_tensor, PIL_INTERPOLATION
 from diffusers.image_processor import VaeImageProcessor
 
-from enfugue.util import logger, check_download_to_dir
+from enfugue.util import logger, check_download_to_dir, TokenMerger
 
 # This is ~64k×64k. Absurd, but I don't judge
 PIL.Image.MAX_IMAGE_PIXELS = 2**32
@@ -460,9 +460,23 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
     @property
     def is_sdxl(self) -> bool:
         """
-        Returns true if this is using SDXL
+        Returns true if this is using SDXL (base or refiner)
         """
         return self.tokenizer_2 is not None and self.text_encoder_2 is not None
+    
+    @property
+    def is_sdxl_refiner(self) -> bool:
+        """
+        Returns true if this is using SDXL refiner
+        """
+        return self.is_sdxl and self.tokenizer is None and self.text_encoder is None
+    
+    @property
+    def is_sdxl_base(self) -> bool:
+        """
+        Returns true if this is using SDXL base
+        """
+        return self.is_sdxl and self.tokenizer is not None and self.text_encoder is not None
 
     @property
     def module_size(self) -> int:
@@ -512,6 +526,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         prompt_embeds: Optional[torch.Tensor] = None,
         negative_prompt_embeds: Optional[torch.Tensor] = None,
         lora_scale: Optional[float] = None,
+        prompt_2: Optional[str] = None,
+        negative_prompt_2: Optional[str] = None,
     ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]]:
         """
         Encodes the prompt into text encoder hidden states.
@@ -522,33 +538,41 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         if lora_scale is not None and isinstance(self, LoraLoaderMixin):
             self._lora_scale = lora_scale
 
-        # Define tokenizers and text encoders
-        # We can tell what kind of pipeline we're doing here using this matrix:
-        # | tokenizer | tokenizer_2 | text_encoder | text_encoder_2 | pipeline |
-        # | --------- | ----------- | ------------ | -------------- | -------- |
-        # | yes       | no          | yes          | no             | SD       |
-        # | no        | yes         | no           | yes            | SDXL-R   |
-        # | yes       | yes         | yes          | yes            | SDXL     |
+        if self.is_sdxl_base:
+            prompts = [
+                prompt if prompt else prompt_2,
+                prompt_2 if prompt_2 else prompt
+            ]
+            negative_prompts = [
+                negative_prompt if negative_prompt else negative_prompt_2,
+                negative_prompt_2 if negative_prompt_2 else negative_prompt
+            ]
+        else:
+            if prompt and prompt_2:
+                logger.debug("Merging prompt and prompt_2")
+                prompt = str(TokenMerger(prompt, prompt_2))
+            elif not prompt and prompt_2:
+                logger.debug("Using prompt_2 for empty primary prompt")
+                prompt = prompt_2
+            
+            if negative_prompt and negative_prompt_2:
+                logger.debug("Merging negative_prompt and negative_prompt_2")
+                negative_prompt = str(TokenMerger(negative_prompt, negative_prompt_2))
+            elif not negative_prompt and negative_prompt_2:
+                logger.debug("Using negative_prompt_2 for empty primary negative_prompt")
+                negative_prompt = negative_prompt_2
 
-        tokenizers = []
-        if self.tokenizer:
-            tokenizers.append(self.tokenizer)
-        if self.tokenizer_2:
-            tokenizers.append(self.tokenizer_2)
+            prompts = [prompt, prompt]
+            negative_prompts = [negative_prompt, negative_prompt]
 
-        text_encoders = []
-        if self.text_encoder:
-            self.text_encoder = self.text_encoder.to(device=device)
-            logger.debug(f"Encoding using text_encoder on {device} of type {self.text_encoder.dtype}")
-            text_encoders.append(self.text_encoder)
-        if self.text_encoder_2:
-            logger.debug(f"Encoding using text_encoder_2 on {device} of type {self.text_encoder_2.dtype}")
-            self.text_encoder_2 = self.text_encoder_2.to(device=device)
-            text_encoders.append(self.text_encoder_2)
+        tokenizers = [self.tokenizer, self.tokenizer_2]
+        text_encoders = [self.text_encoder, self.text_encoder_2]
 
         if prompt_embeds is None:
             prompt_embeds_list = []
-            for tokenizer, text_encoder in zip(tokenizers, text_encoders):
+            for tokenizer, text_encoder, prompt in zip(tokenizers, text_encoders, prompts):
+                if not tokenizer or not text_encoder:
+                    continue
                 text_inputs = tokenizer(
                     prompt,
                     padding="max_length",
@@ -607,7 +631,9 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             uncond_tokens: List[str] = [negative_prompt or ""]
             negative_prompt_embeds_list = []
 
-            for tokenizer, text_encoder in zip(tokenizers, text_encoders):
+            for tokenizer, text_encoder, negative_prompt in zip(tokenizers, text_encoders, negative_prompts):
+                if tokenizer is None or text_encoder is None:
+                    continue
                 max_length = prompt_embeds.shape[1]  # type: ignore
                 uncond_input = tokenizer(
                     uncond_tokens,
@@ -1934,7 +1960,9 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
     def __call__(
         self,
         prompt: Optional[str] = None,
+        prompt_2: Optional[str] = None,
         negative_prompt: Optional[str] = None,
+        negative_prompt_2: Optional[str] = None,
         image: Optional[Union[PIL.Image.Image, str]] = None,
         mask: Optional[Union[PIL.Image.Image, str]] = None,
         control_image: Optional[Union[PIL.Image.Image, str]] = None,
@@ -2041,6 +2069,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             chunked_steps += 1
         if mask is not None:
             chunked_steps += 1
+            if not is_inpainting_unet:
+                chunked_steps += 1
         if latent_callback is not None and latent_callback_steps is not None:
             chunked_steps += num_scheduled_inference_steps // latent_callback_steps
 
@@ -2075,6 +2105,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     negative_prompt,
                     prompt_embeds=prompt_embeds,
                     negative_prompt_embeds=negative_prompt_embeds,
+                    prompt_2=prompt_2,
+                    negative_prompt_2=negative_prompt_2
                 )
             else:
                 prompt_embeds = self.encode_prompt(
@@ -2085,6 +2117,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     negative_prompt,
                     prompt_embeds=prompt_embeds,
                     negative_prompt_embeds=negative_prompt_embeds,
+                    prompt_2=prompt_2,
+                    negative_prompt_2=negative_prompt_2
                 )  # type: ignore
                 pooled_prompt_embeds = None
                 negative_prompt_embeds = None

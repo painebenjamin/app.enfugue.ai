@@ -6,9 +6,11 @@ import PIL
 
 from enfugue.util import logger
 from enfugue.diffusion.engine import DiffusionEngine
+from enfugue.diffusion.constants import *
 from pibble.util.log import DebugUnifiedLoggingContext
 
 PROMPT = "A woman giving a speech at a podium"
+CONTROLNETS = ["depth"]
 
 def main() -> None:
     here = os.path.dirname(os.path.abspath(__file__))
@@ -18,15 +20,21 @@ def main() -> None:
 
     with DebugUnifiedLoggingContext():
         with DiffusionEngine.debug() as engine:
-            base_image = engine(prompt=PROMPT, seed=12345)["images"][0]
-            base_image.save(os.path.join(output_dir, "base.png"))
-            for controlnet in ["depth", "normal"]:
-                output_path = os.path.join(output_dir, f"{controlnet}.png")
+            base_image = engine(
+                model=DEFAULT_SDXL_MODEL,
+                prompt=PROMPT,
+                seed=12345
+            )["images"][0]
+            base_image.save(os.path.join(output_dir, "base-xl.png"))
+            for controlnet in CONTROLNETS:
+                output_path = os.path.join(output_dir, f"{controlnet}-xl.png")
                 engine(
                     seed=54321,
+                    model=DEFAULT_SDXL_MODEL,
                     prompt=PROMPT,
                     controlnet=controlnet,
-                    control_image=base_image
+                    control_image=base_image,
+                    conditioning_scale=0.5
                 )["images"][0].save(output_path)
                 logger.info(f"Wrote {output_path}")
 

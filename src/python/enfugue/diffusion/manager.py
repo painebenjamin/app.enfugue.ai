@@ -42,7 +42,7 @@ def redact(kwargs: Dict[str, Any]) -> Dict[str, Any]:
     """
     Redacts prompts from logs to encourage log sharing for troubleshooting.
     """
-    return dict([(key, value if key not in ["prompt", "negative_prompt"] else "***") for key, value in kwargs.items()])
+    return dict([(key, value if "prompt" not in key else "***") for key, value in kwargs.items()])
 
 
 class KeepaliveThread(threading.Thread):
@@ -100,6 +100,7 @@ class DiffusionPipelineManager:
     _pipeline: EnfugueStableDiffusionPipeline
     _refiner_pipeline: EnfugueStableDiffusionPipeline
     _inpainter_pipeline: EnfugueStableDiffusionPipeline
+    _size: int
     _refiner_size: int
     _inpainter_size: int
 
@@ -2664,6 +2665,61 @@ class DiffusionPipelineManager:
             cache_dir=self.engine_cache_dir,
         )
         return result
+    
+    def get_default_controlnet_path_by_name(
+        self,
+        name: CONTROLNET_LITERAL,
+        is_sdxl: bool
+    ) -> str:
+        """
+        Gets the default controlnet path based on pipeline type
+        """
+        if self.is_sdxl:
+            if name == "canny":
+                return CONTROLNET_CANNY_XL
+            elif name == "depth":
+                return CONTROLNET_DEPTH_XL
+            else:
+                raise ValueError(f"Sorry, ControlNet “{name}” is not yet supported by SDXL. Check back soon!")
+        else:
+            if name == "canny":
+                return CONTROLNET_CANNY
+            elif name == "mlsd":
+                return CONTROLNET_MLSD
+            elif name == "hed":
+                return CONTROLNET_HED
+            elif name == "tile":
+                return CONTROLNET_TILE
+            elif name == "scribble":
+                return CONTROLNET_SCRIBBLE
+            elif name == "inpaint":
+                return CONTROLNET_INPAINT
+            elif name == "depth":
+                return CONTROLNET_DEPTH
+            elif name == "normal":
+                return CONTROLNET_NORMAL
+            elif name == "pose":
+                return CONTROLNET_POSE
+            elif name == "line":
+                return CONTROLNET_LINE
+            elif name == "anime":
+                return CONTROLNET_ANIME
+            elif name == "pidi":
+                return CONTROLNET_PIDI
+        raise ValueError(f"Unknown or unsupported ControlNet {name}")
+
+    def get_controlnet_path_by_name(self, name: CONTROLNET_LITERAL) -> str:
+        """
+        Gets a Controlnet path by name, based on current config.
+        """
+        key_parts = ["enfugue", "controlnet"]
+        if self.is_sdxl:
+            key_parts += ["xl"]
+        key_parts += [name]
+        configured_path = self.configuration.get(".".join(key_parts), None)
+        if configured_path is None:
+            return self.get_default_controlnet_path_by_name(name, self.is_sdxl)
+        return configured_path
 
     @property
     def controlnet(self) -> Optional[ControlNetModel]:
@@ -2682,44 +2738,6 @@ class DiffusionPipelineManager:
         """
         Sets a new controlnet.
         """
-        pretrained_path = None
-        if self.is_sdxl:
-            if new_controlnet == "canny":
-                pretrained_path = CONTROLNET_CANNY_XL
-            elif new_controlnet == "depth":
-                pretrained_path = CONTROLNET_DEPTH_XL
-            elif new_controlnet is not None:
-                self.stop_keepalive()
-                raise ValueError(f"Sorry, ControlNet “{new_controlnet}” is not yet supported by SDXL. Check back soon!")
-        else:
-            if new_controlnet == "canny":
-                pretrained_path = CONTROLNET_CANNY
-            elif new_controlnet == "mlsd":
-                pretrained_path = CONTROLNET_MLSD
-            elif new_controlnet == "hed":
-                pretrained_path = CONTROLNET_HED
-            elif new_controlnet == "tile":
-                pretrained_path = CONTROLNET_TILE
-            elif new_controlnet == "scribble":
-                pretrained_path = CONTROLNET_SCRIBBLE
-            elif new_controlnet == "inpaint":
-                pretrained_path = CONTROLNET_INPAINT
-            elif new_controlnet == "depth":
-                pretrained_path = CONTROLNET_DEPTH
-            elif new_controlnet == "normal":
-                pretrained_path = CONTROLNET_NORMAL
-            elif new_controlnet == "pose":
-                pretrained_path = CONTROLNET_POSE
-            elif new_controlnet == "line":
-                pretrained_path = CONTROLNET_LINE
-            elif new_controlnet == "anime":
-                pretrained_path = CONTROLNET_ANIME
-            elif new_controlnet == "pidi":
-                pretrained_path = CONTROLNET_PIDI
-            elif new_controlnet is not None:
-                self.stop_keepalive() # type: ignore[unreachable]
-                raise ValueError(f"Unknown or unsupported ControlNet {new_controlnet}")
-
         existing_controlnet = getattr(self, "_controlnet", None)
 
         if (
@@ -2731,7 +2749,13 @@ class DiffusionPipelineManager:
             if new_controlnet is not None:
                 logger.debug(f"Setting ControlNet to {new_controlnet}")
                 self._controlnet_name = new_controlnet
-                self._controlnet = self.get_controlnet(pretrained_path)
+                try:
+                    pretrained_path = self.get_controlnet_path_by_name(new_controlnet)
+                    self._controlnet = self.get_controlnet(pretrained_path)
+                    self._controlnet_name = new_controlnet
+                except:
+                    self.stop_keepalive()
+                    raise
             else:
                 logger.debug(f"Disabling ControlNet")
                 self._controlnet_name = None  # type: ignore
@@ -2868,6 +2892,7 @@ class DiffusionPipelineManager:
                         kwargs.pop("num_images_per_prompt", None) # Remove samples, we'll refine one at a time
 
                         kwargs["latent_callback"] = latent_callback # Revert to original callback, we'll wrap later if needed
+                        kwargs["latent_callback_type"] = "pil"
                         kwargs["strength"] = refiner_strength if refiner_strength else self.refiner_strength
                         kwargs["guidance_scale"] = (
                             refiner_guidance_scale if refiner_guidance_scale else self.refiner_guidance_scale

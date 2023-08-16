@@ -21,7 +21,7 @@ def main() -> None:
             for controlnet in ["line", "anime", "mlsd"]:
                 output_path = os.path.join(output_dir, f"{controlnet}.png")
                 engine(
-                    seed=12345,
+                    seed=54321,
                     prompt="A suburban home frontage",
                     controlnet=controlnet,
                     control_image=base_image

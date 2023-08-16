@@ -30,6 +30,22 @@ class ImageEditorBaseOptionsFormView extends FormView {
                 }
             },
         },
+        "Secondary Prompts": {
+            "prompt2": {
+                "label": "Secondary Prompt",
+                "class": TextInputView,
+                "config": {
+                    "tooltip": "This prompt will control what is in this frame. When left blank, the global prompt will be used. Secondary prompts are input into the secondary text encoder when using SDXL. When not using SDXL, secondary prompts will be merged with primary ones."
+                }
+            },
+            "negativePrompt2": {
+                "label": "Secondary Negative Prompt",
+                "class": TextInputView,
+                "config": {
+                    "tooltip": "This prompt will control what is in not this frame. When left blank, the global negative prompt will be used. Secondary prompts are input into the secondary text encoder when using SDXL. When not using SDXL, secondary prompts will be merged with primary ones."
+                }
+            }
+        },
         "Tweaks": {
             "guidanceScale": {
                 "label": "Guidance Scale",
@@ -81,6 +97,11 @@ class ImageEditorBaseOptionsFormView extends FormView {
      * @var string An additional classname for this form
      */
     static className = "options-form-view";
+
+    /**
+     * @var array Collapsed field sets
+     */
+    static collapseFieldSets = ["Secondary Prompts", "Tweaks"];
 };
 
 /**

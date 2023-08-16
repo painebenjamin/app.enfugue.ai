@@ -19,7 +19,7 @@ from diffusers.models import AutoencoderKL, UNet2DConditionModel, ControlNetMode
 
 from diffusers.pipelines.stable_diffusion import StableDiffusionSafetyChecker
 
-from enfugue.util import logger
+from enfugue.util import logger, TokenMerger
 from enfugue.diffusion.pipeline import EnfugueStableDiffusionPipeline
 from enfugue.diffusion.util import DTypeConverter
 from enfugue.diffusion.rt.engine import Engine
@@ -284,6 +284,8 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         prompt_embeds: Optional[torch.Tensor] = None,
         negative_prompt_embeds: Optional[torch.Tensor] = None,
         lora_scale: Optional[float] = None,
+        prompt_2: Optional[str] = None,
+        negative_prompt_2: Optional[str] = None,
     ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]]:
         """
         Encodes the prompt into text encoder hidden states.
@@ -304,7 +306,23 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
                 negative_prompt=negative_prompt,
                 prompt_embeds=prompt_embeds,
                 negative_prompt_embeds=negative_prompt_embeds,
+                prompt_2=prompt_2,
+                negative_prompt_2=negative_prompt_2
             )
+        
+        if prompt and prompt_2:
+            logger.debug("Merging prompt and prompt_2")
+            prompt = str(TokenMerger(prompt, prompt_2))
+        elif not prompt and prompt_2:
+            logger.debug("Using prompt_2 for empty primary prompt")
+            prompt = prompt_2
+        
+        if negative_prompt and negative_prompt_2:
+            logger.debug("Merging negative_prompt and negative_prompt_2")
+            negative_prompt = str(TokenMerger(negative_prompt, negative_prompt_2))
+        elif not negative_prompt and negative_prompt_2:
+            logger.debug("Using negative_prompt_2 for empty primary negative_prompt")
+            negative_prompt = negative_prompt_2
 
         # Tokenize prompt
         text_input_ids = (

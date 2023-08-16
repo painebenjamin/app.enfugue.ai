@@ -80,7 +80,9 @@ class NodeDict(TypedDict):
     control: Optional[bool]
     controlnet: Optional[str]
     prompt: Optional[str]
+    prompt_2: Optional[str]
     negative_prompt: Optional[str]
+    negative_prompt_2: Optional[str]
     strength: Optional[float]
     conditioning_scale: Optional[float]
     image: Optional[PIL.Image.Image]
@@ -106,7 +108,9 @@ class DiffusionStep:
         width: Optional[int] = None,
         height: Optional[int] = None,
         prompt: Optional[str] = None,
+        prompt_2: Optional[str] = None,
         negative_prompt: Optional[str] = None,
+        negative_prompt_2: Optional[str] = None,
         image: Optional[Union[DiffusionStep, PIL.Image.Image, str]] = None,
         mask: Optional[Union[DiffusionStep, PIL.Image.Image, str]] = None,
         control_image: Optional[Union[DiffusionStep, PIL.Image.Image, str]] = None,
@@ -127,7 +131,9 @@ class DiffusionStep:
         self.width = width
         self.height = height
         self.prompt = prompt
+        self.prompt_2 = prompt_2
         self.negative_prompt = negative_prompt
+        self.negative_prompt_2 = negative_prompt_2
         self.image = image
         self.mask = mask
         self.control_image = control_image
@@ -161,7 +167,9 @@ class DiffusionStep:
             "width": self.width,
             "height": self.height,
             "prompt": self.prompt,
+            "prompt_2": self.prompt_2,
             "negative_prompt": self.negative_prompt,
+            "negative_prompt_2": self.negative_prompt_2,
             "controlnet": self.controlnet,
             "conditioning_scale": self.conditioning_scale,
             "strength": self.strength,
@@ -204,7 +212,8 @@ class DiffusionStep:
             "width": self.width,
             "height": self.height,
             "prompt": self.prompt,
-            "negative_prompt": self.negative_prompt,
+            "prompt_2": self.prompt_2,
+            "negative_prompt_2": self.negative_prompt_2,
             "image": self.image,
             "control_image": self.control_image,
             "conditioning_scale": self.conditioning_scale,
@@ -496,7 +505,9 @@ class DiffusionStep:
         for key in [
             "name",
             "prompt",
+            "prompt_2",
             "negative_prompt",
+            "negative_prompt_2",
             "controlnet",
             "conditioning_scale",
             "strength",
@@ -598,7 +609,9 @@ class DiffusionPlan:
     def __init__(
         self,
         prompt: Optional[str] = None,  # Global
+        prompt_2: Optional[str] = None, # Global
         negative_prompt: Optional[str] = None,  # Global
+        negative_prompt_2: Optional[str] = None, # Global
         size: Optional[int] = None,
         refiner_size: Optional[int] = None,
         inpainter_size: Optional[int] = None,
@@ -631,7 +644,9 @@ class DiffusionPlan:
         ] = DEFAULT_UPSCALE_DIFFUSION_GUIDANCE_SCALE,
         upscale_diffusion_strength: Optional[Union[float, List[float]]] = DEFAULT_UPSCALE_DIFFUSION_STRENGTH,
         upscale_diffusion_prompt: Optional[Union[str, List[str]]] = DEFAULT_UPSCALE_PROMPT,
+        upscale_diffusion_prompt_2: Optional[Union[str, List[str]]] = None,
         upscale_diffusion_negative_prompt: Optional[Union[str, List[str]]] = DEFAULT_UPSCALE_NEGATIVE_PROMPT,
+        upscale_diffusion_negative_prompt_2: Optional[Union[str, List[str]]] = None,
         upscale_diffusion_controlnet: Optional[Union[CONTROLNET_LITERAL, List[CONTROLNET_LITERAL]]] = None,
         upscale_diffusion_chunking_size: Optional[int] = None,
         upscale_diffusion_chunking_blur: Optional[int] = None,
@@ -642,7 +657,9 @@ class DiffusionPlan:
         self.inpainter_size = inpainter_size
         self.refiner_size = refiner_size
         self.prompt = prompt
+        self.prompt_2 = prompt_2
         self.negative_prompt = negative_prompt
+        self.negative_prompt_2 = negative_prompt_2
         self.model = model
         self.refiner = refiner
         self.inpainter = inpainter
@@ -687,11 +704,13 @@ class DiffusionPlan:
         self.upscale_diffusion_prompt = (
             upscale_diffusion_prompt if upscale_diffusion_prompt is not None else DEFAULT_UPSCALE_PROMPT
         )
+        self.upscale_diffusion_prompt_2 = upscale_diffusion_prompt_2
         self.upscale_diffusion_negative_prompt = (
             upscale_diffusion_negative_prompt
             if upscale_diffusion_negative_prompt is not None
             else DEFAULT_UPSCALE_NEGATIVE_PROMPT
         )
+        self.upscale_diffusion_negative_prompt_2 = upscale_diffusion_negative_prompt_2
         self.upscale_diffusion_controlnet = upscale_diffusion_controlnet
         self.upscale_diffusion_scale_chunking_size = bool(upscale_diffusion_scale_chunking_size)
         self.upscale_diffusion_scale_chunking_blur = bool(upscale_diffusion_scale_chunking_blur)
@@ -806,7 +825,9 @@ class DiffusionPlan:
                             "image": image,
                             "num_images_per_prompt": 1,
                             "prompt": get_item_for_scale(self.upscale_diffusion_prompt),
+                            "prompt_2": get_item_for_scale(self.upscale_diffusion_prompt_2),
                             "negative_prompt": get_item_for_scale(self.upscale_diffusion_negative_prompt),
+                            "negative_prompt_2": get_item_for_scale(self.upscale_diffusion_negative_prompt_2),
                             "strength": get_item_for_scale(self.upscale_diffusion_strength),
                             "num_inference_steps": get_item_for_scale(self.upscale_diffusion_steps),
                             "guidance_scale": get_item_for_scale(self.upscale_diffusion_guidance_scale),
@@ -1003,18 +1024,29 @@ class DiffusionPlan:
             outpaint_mask = feather_mask(outpaint_mask)
 
             outpaint_prompt_tokens = TokenMerger()
+            outpaint_prompt_2_tokens = TokenMerger()
+
             outpaint_negative_prompt_tokens = TokenMerger()
+            outpaint_negative_prompt_2_tokens = TokenMerger()
 
             for i, node in enumerate(self.nodes):
                 if node.step.prompt is not None:
                     outpaint_prompt_tokens.add(node.step.prompt)
+                if node.step.prompt_2 is not None:
+                    outpaint_prompt_2_tokens.add(node.step.prompt_2)
                 if node.step.negative_prompt is not None:
                     outpaint_negative_prompt_tokens.add(node.step.negative_prompt)
+                if node.step.negative_prompt_2 is not None:
+                    outpaint_negative_prompt_2_tokens.add(node.step.negative_prompt_2)
 
             if self.prompt is not None:
                 outpaint_prompt_tokens.add(self.prompt, 2)  # Weighted
+            if self.prompt_2 is not None:
+                outpaint_prompt_2_tokens.add(self.prompt_2, 2) # Weighted
             if self.negative_prompt is not None:
                 outpaint_negative_prompt_tokens.add(self.negative_prompt, 2)
+            if self.negative_prompt_2 is not None:
+                outpaint_negative_prompt_2_tokens.add(self.negative_prompt_2, 2)
 
             def outpaint_task_callback(task: str) -> None:
                 """
@@ -1028,7 +1060,9 @@ class DiffusionPlan:
                     image=image,
                     mask=outpaint_mask,
                     prompt=str(outpaint_prompt_tokens),
+                    prompt_2=str(outpaint_prompt_2_tokens),
                     negative_prompt=str(outpaint_negative_prompt_tokens),
+                    negative_prompt_2=str(outpaint_negative_prompt_2_tokens),
                     latent_callback=image_callback,
                     num_images_per_prompt=1,
                     **invocation_kwargs,
@@ -1055,7 +1089,9 @@ class DiffusionPlan:
                     "chunking_blur": self.upscale_diffusion_chunking_blur,
                     "strength": self.upscale_diffusion_strength,
                     "prompt": self.upscale_diffusion_prompt,
+                    "prompt_2": self.upscale_diffusion_prompt_2,
                     "negative_prompt": self.upscale_diffusion_negative_prompt,
+                    "negative_prompt_2": self.upscale_diffusion_negative_prompt_2,
                     "controlnet": self.upscale_diffusion_controlnet,
                     "scale_chunking_size": self.upscale_diffusion_scale_chunking_size,
                     "scale_chunking_blur": self.upscale_diffusion_scale_chunking_blur,
@@ -1089,7 +1125,9 @@ class DiffusionPlan:
             "refiner_size": self.refiner_size,
             "seed": self.seed,
             "prompt": self.prompt,
+            "prompt_2": self.prompt_2,
             "negative_prompt": self.negative_prompt,
+            "negative_prompt_2": self.negative_prompt_2,
             "image": serialized_image,
             "image_callback_steps": self.image_callback_steps,
             "nodes": [node.get_serialization_dict(image_directory) for node in self.nodes],
@@ -1130,7 +1168,9 @@ class DiffusionPlan:
             "samples",
             "seed",
             "prompt",
+            "prompt_2",
             "negative_prompt",
+            "negative_prompt_2",
             "build_tensorrt",
         ]:
             if arg in plan_dict:
@@ -1158,7 +1198,9 @@ class DiffusionPlan:
                     "chunking_size",
                     "chunking_blur",
                     "prompt",
+                    "prompt_2",
                     "negative_prompt",
+                    "negative_prompt_2",
                     "scale_chunking_size",
                     "scale_chunking_blur",
                 ]:
@@ -1203,7 +1245,9 @@ class DiffusionPlan:
         ] = DEFAULT_UPSCALE_DIFFUSION_GUIDANCE_SCALE,
         upscale_diffusion_strength: Optional[Union[float, List[float]]] = DEFAULT_UPSCALE_DIFFUSION_STRENGTH,
         upscale_diffusion_prompt: Optional[Union[str, List[str]]] = DEFAULT_UPSCALE_PROMPT,
+        upscale_diffusion_prompt_2: Optional[Union[str, List[str]]] = None,
         upscale_diffusion_negative_prompt: Optional[Union[str, List[str]]] = DEFAULT_UPSCALE_NEGATIVE_PROMPT,
+        upscale_diffusion_negative_prompt_2: Optional[Union[str, List[str]]] = None,
         upscale_diffusion_controlnet: Optional[Union[CONTROLNET_LITERAL, List[CONTROLNET_LITERAL]]] = None,
         upscale_diffusion_chunking_size: Optional[int] = None,
         upscale_diffusion_chunking_blur: Optional[int] = None,
@@ -1233,7 +1277,9 @@ class DiffusionPlan:
                 "control": False,
                 "controlnet": None,
                 "prompt": None,
+                "prompt_2": None,
                 "negative_prompt": None,
+                "negative_prompt_2": None,
                 "strength": None,
                 "conditioning_scale": None,
                 "mask": None,
@@ -1289,7 +1335,9 @@ class DiffusionPlan:
         multi_scheduler: Optional[MULTI_SCHEDULER_LITERAL] = None,
         vae: Optional[VAE_LITERAL] = None,
         model_prompt: Optional[str] = None,
+        model_prompt_2: Optional[str] = None,
         model_negative_prompt: Optional[str] = None,
+        model_negative_prompt_2: Optional[str] = None,
         samples: int = 1,
         seed: Optional[int] = None,
         width: Optional[int] = None,
@@ -1299,7 +1347,9 @@ class DiffusionPlan:
         chunking_size: Optional[int] = None,
         chunking_blur: Optional[int] = None,
         prompt: Optional[str] = None,
+        prompt_2: Optional[str] = None,
         negative_prompt: Optional[str] = None,
+        negative_prompt_2: Optional[str] = None,
         num_inference_steps: Optional[int] = DEFAULT_INFERENCE_STEPS,
         mask: Optional[Union[str, PIL.Image.Image]] = None,
         image: Optional[Union[str, PIL.Image.Image]] = None,
@@ -1328,7 +1378,9 @@ class DiffusionPlan:
         upscale_diffusion_guidance_scale: Optional[Union[float, int, List[Union[float, int]]]] = DEFAULT_UPSCALE_DIFFUSION_GUIDANCE_SCALE,
         upscale_diffusion_strength: Optional[Union[float, List[float]]] = DEFAULT_UPSCALE_DIFFUSION_STRENGTH,
         upscale_diffusion_prompt: Optional[Union[str, List[str]]] = DEFAULT_UPSCALE_PROMPT,
+        upscale_diffusion_prompt_2: Optional[Union[str, List[str]]] = None,
         upscale_diffusion_negative_prompt: Optional[Union[str, List[str]]] = DEFAULT_UPSCALE_NEGATIVE_PROMPT,
+        upscale_diffusion_negative_prompt_2: Optional[Union[str, List[str]]] = None,
         upscale_diffusion_controlnet: Optional[Union[CONTROLNET_LITERAL, List[CONTROLNET_LITERAL]]] = None,
         upscale_diffusion_chunking_size: Optional[int] = None,
         upscale_diffusion_chunking_blur: Optional[int] = None,
@@ -1364,9 +1416,11 @@ class DiffusionPlan:
             upscale=upscale,
             outscale=outscale,
             prompt=prompt,
+            prompt_2=prompt_2,
             chunking_size=chunking_size,
             chunking_blur=chunking_blur,
             negative_prompt=negative_prompt,
+            negative_prompt_2=negative_prompt_2,
             upscale_iterative=upscale_iterative,
             upscale_diffusion=upscale_diffusion,
             upscale_diffusion_steps=upscale_diffusion_steps,
@@ -1382,7 +1436,9 @@ class DiffusionPlan:
 
         # We'll assemble multiple token sets for overall diffusion
         upscale_diffusion_prompt_tokens = [TokenMerger()]
+        upscale_diffusion_prompt_2_tokens = [TokenMerger()]
         upscale_diffusion_negative_prompt_tokens = [TokenMerger()]
+        upscale_diffusion_negative_prompt_2_tokens = [TokenMerger()]
 
         if upscale_diffusion_prompt:
             if isinstance(upscale_diffusion_prompt, list):
@@ -1395,12 +1451,31 @@ class DiffusionPlan:
                     upscale_diffusion_prompt_tokens[i].add(upscale_prompt)
             else:
                 upscale_diffusion_prompt_tokens[0].add(upscale_diffusion_prompt)
+        if upscale_diffusion_prompt_2:
+            if isinstance(upscale_diffusion_prompt_2, list):
+                upscale_diffusion_prompt_2 = [
+                    upscale_prompt for upscale_prompt in upscale_diffusion_prompt_2 if upscale_prompt
+                ]
+                for i, upscale_prompt in enumerate(upscale_diffusion_prompt_2):
+                    if len(upscale_diffusion_prompt_2_tokens) < i + 1:
+                        upscale_diffusion_prompt_2_tokens.append(TokenMerger())
+                    upscale_diffusion_prompt_2_tokens[i].add(upscale_prompt)
+            else:
+                upscale_diffusion_prompt_2_tokens[0].add(upscale_diffusion_prompt_2)
+        
         if prompt:
             for token_merger in upscale_diffusion_prompt_tokens:
                 token_merger.add(prompt, GLOBAL_PROMPT_UPSCALE_WEIGHT)
+        if prompt_2:
+            for token_merger in upscale_diffusion_prompt_tokens:
+                token_merger.add(prompt_2, GLOBAL_PROMPT_UPSCALE_WEIGHT)
+
         if model_prompt:
             for token_merger in upscale_diffusion_prompt_tokens:
                 token_merger.add(model_prompt, MODEL_PROMPT_WEIGHT)
+        if model_prompt_2:
+            for token_merger in upscale_diffusion_prompt_2_tokens:
+                token_merger.add(model_prompt_2, MODEL_PROMPT_WEIGHT)
 
         if upscale_diffusion_negative_prompt:
             if isinstance(upscale_diffusion_negative_prompt, list):
@@ -1415,12 +1490,33 @@ class DiffusionPlan:
                     upscale_diffusion_negative_prompt_tokens[i].add(negative_prompt)
             else:
                 upscale_diffusion_negative_prompt_tokens[0].add(upscale_diffusion_negative_prompt)
+        if upscale_diffusion_negative_prompt_2:
+            if isinstance(upscale_diffusion_negative_prompt_2, list):
+                upscale_diffusion_negative_prompt_2 = [
+                    upscale_negative_prompt
+                    for upscale_negative_prompt in upscale_diffusion_negative_prompt_2
+                    if upscale_negative_prompt
+                ]
+                for i, negative_prompt in enumerate(upscale_diffusion_negative_prompt_2):
+                    if len(upscale_diffusion_negative_prompt_2_tokens) < i + 1:
+                        upscale_diffusion_negative_prompt_2_tokens.append(TokenMerger())
+                    upscale_diffusion_negative_prompt_2_tokens[i].add(negative_prompt)
+            else:
+                upscale_diffusion_negative_prompt_2_tokens[0].add(upscale_diffusion_negative_prompt_2)
+
         if negative_prompt:
             for token_merger in upscale_diffusion_negative_prompt_tokens:
                 token_merger.add(negative_prompt, GLOBAL_PROMPT_UPSCALE_WEIGHT)
+        if negative_prompt_2:
+            for token_merger in upscale_diffusion_negative_prompt_2_tokens:
+                token_merger.add(negative_prompt_2, GLOBAL_PROMPT_UPSCALE_WEIGHT)
+
         if model_negative_prompt:
             for token_merger in upscale_diffusion_negative_prompt_tokens:
                 token_merger.add(model_negative_prompt, MODEL_PROMPT_WEIGHT)
+        if model_negative_prompt_2:
+            for token_merger in upscale_diffusion_negative_prompt_2_tokens:
+                token_merger.add(model_negative_prompt_2, MODEL_PROMPT_WEIGHT)
 
         # Now assemble the diffusion steps
         node_count = len(nodes)
@@ -1432,12 +1528,24 @@ class DiffusionPlan:
                 prompt_tokens.add(prompt)
             if model_prompt:
                 prompt_tokens.add(model_prompt, MODEL_PROMPT_WEIGHT)
+            
+            prompt_2_tokens = TokenMerger()
+            if prompt_2:
+                prompt_2_tokens.add(prompt_2)
+            if model_prompt_2:
+                prompt_2_tokens.add(model_prompt_2, MODEL_PROMPT_WEIGHT)
 
             negative_prompt_tokens = TokenMerger()
             if negative_prompt:
                 negative_prompt_tokens.add(negative_prompt)
             if model_negative_prompt:
                 negative_prompt_tokens.add(model_negative_prompt, MODEL_PROMPT_WEIGHT)
+
+            negative_prompt_2_tokens = TokenMerger()
+            if negative_prompt_2:
+                negative_prompt_2_tokens.add(negative_prompt_2)
+            if model_negative_prompt_2:
+                negative_prompt_2_tokens.add(model_negative_prompt_2, MODEL_PROMPT_WEIGHT)
 
             if image:
                 name = "Image to Image"
@@ -1488,7 +1596,9 @@ class DiffusionPlan:
                 width=width,
                 height=height,
                 prompt=str(prompt_tokens),
+                prompt_2=str(prompt_2_tokens),
                 negative_prompt=str(negative_prompt_tokens),
+                negative_prompt_2=str(negative_prompt_2_tokens),
                 num_inference_steps=num_inference_steps,
                 guidance_scale=guidance_scale,
                 strength=strength,
@@ -1519,8 +1629,14 @@ class DiffusionPlan:
             plan.upscale_diffusion_prompt = [
                 str(merger) for merger in upscale_diffusion_prompt_tokens
             ]
+            plan.upscale_diffusion_prompt_2 = [
+                str(merger) for merger in upscale_diffusion_prompt_2_tokens
+            ]
             plan.upscale_diffusion_negative_prompt = [
                 str(merger) for merger in upscale_diffusion_negative_prompt_tokens
+            ]
+            plan.upscale_diffusion_negative_prompt_2 = [
+                str(merger) for merger in upscale_diffusion_negative_prompt_2_tokens
             ]
             return plan
 
@@ -1546,7 +1662,9 @@ class DiffusionPlan:
 
             node_controlnet = node_dict.get("controlnet", None)
             node_prompt = node_dict.get("prompt", None)
+            node_prompt_2 = node_dict.get("prompt_2", None)
             node_negative_prompt = node_dict.get("negative_prompt", None)
+            node_negative_prompt_2 = node_dict.get("negative_prompt_2", None)
             node_strength: Optional[float] = node_dict.get("strength", None)
             node_conditioning_scale: Optional[float] = node_dict.get("conditioning_scale", None)
             node_image = node_dict.get("image", None)
@@ -1565,7 +1683,9 @@ class DiffusionPlan:
             node_refiner_negative_aesthetic_score: Optional[float] = node_dict.get("refiner_negative_aesthetic_score", None)  # type: ignore[assignment]
 
             node_prompt_tokens = TokenMerger()
+            node_prompt_2_tokens = TokenMerger()
             node_negative_prompt_tokens = TokenMerger()
+            node_negative_prompt_2_tokens = TokenMerger()
 
             if "w" in node_dict:
                 node_width = int(node_dict["w"])
@@ -1595,6 +1715,16 @@ class DiffusionPlan:
             if model_prompt:
                 node_prompt_tokens.add(model_prompt, MODEL_PROMPT_WEIGHT)
 
+            if node_prompt_2:
+                node_prompt_2_tokens.add(node_prompt_2)
+                for merger in upscale_diffusion_prompt_2_tokens:
+                    merger.add(node_prompt_2, UPSCALE_PROMPT_STEP_WEIGHT / node_count)
+            if prompt_2 and node_image:
+                # Only add global prompt to image nodes, it overrides too much on region nodes
+                node_prompt_2_tokens.add(prompt_2, GLOBAL_PROMPT_STEP_WEIGHT)
+            if model_prompt_2:
+                node_prompt_2_tokens.add(model_prompt_2, MODEL_PROMPT_WEIGHT)
+
             if node_negative_prompt:
                 node_negative_prompt_tokens.add(node_negative_prompt)
                 for merger in upscale_diffusion_negative_prompt_tokens:
@@ -1604,6 +1734,16 @@ class DiffusionPlan:
                 node_negative_prompt_tokens.add(negative_prompt, GLOBAL_PROMPT_STEP_WEIGHT)
             if model_negative_prompt:
                 node_negative_prompt_tokens.add(model_negative_prompt, MODEL_PROMPT_WEIGHT)
+            
+            if node_negative_prompt_2:
+                node_negative_prompt_tokens.add(node_negative_prompt_2)
+                for merger in upscale_diffusion_negative_prompt_2_tokens:
+                    merger.add(node_negative_prompt_2, UPSCALE_PROMPT_STEP_WEIGHT / node_count)
+            if negative_prompt_2 and node_image:
+                # Only add global prompt to image nodes, it overrides too much on region nodes
+                node_negative_prompt_2_tokens.add(negative_prompt_2, GLOBAL_PROMPT_STEP_WEIGHT)
+            if model_negative_prompt_2:
+                node_negative_prompt_2_tokens.add(model_negative_prompt_2, MODEL_PROMPT_WEIGHT)
 
             if node_image:
                 if node_remove_background:
@@ -1650,7 +1790,9 @@ class DiffusionPlan:
                         image=node_image,
                         mask=feather_mask(node_mask.convert("1")),
                         prompt=str(node_prompt_tokens),
+                        prompt_2=str(node_prompt_2_tokens),
                         negative_prompt=str(node_negative_prompt_tokens),
+                        negative_prompt_2=str(node_negative_prompt_2_tokens),
                         guidance_scale=guidance_scale,
                         num_inference_steps=node_inference_steps if node_inference_steps else num_inference_steps,
                         refiner_strength=refiner_strength,
@@ -1667,7 +1809,9 @@ class DiffusionPlan:
                             image=node_image,
                             mask=feather_mask(node_mask.convert("1")),
                             prompt=str(node_prompt_tokens),
+                            prompt_2=str(node_prompt_2_tokens),
                             negative_prompt=str(node_negative_prompt_tokens),
+                            negative_prompt_2=str(node_negative_prompt_2_tokens),
                             guidance_scale=guidance_scale,
                             num_inference_steps=node_inference_steps if node_inference_steps else num_inference_steps,
                             refiner_strength=refiner_strength,
@@ -1700,7 +1844,9 @@ class DiffusionPlan:
                 else:
                     # Some combination of ops
                     step.prompt = str(node_prompt_tokens)
+                    step.prompt_2 = str(node_prompt_2_tokens)
                     step.negative_prompt = str(node_negative_prompt_tokens)
+                    step.negative_prompt_2 = str(node_negative_prompt_2_tokens)
                     if node_strength:
                         step.strength = node_strength
                     if node_infer:
@@ -1722,7 +1868,9 @@ class DiffusionPlan:
             elif node_prompt:
                 step.name = f"Region Prompt Node {i+1}"
                 step.prompt = str(node_prompt_tokens)
+                step.prompt_2 = str(node_prompt_2_tokens)
                 step.negative_prompt = str(node_negative_prompt_tokens)
+                step.negative_prompt_2 = str(node_negative_prompt_2_tokens)
                 step.width = node_width
                 step.height = node_height
                 step.remove_background = node_remove_background
@@ -1747,8 +1895,17 @@ class DiffusionPlan:
             # Add step to plan
             plan.nodes.append(DiffusionNode(node_bounds, step))
 
-        plan.upscale_diffusion_prompt = [str(prompt) for prompt in upscale_diffusion_prompt_tokens]
+        plan.upscale_diffusion_prompt = [
+            str(prompt) for prompt in upscale_diffusion_prompt_tokens
+        ]
+        plan.upscale_diffusion_prompt_2 = [
+            str(prompt) for prompt in upscale_diffusion_prompt_2_tokens
+        ]
         plan.upscale_diffusion_negative_prompt = [
             str(negative_prompt) for negative_prompt in upscale_diffusion_negative_prompt_tokens
         ]
+        plan.upscale_diffusion_negative_prompt_2 = [
+            str(negative_prompt) for negative_prompt in upscale_diffusion_negative_prompt_2_tokens
+        ]
+
         return plan

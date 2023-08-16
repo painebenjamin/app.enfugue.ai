@@ -883,6 +883,7 @@ form ul.list-input-view li.selected {
     max-width: 50vw;
     z-index: 99;
     pointer-events: none;
+    line-height: 1.1em;
 }
 
 .tooltip-container.active {

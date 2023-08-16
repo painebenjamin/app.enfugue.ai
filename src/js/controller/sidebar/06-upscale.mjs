@@ -160,6 +160,16 @@ class UpscaleDiffusionPromptInputView extends RepeatableInputView {
 }
 
 /**
+ * For prompt2, extend tooltip
+ */
+class UpscaleDiffusionPromptInputView2 extends UpscaleDiffusionPromptInputView {
+    /**
+     * @var string The tooltip to show
+     */
+    static tooltip = "The secondary prompt to use when upscaling, it is generally best to use generic detail-oriented prompts, unless there are specific things or people you want to ensure have details.<br />When using multiple prompts, the first is used for the first upscale, the second is used for the second (when using iterative upscaling), etc.<br />Secondary prompts are input into the secondary text encoder when upscaling with SDXL. When not upscaling with SDXL, secondary prompts will be merged with primary prompts.";
+}
+
+/**
  * The repetable input view for negative prompt
  * None are required, we'll use a generic detail prompt
  */
@@ -170,6 +180,15 @@ class UpscaleDiffusionNegativePromptInputView extends UpscaleDiffusionPromptInpu
     static tooltip = "The negative prompt to use when upscaling, it is generally best to use generic negative prompts, unless there are specific things you don't want.<br />When using multiple prompts, the first is used for the first upscale, the second is used for the second (when using iterative upscaling), etc.";
 }
 
+/**
+ * For NegativePrompt2, extend tooltip
+ */
+class UpscaleDiffusionNegativePrompt2InputView extends UpscaleDiffusionNegativePromptInputView {
+    /**
+     * @var string The tooltip to show
+     */
+    static tooltip = "The secondary negative prompt to use when upscaling, it is generally best to use generic negative prompts, unless there are specific things you don't want.<br />When using multiple prompts, the first is used for the first upscale, the second is used for the second (when using iterative upscaling), etc.<br />Secondary prompts are input into the secondary text encoder when upscaling with SDXL. When not upscaling with SDXL, secondary prompts will be merged with primary prompts.";
+}
 /**
  * The repeatable input view for strength
  * At least one is required
@@ -330,8 +349,16 @@ class UpscaleForm extends FormView {
                 "label": "Detail Prompt",
                 "class": UpscaleDiffusionPromptInputView
             },
+            "upscaleDiffusionPrompt2": {
+                "label": "Detail Secondary Prompt",
+                "class": UpscaleDiffusionPromptInputView
+            },
             "upscaleDiffusionNegativePrompt": {
                 "label": "Detail Negative Prompt",
+                "class": UpscaleDiffusionNegativePromptInputView
+            },
+            "upscaleDiffusionNegativePrompt2": {
+                "label": "Detail Secondary Negative Prompt",
                 "class": UpscaleDiffusionNegativePromptInputView
             },
             "upscaleDiffusionSteps": {
@@ -440,8 +467,14 @@ class UpscaleController extends Controller {
             if (isEmpty(upscaleState.upscaleDiffusionPrompt)) {
                 upscaleState.upscaleDiffusionPrompt = [];
             }
+            if (isEmpty(upscaleState.upscaleDiffusionPrompt2)) {
+                upscaleState.upscaleDiffusionPrompt2 = [];
+            }
             if (isEmpty(upscaleState.upscaleDiffusionNegativePrompt)) {
                 upscaleState.upscaleDiffusionNegativePrompt = [];
+            }
+            if (isEmpty(upscaleState.upscaleDiffusionNegativePrompt2)) {
+                upscaleState.upscaleDiffusionNegativePrompt2 = [];
             }
 
             this.upscaleForm.setValues(upscaleState).then(() => this.upscaleForm.submit());
@@ -468,7 +501,9 @@ class UpscaleController extends Controller {
             this.engine.upscaleDiffusionScaleChunkingSize = values.upscaleDiffusionScaleChunkingSize;
             this.engine.upscaleDiffusionScaleChunkingBlur = values.upscaleDiffusionScaleChunkingBlur;
             this.engine.upscaleDiffusionPrompt = values.upscaleDiffusionPrompt;
+            this.engine.upscaleDiffusionPrompt2 = values.upscaleDiffusionPrompt2;
             this.engine.upscaleDiffusionNegativePrompt = values.upscaleDiffusionNegativePrompt;
+            this.engine.upscaleDiffusionNegativePrompt2 = values.upscaleDiffusionNegativePrompt2;
         });
         this.application.sidebar.addChild(this.upscaleForm);
     }

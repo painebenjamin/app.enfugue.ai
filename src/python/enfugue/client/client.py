@@ -117,9 +117,13 @@ class EnfugueClient(UserExtensionClientBase, JSONWebServiceAPIClient):
     def invoke(
         self,
         prompt: Optional[str] = None,
+        prompt_2: Optional[str] = None,
         negative_prompt: Optional[str] = None,
+        negative_prompt_2: Optional[str] = None,
         model_prompt: Optional[str] = None,
+        model_prompt_2: Optional[str] = None,
         model_negative_prompt: Optional[str] = None,
+        model_negative_prompt_2: Optional[str] = None,
         intermediates: Optional[bool] = None,
         width: Optional[int] = None,
         height: Optional[int] = None,
@@ -169,7 +173,9 @@ class EnfugueClient(UserExtensionClientBase, JSONWebServiceAPIClient):
         upscale_diffusion_guidance_scale: Optional[Union[Union[int, float], List[Union[int, float]]]] = None,
         upscale_diffusion_strength: Optional[Union[float, List[float]]] = None,
         upscale_diffusion_prompt: Optional[Union[str, List[str]]] = None,
+        upscale_diffusion_prompt_2: Optional[Union[str, List[str]]] = None,
         upscale_diffusion_negative_prompt: Optional[Union[str, List[str]]] = None,
+        upscale_diffusion_negative_prompt_2: Optional[Union[str, List[str]]] = None,
         upscale_diffusion_controlnet: Optional[Union[CONTROLNET_LITERAL, List[CONTROLNET_LITERAL]]] = None,
         upscale_diffusion_chunking_size: Optional[int] = None,
         upscale_diffusion_chunking_blur: Optional[int] = None,
@@ -187,12 +193,20 @@ class EnfugueClient(UserExtensionClientBase, JSONWebServiceAPIClient):
             kwargs["model_type"] = model_type
         if prompt is not None:
             kwargs["prompt"] = prompt
+        if prompt_2 is not None:
+            kwargs["prompt_2"] = prompt_2
         if negative_prompt is not None:
             kwargs["negative_prompt"] = negative_prompt
+        if negative_prompt_2 is not None:
+            kwargs["negative_prompt_2"] = negative_prompt_2
         if model_prompt is not None:
             kwargs["model_prompt"] = model_prompt
+        if model_prompt_2 is not None:
+            kwargs["model_prompt_2"] = model_prompt_2
         if model_negative_prompt is not None:
             kwargs["model_negative_prompt"] = model_negative_prompt
+        if model_negative_prompt_2 is not None:
+            kwargs["model_negative_prompt_2"] = model_negative_prompt_2
         if intermediates is not None:
             kwargs["intermediates"] = intermediates
         if width is not None:
@@ -285,8 +299,12 @@ class EnfugueClient(UserExtensionClientBase, JSONWebServiceAPIClient):
             kwargs["upscale_diffusion_strength"] = upscale_diffusion_strength
         if upscale_diffusion_prompt is not None:
             kwargs["upscale_diffusion_prompt"] = upscale_diffusion_prompt
+        if upscale_diffusion_prompt_2 is not None:
+            kwargs["upscale_diffusion_prompt_2"] = upscale_diffusion_prompt_2
         if upscale_diffusion_negative_prompt is not None:
             kwargs["upscale_diffusion_negative_prompt"] = upscale_diffusion_negative_prompt
+        if upscale_diffusion_negative_prompt_2 is not None:
+            kwargs["upscale_diffusion_negative_prompt_2"] = upscale_diffusion_negative_prompt_2
         if upscale_diffusion_controlnet is not None:
             kwargs["upscale_diffusion_controlnet"] = upscale_diffusion_controlnet
         if upscale_diffusion_chunking_size is not None:

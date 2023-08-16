@@ -584,8 +584,15 @@ enfugue-node-editor.image-editor enfugue-node form input {
 }
 
 enfugue-node-editor.image-editor enfugue-node form legend {
-    display: none;
+    font-size: 12px;
 }
+
+enfugue-node-editor.image-editor enfugue-node form fieldset.collapsible legend::after {
+    border-top: 5px solid transparent;
+    border-bottom: 5px solid transparent;
+    border-right: 5px solid var(--theme-color-tertiary);
+}
+
 
 enfugue-node-editor.image-editor enfugue-node form .field-container {
     flex-basis: 30%;
@@ -653,6 +660,7 @@ enfugue-node-editor.image-editor enfugue-node-canvas enfugue-toolbar-item::after
 .field-container.scheduler-input-view,
 .field-container.multi-diffusion-scheduler-input-view,
 fieldset.field-set-prompts .field-container,
+fieldset.field-set-secondary-prompts .field-container,
 fieldset.field-set-directories .field-container,
 fieldset.field-set-engine .field-container,
 fieldset.field-set-diffusion .field-container,
@@ -671,10 +679,6 @@ form.show-refiner fieldset.field-set-engine:not(.collapsed) .refiner-engine-size
 form.show-inpainter fieldset.field-set-engine:not(.collapsed) .inpainter-engine-size-input-view
 {
     display: flex;
-}
-
-fieldset.field-set-prompts .field-container {
-    margin-bottom: 1em;
 }
 
 .field-container.multi-lora-input-view legend,
