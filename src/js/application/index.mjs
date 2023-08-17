@@ -12,14 +12,12 @@ import { TooltipHelper } from "../common/tooltip.mjs";
 import { MenuView, SidebarView, ToolbarView } from "../view/menu.mjs";
 import { StatusView } from "../view/status.mjs";
 import { NotificationCenterView } from "../view/notifications.mjs";
-import { WindowsView } from "../view/nodes/windows.mjs";
-import { ImageEditorView, ImageEditorNodeView, ImageEditorImageNodeView } from "../view/nodes/image-editor.mjs";
+import { WindowsView } from "../nodes/windows.mjs";
 import { ImageView } from "../view/image.mjs";
 import { Model } from "../model/enfugue.mjs";
-import { ConfirmFormView, YesNoFormView } from "../view/forms/confirm.mjs";
 import { View } from "../view/base.mjs";
-import { FormView } from "../view/forms/base.mjs";
-import { StringInputView } from "../view/forms/input.mjs";
+import { FileNameFormView } from "../forms/enfugue/files.mjs";
+import { StringInputView } from "../forms/input.mjs";
 import { InvocationController } from "../controller/common/invocation.mjs";
 import { ModelPickerController } from "../controller/common/model-picker.mjs";
 import { ModelManagerController } from "../controller/common/model-manager.mjs";
@@ -29,26 +27,16 @@ import { LogsController } from "../controller/common/logs.mjs";
 import { AnnouncementsController } from "../controller/common/announcements.mjs";
 import { HistoryDatabase } from "../common/history.mjs";
 import { SimpleNotification } from "../common/notify.mjs";
+import {
+    ConfirmFormView,
+    YesNoFormView
+} from "../forms/confirm.mjs";
+import {
+    ImageEditorView,
+    ImageEditorNodeView,
+    ImageEditorImageNodeView
+} from "../nodes/image-editor.mjs";
 
-/**
- * This small class allows for inputting a filename when saving a blob
- */
-class FileNameFormView extends FormView {
-    /**
-     * @var object The field sets - just the filename.
-     */
-    static fieldSets = {
-        "File Name": {
-            "filename": {
-                "class": StringInputView,
-                "config": {
-                    "required": true,
-                    "placeholder": "Please enter a filename."
-                }
-            }
-        }
-    };
-};
 
 /**
  * Define a small view for a logout button

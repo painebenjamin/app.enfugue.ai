@@ -1,28 +1,7 @@
 /** @module controller/file/03-save */
 import { MenuController } from "../menu.mjs";
 import { createEvent, isEmpty } from "../../base/helpers.mjs";
-import { FormView } from "../../view/forms/base.mjs";
-import { StringInputView } from "../../view/forms/input.mjs";
-
-/**
- * Create a form to input filename
- */
-class FileNameFormView extends FormView {
-    /**
-     * @var object The field sets
-     */
-    static fieldSets = {
-        "File Name": {
-            "filename": {
-                "class": StringInputView,
-                "config": {
-                    "required": true,
-                    "value": "Enfugue Project"
-                }
-            }
-        }
-    };
-};
+import { FileNameFormView } from "../../forms/enfugue/files.mjs";
 
 /**
  * The save controller allows writing the entire contents of the canvas

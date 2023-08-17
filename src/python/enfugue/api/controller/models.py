@@ -40,6 +40,8 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         "refiner_guidance_scale",
         "refiner_aesthetic_score",
         "refiner_negative_aesthetic_score",
+        "prompt_2",
+        "negative_prompt_2"
     ]
 
     DEFAULT_CHECKPOINTS = [

@@ -785,7 +785,7 @@ enfugue-model-table-paging ul li:hover::before {
 
 enfugue-invocation-outputs {
     display: flex;
-    flex-flow: row nowrap;
+    flex-flow: row wrap;
     gap: 5px;
 }
 

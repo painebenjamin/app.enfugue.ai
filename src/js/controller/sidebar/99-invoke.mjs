@@ -1,7 +1,7 @@
-/** @module controller/sidebar/invoke */
+/** @module controller/sidebar/99-invoke */
 import { isEmpty } from "../../base/helpers.mjs";
 import { ElementBuilder } from "../../base/builder.mjs";
-import { ButtonInputView } from "../../view/forms/input.mjs";
+import { ButtonInputView } from "../../forms/input.mjs";
 import { Controller } from "../base.mjs";
 import { View } from "../../view/base.mjs";
 
@@ -52,13 +52,23 @@ class InvokeButtonController extends Controller {
                 "y": datum.y,
                 "w": datum.w,
                 "h": datum.h,
-                "prompt": datum.prompt,
-                "negative_prompt": datum.negativePrompt,
                 "inference_steps": datum.inferenceSteps,
                 "guidance_scale": datum.guidanceScale,
                 "scale_to_model_size": datum.scaleToModelSize,
                 "remove_background": datum.removeBackground
             };
+            if (Array.isArray(datum.prompt)) {
+                formattedState["prompt"], formattedState["prompt_2"] = datum.prompt;
+            } else {
+                formattedState["prompt"] = datum.prompt;
+            }
+           
+            if (Array.isArray(datum.negativePrompt)) {
+                formattedState["negative_prompt"], formattedState["negative_prompt_2"] = datum.negativePrompt;
+            } else {
+                formattedState["negative_prompt"] = datum.negativePrompt;
+            }
+            
             switch (datum.classname) {
                 case "ImageEditorPromptNodeView":
                     formattedState["type"] = "prompt";
@@ -137,4 +147,4 @@ class InvokeButtonController extends Controller {
     }
 }
 
-export { InvokeButtonController as SidebarController }
+export { InvokeButtonController as SidebarController };

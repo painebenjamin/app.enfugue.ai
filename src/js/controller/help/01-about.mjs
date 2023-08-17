@@ -1,4 +1,4 @@
-/** @module controller/file/01-about */
+/** @module controller/help/01-about */
 import { ElementBuilder } from "../../base/builder.mjs";
 import { isEmpty } from "../../base/helpers.mjs";
 import { MenuController } from "../menu.mjs";

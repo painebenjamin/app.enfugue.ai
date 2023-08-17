@@ -1,143 +1,14 @@
-/** @module controller/common/module-picker */
+/** @module controller/common/model-picker */
+import { isEmpty, waitFor } from "../../base/helpers.mjs";
+import { ElementBuilder } from "../../base/builder.mjs";
 import { Controller } from "../base.mjs";
 import { TableView } from "../../view/table.mjs";
 import { View } from "../../view/base.mjs";
-import { FormView } from "../../view/forms/base.mjs";
-import {
-    SearchListInputView, 
-    StringInputView, 
-    SearchListInputListView,
-    NumberInputView
-} from "../../view/forms/input.mjs";
-import { 
-    VAEInputView,
-    CheckpointInputView,
-    MultiLoraInputView,
-    MultiLycorisInputView,
-    MultiInversionInputView
-} from "./model-manager.mjs";
-import { isEmpty, waitFor, createElementsFromString } from "../../base/helpers.mjs";
-import { ElementBuilder } from "../../base/builder.mjs";
+import { FormView } from "../../forms/base.mjs";
+import { ModelPickerInputView } from "../../forms/input/enfugue/models.mjs";
+import { AbridgedModelFormView } from "../../forms/enfugue/models.mjs";
 
 const E = new ElementBuilder();
-
-/**
- * Extend the SearchListInputListView to add additional classes
- */
-class ModelPickerListInputView extends SearchListInputListView {
-    /**
-     * @var array<string> CSS classes
-     */
-    static classList = SearchListInputListView.classList.concat(["model-picker-list-input-view"]);
-};
-
-/**
- * Extend the StringInputView so we can strip HTML from the value
- */
-class ModelPickerStringInputView extends StringInputView {
-    /**
-     * Strip HTML from the value and only display the name portion.
-     */
-    setValue(newValue, triggerChange) {
-        if(!isEmpty(newValue)) {
-            if (newValue.startsWith("<")) {
-                newValue = createElementsFromString(newValue)[0].innerText;
-            } else {
-                newValue = newValue.split("/")[1];
-            }
-        }
-        return super.setValue(newValue, triggerChange);
-    }
-};
-
-/**
- * We extend the SearchListInputView to change some default config.
- */
-class ModelPickerInputView extends SearchListInputView {
-    /**
-     * @var string The content of the node when nothing is selected.
-     */
-    static placeholder = "Start typing to search models…";
-
-    /**
-     * @var class The class of the string input, override so we can override setValue
-     */
-    static stringInputClass = ModelPickerStringInputView;
-
-    /**
-     * @var class The class of the list input, override so we can add css classes
-     */
-    static listInputClass = ModelPickerListInputView
-};
-
-/**
- * This form allows additional pipeline configuration when using a checkpoint
- */
-class ModelConfigurationFormView extends FormView {
-    /**
-     * @var string Custom CSS class
-     */
-    static className = "model-configuration-form-view";
-
-    /**
-     * @var boolean no submit button
-     */
-    static autoSubmit = true;
-
-    /**
-     * @var boolean Start hidden
-     */
-    static collapseFieldSets = true;
-
-    /**
-     * @var object one fieldset describes all inputs
-     */
-    static fieldSets = {
-        "Adaptations and Modifications": {
-            "lora": {
-                "class": MultiLoraInputView,
-                "label": "LoRA",
-                "config": {
-                    "tooltip": "LoRA stands for <strong>Low Rank Adapation</strong>, it is a kind of fine-tuning that can perform very specific modifications to Stable Diffusion such as training an individual's appearance, new products that are not in Stable Diffusion's training set, etc."
-                }
-            },
-            "lycoris": {
-                "class": MultiLycorisInputView,
-                "label": "LyCORIS",
-                "config": {
-                    "tooltip": "LyCORIS stands for <strong>LoRA beYond Conventional methods, Other Rank adaptation Implementations for Stable diffusion</strong>, a novel means of performing low-rank adaptation introduced in early 2023."
-                }
-            },
-            "inversion": {
-                "class": MultiInversionInputView,
-                "label": "Textual Inversion",
-                "config": {
-                    "tooltip": "Textual Inversion is another kind of fine-tuning that teaches novel concepts to Stable Diffusion in a small number of images, which can be used to positively or negatively affect the impact of various prompts."
-                }
-            }
-        },
-        "Additional Models": {
-            "vae": {
-                "label": "VAE",
-                "class": VAEInputView
-            },
-            "refiner": {
-                "label": "Refining Checkpoint",
-                "class": CheckpointInputView,
-                "config": {
-                    "tooltip": "Refining checkpoints were introduced with SDXL 0.9 - these are checkpoints specifically trained to improve detail, shapes, and generally improve the quality of images generated from the base model. These are optional, and do not need to be specifically-trained refinement checkpoints - you can try mixing and matching checkpoints for different styles, though you may wish to ensure the related checkpoints were trained on the same size images."
-                }
-            },
-            "inpainter": {
-                "label": "Inpainting Checkpoint",
-                "class": CheckpointInputView,
-                "config": {
-                    "tooltip": "An inpainting checkpoint if much like a regular Stable Diffusion checkpoint, but it additionally includes the ability to input which parts of the image can be changed and which cannot. This is used when you specifically request an image be inpainted, but is also used in many other situations in Enfugue; such as when you place an image on the canvas that doesn't cover the entire space, or use an image that has transparency in it (either before or after removing it's background.) When you don't select an inpainting checkpoint and request an inpainting operation, one will be created dynamically from the main checkpoint at runtime."
-                }
-            }
-        }
-    };
-};
 
 /**
  * Extend the TableView to disable sorting and add conditional buttons
@@ -355,6 +226,7 @@ class ModelPickerFormView extends FormView {
     };
 };
 
+
 /**
  * The ModelPickerController appends the model chooser input to the image editor view.
  * It will call the necessary functions to build TensorRT as well.
@@ -375,8 +247,8 @@ class ModelPickerController extends Controller {
      */
     getState() {
         return {
-            "model": this.formView.values,
-            "modelConfig": this.modelConfigurationFormView.values
+            "model": this.modelPickerFormView.values,
+            "modelConfig": this.abridgedModelFormView.values
         };
     }
 
@@ -395,15 +267,15 @@ class ModelPickerController extends Controller {
      */
     setState(newState) {
         if (!isEmpty(newState.model)) {
-            this.formView.suppressDefaults = true;
-            this.formView.setValues(newState.model).then(
-                () => this.formView.submit()
+            this.modelPickerFormView.suppressDefaults = true;
+            this.modelPickerFormView.setValues(newState.model).then(
+                () => this.modelPickerFormView.submit()
             );
         }
         if (!isEmpty(newState.modelConfig)) {
-            this.modelConfigurationFormView.setValues(newState.modelConfig).then(
+            this.abridgedModelFormView.setValues(newState.modelConfig).then(
                 setTimeout(
-                    () => this.modelConfigurationFormView.submit(),
+                    () => this.abridgedModelFormView.submit(),
                     250
                 )
             );
@@ -486,18 +358,18 @@ class ModelPickerController extends Controller {
             return modelOptions;
         };
 
-        this.formView = new ModelPickerFormView(this.config);
-        this.modelConfigurationFormView = new ModelConfigurationFormView(this.config);
+        this.modelPickerFormView = new ModelPickerFormView(this.config);
+        this.abridgedModelFormView = new AbridgedModelFormView(this.config);
 
-        this.formView.onSubmit(async (values) => {
-            let suppressDefaults = this.formView.suppressDefaults;
-            this.formView.suppressDefaults = false;
+        this.modelPickerFormView.onSubmit(async (values) => {
+            let suppressDefaults = this.modelPickerFormView.suppressDefaults;
+            this.modelPickerFormView.suppressDefaults = false;
             if (values.model) {
                 let [selectedType, selectedName] = values.model.split("/");
                 this.engine.model = selectedName;
                 this.engine.modelType = selectedType;
                 if (selectedType === "model") {
-                    this.modelConfigurationFormView.hide();
+                    this.abridgedModelFormView.hide();
                     try {
                         let fullModel = await this.model.DiffusionModel.query({name: selectedName}),
                             modelStatus = await fullModel.getStatus(),
@@ -515,25 +387,25 @@ class ModelPickerController extends Controller {
                                 tensorRTStatus.inpaint_unet_ready = modelStatus.tensorrt.inpainter.unet_ready;
                             }
                         }
-                        this.formView.setTensorRTStatus(
+                        this.modelPickerFormView.setTensorRTStatus(
                             tensorRTStatus,
                             () => this.showBuildTensorRT(fullModel)
                         );
                     } catch(e) {
                         // Reset
-                        this.formView.setValues({"model": null});
+                        this.modelPickerFormView.setValues({"model": null});
                         console.error(e);
                     }
                 } else {
-                    this.modelConfigurationFormView.show();
-                    this.formView.setTensorRTStatus({supported: false});
+                    this.abridgedModelFormView.show();
+                    this.modelPickerFormView.setTensorRTStatus({supported: false});
                 }
             } else {
-                this.formView.setTensorRTStatus({supported: false});
+                this.modelPickerFormView.setTensorRTStatus({supported: false});
             }
         });
         
-        this.modelConfigurationFormView.onSubmit(async (values) => {
+        this.abridgedModelFormView.onSubmit(async (values) => {
             this.engine.refiner = values.refiner;
             this.engine.inpainter = values.inpainter;
             this.engine.lora = values.lora;
@@ -542,8 +414,8 @@ class ModelPickerController extends Controller {
             this.engine.vae = values.vae;
         });
 
-        this.application.container.appendChild(await this.formView.render());
-        this.application.container.appendChild(await this.modelConfigurationFormView.render());
+        this.application.container.appendChild(await this.modelPickerFormView.render());
+        this.application.container.appendChild(await this.abridgedModelFormView.render());
 
         this.subscribe("invocationError", (payload) => {
             if (!isEmpty(payload.metadata) && !isEmpty(payload.metadata.tensorrt_build)) {

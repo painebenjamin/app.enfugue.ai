@@ -2,23 +2,10 @@
 import { isEmpty, waitFor, deepClone } from "../../base/helpers.mjs";
 import { ElementBuilder } from "../../base/builder.mjs";
 import { Controller } from "../base.mjs";
-import { FormView } from "../../view/forms/base.mjs";
 import { TableView } from "../../view/table.mjs";
 import { View } from "../../view/base.mjs";
-import { StringInputView, ListMultiInputView } from "../../view/forms/input.mjs";
 
 const E = new ElementBuilder();
-
-/**
- * This class lets you select from log levels
- * TODO: Expose this
- */
-class LogLevelSelectInputView extends ListMultiInputView {
-    /**
-     * @var array The log level options
-     */
-    static defaultOptions = ["DEBUG", "INFO", "WARN", "ERROR", "CRITICAL"];
-}
 
 /**
  * This class shows a very small amount of logs to the user; this is mostly
@@ -124,35 +111,6 @@ class LogTableView extends TableView {
         "timestamp": (ts) => ts.replace("T", " ").split(".")[0]
     };
 }
-
-/**
- * This class assembles the filter options for logs
- */
-class LogFilterFormView extends FormView {
-    /**
-     * @var bool Disable submit button
-     */
-    static autoSubmit = true;
-
-    /**
-     * @var objects filter fieldsets
-     */
-    static fieldSets = {
-        "Filters": {
-            "level": {
-                "label": "Log Levels",
-                "class": LogLevelSelectInputView,
-                "config": {
-                    "value": deepClone(LogLevelSelectInputView.defaultOptions)
-                }
-            },
-            "search": {
-                "label": "Search",
-                "class": StringInputView
-            }
-        }
-    };
-};
 
 /**
  * The LogsController allows tailing the log for increased visibility

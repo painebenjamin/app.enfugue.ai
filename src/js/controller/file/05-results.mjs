@@ -1,4 +1,4 @@
-/** @module controller/file/history */
+/** @module controller/file/05-results */
 import { MenuController } from "../menu.mjs";
 import { ModelTableView } from "../../view/table.mjs";
 import { ImageView } from "../../view/image.mjs";

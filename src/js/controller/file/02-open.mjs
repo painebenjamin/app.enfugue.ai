@@ -41,6 +41,4 @@ class OpenFileController extends MenuController {
     }
 };
 
-
-
 export { OpenFileController as MenuController };

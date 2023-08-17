@@ -1,3 +1,4 @@
+/** @module controllers/common/invocation */
 import { ImageInspectorView } from "../../view/image.mjs";
 import { isEmpty, isEquivalent, waitFor, humanDuration } from "../../base/helpers.mjs";
 import { ElementBuilder } from "../../base/builder.mjs";
@@ -123,16 +124,6 @@ class InvocationController extends Controller {
     get prompt() {
         return this.kwargs.prompt || "";
     }
-
-    /**
-     * @param string newPrompt Sets the prompt to invoke with.
-     */
-    set prompt(newPrompt) {
-        if (this.prompt !== newPrompt) {
-            this.publish("enginePromptChange", newPrompt);
-        }
-        this.kwargs.prompt = newPrompt;
-    }
     
     /**
      * @return string Either the configured secondary prompt or empty string.
@@ -144,11 +135,21 @@ class InvocationController extends Controller {
     /**
      * @param string newPrompt Sets the prompt to invoke with.
      */
-    set prompt2(newPrompt) {
-        if (this.prompt2 !== newPrompt) {
-            this.publish("enginePrompt2Change", newPrompt);
+    set prompt(newPrompt) {
+        let prompt1, prompt2;
+        if (Array.isArray(newPrompt)) {
+            [prompt1, prompt2] = newPrompt;
+        } else {
+            prompt1 = newPrompt;
         }
-        this.kwargs.prompt_2 = newPrompt;
+        if (this.prompt !== prompt1) {
+            this.publish("enginePromptChange", prompt1);
+        }
+        if (this.prompt2 !== prompt2) {
+            this.publish("enginePrompt2Change", prompt2);
+        }
+        this.kwargs.prompt = prompt1;
+        this.kwargs.prompt_2 = prompt2;
     }
 
     /**
@@ -159,16 +160,6 @@ class InvocationController extends Controller {
     }
 
     /**
-     * @param string newPrompt Sets the negative prompt to invoke with.
-     */
-    set negativePrompt(newPrompt) {
-        if (this.negativePrompt !== newPrompt) {
-            this.publish("engineNegativePromptChange", newPrompt);
-        }
-        this.kwargs.negative_prompt = newPrompt;
-    }
-
-    /**
      * @return string Either the configured secondary negative prompt or empty string.
      */
     get negativePrompt2() {
@@ -176,13 +167,23 @@ class InvocationController extends Controller {
     }
 
     /**
-     * @param string newPrompt Sets the secondary negative prompt to invoke with.
+     * @param string newPrompt Sets the negative prompt to invoke with.
      */
-    set negativePrompt2(newPrompt) {
-        if (this.negativePrompt2 !== newPrompt) {
-            this.publish("engineNegativePrompt2Change", newPrompt);
+    set negativePrompt(newPrompt) {
+        let prompt1, prompt2;
+        if (Array.isArray(newPrompt)) {
+            [prompt1, prompt2] = newPrompt;
+        } else {
+            prompt1 = newPrompt;
         }
-        this.kwargs.negative_prompt_2 = newPrompt;
+        if (this.negativePrompt !== prompt1) {
+            this.publish("engineNegativePromptChange", prompt1);
+        }
+        if (this.negativePrompt2 !== prompt2) {
+            this.publish("engineNegativePrompt2Change", prompt2);
+        }
+        this.kwargs.negative_prompt = prompt1;
+        this.kwargs.negative_prompt_2 = prompt2;
     }
 
     /**
@@ -375,56 +376,52 @@ class InvocationController extends Controller {
     }
 
     /**
-     * @return ?str|array<str> The prompt(s) to use during upscale diffusion. Default null.
+     * @return ?array<str> The prompt(s) to use during upscale diffusion. Default null.
      */
     get upscaleDiffusionPrompt() {
         return this.kwargs.upscale_diffusion_prompt;
     }
 
     /**
-     * @param str|array<str> The new prompt(s) to use during upscale diffusion.
-     */
-    set upscaleDiffusionPrompt(newPrompt) {
-        if (!isEquivalent(this.upscaleDiffusionPrompt, newPrompt)) {
-            this.publish("engineUpscaleDiffusionPromptChange", newPrompt);
-        }
-        this.kwargs.upscale_diffusion_prompt = newPrompt;
-    }
-
-    /**
-     * @return ?str|array<str> The secondary prompt(s) to use during upscale diffusion. Default null.
+     * @return ?array<str> The secondary prompt(s) to use during upscale diffusion. Default null.
      */
     get upscaleDiffusionPrompt2() {
         return this.kwargs.upscale_diffusion_prompt_2;
     }
 
     /**
-     * @param str|array<str> The new secondary prompt(s) to use during upscale diffusion.
+     * @param ?array<str> The new prompt(s) to use during upscale diffusion.
      */
-    set upscaleDiffusionPrompt2(newPrompt) {
-        if (!isEquivalent(this.upscaleDiffusionPrompt2, newPrompt)) {
-            this.publish("engineUpscaleDiffusionPrompt2Change", newPrompt);
+    set upscaleDiffusionPrompt(newPromptArray) {
+        let prompt1Array = [], 
+            prompt2Array = [];
+        for (let newPrompt of newPromptArray) {
+            let prompt1, prompt2;
+            if (Array.isArray(newPrompt)) {
+                [prompt1, prompt2] = newPrompt;
+            } else {
+                prompt1 = newPrompt;
+            }
+            prompt1Array.push(prompt1);
+            prompt2Array.push(prompt2);
         }
-        this.kwargs.upscale_diffusion_prompt_2 = newPrompt;
+        if (!isEquivalent(this.upscaleDiffusionPrompt, prompt1Array)) {
+            this.publish("engineUpscaleDiffusionPromptChange", prompt1Array);
+        }
+        if (!isEquivalent(this.upscaleDiffusionPrompt, prompt2Array)) {
+            this.publish("engineUpscaleDiffusionPrompt2Change", prompt2Array);
+        }
+        this.kwargs.upscale_diffusion_prompt = prompt1Array;
+        this.kwargs.upscale_diffusion_prompt_2 = prompt2Array;
     }
    
     /**
-     * @return ?str|array<str> The prompt(s) to use during upscale diffusion. Default null.
+     * @return ?array<str> The prompt(s) to use during upscale diffusion. Default null.
      */
     get upscaleDiffusionNegativePrompt() {
         return this.kwargs.upscale_diffusion_negative_prompt;
     }
 
-    /**
-     * @param str|array<str> The new prompt(s) to use during upscale diffusion.
-     */
-    set upscaleDiffusionNegativePrompt(newNegativePrompt) {
-        if (!isEquivalent(this.upscaleDiffusionNegativePrompt, newNegativePrompt)) {
-            this.publish("engineUpscaleDiffusionNegativePromptChange", newNegativePrompt);
-        }
-        this.kwargs.upscale_diffusion_negative_prompt = newNegativePrompt;
-    }
-   
     /**
      * @return ?str|array<str> The secondary prompt(s) to use during upscale diffusion. Default null.
      */
@@ -433,15 +430,31 @@ class InvocationController extends Controller {
     }
 
     /**
-     * @param str|array<str> The new secondary prompt(s) to use during upscale diffusion.
+     * @param array<str> The new prompt(s) to use during upscale diffusion.
      */
-    set upscaleDiffusionNegativePrompt2(newNegativePrompt) {
-        if (!isEquivalent(this.upscaleDiffusionNegativePrompt2, newNegativePrompt)) {
-            this.publish("engineUpscaleDiffusionNegativePrompt2Change", newNegativePrompt);
+    set upscaleDiffusionNegativePrompt(newPromptArray) {
+        let prompt1Array = [], 
+            prompt2Array = [];
+        for (let newPrompt of newPromptArray) {
+            let prompt1, prompt2;
+            if (Array.isArray(newPrompt)) {
+                [prompt1, prompt2] = newPrompt;
+            } else {
+                prompt1 = newPrompt;
+            }
+            prompt1Array.push(prompt1);
+            prompt2Array.push(prompt2);
         }
-        this.kwargs.upscale_diffusion_negative_prompt_2 = newNegativePrompt;
+        if (!isEquivalent(this.upscaleDiffusionNegativePrompt, prompt1Array)) {
+            this.publish("engineUpscaleDiffusionNegativePromptChange", prompt1Array);
+        }
+        if (!isEquivalent(this.upscaleDiffusionNegativePrompt2, prompt2Array)) {
+            this.publish("engineUpscaleDiffusionNegativePrompt2Change", prompt2Array);
+        }
+        this.kwargs.upscale_diffusion_negative_prompt = prompt1Array;
+        this.kwargs.upscale_diffusion_negative_prompt_2 = prompt2Array;
     }
-    
+   
     /**
      * @return ?int|array<int> The steps to use during upscale diffusion. Default 100.
      */

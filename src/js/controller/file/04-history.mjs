@@ -1,10 +1,10 @@
-/** @module controller/file/history */
+/** @module controller/file/04-history */
+import { isEmpty, humanDuration, sleep } from "../../base/helpers.mjs";
 import { MenuController } from "../menu.mjs";
 import { ParentView } from "../../view/base.mjs";
 import { TableView } from "../../view/table.mjs";
-import { StringInputView } from "../../view/forms/input.mjs";
+import { StringInputView } from "../../forms/input.mjs";
 import { ImageView, ImageInspectorView } from "../../view/image.mjs";
-import { isEmpty, humanDuration, sleep } from "../../base/helpers.mjs";
 import { ElementBuilder } from "../../base/builder.mjs";
 
 const imageWidthPadding = 2,

@@ -1,4 +1,4 @@
-/** @module controller/model/manager */
+/** @module controller/models/02-manager */
 import { MenuController } from "../menu.mjs";
 
 /**

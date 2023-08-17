@@ -2,7 +2,7 @@
 import { ElementBuilder } from '../base/builder.mjs';
 import { SimpleNotification } from '../common/notify.mjs';
 import { View } from './base.mjs';
-import { StringInputView, ListInputView } from "./forms/input.mjs";
+import { StringInputView, ListInputView } from "../forms/input.mjs";
 import { set, isEmpty, snakeCase, deepClone, stripHTML } from '../base/helpers.mjs';
 
 const E = new ElementBuilder({

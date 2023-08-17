@@ -1,97 +1,13 @@
-/** @module controller/models/civitai */
-import { MenuController } from "../menu.mjs";
+/** @module controller/models/01-civitai */
 import { isEmpty, humanSize, truncate, cleanHTML } from "../../base/helpers.mjs";
+import { MenuController } from "../menu.mjs";
 import { ElementBuilder } from "../../base/builder.mjs";
 import { View, ParentView, TabbedView } from "../../view/base.mjs";
 import { SimpleNotification } from "../../common/notify.mjs";
-import { FormView } from "../../view/forms/base.mjs";
-import { StringInputView, SelectInputView, CheckboxInputView } from "../../view/forms/input.mjs";
+import { CivitAISearchOptionsFormView } from "../../forms/enfugue/civitai.mjs";
 
 const E = new ElementBuilder();
 const browserWindowDimensions = [800, 1000];
-
-/**
- * The options for sorting in CivitAI
- */
-class CivitAISortInputView extends SelectInputView {
-    /**
-     * @var object the option values and labels (CivitAI uses sentence cased parameters)
-     */
-    static defaultOptions = [
-        "Highest Rated",
-        "Most Downloaded",
-        "Newest"
-    ];
-
-    /**
-     * @var string The default value
-     */
-    static defaultValue = "Highest Rated";
-};
-
-/**
- * The options for time period in CivitAI
- */
-class CivitAITimePeriodInputView extends SelectInputView {
-    /**
-     * @var object the option values and labels
-     */
-    static defaultOptions = {
-        "AllTime": "All Time",
-        "Year": "This Year",
-        "Month": "This Month",
-        "Week": "This Week",
-        "Day": "Today"
-    };
-
-    /**
-     * @var string The default value
-     */
-    static defaultValue = "Month";
-};
-
-/**
- * This form gathers together all the filter options
- */
-class CivitAISearchOptionsFormView extends FormView {
-    /**
-     * @var object The fieldset labels and config
-     */
-    static fieldSets = {
-        "Sorting": {
-            "sort": {
-                "label": "Sort Method",
-                "class": CivitAISortInputView
-            },
-            "period": {
-                "label": "Time Period",
-                "class": CivitAITimePeriodInputView
-            }
-        },
-        "Filters": {
-            "commercial": {
-                "label": "Only Show Models Allowing Commercial Use",
-                "class": CheckboxInputView,
-                "config": {
-                    "tooltip": "Checking this box will ensure all results have at least the 'Image' commercial use status from CivitAI. Some models may additionally authorize you to distribute or modify the models, but not all - review the details on each result before making such a determination."
-                }
-            },
-            "nsfw": {
-                "label": "Show NSFW Models and Images",
-                "class": CheckboxInputView,
-                "config": {
-                    "tooltip": "Checking this box will show <strong>NSFW (Not Safe For Work)</strong> content of a sexual or explicit nature.<br /><br /><em>Note:</em> If safety checking is enabled on a system-wide level, NSFW results will never be returned, regardless of whether or not this box is checked."
-                }
-            },
-            "search": {
-                "class": StringInputView,
-                "config": {
-                    "placeholder": "Search by name, user, description, etc."
-                }
-            }
-        }
-    };
-};
 
 /**
  * This is a single model from CivitAI (checkpoint, lora, TI)

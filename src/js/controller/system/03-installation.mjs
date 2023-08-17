@@ -1,65 +1,16 @@
-/** @module controller/system/03-settings */
-import { MenuController } from "../menu.mjs";
-import { ElementBuilder } from "../../base/builder.mjs";
+/** @module controller/system/03-installation */
 import { isEmpty, humanSize } from "../../base/helpers.mjs";
+import { ElementBuilder } from "../../base/builder.mjs";
+import { MenuController } from "../menu.mjs";
 import { View, ParentView } from "../../view/base.mjs";
-import { FormView } from "../../view/forms/base.mjs";
 import { TableView } from "../../view/table.mjs";
-import { FileInputView, ButtonInputView, StringInputView } from "../../view/forms/input.mjs";
+import { ButtonInputView } from "../../forms/input.mjs";
+import { DirectoryFormView, FileFormView } from "../../forms/enfugue/files.mjs";
 
 const E = new ElementBuilder();
 
 /**
- * The ChangeDirectoryForm allows changing the filesystem location for a directory
- */
-class ChangeDirectoryForm extends FormView {
-    /**
-     * @var bool Enable canceling
-     */
-    static showCancel = true;
-
-    /**
-     * @var object Only a single fieldset
-     */
-    static fieldSets = {
-        "Directory": {
-            "directory": {
-                "class": StringInputView,
-                "config": {
-                    "required": true,
-                    "placeholder": "C:\\Users\\MyUser\\..."
-                }
-            }
-        }
-    };
-};
-
-/**
- * The UploadFileFormView allows uploading a single file to a directory
- */
-class UploadFileFormView extends FormView {
-    /**
-     * @var bool Enable canceling
-     */
-    static showCancel = true;
-
-    /**
-     * @var object Only a single fieldset
-     */
-    static fieldSets = {
-        "File": {
-            "file": {
-                "class": FileInputView,
-                "config": {
-                    "required": true
-                }
-            }
-        }
-    };
-};
-
-/**
- * This extemds the button input view to set css classes and content
+ * This extends the button input view to set css classes and content
  */
 class UploadFileButtonInputView extends ButtonInputView {
     /**
@@ -393,7 +344,7 @@ class InstallationController extends MenuController {
      * Shows the 'upload file' dialogue for select directories
      */
     async showUploadFile(directory) {
-        let uploadFileForm = new UploadFileFormView(this.config),
+        let uploadFileForm = new FileFormView(this.config),
             uploadFileWindow = await this.spawnWindow(
                 `Upload File to '${directory}'`,
                 uploadFileForm,
@@ -431,7 +382,7 @@ class InstallationController extends MenuController {
      * Shows the 'change directory' dialogue for a directory
      */
     async showChangeDirectory(directory, currentValue) {
-        let changeDirectoryForm = new ChangeDirectoryForm(this.config, {"directory": currentValue}),
+        let changeDirectoryForm = DirectoryFormView(this.config, {"directory": currentValue}),
             changeDirectoryWindow = await this.spawnWindow(
                 `Change Filesystem Location for ${directory}`,
                 changeDirectoryForm,

@@ -1,15 +1,10 @@
 /** @module controller/system/02-users */
-import { MenuController } from "../menu.mjs";
 import { isEmpty } from "../../base/helpers.mjs";
-import { FormView } from "../../view/forms/base.mjs";
+import { MenuController } from "../menu.mjs";
 import { ParentView } from "../../view/base.mjs";
 import { ModelTableView } from "../../view/table.mjs";
-import { 
-    CheckboxInputView, 
-    StringInputView,
-    PasswordInputView,
-    ButtonInputView
-} from "../../view/forms/input.mjs";
+import { UserFormView } from "../../forms/enfugue/user.mjs";
+import { ButtonInputView } from "../../forms/input.mjs";
 
 /**
  * A small view extension for the new user button
@@ -25,68 +20,6 @@ class NewUserButtonInputView extends ButtonInputView {
      */
     static defaultValue = "New User";
 }
-
-/**
- * The form gathers all inputs for the user
- */
-class UserForm extends FormView {
-    /**
-     * @var object The fields
-     */
-    static fieldSets = {
-        "User": {
-            "username": {
-                "label": "Username",
-                "class": StringInputView,
-                "config": {
-                    "required": true,
-                    "editable": false,
-                    "pattern": "^[a-zA-Z0-9_]{2,}$",
-                    "minlength": 2,
-                    "maxlength": 128
-                }
-            },
-            "first_name": {
-                "label": "First Name",
-                "class": StringInputView
-            },
-            "last_name": {
-                "label": "Last Name",
-                "class": StringInputView
-            }
-        },
-        "Permissions": {
-            "admin": {
-                "label": "Administrator",
-                "class": CheckboxInputView
-            }
-        },
-        "Password": {
-            "new_password": {
-                "label": "New Password",
-                "class": PasswordInputView
-            },
-            "repeat_password": {
-                "label": "Repeat Password",
-                "class": PasswordInputView
-            }
-        }
-    };
-
-    /**
-     * On build, disable permission change if user is default.
-     */
-    async build() {
-        let node = await super.build();
-        if (!isEmpty(this.values)) {
-            if (this.values.username === "enfugue") {
-                this.inputViews.filter((view) => view.fieldName === "admin")[0].disable();
-            }
-        }
-        return node;
-    }
-};
-
 /**
  * Extend the user table to control buttons when needed
  */
@@ -183,7 +116,7 @@ class UsersController extends MenuController {
                         (carry, group) => carry || (group.group[0].label === "admin"), 
                         false
                     );
-                let userForm = new UserForm(this.config, userData),
+                let userForm = new UserFormView(this.config, userData),
                     userWindow = await this.spawnWindow(
                         `Edit ${row.username}`,
                         userForm,

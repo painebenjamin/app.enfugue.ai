@@ -1,59 +1,7 @@
 /** @module controller/sidebar/01-engine */
 import { isEmpty } from "../../base/helpers.mjs";
-import { FormView } from "../../view/forms/base.mjs";
+import { EngineFormView } from "../../forms/enfugue/engine.mjs";
 import { Controller } from "../base.mjs";
-import {
-    EngineSizeInputView,
-    RefinerEngineSizeInputView,
-    InpainterEngineSizeInputView
-} from "../common/model-manager.mjs";
-
-/**
- * The forms that allow for engine configuration when not using preconfigured models
- */
-class EngineForm extends FormView {
-    /**
-     * @var bool Don't show submit
-     */
-    static autoSubmit = true;
-
-    /**
-     * @var bool Start collapsed
-     */
-    static collapseFieldSets = true;
-
-    /**
-     * @var object The field sets for the form
-     */
-    static fieldSets = {
-        "Engine": {
-            "size": {
-                "label": "Engine Size",
-                "class": EngineSizeInputView,
-                "config": {
-                    "required": false,
-                    "value": null
-                }
-            },
-            "refinerSize": {
-                "label": "Refining Engine Size",
-                "class": RefinerEngineSizeInputView,
-                "config": {
-                    "required": false,
-                    "value": null
-                }
-            },
-            "inpainterSize": {
-                "label": "Inpainting Engine Size",
-                "class": InpainterEngineSizeInputView,
-                "config": {
-                    "required": false,
-                    "value": null
-                }
-            }
-        }
-    };
-}
 
 /**
  * Extend the menu controller to bind initialize
@@ -93,7 +41,7 @@ class EngineController extends Controller {
      */
     async initialize() {
         // Builds form
-        this.engineForm = new EngineForm(this.config);
+        this.engineForm = new EngineFormView(this.config);
 
         // Bind submit
         this.engineForm.onSubmit(async (values) => {

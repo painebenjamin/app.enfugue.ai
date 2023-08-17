@@ -369,7 +369,7 @@ class DiffusionStep:
                 if self.remove_background:
                     image = execute_remove_background(image)
 
-                samples = kwargs.get("samples", 1)
+                samples = kwargs.get("num_images_per_prompt", 1)
                 from diffusers.pipelines.stable_diffusion import StableDiffusionPipelineOutput
 
                 self.result = StableDiffusionPipelineOutput(

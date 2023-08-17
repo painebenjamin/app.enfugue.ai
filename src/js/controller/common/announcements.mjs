@@ -1,11 +1,17 @@
 /** @module controller/common/announcements */
-import { isEmpty, waitFor, humanSize, humanDuration, titleCase } from "../../base/helpers.mjs";
+import {
+    isEmpty,
+    waitFor,
+    humanSize,
+    humanDuration,
+    titleCase
+} from "../../base/helpers.mjs";
 import { ElementBuilder } from "../../base/builder.mjs";
 import { Controller } from "../base.mjs";
 import { View, ParentView } from "../../view/base.mjs";
 import { TableView } from "../../view/table.mjs";
-import { FormView } from "../../view/forms/base.mjs";
-import { ButtonInputView, StringInputView } from "../../view/forms/input.mjs";
+import { FormView } from "../../forms/base.mjs";
+import { ButtonInputView, StringInputView } from "../../forms/input.mjs";
 
 const E = new ElementBuilder();
 

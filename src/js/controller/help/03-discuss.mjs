@@ -1,4 +1,4 @@
-/** @module controller/help/03-discussion */
+/** @module controller/help/03-discuss */
 import { MenuController } from "../menu.mjs";
 
 /**
