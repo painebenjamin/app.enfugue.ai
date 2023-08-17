@@ -21,6 +21,7 @@ from pibble.util.encryption import Password
 
 from enfugue.util import logger
 from enfugue.api.controller.base import EnfugueAPIControllerBase
+from enfugue.diffusion.constants import *
 
 __all__ = ["EnfugueAPISystemController"]
 
@@ -62,6 +63,69 @@ def get_directory_size(directory: str, recurse: bool = True) -> Tuple[int, int, 
 class EnfugueAPISystemController(EnfugueAPIControllerBase):
     handlers = UserExtensionHandlerRegistry()
 
+    CONTROLNETS = [
+        "canny", "hed", "pidi", "mlsd",
+        "line", "anime", "scribble", "depth",
+        "normal", "pose", "tile", "inpaint"
+    ]
+
+    def get_default_controlnet_path(
+        self,
+        name: CONTROLNET_LITERAL,
+        is_sdxl: bool = False
+    ) -> Optional[str]:
+        """
+        Gets the default controlnet path based on pipeline type
+        """
+        if is_sdxl:
+            if name == "canny":
+                return CONTROLNET_CANNY_XL
+            elif name == "depth":
+                return CONTROLNET_DEPTH_XL
+        else:
+            if name == "canny":
+                return CONTROLNET_CANNY
+            elif name == "mlsd":
+                return CONTROLNET_MLSD
+            elif name == "hed":
+                return CONTROLNET_HED
+            elif name == "tile":
+                return CONTROLNET_TILE
+            elif name == "scribble":
+                return CONTROLNET_SCRIBBLE
+            elif name == "inpaint":
+                return CONTROLNET_INPAINT
+            elif name == "depth":
+                return CONTROLNET_DEPTH
+            elif name == "normal":
+                return CONTROLNET_NORMAL
+            elif name == "pose":
+                return CONTROLNET_POSE
+            elif name == "line":
+                return CONTROLNET_LINE
+            elif name == "anime":
+                return CONTROLNET_ANIME
+            elif name == "pidi":
+                return CONTROLNET_PIDI
+        return None
+
+    def get_controlnet_path(
+        self,
+        name: CONTROLNET_LITERAL,
+        is_sdxl: bool = False
+    ) -> Optional[str]:
+        """
+        Gets a Controlnet path by name, based on current config.
+        """
+        key_parts = ["enfugue", "controlnet"]
+        if is_sdxl:
+            key_parts += ["xl"]
+        key_parts += [name]
+        configured_path = self.configuration.get(".".join(key_parts), None)
+        if configured_path is None:
+            return self.get_default_controlnet_path(name, is_sdxl)
+        return configured_path
+
     @handlers.path("^/api/settings$")
     @handlers.methods("GET")
     @handlers.format()
@@ -70,7 +134,7 @@ class EnfugueAPISystemController(EnfugueAPIControllerBase):
         """
         Gets the settings that can be manipulated from the UI
         """
-        return {
+        settings = {
             "safe": self.configuration.get("enfugue.safe", True),
             "auth": not (self.configuration.get("enfugue.noauth", True)),
             "max_queued_invocations": self.manager.max_queued_invocations,
@@ -80,6 +144,10 @@ class EnfugueAPISystemController(EnfugueAPIControllerBase):
             "cache_mode": self.configuration.get("enfugue.pipeline.cache", "xl"),
             "precision": self.configuration.get("enfugue.dtype", None),
         }
+        for controlnet in self.CONTROLNETS:
+            settings[controlnet] = self.get_controlnet_path(controlnet)
+            settings[f"{controlnet}_xl"] = self.get_controlnet_path(controlnet, True)
+        return settings
 
     @handlers.path("^/api/settings$")
     @handlers.methods("POST")
@@ -124,6 +192,11 @@ class EnfugueAPISystemController(EnfugueAPIControllerBase):
         ]:
             if key in request.parsed:
                 self.user_config[f"enfugue.{key}"] = request.parsed[key]
+        for controlnet in self.CONTROLNETS:
+            if controlnet in request.parsed:
+                self.user_config[f"enfugue.controlnet.{controlnet}"] = request.parsed[controlnet]
+            if f"{controlnet}_xl" in request.parsed:
+                self.user_config[f"enfugue.controlnet.xl.{controlnet}"] = request.parsed[f"{controlnet}_xl"]
         self.configuration.update(**self.user_config.dict())
         return self.get_settings(request, response)
 

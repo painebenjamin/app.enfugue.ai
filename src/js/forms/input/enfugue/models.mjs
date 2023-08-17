@@ -481,6 +481,7 @@ export {
     RefinerEngineSizeInputView,
     InpainterEngineSizeInputView,
     VAEInputView,
+    DefaultVAEInputView,
     SchedulerInputView,
     MultiDiffusionSchedulerInputView,
     ModelPickerStringInputView,

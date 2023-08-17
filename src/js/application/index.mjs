@@ -32,7 +32,8 @@ import {
     LoraInputView,
     LycorisInputView,
     InversionInputView,
-    ModelPickerInputView
+    ModelPickerInputView,
+    DefaultVAEInputView
 } from "../forms/input.mjs";
 import {
     ConfirmFormView,
@@ -274,6 +275,10 @@ class Application {
      * Sets getters for dynamic inputs
      */
     async registerDynamicInputs() {
+        if (isEmpty(window.enfugue) || !window.enfugue.admin) {
+            // Remove other input
+            delete DefaultVAEInputView.defaultOptions.other;
+        }
         CheckpointInputView.defaultOptions = () => this.model.get("/checkpoints");
         LoraInputView.defaultOptions = () => this.model.get("/lora");
         LycorisInputView.defaultOptions = () => this.model.get("/lycoris");

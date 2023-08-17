@@ -90,8 +90,36 @@ class PipelinePrecisionModeInputView extends SelectInputView {
     static tooltip = "When performing calculations on your GPU, we use floating-point numbers of a certain precision. In some cases we must use full-precision in order to calculate correctly, but in some places this is not necessary and calculations can be performed at half-precision instead, without losing quality. In general, you should only change this setting to 'Always Use Full Precision' when you experience errors during diffusion.";
 };
 
+/**
+ * Controls how we switch to inpainting
+ */
+class PipelineInpaintingModeInputView extends SelectInputView {
+    /**
+     * @var object The options for inpainting
+     */
+    static defaultOptions = {
+        "never": "Never Create Inpainting Checkpoint"
+    };
+    
+    /**
+     * @var bool Allow an empty (null) value
+     */
+    static allowEmpty = true;
+
+    /**
+     * @var string The text to show for the null value
+     */
+    static placeholder = "Create Inpainting Checkpoint when Available";
+    
+    /**
+     * @var string The text to show to the user
+     */
+    static tooltip = "When <strong>inpainting</strong>, that is, changing only a portion of an image, you <strong>can</strong> directly use a regular model to do so. However, this does not always produce good results, and a more consistent means of inpainting effectively can be employed by creating an inpainting checkpoint from fine-tuned checkpoints.<br /><br />The default setting of Enfugue creates these checkpoints when inpainting is requested. This can use more storage space than desired, so the option is provided to disable this feature.";
+}
+
 export {
     PipelineSwitchModeInputView,
     PipelineCacheModeInputView,
-    PipelinePrecisionModeInputView
+    PipelinePrecisionModeInputView,
+    PipelineInpaintingModeInputView,
 };

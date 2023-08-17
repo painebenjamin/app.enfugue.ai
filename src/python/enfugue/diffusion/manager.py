@@ -449,10 +449,7 @@ class DiffusionPipelineManager:
             if not new_vae:
                 self._vae_name = None  # type: ignore
                 self._vae = None
-
                 self.unload_pipeline("VAE resetting to default")
-                self.unload_refiner("VAE resetting to default")
-                self.unload_inpainter("VAE resetting to default")
             else:
                 self._vae_name = new_vae
                 self._vae = self.get_vae(pretrained_path)
@@ -465,6 +462,59 @@ class DiffusionPipelineManager:
                         self._pipeline.register_to_config(
                             force_full_precision_vae = new_vae in ["xl", "stabilityai/sdxl-vae"]
                         )
+
+    @property
+    def vae_name(self) -> Optional[str]:
+        """
+        Gets the name of the VAE, if one was set.
+        """
+        if not hasattr(self, "_vae_name"):
+            self._vae_name = self.configuration.get("enfugue.vae.base", None)
+        return self._vae_name
+    
+    @property
+    def refiner_vae(self) -> Optional[AutoencoderKL]:
+        """
+        Gets the configured refiner VAE (or none.)
+        """
+        if not hasattr(self, "_refiner_vae"):
+            self._refiner_vae = self.get_vae(self.refiner_vae_name)
+        return self._refiner_vae
+
+    @vae.setter
+    def refiner_vae(
+        self,
+        new_vae: Optional[str],
+    ) -> None:
+        """
+        Sets a new refiner vae.
+        """
+        if new_vae == "ema":
+            pretrained_path = VAE_EMA
+        elif new_vae == "mse":
+            pretrained_path = VAE_MSE
+        elif new_vae == "xl":
+            pretrained_path = VAE_XL
+        elif new_vae == "xl16":
+            pretrained_path = VAE_XL16
+        else:
+            # Custom
+            pretrained_path = new_vae
+
+        existing_vae = getattr(self, "_refiner_vae", None)
+
+        if (
+            (not existing_vae and new_vae)
+            or (existing_vae and not new_vae)
+            or (existing_vae and new_vae and self.refiner_vae_name != new_vae)
+        ):
+            if not new_vae:
+                self._refiner_vae_name = None  # type: ignore
+                self._refiner_vae = None
+                self.unload_refiner("VAE resetting to default")
+            else:
+                self._refiner_vae_name = new_vae
+                self._refiner_vae = self.get_vae(pretrained_path)
                 if self.refiner_tensorrt_is_ready and "vae" in self.TENSORRT_STAGES:
                     self.unload_refiner("VAE changing")
                 elif hasattr(self, "_refiner_pipeline"):
@@ -474,6 +524,59 @@ class DiffusionPipelineManager:
                         self._refiner_pipeline.register_to_config(
                             force_full_precision_vae = new_vae in ["xl", "stabilityai/sdxl-vae"]
                         )
+
+    @property
+    def refiner_vae_name(self) -> Optional[str]:
+        """
+        Gets the name of the VAE, if one was set.
+        """
+        if not hasattr(self, "_refiner_vae_name"):
+            self._refiner_vae_name = self.configuration.get("enfugue.vae.refiner", None)
+        return self._refiner_vae_name
+    
+    @property
+    def inpainter_vae(self) -> Optional[AutoencoderKL]:
+        """
+        Gets the configured inpainter VAE (or none.)
+        """
+        if not hasattr(self, "_inpainter_vae"):
+            self._inpainter_vae = self.get_vae(self.inpainter_vae_name)
+        return self._inpainter_vae
+
+    @vae.setter
+    def inpainter_vae(
+        self,
+        new_vae: Optional[str],
+    ) -> None:
+        """
+        Sets a new inpainter vae.
+        """
+        if new_vae == "ema":
+            pretrained_path = VAE_EMA
+        elif new_vae == "mse":
+            pretrained_path = VAE_MSE
+        elif new_vae == "xl":
+            pretrained_path = VAE_XL
+        elif new_vae == "xl16":
+            pretrained_path = VAE_XL16
+        else:
+            # Custom
+            pretrained_path = new_vae
+
+        existing_vae = getattr(self, "_inpainter_vae", None)
+
+        if (
+            (not existing_vae and new_vae)
+            or (existing_vae and not new_vae)
+            or (existing_vae and new_vae and self.inpainter_vae_name != new_vae)
+        ):
+            if not new_vae:
+                self._inpainter_vae_name = None  # type: ignore
+                self._inpainter_vae = None
+                self.unload_inpainter("VAE resetting to default")
+            else:
+                self._inpainter_vae_name = new_vae
+                self._inpainter_vae = self.get_vae(pretrained_path)
                 if self.inpainter_tensorrt_is_ready and "vae" in self.TENSORRT_STAGES:
                     self.unload_inpainter("VAE changing")
                 elif hasattr(self, "_inpainter_pipeline"):
@@ -485,13 +588,13 @@ class DiffusionPipelineManager:
                         )
 
     @property
-    def vae_name(self) -> Optional[str]:
+    def inpainter_vae_name(self) -> Optional[str]:
         """
         Gets the name of the VAE, if one was set.
         """
-        if not hasattr(self, "_vae_name"):
-            self._vae_name = self.configuration.get("enfugue.vae", None)
-        return self._vae_name
+        if not hasattr(self, "_inpainter_vae_name"):
+            self._inpainter_vae_name = self.configuration.get("enfugue.vae.inpainter", None)
+        return self._inpainter_vae_name
 
     @property
     def size(self) -> int:
@@ -2674,7 +2777,7 @@ class DiffusionPipelineManager:
         """
         Gets the default controlnet path based on pipeline type
         """
-        if self.is_sdxl:
+        if is_sdxl:
             if name == "canny":
                 return CONTROLNET_CANNY_XL
             elif name == "depth":
@@ -2708,17 +2811,17 @@ class DiffusionPipelineManager:
                 return CONTROLNET_PIDI
         raise ValueError(f"Unknown or unsupported ControlNet {name}")
 
-    def get_controlnet_path_by_name(self, name: CONTROLNET_LITERAL) -> str:
+    def get_controlnet_path_by_name(self, name: CONTROLNET_LITERAL, is_sdxl: bool) -> str:
         """
         Gets a Controlnet path by name, based on current config.
         """
         key_parts = ["enfugue", "controlnet"]
-        if self.is_sdxl:
+        if is_sdxl:
             key_parts += ["xl"]
         key_parts += [name]
         configured_path = self.configuration.get(".".join(key_parts), None)
         if configured_path is None:
-            return self.get_default_controlnet_path_by_name(name, self.is_sdxl)
+            return self.get_default_controlnet_path_by_name(name, is_sdxl)
         return configured_path
 
     @property
@@ -2750,7 +2853,7 @@ class DiffusionPipelineManager:
                 logger.debug(f"Setting ControlNet to {new_controlnet}")
                 self._controlnet_name = new_controlnet
                 try:
-                    pretrained_path = self.get_controlnet_path_by_name(new_controlnet)
+                    pretrained_path = self.get_controlnet_path_by_name(new_controlnet, self.is_sdxl)
                     self._controlnet = self.get_controlnet(pretrained_path)
                     self._controlnet_name = new_controlnet
                 except:

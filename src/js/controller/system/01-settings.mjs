@@ -20,12 +20,12 @@ class SystemSettingsController extends MenuController {
     /**
      * @var int The width of the settings window
      */
-    static settingsWindowWidth = 600;
+    static settingsWindowWidth = 460;
 
     /**
      * @var int The height of the settings window
      */
-    static settingsWindowHeight = 720;
+    static settingsWindowHeight = 600;
 
     /**
      * Gets the settings from the API

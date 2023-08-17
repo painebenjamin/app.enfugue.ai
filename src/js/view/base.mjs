@@ -60,6 +60,21 @@ class View {
     }
 
     /**
+     * Hides the elements parent on the page.
+     */
+    hideParent() {
+        this.hidden = true;
+        this.lock.acquire().then((release) => {
+            if (this.node !== undefined && this.node.element !== undefined) {
+                this.previousDisplay = this.node.element.parentElement.style.display;
+                this.node.element.parentElement.classList.add("hidden");
+            }
+            release();
+        });
+        return this;
+    }
+
+    /**
      * Show the element on the page.
      */
     show() {
@@ -72,6 +87,21 @@ class View {
         });
         return this;
     }
+    
+    /**
+     * Shows the elements parent on the page.
+     */
+    showParent(defaultDisplay = "block") {
+        this.hidden = false;
+        this.lock.acquire().then((release) => {
+            if (this.node !== undefined && this.node.element !== undefined) {
+                this.node.element.parentElement.classList.remove("hidden");
+            }
+            release();
+        });
+        return this;
+    }
+
 
     /**
      * Add a class to memory, reflecting in the DOM if possible.

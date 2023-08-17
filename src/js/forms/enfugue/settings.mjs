@@ -4,10 +4,24 @@ import {
     CheckboxInputView,
     NumberInputView,
     SelectInputView,
+    StringInputView,
     PipelineSwitchModeInputView,
     PipelineCacheModeInputView,
-    PipelinePrecisionModeInputView
+    PipelinePrecisionModeInputView,
+    PipelineInpaintingModeInputView,
 } from "../input.mjs";
+
+class ControlNetPathInputView extends StringInputView {
+    /**
+     * @var string The placeholder
+     */
+    static placeholder = "e.g. lllyasviel/sd-controlnet-canny";
+
+    /**
+     * @var string the tooltip
+     */
+    static tooltip = "Enter the path to the Huggingface Diffusers repository containing the configuration for a ControlNet to use for each supported ControlNet type.<br /><br />See https://huggingface.co for more details.";
+}
 
 /**
  * This class assembles all settings manageable from the UI
@@ -50,6 +64,10 @@ class SystemSettingsFormView extends FormView {
                 "label": "Precision Mode",
                 "class": PipelinePrecisionModeInputView
             },
+            "inpainting": {
+                "label": "Inpainting Mode",
+                "class": PipelineInpaintingModeInputView
+            },
             "max_queued_invocations": {
                 "label": "Queue Size",
                 "class": NumberInputView,
@@ -87,8 +105,111 @@ class SystemSettingsFormView extends FormView {
                     "tooltip": "The maximum number of downloads to queue."
                 }
             }
+        },
+        "ControlNets": {
+            "canny": {
+                "label": "Canny Edge",
+                "class": ControlNetPathInputView
+            },
+            "canny_xl": {
+                "label": "Canny Edge XL",
+                "class": ControlNetPathInputView
+            },
+            "hed": {
+                "label": "Holistically-Nested Edge Detection (HED)",
+                "class": ControlNetPathInputView
+            },
+            "hed_xl": {
+                "label": "Holistically-Nested Edge Detection (HED) XL",
+                "class": ControlNetPathInputView
+            },
+            "pidi": {
+                "label": "Soft Edge Detection (PIDI)",
+                "class": ControlNetPathInputView
+            },
+            "pidi_xl": {
+                "label": "Soft Edge Detection (PIDI) XL",
+                "class": ControlNetPathInputView
+            },
+            "mlsd": {
+                "label": "Mobile Line Segment Detection (MLSD)",
+                "class": ControlNetPathInputView
+            },
+            "mlsd_xl": {
+                "label": "Mobile Line Segment Detection (MLSD) XL",
+                "class": ControlNetPathInputView
+            },
+            "line": {
+                "label": "Line Art",
+                "class": ControlNetPathInputView
+            },
+            "line_xl": {
+                "label": "Line Art XL",
+                "class": ControlNetPathInputView
+            },
+            "anime": {
+                "label": "Anime Line Art",
+                "class": ControlNetPathInputView
+            },
+            "anime_xl": {
+                "label": "Anime Line Art XL",
+                "class": ControlNetPathInputView
+            },
+            "scribble": {
+                "label": "Scribble",
+                "class": ControlNetPathInputView
+            },
+            "scribble_xl": {
+                "label": "Scribble XL",
+                "class": ControlNetPathInputView
+            },
+            "depth": {
+                "label": "Depth Detection (MiDaS)",
+                "class": ControlNetPathInputView
+            },
+            "depth_xl": {
+                "label": "Depth Detection (MiDaS) XL",
+                "class": ControlNetPathInputView
+            },
+            "normal": {
+                "label": "Normal Detection (Estimate)",
+                "class": ControlNetPathInputView
+            },
+            "normal_xl": {
+                "label": "Normal Detection (Estimate) XL",
+                "class": ControlNetPathInputView
+            },
+            "pose": {
+                "label": "Pose Detection (OpenPose)",
+                "class": ControlNetPathInputView
+            },
+            "pose_xl": {
+                "label": "Pose Detection (OpenPose) XL",
+                "class": ControlNetPathInputView
+            },
+            "tile": {
+                "label": "Tile",
+                "class": ControlNetPathInputView
+            },
+            "tile_xl": {
+                "label": "Tile XL",
+                "class": ControlNetPathInputView
+            },
+            "inpaint": {
+                "label": "Inpaint",
+                "class": ControlNetPathInputView
+            },
+            "inpaint_xl": {
+                "label": "Inpaint XL",
+                "class": ControlNetPathInputView
+            }
         }
     };
+
+    /**
+     * Collapse ControlNets by default
+     */
+    static collapseFieldSets = ["ControlNets"];
 };
 
 export { SystemSettingsFormView };

@@ -47,6 +47,7 @@ import {
     RefinerEngineSizeInputView,
     InpainterEngineSizeInputView,
     VAEInputView,
+    DefaultVAEInputView,
     SchedulerInputView,
     MultiDiffusionSchedulerInputView,
     ModelPickerStringInputView,
@@ -54,6 +55,7 @@ import {
     ModelPickerInputView
 } from "./input/enfugue/models.mjs";
 import {
+    PipelineInpaintingModeInputView,
     PipelineSwitchModeInputView,
     PipelineCacheModeInputView,
     PipelinePrecisionModeInputView
@@ -120,6 +122,7 @@ export {
     EngineSizeInputView,
     RefinerEngineSizeInputView,
     InpainterEngineSizeInputView,
+    DefaultVAEInputView,
     VAEInputView,
     SchedulerInputView,
     MultiDiffusionSchedulerInputView,
@@ -129,6 +132,7 @@ export {
     PipelineSwitchModeInputView,
     PipelineCacheModeInputView,
     PipelinePrecisionModeInputView,
+    PipelineInpaintingModeInputView,
     OutputScaleInputView,
     UpscaleMethodsInputView,
     UpscaleDiffusionIterativeControlnetInputView,

@@ -675,6 +675,11 @@ fieldset.field-set-engine .inpainter-engine-size-input-view
     display: none;
 }
 
+fieldset.field-set-control-nets .field-container
+{
+    flex-basis: 40%;
+}
+
 form.show-refiner fieldset.field-set-engine:not(.collapsed) .refiner-engine-size-input-view,
 form.show-inpainter fieldset.field-set-engine:not(.collapsed) .inpainter-engine-size-input-view
 {

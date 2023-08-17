@@ -1,4 +1,5 @@
 /** @module forms/enfugue/models */
+import { isEmpty } from "../../base/helpers.mjs";
 import { ParentView } from "../../view/base.mjs";
 import { TableView, ModelTableView } from "../../view/table.mjs";
 import { FormView } from "../base.mjs";
@@ -89,13 +90,21 @@ class ModelFormView extends FormView {
                     "tooltip": "Refiner checkpoints were introduced with SDXL 0.9 - these are checkpoints specifically trained to improve detail, shapes, and generally improve the quality of images generated from the base model. These are optional, and do not need to be specifically-trained refinement checkpoints - you can try mixing and matching checkpoints for different styles, though you may wish to ensure the related checkpoints were trained on the same size images."
                 }
             },
+            "refiner_vae": {
+                "class": VAEInputView,
+                "label": "Refining VAE"
+            },
             "inpainter": {
                 "class": CheckpointInputView,
                 "label": "Inpainting Checkpoint",
                 "config": {
                     "tooltip": "An inpainting checkpoint if much like a regular Stable Diffusion checkpoint, but it additionally includes the ability to input which parts of the image can be changed and which cannot. This is used when you specifically request an image be inpainted, but is also used in many other situations in Enfugue; such as when you place an image on the canvas that doesn't cover the entire space, or use an image that has transparency in it (either before or after removing it's background.) When you don't select an inpainting checkpoint and request an inpainting operation, one will be created dynamically from the main checkpoint at runtime."
                 }
-            }
+            },
+            "inpainter_vae": {
+                "class": VAEInputView,
+                "label": "Inpainting VAE"
+            },
         },
         "Engine": {
             "size": {
@@ -252,12 +261,49 @@ class ModelFormView extends FormView {
         "Additional Models",
         "Additional Defaults"
     ];
+
+    /**
+     * Checks values and tries to hide/show inputs
+     */
+    async checkShowInputs() {
+        let refinerVAEInput = await this.getInputView("refiner_vae"),
+            inpainterVAEInput = await this.getInputView("inpainter_vae");
+        
+        if (isEmpty(this.values.refiner)) {
+            refinerVAEInput.hideParent();
+        } else {
+            refinerVAEInput.showParent();
+        }
+
+        if (isEmpty(this.values.inpainter)) {
+            inpainterVAEInput.hideParent();
+        } else {
+            inpainterVAEInput.showParent();
+        }
+    }
+
+    /**
+     * Hide/show inputs based on change
+     */
+    async inputChanged(fieldName, inputView) {
+        await super.inputChanged(fieldName, inputView);
+        await this.checkShowInputs();
+    }
+
+    /**
+     * On build, hide VAE inputs
+     */
+    async getNode() {
+        let node = await super.getNode();
+        setTimeout(() => this.checkShowInputs(), 250);
+        return node;
+    }
 };
 
 /**
  * This form allows additional pipeline configuration when using a checkpoint
  */
-class AbridgedModelFormView extends FormView {
+class AbridgedModelFormView extends ModelFormView {
     /**
      * @var string Custom CSS class
      */
@@ -267,6 +313,11 @@ class AbridgedModelFormView extends FormView {
      * @var boolean no submit button
      */
     static autoSubmit = true;
+
+    /**
+     * @var bool No cancel
+     */
+    static canCancel = false;
 
     /**
      * @var boolean Start hidden
@@ -312,12 +363,20 @@ class AbridgedModelFormView extends FormView {
                     "tooltip": "Refining checkpoints were introduced with SDXL 0.9 - these are checkpoints specifically trained to improve detail, shapes, and generally improve the quality of images generated from the base model. These are optional, and do not need to be specifically-trained refinement checkpoints - you can try mixing and matching checkpoints for different styles, though you may wish to ensure the related checkpoints were trained on the same size images."
                 }
             },
+            "refiner_vae": {
+                "label": "Refining VAE",
+                "class": VAEInputView
+            },
             "inpainter": {
                 "label": "Inpainting Checkpoint",
                 "class": CheckpointInputView,
                 "config": {
                     "tooltip": "An inpainting checkpoint if much like a regular Stable Diffusion checkpoint, but it additionally includes the ability to input which parts of the image can be changed and which cannot. This is used when you specifically request an image be inpainted, but is also used in many other situations in Enfugue; such as when you place an image on the canvas that doesn't cover the entire space, or use an image that has transparency in it (either before or after removing it's background.) When you don't select an inpainting checkpoint and request an inpainting operation, one will be created dynamically from the main checkpoint at runtime."
                 }
+            },
+            "inpainter_vae": {
+                "label": "Inpainting VAE",
+                "class": VAEInputView
             }
         }
     };
