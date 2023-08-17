@@ -28,6 +28,13 @@ import { AnnouncementsController } from "../controller/common/announcements.mjs"
 import { HistoryDatabase } from "../common/history.mjs";
 import { SimpleNotification } from "../common/notify.mjs";
 import {
+    CheckpointInputView,
+    LoraInputView,
+    LycorisInputView,
+    InversionInputView,
+    ModelPickerInputView
+} from "../forms/input.mjs";
+import {
     ConfirmFormView,
     YesNoFormView
 } from "../forms/confirm.mjs";
@@ -36,7 +43,6 @@ import {
     ImageEditorNodeView,
     ImageEditorImageNodeView
 } from "../nodes/image-editor.mjs";
-
 
 /**
  * Define a small view for a logout button
@@ -171,6 +177,7 @@ class Application {
         this.container.appendChild(await this.notifications.render());
         
         await this.startAnimations();
+        await this.registerDynamicInputs();
         await this.registerDownloadsControllers();
         await this.registerAnimationsControllers();
         await this.registerModelControllers();
@@ -261,6 +268,27 @@ class Application {
         this.session.setItem("animations", false);
         document.body.classList.add("no-animations");
         this.publish("animationsDisabled");
+    }
+
+    /**
+     * Sets getters for dynamic inputs
+     */
+    async registerDynamicInputs() {
+        CheckpointInputView.defaultOptions = () => this.model.get("/checkpoints");
+        LoraInputView.defaultOptions = () => this.model.get("/lora");
+        LycorisInputView.defaultOptions = () => this.model.get("/lycoris");
+        InversionInputView.defaultOptions = () => this.model.get("/inversions");
+        ModelPickerInputView.defaultOptions = async () => {
+            let allModels = await this.model.get("/model-options"),
+                modelOptions = allModels.reduce((carry, datum) => {
+                    let typeString = datum.type === "checkpoint"
+                        ? "Checkpoint"
+                        : "Preconfigured Model";
+                    carry[`${datum.type}/${datum.name}`] = `<strong>${datum.name}</strong><em>${typeString}</em>`;
+                    return carry;
+                }, {});
+            return modelOptions;
+        };
     }
 
     /**

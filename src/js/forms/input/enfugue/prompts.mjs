@@ -100,16 +100,24 @@ class PromptInputView extends InputView {
      * Enables secondary prompts
      */
     addSecondaryPrompt() {
+        let isChanged = this.showSecondary === true;
         this.showSecondary = true;
         this.addClass("show-secondary");
+        if (isChanged) {
+            this.changed();
+        }
     }
 
     /**
      * Disables secondary prompts
      */
     removeSecondaryPrompt() {
+        let isChanged = this.showSecondary === true;
         this.showSecondary = false;
         this.removeClass("show-secondary");
+        if (isChanged) {
+            this.changed();
+        }
     }
     
     /**

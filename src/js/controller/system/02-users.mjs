@@ -171,7 +171,7 @@ class UsersController extends MenuController {
             this.newUserView = new NewUserButtonInputView(this.config);
             this.newUserView.onChange(async () => {
                 if (isEmpty(this.newUserWindow)) {
-                    let newUserForm = new UserForm(this.config);
+                    let newUserForm = new UserFormView(this.config);
                     this.newUserWindow = await this.spawnWindow(
                         "New User",
                         newUserForm,

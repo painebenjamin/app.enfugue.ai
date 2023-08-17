@@ -346,17 +346,6 @@ class ModelPickerController extends Controller {
      */
     async initialize() {
         this.builtEngines = {};
-        ModelPickerInputView.defaultOptions = async () => {
-            let allModels = await this.model.get("/model-options"),
-                modelOptions = allModels.reduce((carry, datum) => {
-                    let typeString = datum.type === "checkpoint"
-                        ? "Checkpoint"
-                        : "Preconfigured Model";
-                    carry[`${datum.type}/${datum.name}`] = `<strong>${datum.name}</strong><em>${typeString}</em>`;
-                    return carry;
-                }, {});
-            return modelOptions;
-        };
 
         this.modelPickerFormView = new ModelPickerFormView(this.config);
         this.abridgedModelFormView = new AbridgedModelFormView(this.config);

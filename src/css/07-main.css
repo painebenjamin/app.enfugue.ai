@@ -150,8 +150,7 @@ form.login label {
     font-weight: 400;
     font-size: 18px;
     color: var(--theme-color-tertiary);
-    margin-top: 25px;
-    margin-bottom: 0;
+    margin: 0;
 }
 
 .code-input-view {
