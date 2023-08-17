@@ -10,6 +10,16 @@ function noop(image) {
 }
 
 /**
+ * Creates a random matrix on CPU
+ */
+function makeSeed(height, width) {
+    return (new Array(height).fill(null).map(
+        () => (new Array(width).fill(null).map(
+            () => Math.random()
+        ))
+    ));
+}
+/**
  * Provides a base class for GPU-accelerated image filters
  */
 class ImageFilter {
@@ -37,7 +47,9 @@ class ImageFilter {
      */
     onload() {
         this.loaded = true;
-        this.canvas = document.createElement("canvas");
+        if (this.canvas === undefined) {
+            this.canvas = document.createElement("canvas");
+        }
         this.canvas.width = this.image.width;
         this.canvas.height = this.image.height;
         this.canvas.classList.add("image-filter");
@@ -124,11 +136,7 @@ class ImageFilter {
      * @return array<array<float>>
      */
     get seed() {
-        return (new Array(this.image.height).fill(null).map(
-            () => (new Array(this.image.width).fill(null).map(
-                () => Math.random()
-            ))
-        ));
+        return makeSeed(this.image.height, this.image.width);
     }
     
     /**
@@ -197,9 +205,12 @@ class ImageFilter {
     }
     
     /**
-     * setConstants does nothing at root
+     * setConstants does nothing at root except resetting seed
      */
     setConstants(constants, execute = true) {
+        this.constants.width = this.image.width;
+        this.constants.height = this.image.height;
+        this.constants.seed = this.seed;
         if (execute) {
             this.execute();
         }
@@ -224,8 +235,10 @@ class ImageFilter {
                 thread: thread,
                 color: color
             };
+
         constants.width = imageWidth;
         constants.height = imageHeight;
+        constants.seed = makeSeed(imageHeight, imageWidth);
         for (let i = 0; i < imageHeight; i++) {
             for (let j = 0; j < imageWidth; j++) {
                 state.thread.y = i;
@@ -311,6 +324,7 @@ class MatrixImageFilter extends ImageFilter {
      * Override setConstants to include radius
      */
     setConstants(constants, execute = true) {
+        super.setConstants(constants, false);
         this.constants.radius = parseInt(constants.radius === undefined ? this.constants.radius : constants.radius);
         this.constants.matrix = this.getMatrix();
         if (execute) {
@@ -329,6 +343,9 @@ class MatrixImageFilter extends ImageFilter {
     }
 }
 
+/**
+ * Extend the matrix to add a weight
+ */
 class WeightedMatrixImageFilter extends MatrixImageFilter {
     /**
      * Override reset to include weight

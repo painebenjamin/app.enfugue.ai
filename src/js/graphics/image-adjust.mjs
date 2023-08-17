@@ -200,7 +200,6 @@ class ImageAdjustmentFilter extends ImageFilter {
      */
     reset(execute = true) {
         super.reset(false);
-
         this.constants = {
             "noiseExponent": 3,
             "invert": 0,
@@ -230,6 +229,7 @@ class ImageAdjustmentFilter extends ImageFilter {
      * @see reset()
      */
     setConstants(constants, execute = true) {
+        super.setConstants(constants, false);
         this.constants.contrast = parseInt(constants.contrast === undefined ? this.constants.contrast : constants.contrast);
         this.constants.brightness = parseInt(constants.brightness === undefined ? this.constants.brightness : constants.brightness);
         this.constants.saturation = parseInt(constants.saturation === undefined ? this.constants.saturation : constants.saturation);

@@ -422,12 +422,11 @@ class DiffusionPipelineManager:
     @vae.setter
     def vae(
         self,
-        new_vae: Optional[VAE_LITERAL],
+        new_vae: Optional[str],
     ) -> None:
         """
         Sets a new vae.
         """
-        pretrained_path = None
         if new_vae == "ema":
             pretrained_path = VAE_EMA
         elif new_vae == "mse":
@@ -436,8 +435,9 @@ class DiffusionPipelineManager:
             pretrained_path = VAE_XL
         elif new_vae == "xl16":
             pretrained_path = VAE_XL16
-        if pretrained_path is None and new_vae:
-            logger.error(f"Unsupported VAE {new_vae}")
+        else:
+            # Custom
+            pretrained_path = new_vae
 
         existing_vae = getattr(self, "_vae", None)
 
@@ -463,7 +463,7 @@ class DiffusionPipelineManager:
                     self._pipeline.vae = self._vae
                     if self.is_sdxl:
                         self._pipeline.register_to_config(
-                            force_full_precision_vae = new_vae == "xl"
+                            force_full_precision_vae = new_vae in ["xl", "stabilityai/sdxl-vae"]
                         )
                 if self.refiner_tensorrt_is_ready and "vae" in self.TENSORRT_STAGES:
                     self.unload_refiner("VAE changing")
@@ -472,7 +472,7 @@ class DiffusionPipelineManager:
                     self._refiner_pipeline.vae = self._vae
                     if self.refiner_is_sdxl:
                         self._refiner_pipeline.register_to_config(
-                            force_full_precision_vae = new_vae == "xl"
+                            force_full_precision_vae = new_vae in ["xl", "stabilityai/sdxl-vae"]
                         )
                 if self.inpainter_tensorrt_is_ready and "vae" in self.TENSORRT_STAGES:
                     self.unload_inpainter("VAE changing")
@@ -481,7 +481,7 @@ class DiffusionPipelineManager:
                     self._inpainter_pipeline.vae = self._vae
                     if self.inpainter_is_sdxl:
                         self._inpainter_pipeline.register_to_config(
-                            force_full_precision_vae = new_vae == "xl"
+                            force_full_precision_vae = new_vae in ["xl", "stabilityai/sdxl-vae"]
                         )
 
     @property

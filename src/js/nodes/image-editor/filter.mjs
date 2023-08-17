@@ -58,7 +58,7 @@ class ImageFilterView extends View {
             case "invert":
                return new ImageAdjustmentFilter(this.image, execute, {invert: 1});
             default:
-                this.editor.application.notifications.push("error", `Unknown filter ${filterType}`);
+                console.error("Bad filter", filterType);
         }
     }
 
@@ -76,9 +76,9 @@ class ImageFilterView extends View {
      * Sets the filter and filter constants
      */
     setFilter(values) {
-        if (isEmpty(values.filter)) {
+        if (values.filter === null) {
             this.removeCanvas();
-        } else if (this.filterType !== values.filter) {
+        } else if (values.filter !== undefined && this.filterType !== values.filter) {
             // Filter changed
             this.removeCanvas();
             this.filter = this.createFilter(values.filter, false);
@@ -87,7 +87,7 @@ class ImageFilterView extends View {
                 this.filter.setConstants(values);
                 this.canvas = canvas;
                 this.container.appendChild(this.canvas);
-i            });
+            });
         }
 
         if (!isEmpty(this.filter)) {

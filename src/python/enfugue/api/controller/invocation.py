@@ -83,13 +83,15 @@ class EnfugueAPIInvocationController(EnfugueAPIControllerBase):
         self,
         model_type: str,
         is_weighted: bool,
-        model: Union[str, Dict[str, Any], List[Union[str, Dict[str, Any]]]],
+        model: Optional[Union[str, Dict[str, Any], List[Union[str, Dict[str, Any]]]]] = None,
     ) -> List[Union[str, Tuple[str, float]]]:
         """
         Tries to find a model or list of models in a configured directory,
         with or without weights.
         """
-        if isinstance(model, str):
+        if model is None:
+            return []
+        elif isinstance(model, str):
             if is_weighted:
                 return [(self.check_find_model(model_type, model), 1.0)]
             return [self.check_find_model(model_type, model)]

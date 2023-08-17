@@ -290,10 +290,10 @@ class ImageFilterFormView extends FormView {
             "size": {
                 "class": SliderPreciseInputView,
                 "config": {
-                    "min": 1,
+                    "min": 4,
                     "max": 64,
                     "step": 1,
-                    "value": 1
+                    "value": 4
                 }
             }
         },

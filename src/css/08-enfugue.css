@@ -793,6 +793,14 @@ enfugue-prompt-input-view:not(.show-secondary) textarea.secondary-prompt {
     display: none;
 }
 
+enfugue-vae-input-view {
+    display: flex;
+    flex-flow: column nowrap;
+    align-items: stretch;
+    justify-content: stretch;
+    gap: 5px;
+}
+
 form.model-picker {
     position: absolute;
     left: 40px;

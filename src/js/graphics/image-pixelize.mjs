@@ -14,10 +14,35 @@ import { ImageFilter } from "./image-filter.mjs";
  */
 function performPixelize(image) {
     // Get top-left pixel position
-    let topLeftY = this.thread.y - (this.thread.y % this.constants.size);
-    let topLeftX = this.thread.x - (this.thread.x % this.constants.size);
-    let pixel = image[topLeftY][topLeftX];
-    this.color(pixel[0], pixel[1], pixel[2], pixel[3]);
+    const topLeftY = this.thread.y - (this.thread.y % this.constants.size);
+    const topLeftX = this.thread.x - (this.thread.x % this.constants.size);
+    
+    let pixel = [0.0, 0.0, 0.0];
+    let sampleCount = 0;
+
+    for (let i = 0; i < this.constants.size; i++) {
+        for (let j = 0; j < this.constants.size; j++) {
+            const sampleY = topLeftY + i;
+            const sampleX = topLeftX + j;
+
+            if (sampleY >= this.constants.height ||
+                sampleX >= this.constants.width) {
+                continue;
+            }
+
+            const pixelValue = image[sampleY][sampleX];
+            pixel[0] = pixel[0] + pixelValue[0];
+            pixel[1] = pixel[1] + pixelValue[1];
+            pixel[2] = pixel[2] + pixelValue[2];
+            sampleCount = sampleCount + 1;
+        }
+    }
+
+    pixel[0] = pixel[0] / sampleCount;
+    pixel[1] = pixel[1] / sampleCount;
+    pixel[2] = pixel[2] / sampleCount;
+
+    this.color(pixel[0], pixel[1], pixel[2], 1.0);
 }
 
 /**
@@ -47,7 +72,7 @@ class ImagePixelizeFilter extends ImageFilter {
      */
     reset(execute = true) {
         super.reset(false);
-        this.constants.size = 2;
+        this.constants.size = 3;
         if (execute) {
             this.execute();
         }
