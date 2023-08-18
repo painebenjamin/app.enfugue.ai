@@ -57,6 +57,7 @@ class InvokeButtonController extends Controller {
                 "scale_to_model_size": datum.scaleToModelSize,
                 "remove_background": datum.removeBackground
             };
+
             if (Array.isArray(datum.prompt)) {
                 formattedState["prompt"], formattedState["prompt_2"] = datum.prompt;
             } else {
@@ -93,6 +94,8 @@ class InvokeButtonController extends Controller {
                     formattedState["mask"] = datum.inpaint ? datum.scribbleSrc : null;
                     formattedState["strength"] = datum.strength;
                     formattedState["conditioning_scale"] = datum.conditioningScale;
+                    formattedState["crop_inpaint"] = datum.cropInpaint;
+                    formattedState["inpaint_feather"] = datum.inpaintFeather;
                     formattedState["controlnet"] = datum.controlnet;
                     formattedState["invert"] = datum.colorSpace == "invert";
                     formattedState["invert_mask"] = true; // The UI is inversed

@@ -1577,7 +1577,10 @@ class DiffusionPipelineManager:
         """
         Defines how to switch to inpainting.
         """
-        return self.configuration.get("enfugue.pipeline.inpainter", not self.is_sdxl)
+        configured = self.configuration.get("enfugue.pipeline.inpainter", None)
+        if configured is None:
+            return not self.is_sdxl
+        return configured
 
     @property
     def refiner_strength(self) -> float:
@@ -2869,9 +2872,7 @@ class DiffusionPipelineManager:
         """
         Gets the name of the control net, if one was set.
         """
-        if not hasattr(self, "_controlnet_name"):
-            self._controlnet_name = self.configuration.get("enfugue.controlnet", None)
-        return self._controlnet_name
+        return getattr(self, "_controlnet_name", None)
 
     def check_download_checkpoint(self, remote_url: str) -> str:
         """
@@ -2891,6 +2892,8 @@ class DiffusionPipelineManager:
         refiner_guidance_scale: Optional[float] = None,
         refiner_aesthetic_score: Optional[float] = None,
         refiner_negative_aesthetic_score: Optional[float] = None,
+        refiner_prompt: Optional[str] = None,
+        refiner_negative_prompt: Optional[str] = None,
         scale_to_refiner_size: bool = True,
         task_callback: Optional[Callable[[str], None]] = None,
         next_intention: Optional[Literal["inpainting", "inference", "refining", "upscaling"]] = None,
@@ -2990,6 +2993,7 @@ class DiffusionPipelineManager:
                         if is_nsfw:
                             logger.info(f"Result {i} has NSFW content, not refining.")
                             continue
+
                         kwargs.pop("image", None)  # Remove any previous image
                         kwargs.pop("mask", None)  # Remove any previous mask
                         kwargs.pop("num_images_per_prompt", None) # Remove samples, we'll refine one at a time
@@ -3008,6 +3012,12 @@ class DiffusionPipelineManager:
                             if refiner_negative_aesthetic_score
                             else self.refiner_negative_aesthetic_score
                         )
+
+                        # check if we have a different prompt
+                        if refiner_prompt:
+                            kwargs["prompt"] = refiner_prompt
+                        if refiner_negative_prompt:
+                            kwargs["negative_prompt"] = refiner_negative_prompt
                         
                         width, height = image.size
                         image_scale = 1

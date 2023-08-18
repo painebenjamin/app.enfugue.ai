@@ -197,7 +197,28 @@ class ImageEditorImageNodeOptionsFormView extends FormView {
                     "max": 1.0,
                     "step": 0.01,
                     "value": 0.8,
-                    "config": "How much of the input image to replace with new information. A value of 1.0 represents total input image destruction, and 0.0 represents no image modifications being made."
+                    "tooltip": "How much of the input image to replace with new information. A value of 1.0 represents total input image destruction, and 0.0 represents no image modifications being made."
+                }
+            }
+        },
+        "Inpainting": {
+            "cropInpaint": {
+                "label": "Use Cropped Inpainting",
+                "class": CheckboxInputView,
+                "config": {
+                    "tooltip": "When checked, the image will be cropped to the area you've shaded prior to executing. This will reduce processing time on large images, but can result in losing the composition of the image.",
+                    "value": true
+                }
+            },
+            "inpaintFeather": {
+                "label": "Cropped Inpaint Feather",
+                "class": NumberInputView,
+                "config": {
+                    "min": 16,
+                    "max": 256,
+                    "step": 8,
+                    "value": 32,
+                    "tooltip": "When using cropped inpainting, this is the number of pixels to feather along the edge of the crop in order to help blend in with the rest of the image."
                 }
             }
         },
@@ -214,7 +235,7 @@ class ImageEditorImageNodeOptionsFormView extends FormView {
                     "max": 1.0,
                     "step": 0.01,
                     "value": 1.0,
-                    "config": "How closely to follow ControlNet's influence."
+                    "tooltip": "How closely to follow ControlNet's influence."
                 }
             },
             "processControlImage": {
@@ -240,6 +261,7 @@ class ImageEditorImageNodeOptionsFormView extends FormView {
     static fieldSetConditions = {
         "Prompts": (values) => values.infer || values.inpaint || values.control,
         "Tweaks": (values) => values.infer || values.inpaint || values.control,
+        "Inpainting": (values) => values.inpaint,
         "Inference": (values) => values.infer,
         "Control": (values) => values.control,
         "Color Space": (values) => values.control && 

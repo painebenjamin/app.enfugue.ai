@@ -342,6 +342,23 @@ class InvocationController extends Controller {
     }
 
     /**
+     * @return ?str The pipeline to use. Defaults to refiner when available (null)
+     */
+    get upscalePipeline() {
+        return this.kwargs.upscale_pipeline;
+    }
+
+    /**
+     * @param ?str The pipeline to use. Use 'base' to force base pipeline. Defaults to null.
+     */
+    set upscalePipeline(newPipeline) {
+        if (this.upscalePipeline !== newPipeline) {
+            this.publish("engineUpscalePipelineChange", newPipeline);
+        }
+        this.kwargs.upscale_pipeline = newPipeline;
+    }
+
+    /**
      * @return bool Whether or not iterative upscaling is enabled. Default false.
      */
     get upscaleIterative() {
@@ -675,6 +692,91 @@ class InvocationController extends Controller {
         }
         this.kwargs.refiner_size = newRefinerSize;
     }
+    
+    /**
+     * @return int Optional refining VAE when not using preconfigured models
+     */
+    get refinerVae() {
+        return this.kwargs.refiner_vae || null;
+    }
+
+    /**
+     * @param int Optional reining VAE when not using preconfigured models
+     */
+    set refinerVae(newVae) {
+        if(this.refinerVae !== newVae) {
+            this.publish("engineRefinerVaeChange", newVae);
+        }
+        this.kwargs.refiner_vae = newVae;
+    }
+    
+    /**
+     * @return string Either the configured refiner prompt or null.
+     */
+    get refinerPrompt() {
+        return this.kwargs.refiner_prompt || null;
+    }
+    
+    /**
+     * @return string Either the configured refiner secondary prompt or empty string.
+     */
+    get refinerPrompt2() {
+        return this.kwargs.refiner_prompt_2 || null;
+    }
+
+    /**
+     * @param string newPrompt Sets the prompt to invoke with.
+     */
+    set refinerPrompt(newPrompt) {
+        let prompt1, prompt2;
+        if (Array.isArray(newPrompt)) {
+            [prompt1, prompt2] = newPrompt;
+        } else {
+            prompt1 = newPrompt;
+        }
+        if (this.refinerPrompt !== prompt1) {
+            this.publish("engineRefinerPromptChange", prompt1);
+        }
+        if (this.refinerPrompt2 !== prompt2) {
+            this.publish("engineRefinerPrompt2Change", prompt2);
+        }
+        this.kwargs.refiner_prompt = prompt1;
+        this.kwargs.refiner_prompt_2 = prompt2;
+    }
+
+    /**
+     * @return string Either the configured refiner negative prompt or empty string.
+     */
+    get refinerNegativePrompt() {
+        return this.kwargs.refiner_negative_prompt || null;
+    }
+
+    /**
+     * @return string Either the configured refiner secondary negative prompt or empty string.
+     */
+    get refinerNegativePrompt2() {
+        return this.kwargs.refiner_negative_prompt_2 || null;
+    }
+
+    /**
+     * @param string newPrompt Sets the negative prompt to invoke with.
+     */
+    set refinerNegativePrompt(newPrompt) {
+        let prompt1, prompt2;
+        if (Array.isArray(newPrompt)) {
+            [prompt1, prompt2] = newPrompt;
+        } else {
+            prompt1 = newPrompt;
+        }
+        if (this.refinerNegativePrompt !== prompt1) {
+            this.publish("engineRefinerNegativePromptChange", prompt1);
+        }
+        if (this.refinerNegativePrompt2 !== prompt2) {
+            this.publish("engineRefinerNegativePrompt2Change", prompt2);
+        }
+        this.kwargs.refiner_negative_prompt = prompt1;
+        this.kwargs.refiner_negative_prompt_2 = prompt2;
+    }
 
     /**
      * @return float The strength of the refiner when using SDXL
@@ -776,6 +878,23 @@ class InvocationController extends Controller {
             this.publish("engineInpainterSizeChange", newInpainterSize);
         }
         this.kwargs.inpainter_size = newInpainterSize;
+    }
+    
+    /**
+     * @return int Optional inpainter VAE when not using preconfigured models
+     */
+    get inpainterVae() {
+        return this.kwargs.inpainter_vae || null;
+    }
+
+    /**
+     * @param int Optional inpainter VAE when not using preconfigured models
+     */
+    set inpainterVae(newVae) {
+        if(this.inpainterVae !== newVae) {
+            this.publish("engineInpainterVaeChange", newVae);
+        }
+        this.kwargs.inpainter_vae = newVae;
     }
 
     /**

@@ -46,8 +46,8 @@ import {
     EngineSizeInputView,
     RefinerEngineSizeInputView,
     InpainterEngineSizeInputView,
-    VAEInputView,
-    DefaultVAEInputView,
+    VaeInputView,
+    DefaultVaeInputView,
     SchedulerInputView,
     MultiDiffusionSchedulerInputView,
     ModelPickerStringInputView,
@@ -75,6 +75,7 @@ import {
     UpscaleDiffusionNegativePromptInputView,
     UpscaleDiffusionStepsInputView,
     UpscaleDiffusionStrengthInputView,
+    UpscaleDiffusionPipelineInputView,
     UpscaleDiffusionGuidanceScaleInputView
 } from "./input/enfugue/upscale.mjs";
 
@@ -122,8 +123,8 @@ export {
     EngineSizeInputView,
     RefinerEngineSizeInputView,
     InpainterEngineSizeInputView,
-    DefaultVAEInputView,
-    VAEInputView,
+    VaeInputView,
+    DefaultVaeInputView,
     SchedulerInputView,
     MultiDiffusionSchedulerInputView,
     ModelPickerStringInputView,
@@ -140,5 +141,6 @@ export {
     UpscaleDiffusionNegativePromptInputView,
     UpscaleDiffusionStepsInputView,
     UpscaleDiffusionStrengthInputView,
+    UpscaleDiffusionPipelineInputView,
     UpscaleDiffusionGuidanceScaleInputView
 };

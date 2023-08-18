@@ -7,17 +7,27 @@ import {
     StringInputView,
     TextInputView,
     NumberInputView,
+    CheckboxInputView,
     MultiLoraInputView,
     MultiLycorisInputView,
     MultiInversionInputView,
-    VAEInputView,
+    VaeInputView,
     CheckpointInputView,
     EngineSizeInputView,
     InpainterEngineSizeInputView,
     RefinerEngineSizeInputView,
     SchedulerInputView,
     MultiDiffusionSchedulerInputView,
-    PromptInputView
+    PromptInputView,
+    OutputScaleInputView,
+    UpscaleMethodsInputView,
+    UpscaleDiffusionStepsInputView,
+    UpscaleDiffusionPromptInputView,
+    UpscaleDiffusionNegativePromptInputView,
+    UpscaleDiffusionPipelineInputView,
+    UpscaleDiffusionIterativeControlnetInputView,
+    UpscaleDiffusionStrengthInputView,
+    UpscaleDiffusionGuidanceScaleInputView
 } from "../input.mjs";
 
 let defaultEngineSize = 512;
@@ -80,7 +90,7 @@ class ModelFormView extends FormView {
         },
         "Additional Models": {
             "vae": {
-                "class": VAEInputView,
+                "class": VaeInputView,
                 "label": "VAE"
             },
             "refiner": {
@@ -91,7 +101,7 @@ class ModelFormView extends FormView {
                 }
             },
             "refiner_vae": {
-                "class": VAEInputView,
+                "class": VaeInputView,
                 "label": "Refining VAE"
             },
             "inpainter": {
@@ -102,7 +112,7 @@ class ModelFormView extends FormView {
                 }
             },
             "inpainter_vae": {
-                "class": VAEInputView,
+                "class": VaeInputView,
                 "label": "Inpainting VAE"
             },
         },
@@ -135,7 +145,7 @@ class ModelFormView extends FormView {
                 "tooltip": "This prompt will be appended to every negative prompt you make when using this model. Use this field to add trigger words, style or quality phrases that you always want to be excluded."
             }
         },
-        "Additional Defaults": {
+        "Defaults": {
             "scheduler": {
                 "class": SchedulerInputView,
                 "label": "Scheduler"
@@ -208,7 +218,9 @@ class ModelFormView extends FormView {
                     "step": 0.01,
                     "value": null
                 }
-            },
+            }
+        },
+        "Refining Defaults": {
             "refiner_denoising_strength": {
                 "label": "Refiner Denoising Strength",
                 "class": NumberInputView,
@@ -252,52 +264,128 @@ class ModelFormView extends FormView {
                     "step": 0.01,
                     "value": null
                 }
+            },
+            "refiner_prompt": {
+                "label": "Refiner Prompt",
+                "class": PromptInputView,
+                "config": {
+                    "tooltip": "The prompt to use during refining. By default, the global prompt is used."
+                }
+            },
+            "refiner_negative_prompt": {
+                "label": "Refiner Negative Prompt",
+                "class": PromptInputView,
+                "config": {
+                    "tooltip": "The negative prompt to use during refining. By default, the global prompt is used."
+                }
+            },
+        },
+        "Upscaling Defaults": {
+            "outscale": {
+                "label": "Output Scale",
+                "class": OutputScaleInputView
+            },
+            "upscale": {
+                "label": "Upscale Methods",
+                "class": UpscaleMethodsInputView
+            },
+            "upscale_iterative": {
+                "label": "Use Iterative Upscaling",
+                "class": CheckboxInputView,
+                "config": {
+                    "tooltip": "Instead of directly upscaling to the target amount, double in size repeatedly until the image reaches the target size. For example, when this is checked and the upscale amount is 4×, there will be two upscale steps, 8× will be three, and 16× will be four."
+                }
+            },
+            "upscale_diffusion": {
+                "label": "Diffuse Upscaled Samples",
+                "class": CheckboxInputView,
+                "config": {
+                    "tooltip": "After upscaling the image use the the algorithm chosen above, use the image as input to another invocation of Stable Diffusion."
+                }
+            },
+            "upcsale_diffusion_pipeline": {
+                "label": "Pipeline",
+                "class": UpscaleDiffusionPipelineInputView
+            },
+            "upscale_diffusion_controlnet": {
+                "label": "ControlNet",
+                "class": UpscaleDiffusionIterativeControlnetInputView
+            },
+            "upscale_diffusion_prompt": {
+                "label": "Detail Prompt",
+                "class": UpscaleDiffusionPromptInputView
+            },
+            "upscale_diffusion_negative_prompt": {
+                "label": "Detail Negative Prompt",
+                "class": UpscaleDiffusionNegativePromptInputView
+            },
+            "upscale_diffusion_steps": {
+                "label": "Inference Steps",
+                "class": UpscaleDiffusionStepsInputView
+            },
+            "upscale_diffusion_strength": {
+                "label": "Denoising Strength",
+                "class": UpscaleDiffusionStrengthInputView
+            },
+            "upscale_diffusion_guidance_scale": {
+                "label": "Guidance Scale",
+                "class": UpscaleDiffusionGuidanceScaleInputView
+            },
+            "upscale_diffusion_chunking_size": {
+                "label": "Chunk Size",
+                "class": NumberInputView,
+                "config": {
+                    "minimum": 32,
+                    "maximum": 512,
+                    "step": 8,
+                    "value": 128,
+                    "tooltip": "The number of pixels to move the frame by during diffusion. Smaller values produce better results, but take longer."
+                }
+            },
+            "upscale_diffusion_chunking_blur": {
+                "label": "Chunk Blur",
+                "class": NumberInputView,
+                "config": {
+                    "minimum": 32,
+                    "maximum": 512,
+                    "step": 8,
+                    "value": 128,
+                    "tooltip": "The number of pixels to feather the edges of the frame by during diffusion. Smaller values result in more pronounced lines, and large values result in a smoother overall image."
+                }
+            },
+            "upscale_diffusion_scale_chunking_size": {
+                "label": "Scale Chunk Size with Iteration",
+                "class": CheckboxInputView,
+                "config": {
+                    "value": true,
+                    "tooltip": "Scale the chunking size ×2 with each iteration of upscaling, with a maximum size of ½ the size of the model."
+                }
+            },
+            "upscale_diffusion_scale_chunking_blur": {
+                "label": "Scale Chunk Blur with Iteration",
+                "class": CheckboxInputView,
+                "config": {
+                    "value": true,
+                    "tooltip": "Scale the chunking blur ×2 with each iteration of upscaling, with a maximum size of ½ the size of the model."
+                }
             }
         }
     };
 
+    /**
+     * @var array Fieldsets to hide
+     */
     static collapseFieldSets = [
         "Adaptations and Modifications",
         "Additional Models",
-        "Additional Defaults"
+        "Defaults",
+        "Refining Defaults",
+        "Upscaling Defaults"
     ];
 
-    /**
-     * Checks values and tries to hide/show inputs
-     */
-    async checkShowInputs() {
-        let refinerVAEInput = await this.getInputView("refiner_vae"),
-            inpainterVAEInput = await this.getInputView("inpainter_vae");
-        
-        if (isEmpty(this.values.refiner)) {
-            refinerVAEInput.hideParent();
-        } else {
-            refinerVAEInput.showParent();
-        }
-
-        if (isEmpty(this.values.inpainter)) {
-            inpainterVAEInput.hideParent();
-        } else {
-            inpainterVAEInput.showParent();
-        }
-    }
-
-    /**
-     * Hide/show inputs based on change
-     */
-    async inputChanged(fieldName, inputView) {
-        await super.inputChanged(fieldName, inputView);
-        await this.checkShowInputs();
-    }
-
-    /**
-     * On build, hide VAE inputs
-     */
-    async getNode() {
-        let node = await super.getNode();
-        setTimeout(() => this.checkShowInputs(), 250);
-        return node;
-    }
+    static fieldSetConditions = {
+        "Refining Defaults": (values) => !isEmpty(values.refiner)
+    };
 };
 
 /**
@@ -354,7 +442,7 @@ class AbridgedModelFormView extends ModelFormView {
         "Additional Models": {
             "vae": {
                 "label": "VAE",
-                "class": VAEInputView
+                "class": VaeInputView
             },
             "refiner": {
                 "label": "Refining Checkpoint",
@@ -365,7 +453,7 @@ class AbridgedModelFormView extends ModelFormView {
             },
             "refiner_vae": {
                 "label": "Refining VAE",
-                "class": VAEInputView
+                "class": VaeInputView
             },
             "inpainter": {
                 "label": "Inpainting Checkpoint",
@@ -376,7 +464,7 @@ class AbridgedModelFormView extends ModelFormView {
             },
             "inpainter_vae": {
                 "label": "Inpainting VAE",
-                "class": VAEInputView
+                "class": VaeInputView
             }
         }
     };

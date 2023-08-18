@@ -7,6 +7,8 @@ __all__ = [
     "DiffusionModelRefiner",
     "DiffusionModelInpainter",
     "DiffusionModelVAE",
+    "DiffusionModelRefinerVAE",
+    "DiffusionModelInpainterVAE",
     "DiffusionModelScheduler",
     "DiffusionModelDefaultConfiguration",
     "DiffusionModelLora",
@@ -70,6 +72,26 @@ class DiffusionModelVAE(EnfugueObjectBase):
     )
     name = Column(String(256), nullable=False)
     diffusion_model = DiffusionModel.Relationship(backref="vae", uselist=False)
+
+
+class DiffusionModelRefinerVAE(EnfugueObjectBase):
+    __tablename__ = "model_refiner_vae"
+
+    diffusion_model_name = Column(
+        DiffusionModel.ForeignKey("name", ondelete="CASCADE", onupdate="CASCADE"), primary_key=True, unique=True
+    )
+    name = Column(String(256), nullable=False)
+    diffusion_model = DiffusionModel.Relationship(backref="refiner_vae", uselist=False)
+
+
+class DiffusionModelInpainterVAE(EnfugueObjectBase):
+    __tablename__ = "model_inpainter_vae"
+
+    diffusion_model_name = Column(
+        DiffusionModel.ForeignKey("name", ondelete="CASCADE", onupdate="CASCADE"), primary_key=True, unique=True
+    )
+    name = Column(String(256), nullable=False)
+    diffusion_model = DiffusionModel.Relationship(backref="inpainter_vae", uselist=False)
 
 
 class DiffusionModelDefaultConfiguration(EnfugueObjectBase):

@@ -160,7 +160,12 @@ class EnfugueAPIServerBase(
 
         return replace_images(plan.get_serialization_dict())
 
-    def get_plan_kwargs_from_model(self, model_name: str, include_prompts: bool = True) -> Dict[str, Any]:
+    def get_plan_kwargs_from_model(
+        self,
+        model_name: str,
+        include_prompts: bool = True,
+        include_defaults: bool = True
+    ) -> Dict[str, Any]:
         """
         Given a model name, return the keyword arguments that should be passed into a plan.
         """
@@ -222,6 +227,16 @@ class EnfugueAPIServerBase(
             vae = diffusion_model.vae[0].name
         else:
             vae = None
+        refiner_vae = diffusion_model.refiner_vae
+        if refiner_vae:
+            refiner_vae = diffusion_model.refiner_vae[0].name
+        else:
+            refiner_vae = None
+        inpainter_vae = diffusion_model.inpainter_vae
+        if inpainter_vae:
+            inpainter_vae = diffusion_model.inpainter_vae[0].name
+        else:
+            inpainter_vae = None
         lora = [
             (
                 os.path.abspath(
@@ -278,11 +293,21 @@ class EnfugueAPIServerBase(
             "scheduler": scheduler,
             "multi_scheduler": multi_scheduler,
             "vae": vae,
+            "refiner_vae": refiner_vae,
+            "inpainter_vae": inpainter_vae
         }
+
+        model_config = {}
+        for default in diffusion_model.config:
+            model_config[default.configuration_key] = default.configuration_value
 
         if include_prompts:
             plan_kwargs["model_prompt"] = model_prompt
             plan_kwargs["model_negative_prompt"] = model_negative_prompt
+            plan_kwargs["model_prompt_2"] = model_config.get("prompt_2", None)
+            plan_kwargs["model_negative_prompt_2"] = model_config.get("negative_prompt_2", None)
+        if include_defaults:
+            plan_kwargs = {**plan_kwargs, **model_config}
 
         return plan_kwargs
 

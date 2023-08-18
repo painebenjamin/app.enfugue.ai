@@ -41,6 +41,20 @@ class EnfugueConfiguration:
         """
         return dict([item for item in self.items()])
 
+    def __delitem__(self, key: str) -> None:
+        """
+        Deletes an item from the database
+        """
+        with self.orm.session() as session:
+            item = (
+                session.query(self.orm.ConfigurationItem)
+                .filter(self.orm.ConfigurationItem.configuration_key == key)
+                .one_or_none()
+            )
+            if item:
+                session.delete(item)
+                session.commit()
+
     def __getitem__(self, key: str) -> Any:
         """
         Gets an item from the database

@@ -395,12 +395,26 @@ class ModelPickerController extends Controller {
         });
         
         this.abridgedModelFormView.onSubmit(async (values) => {
-            this.engine.refiner = values.refiner;
-            this.engine.inpainter = values.inpainter;
             this.engine.lora = values.lora;
             this.engine.lycoris = values.lycoris;
             this.engine.inversion = values.inversion;
             this.engine.vae = values.vae;
+            this.engine.refiner = values.refiner;
+            this.engine.refinerVae = values.refiner_vae;
+            this.engine.inpainter = values.inpainter;
+            this.engine.inpainterVae = values.inpainter_vae;
+        });
+        this.abridgedModelFormView.onChange(async () => {
+            if (!isEmpty(this.abridgedModelFormView.values.refiner)) {
+                this.abridgedModelFormView.addClass("show-refiner");
+            } else {
+                this.abridgedModelFormView.removeClass("show-refiner");
+            }
+            if (!isEmpty(this.abridgedModelFormView.values.inpainter)) {
+                this.abridgedModelFormView.addClass("show-inpainter");
+            } else {
+                this.abridgedModelFormView.removeClass("show-inpainter");
+            }
         });
 
         this.application.container.appendChild(await this.modelPickerFormView.render());

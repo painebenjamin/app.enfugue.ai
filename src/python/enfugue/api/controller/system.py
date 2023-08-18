@@ -143,6 +143,7 @@ class EnfugueAPISystemController(EnfugueAPIControllerBase):
             "switch_mode": self.configuration.get("enfugue.pipeline.switch", "offload"),
             "cache_mode": self.configuration.get("enfugue.pipeline.cache", "xl"),
             "precision": self.configuration.get("enfugue.dtype", None),
+            "inpainting": "never" if self.configuration.get("enfugue.pipeline.inpainter", None) == False else None
         }
         for controlnet in self.CONTROLNETS:
             settings[controlnet] = self.get_controlnet_path(controlnet)
@@ -185,6 +186,13 @@ class EnfugueAPISystemController(EnfugueAPIControllerBase):
             else:
                 self.user_config["enfugue.dtype"] = request.parsed["precision"]
             self.manager.stop_engine()
+        if "inpainting" in request.parsed:
+            if not request.parsed["inpainting"]:
+                del self.user_config["enfugue.pipeline.inpainter"]
+                self.configuration["enfugue.pipeline.inpainter"] = None
+            else:
+                self.user_config["enfugue.pipeline.inpainter"] = False
+
         for key in [
             "max_queued_invocation",
             "max_queued_downloads",

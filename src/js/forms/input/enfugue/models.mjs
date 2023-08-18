@@ -46,7 +46,7 @@ class EngineSizeInputView extends NumberInputView {
 /**
  * Default VAE Input View
  */
-class DefaultVAEInputView extends SelectInputView {
+class DefaultVaeInputView extends SelectInputView {
     /**
      * @var object Option values and labels
      */
@@ -77,7 +77,7 @@ class DefaultVAEInputView extends SelectInputView {
 /**
  * This class shows the default VAE's and allows an other option
  */
-class VAEInputView extends InputView {
+class VaeInputView extends InputView {
     /**
      * @var Custom tag name
      */
@@ -86,7 +86,7 @@ class VAEInputView extends InputView {
     /**
      * @var class VAE input class
      */
-    static selectClass = DefaultVAEInputView;
+    static selectClass = DefaultVaeInputView;
 
     /**
      * @var class text input class
@@ -148,7 +148,7 @@ class VAEInputView extends InputView {
             this.defaultInput.setValue(null, false);
             this.otherInput.setValue("", false);
             this.otherInput.hide();
-        } else if (Object.getOwnPropertyNames(DefaultVAEInputView.defaultOptions).indexOf(newValue) === -1) {
+        } else if (Object.getOwnPropertyNames(DefaultVaeInputView.defaultOptions).indexOf(newValue) === -1) {
             this.defaultInput.setValue("other", false);
             this.otherInput.setValue(newValue, false);
             this.otherInput.show();
@@ -480,8 +480,8 @@ export {
     EngineSizeInputView,
     RefinerEngineSizeInputView,
     InpainterEngineSizeInputView,
-    VAEInputView,
-    DefaultVAEInputView,
+    VaeInputView,
+    DefaultVaeInputView,
     SchedulerInputView,
     MultiDiffusionSchedulerInputView,
     ModelPickerStringInputView,

@@ -76,10 +76,14 @@ class RepeatableInputView extends InputView {
      * and set their values using their setters
      */
     setValue(newValue, triggerChange) {
-        let newValueArray = Array.isArray(newValue) ? newValue : [newValue],
+        let newValueArray = isEmpty(newValue) 
+                ? [] 
+                : Array.isArray(newValue) 
+                    ? newValue
+                    : [newValue],
             currentValueLength = this.inputViews.length,
             newValueLength = newValueArray.length;
- 
+
         for (let i = 0; i < newValueLength; i++) {
             let inputView;
             if (i >= currentValueLength) {
@@ -90,9 +94,17 @@ class RepeatableInputView extends InputView {
             inputView.setValue(newValueArray[i]);
         }
 
+        if (newValueLength < currentValueLength) {
+            this.inputViews = this.inputViews.slice(0, newValueLength);
+        }
+
         if (this.node !== undefined) {
-            for (let i = newValueLength; i < currentValueLength; i++) {
-                this.node.remove(this.node.getChild(i));
+            let countToRemove = currentValueLength - newValueLength;
+            for (let i = 0; i < countToRemove; i++) {
+                let childToRemove = this.node.getChild(this.node.children.length);
+                if (childToRemove.className !== "add-item") {
+                    this.node.remove(childToRemove);
+                }
             }
             if (this.inputViews.length <= this.constructor.minimumItems) {
                 this.disableRemove();

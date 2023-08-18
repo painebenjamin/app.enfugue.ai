@@ -1,6 +1,10 @@
 /** @module forms/enfugue/refining */
 import { FormView } from "../base.mjs";
-import { NumberInputView, FloatInputView } from "../input.mjs";
+import {
+    NumberInputView,
+    FloatInputView,
+    PromptInputView
+} from "../input.mjs";
 
 /**
  * The RefiningFormView gathers inputs for SDXL refining
@@ -63,6 +67,20 @@ class RefiningFormView extends FormView {
                     "step": 0.01,
                     "value": 2.5,
                     "tooltip": "Aesthetic scores are assigned to images in SDXL refinement; this controls the negative score."
+                }
+            },
+            "refinerPrompt": {
+                "label": "Refiner Prompt",
+                "class": PromptInputView,
+                "config": {
+                    "tooltip": "The prompt to use during refining. By default, the global prompt will be used."
+                }
+            },
+            "refinerNegativePrompt": {
+                "label": "Refiner Negative Prompt",
+                "class": PromptInputView,
+                "config": {
+                    "tooltip": "The negative prompt to use during refining. By default, the global negative prompt will be used."
                 }
             }
         }

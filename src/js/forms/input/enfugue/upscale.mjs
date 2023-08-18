@@ -270,6 +270,33 @@ class UpscaleDiffusionGuidanceScaleInputView extends RepeatableInputView {
     static tooltip = "The amount to adhere to the prompts during upscaling. Higher values can result in more details but less consistency.<br />When using multiple guidance scales, the first is used for the first upscale, the second is used for the second (when using iterative upscaling), etc.";
 }
 
+/**
+ * Allow choosing pipeline to upscale with
+ */
+class UpscaleDiffusionPipelineInputView extends SelectInputView {
+    /**
+     * @var object Options
+     */
+    static defaultOptions = {
+        "base": "Always Use Base Pipeline"
+    };
+
+    /**
+     * @var bool Allow empty
+     */
+    static allowEmpty = true;
+
+    /**
+     * @var string empty text
+     */
+    static placeholder = "Use Refiner Pipeline when Available";
+
+    /**
+     * @var string tooltip
+     */
+    static tooltip = "When re-diffusing upscaled samples, you can use the base pipeline, or the refiner pipeline, when one is present. Generally the refiner is better tuned for this task, but change this option to always use the base pipeline instead.";
+}
+
 export {
     OutputScaleInputView,
     UpscaleMethodsInputView,
@@ -278,5 +305,6 @@ export {
     UpscaleDiffusionNegativePromptInputView,
     UpscaleDiffusionStepsInputView,
     UpscaleDiffusionStrengthInputView,
+    UpscaleDiffusionPipelineInputView,
     UpscaleDiffusionGuidanceScaleInputView
 };

@@ -87,9 +87,15 @@ class PromptInputView extends InputView {
      */
     setValue(newValue, triggerChange) {
         if (Array.isArray(newValue)) {
-            this.addSecondaryPrompt();
-            this.primary.setValue(newValue[0], false);
-            this.secondary.setValue(newValue[1], false);
+            if (newValue[1] === null) {
+                this.primary.setValue(newValue[0], false);
+                this.secondary.setValue("", false);
+                this.removeClass("show-secondary");
+            } else {
+                this.addSecondaryPrompt();
+                this.primary.setValue(newValue[0], false);
+                this.secondary.setValue(newValue[1], false);
+            }
         } else {
             this.primary.setValue(newValue, false);
         }

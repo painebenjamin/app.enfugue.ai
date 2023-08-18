@@ -23,7 +23,9 @@ class RefiningController extends Controller {
                 "refinerStrength": 0.3,
                 "refinerGuidanceScale": 5.0,
                 "refinerAestheticScore": 6.0,
-                "refinerNegativeAestheticScore": 2.5
+                "refinerNegativeAestheticScore": 2.5,
+                "refinerPrompt": null,
+                "refinerNegativePrompt": null
             }
         };
     }
@@ -47,6 +49,8 @@ class RefiningController extends Controller {
             this.engine.refinerGuidanceScale = values.refinerGuidanceScale;
             this.engine.refinerAestheticScore = values.refinerAestheticScore;
             this.engine.refinerNegativeAestheticScore = values.refinerNegativeAestheticScore;
+            this.engine.refinerPrompt = values.refinerPrompt;
+            this.engine.refinerNegativePrompt = values.refinerNegativePrompt;
         });
         this.refiningForm.hide();
         this.application.sidebar.addChild(this.refiningForm);

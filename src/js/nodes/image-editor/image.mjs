@@ -110,6 +110,8 @@ class ImageEditorImageNodeView extends ImageEditorScribbleNodeView {
         this.controlnet = newOptions.controlnet;
         this.conditioningScale = newOptions.conditioningScale;
         this.processControlImage = newOptions.processControlImage;
+        this.cropInpaint = newOptions.cropInpaint;
+        this.inpaintFeather = newOptions.inpaintFeather;
 
         // Update scribble view if inpainting
         if (this.node !== undefined) {
@@ -213,6 +215,8 @@ class ImageEditorImageNodeView extends ImageEditorScribbleNodeView {
         state.strength = this.strength || 0.8;
         state.controlnet = this.controlnet || null;
         state.colorSpace = this.colorSpace || "invert";
+        state.cropInpaint = this.cropInpaint !== false;
+        state.inpaintFeather = this.inpaintFeather || 32;
         state.conditioningScale = this.conditioningScale || 1.0;
         state.processControlImage = this.processControlImage !== false;
         state.removeBackground = this.removeBackground === true;
@@ -262,6 +266,8 @@ class ImageEditorImageNodeView extends ImageEditorScribbleNodeView {
             "inpaint": false,
             "control": false,
             "inpaint": false,
+            "cropInpaint": true,
+            "inpaintFeather": 32,
             "inferenceSteps": null,
             "guidanceScale": null,
             "strength": 0.8,

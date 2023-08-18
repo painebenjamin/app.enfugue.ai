@@ -653,12 +653,14 @@ enfugue-node-editor.image-editor enfugue-node-canvas enfugue-toolbar-item::after
 .field-container.multi-lycoris-input-view,
 .field-container.multi-inversion-input-view,
 .field-container.upscale-methods-input-view,
+.field-container.upscale-diffusion-pipeline-input-view,
 .field-container.upscale-diffusion-prompt-input-view,
 .field-container.upscale-diffusion-negative-prompt-input-view,
 .field-container.upscale-diffusion-guidance-scale-input-view,
 .field-container.upscale-diffusion-steps-input-view,
 .field-container.scheduler-input-view,
 .field-container.multi-diffusion-scheduler-input-view,
+.field-container.prompt-input-view,
 fieldset.field-set-prompts .field-container,
 fieldset.field-set-secondary-prompts .field-container,
 fieldset.field-set-directories .field-container,
@@ -670,7 +672,9 @@ fieldset.field-set-filters .field-container.string-input-view-search
 }
 
 fieldset.field-set-engine .refiner-engine-size-input-view,
-fieldset.field-set-engine .inpainter-engine-size-input-view
+fieldset.field-set-engine .inpainter-engine-size-input-view,
+fieldset.field-set-additional-models .vae-input-view-refiner-vae,
+fieldset.field-set-additional-models .vae-input-view-inpainter-vae
 {
     display: none;
 }
@@ -681,7 +685,9 @@ fieldset.field-set-control-nets .field-container
 }
 
 form.show-refiner fieldset.field-set-engine:not(.collapsed) .refiner-engine-size-input-view,
-form.show-inpainter fieldset.field-set-engine:not(.collapsed) .inpainter-engine-size-input-view
+form.show-refiner fieldset.field-set-additional-models:not(.collapsed) .vae-input-view-refiner-vae,
+form.show-inpainter fieldset.field-set-engine:not(.collapsed) .inpainter-engine-size-input-view,
+form.show-inpainter fieldset.field-set-additional-models:not(.collapsed) .vae-input-view-inpainter-vae
 {
     display: flex;
 }

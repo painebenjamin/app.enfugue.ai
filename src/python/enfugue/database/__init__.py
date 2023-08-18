@@ -6,6 +6,8 @@ from enfugue.database.models import (
     DiffusionModelInpainter,
     DiffusionModelRefiner,
     DiffusionModelVAE,
+    DiffusionModelRefinerVAE,
+    DiffusionModelInpainterVAE,
     DiffusionModelScheduler,
     DiffusionModelLora,
     DiffusionModelLycoris,
@@ -13,7 +15,7 @@ from enfugue.database.models import (
     DiffusionModelDefaultConfiguration,
 )
 
-EnfugueObjectBase, DiffusionModel, DiffusionModelRefiner, DiffusionModelInpainter, DiffusionModelVAE, DiffusionModelScheduler, DiffusionModelLora, DiffusionModelLycoris, DiffusionModelInversion, DiffusionInvocation, DiffusionModelDefaultConfiguration, ConfigurationItem  # Silence importchecker
+EnfugueObjectBase, DiffusionModel, DiffusionModelRefiner, DiffusionModelInpainter, DiffusionModelVAE, DiffusionModelScheduler, DiffusionModelLora, DiffusionModelLycoris, DiffusionModelInversion, DiffusionInvocation, DiffusionModelDefaultConfiguration, ConfigurationItem, DiffusionModelRefinerVAE, DiffusionModelInpainterVAE # Silence importchecker
 
 __all__ = [
     "EnfugueObjectBase",
@@ -23,6 +25,8 @@ __all__ = [
     "DiffusionModelRefiner",
     "DiffusionModelInpainter",
     "DiffusionModelVAE",
+    "DiffusionModelRefinerVAE",
+    "DiffusionModelInpainterVAE",
     "DiffusionModelScheduler",
     "DiffusionModelLora",
     "DiffusionModelLycoris",

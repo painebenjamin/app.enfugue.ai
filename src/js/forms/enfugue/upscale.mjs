@@ -11,6 +11,7 @@ import {
     UpscaleDiffusionNegativePromptInputView,
     UpscaleDiffusionStepsInputView,
     UpscaleDiffusionStrengthInputView,
+    UpscaleDiffusionPipelineInputView,
     UpscaleDiffusionGuidanceScaleInputView
 } from "../input.mjs";
 
@@ -59,6 +60,10 @@ class UpscaleFormView extends FormView {
             }
         },
         "Upscale Diffusion": {
+            "upcsaleDiffusionPipeline": {
+                "label": "Pipeline",
+                "class": UpscaleDiffusionPipelineInputView
+            },
             "upscaleDiffusionControlnet": {
                 "label": "ControlNet",
                 "class": UpscaleDiffusionIterativeControlnetInputView

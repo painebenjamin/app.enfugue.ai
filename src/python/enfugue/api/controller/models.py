@@ -41,7 +41,24 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         "refiner_aesthetic_score",
         "refiner_negative_aesthetic_score",
         "prompt_2",
-        "negative_prompt_2"
+        "negative_prompt_2",
+        "upscale",
+        "outscale",
+        "upscale_iterative",
+        "upscale_pipeline",
+        "upscale_method",
+        "upscale_diffusion",
+        "upscale_diffusion_prompt",
+        "upscale_diffusion_prompt_2",
+        "upscale_diffusion_negative_prompt",
+        "upscale_diffusion_negative_prompt_2",
+        "upscale_diffusion_controlnet",
+        "upscale_diffusion_steps",
+        "upscale_diffusion_strength",
+        "upscale_diffusion_guidance_scale",
+        "upscale_diffusion_chunking_size",
+        "upscale_diffusion_scale_chunking_size",
+        "upscale_diffusion_scale_chunking_blur"
     ]
 
     DEFAULT_CHECKPOINTS = [
@@ -377,6 +394,12 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
 
         for existing_vae in model.vae:
             self.database.delete(existing_vae)
+        
+        for existing_vae in model.refiner_vae:
+            self.database.delete(existing_vae)
+        
+        for existing_vae in model.inpainter_vae:
+            self.database.delete(existing_vae)
 
         self.database.commit()
         
@@ -427,6 +450,24 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
                 self.orm.DiffusionModelVAE(
                     diffusion_model_name=model_name,
                     name=vae,
+                )
+            )
+        
+        refiner_vae = request.parsed.get("refiner_vae", None)
+        if refiner_vae:
+            self.database.add(
+                self.orm.DiffusionModelRefinerVAE(
+                    diffusion_model_name=model_name,
+                    name=refiner_vae,
+                )
+            )
+        
+        inpainter_vae = request.parsed.get("inpainter_vae", None)
+        if inpainter_vae:
+            self.database.add(
+                self.orm.DiffusionModelinpainterVAE(
+                    diffusion_model_name=model_name,
+                    name=inpainter_vae,
                 )
             )
 
@@ -489,6 +530,10 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
             self.database.delete(scheduler)
         for vae in model.vae:
             self.database.delete(vae)
+        for vae in model.refiner_vae:
+            self.database.delete(vae)
+        for vae in model.inpainter_vae:
+            self.database.delete(vae)
         for config in model.config:
             self.database.delete(config)
 
@@ -546,6 +591,16 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
             if vae:
                 new_vae = self.orm.DiffusionModelVAE(diffusion_model_name=new_model.name, name=vae)
                 self.database.add(new_vae)
+                self.database.commit()
+            refiner_vae = request.parsed.get("refiner_vae", None)
+            if refiner_vae:
+                new_refiner_vae = self.orm.DiffusionModelRefinerVAE(diffusion_model_name=new_model.name, name=refiner_vae)
+                self.database.add(new_refiner_vae)
+                self.database.commit()
+            inpainter_vae = request.parsed.get("inpainter_vae", None)
+            if inpainter_vae:
+                new_inpainter_vae = self.orm.DiffusionModelInpainterVAE(diffusion_model_name=new_model.name, name=inpainter_vae)
+                self.database.add(new_inpainter_vae)
                 self.database.commit()
             for lora in request.parsed.get("lora", []):
                 new_lora = self.orm.DiffusionModelLora(
