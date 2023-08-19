@@ -221,6 +221,11 @@ class InstallationController extends MenuController {
      * @var string The icon to display
      */
     static menuIcon = "fa-solid fa-folder-tree";
+    
+    /**
+     * @var string The keyboard shortcut
+     */
+    static menuShortcut = "i";
 
     /**
      * @var int The width of the summary window
@@ -382,7 +387,7 @@ class InstallationController extends MenuController {
      * Shows the 'change directory' dialogue for a directory
      */
     async showChangeDirectory(directory, currentValue) {
-        let changeDirectoryForm = DirectoryFormView(this.config, {"directory": currentValue}),
+        let changeDirectoryForm = new DirectoryFormView(this.config, {"directory": currentValue}),
             changeDirectoryWindow = await this.spawnWindow(
                 `Change Filesystem Location for ${directory}`,
                 changeDirectoryForm,

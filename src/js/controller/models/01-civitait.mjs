@@ -249,7 +249,14 @@ class CivitAICategoryPageView extends View {
  * The class holds items, input, and pagination
  */
 class CivitAICategoryBrowserView extends ParentView {
+    /**
+     * @var int The number of milliseconds to wait before triggering search
+     */
     static inputTimeout = 500;
+
+    /**
+     * @var int Results per page
+     */
     static pageSize = 20;
     
     constructor(config, getData, download) {
@@ -441,6 +448,11 @@ class CivitAIController extends MenuController {
      * @var string The icon to display
      */
     static menuIcon = "/static/img/brand/civit-ai.png";
+    
+    /**
+     * @var string The keyboard shortcut
+     */
+    static menuShortcut = "a";
 
     /**
      * Shows the browser. Creates it if not yet made.

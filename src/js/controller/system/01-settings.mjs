@@ -16,6 +16,11 @@ class SystemSettingsController extends MenuController {
      * @var string The icon to display
      */
     static menuIcon = "fa-solid fa-gear";
+    
+    /**
+     * @var string The keyboard shortcut
+     */
+    static menuShortcut = "t";
 
     /**
      * @var int The width of the settings window

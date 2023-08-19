@@ -70,6 +70,11 @@ class UsersController extends MenuController {
      * @var string The icon to display
      */
     static menuIcon = "fa-solid fa-users";
+    
+    /**
+     * @var string The keyboard shortcut
+     */
+    static menuShortcut = "u";
 
     /**
      * @var int The width of the user window

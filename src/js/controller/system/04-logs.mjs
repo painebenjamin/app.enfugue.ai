@@ -14,6 +14,11 @@ class SystemLogsController extends MenuController {
      * @var string The icon to display
      */
     static menuIcon = "fa-solid fa-clipboard-list";
+    
+    /**
+     * @var string The keyboard shortcut
+     */
+    static menuShortcut = "l";
 
     /**
      * When clicked, show logs window.

@@ -14,6 +14,11 @@ class NewModelController extends MenuController {
      * @var string The class of the icon in the UI
      */
     static menuIcon = "fa-solid fa-plus";
+    
+    /**
+     * @var string The keyboard shortcut
+     */
+    static menuShortcut = "n";
 
     /**
      * Show the new model form when clicked

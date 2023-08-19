@@ -29,7 +29,8 @@ __all__ = [
     "MULTI_SCHEDULER_LITERAL",
     "DEVICE_LITERAL",
     "PIPELINE_SWITCH_MODE_LITERAL",
-    "UPSCALE_LITERAL"
+    "UPSCALE_LITERAL",
+    "UPSCALE_PIPELINE_LITERAL"
 ]
 
 DEFAULT_MODEL = "https://huggingface.co/runwayml/stable-diffusion-v1-5/resolve/main/v1-5-pruned.ckpt"
@@ -73,3 +74,4 @@ MULTI_SCHEDULER_LITERAL = Literal["ddim", "ddpm", "deis", "dpmsm", "dpmss", "eds
 DEVICE_LITERAL = Literal["cpu", "cuda", "dml", "mps"]
 PIPELINE_SWITCH_MODE_LITERAL = Literal["offload", "unload"]
 UPSCALE_LITERAL = Literal["esrgan", "esrganime", "gfpgan", "lanczos", "bilinear", "bicubic", "nearest"]
+UPSCALE_PIPELINE_LITERAL = Literal["base"]

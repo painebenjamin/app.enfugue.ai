@@ -12,13 +12,7 @@ from pibble.api.client.webservice.jsonapi import JSONWebServiceAPIClient
 from pibble.ext.user.client.base import UserExtensionClientBase
 
 from enfugue.diffusion.plan import NodeDict
-from enfugue.diffusion.constants import (
-    SCHEDULER_LITERAL,
-    MULTI_SCHEDULER_LITERAL,
-    CONTROLNET_LITERAL,
-    UPSCALE_LITERAL,
-    VAE_LITERAL,
-)
+from enfugue.diffusion.constants import *
 from enfugue.util import (
     logger,
     IMAGE_FIT_LITERAL,
@@ -45,6 +39,20 @@ class EnfugueClient(UserExtensionClientBase, JSONWebServiceAPIClient):
     def __init__(self) -> None:
         super(EnfugueClient, self).__init__()
         self.configuration.environment_prefix = "ENFUGUE"
+
+    def configure(self, **configuration) -> None:
+        """
+        Intercept configure to add defaults
+        """
+        client = configuration.get("client", {})
+        if "host" not in client:
+            client["host"] = "app.enfugue.ai"
+        if "port" not in client:
+            client["port"] = 45554
+        if "secure" not in client:
+            client["secure"] = True
+        configuration["client"] = client
+        super(EnfugueClient, self).configure(**configuration)
 
     def on_configure(self) -> None:
         """
@@ -137,6 +145,10 @@ class EnfugueClient(UserExtensionClientBase, JSONWebServiceAPIClient):
         refiner_guidance_scale: Optional[float] = None,
         refiner_aesthetic_score: Optional[float] = None,
         refiner_negative_aesthetic_score: Optional[float] = None,
+        refiner_prompt: Optional[str] = None,
+        refiner_prompt_2: Optional[str] = None,
+        refiner_negative_prompt: Optional[str] = None,
+        refiner_negative_prompt_2: Optional[str] = None,
         nodes: Optional[List[NodeDict]] = None,
         model: Optional[str] = None,
         model_type: Optional[Literal["checkpoint", "model"]] = None,
@@ -150,7 +162,9 @@ class EnfugueClient(UserExtensionClientBase, JSONWebServiceAPIClient):
         inversion: Optional[List[str]] = None,
         scheduler: Optional[SCHEDULER_LITERAL] = None,
         multi_scheduler: Optional[MULTI_SCHEDULER_LITERAL] = None,
-        vae: Optional[VAE_LITERAL] = None,
+        vae: Optional[str] = None,
+        refiner_vae: Optional[str] = None,
+        inpainter_vae: Optional[str] = None,
         seed: Optional[int] = None,
         image: Optional[Union[str, Image]] = None,
         mask: Optional[Union[str, Image]] = None,
@@ -166,8 +180,11 @@ class EnfugueClient(UserExtensionClientBase, JSONWebServiceAPIClient):
         invert_mask: Optional[bool] = None,
         process_control_image: Optional[bool] = True,
         conditioning_scale: Optional[float] = None,
+        crop_inpaint: Optional[bool] = None,
+        inpaint_feather: Optional[int] = None,
         outscale: Optional[int] = 1,
         upscale: Optional[Union[UPSCALE_LITERAL, List[UPSCALE_LITERAL]]] = None,
+        upscale_pipeline: Optional[UPSCALE_PIPELINE_LITERAL] = None,
         upscale_diffusion: bool = False,
         upscale_iterative: bool = False,
         upscale_diffusion_steps: Optional[Union[int, List[int]]] = None,
@@ -234,6 +251,10 @@ class EnfugueClient(UserExtensionClientBase, JSONWebServiceAPIClient):
             kwargs["refiner_aesthetic_score"] = refiner_aesthetic_score
         if refiner_negative_aesthetic_score is not None:
             kwargs["refiner_negative_aesthetic_score"] = refiner_negative_aesthetic_score
+        if refiner_prompt is not None:
+            kwargs["refiner_prompt"] = refiner_prompt
+        if refiner_negative_prompt is not None:
+            kwargs["refiner_negative_prompt"] = refiner_negative_prompt
         if nodes is not None:
             kwargs["nodes"] = nodes
         if size is not None:
@@ -256,6 +277,10 @@ class EnfugueClient(UserExtensionClientBase, JSONWebServiceAPIClient):
             kwargs["multi_scheduler"] = multi_scheduler
         if vae is not None:
             kwargs["vae"] = vae
+        if refiner_vae is not None:
+            kwargs["refiner_vae"] = refiner_vae
+        if refiner_vae is not None:
+            kwargs["refiner_vae"] = refiner_vae
         if seed is not None:
             kwargs["seed"] = seed
         if image is not None:
@@ -286,6 +311,10 @@ class EnfugueClient(UserExtensionClientBase, JSONWebServiceAPIClient):
             kwargs["process_control_image"] = process_control_image
         if conditioning_scale is not None:
             kwargs["conditioning_scale"] = conditioning_scale
+        if crop_inpaint is not None:
+            kwargs["crop_inpaint"] = crop_inpaint
+        if inpaint_feather is not None:
+            kwargs["inpaint_feather"] = inpaint_feather
         if outscale is not None:
             kwargs["outscale"] = outscale
         if upscale is not None:
@@ -294,6 +323,8 @@ class EnfugueClient(UserExtensionClientBase, JSONWebServiceAPIClient):
             kwargs["upscale_diffusion"] = upscale_diffusion
         if upscale_iterative is not None:
             kwargs["upscale_iterative"] = upscale_iterative
+        if upscale_pipeline is not None:
+            kwargs["upscale_pipeline"] = upscale_pipeline
         if upscale_diffusion_steps is not None:
             kwargs["upscale_diffusion_steps"] = upscale_diffusion_steps
         if upscale_diffusion_guidance_scale is not None:

@@ -59,11 +59,42 @@ class ImageEditorView extends NodeEditorView {
     ];
 
     /**
+     * On focus, register/unregister menus
+     */
+    async focusNode(node) {
+        super.focusNode(node);
+        this.focusedNode = node;
+        this.application.menu.removeCategory("Node");
+        if (!isEmpty(node.buttons)) {
+            let menuCategory = await this.application.menu.addCategory("Node", "n");
+            for (let buttonName in node.buttons) {
+                let buttonConfiguration = node.buttons[buttonName];
+                let menuItem = await menuCategory.addItem(buttonConfiguration.tooltip, buttonConfiguration.icon, buttonConfiguration.shortcut);
+                menuItem.onClick(() => buttonConfiguration.callback.call(node));
+            }
+        }
+    }
+
+    /**
+     * On remove, check if we need to remove the menu
+     */
+    async removeNode(node) {
+        super.removeNode(node);
+        if (this.focusedNode === node) {
+            this.focusedNode = null;
+            this.application.menu.removeCategory("Node");
+        }
+    }
+
+    /**
      * Removes the current invocation from the canvas view.
      */
     hideCurrentInvocation() {
         this.currentInvocation.hide();
-        this.removeClass("has-image");
+        if (this.hasClass("has-image")) {
+            this.removeClass("has-image");
+            this.application.menu.removeCategory("Image");
+        }
         if (!isEmpty(this.configuredWidth) && !isEmpty(this.configuredHeight)) {
             this.width = this.configuredWidth;
             this.height = this.configuredHeight;
@@ -90,7 +121,11 @@ class ImageEditorView extends NodeEditorView {
             this.height = this.currentInvocation.height;
         }
         this.currentInvocation.show();
-        this.addClass("has-image");
+        if (!this.hasClass("has-image")) {
+            this.addClass("has-image");
+            let menuCategory = await this.application.menu.addCategory("Image", "e");
+            await this.currentInvocation.prepareMenu(menuCategory);
+        }
     }
 
     /**

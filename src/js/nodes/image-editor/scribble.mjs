@@ -8,6 +8,11 @@ import { ImageEditorNodeView } from "./base.mjs";
  */
 class ImageEditorScribbleNodeView extends ImageEditorNodeView {
     /**
+     * @var string Name to display in the menu
+     */
+    static nodeTypeName = "Scribble";
+
+    /**
      * @var string The icon for changing the cursor to a square.
      */
     static pencilSquareIcon = "fa-regular fa-square";
@@ -56,6 +61,7 @@ class ImageEditorScribbleNodeView extends ImageEditorNodeView {
             "shape": {
                 "icon": ImageEditorScribbleNodeView.pencilSquareIcon,
                 "tooltip": ImageEditorScribbleNodeView.pencilSquareTooltip,
+                "shortcut": "e",
                 "callback": function() {
                     this.togglePencilShape();
                 }
@@ -63,13 +69,15 @@ class ImageEditorScribbleNodeView extends ImageEditorNodeView {
             "erase": {
                 "icon": ImageEditorScribbleNodeView.eraserIcon,
                 "tooltip": ImageEditorScribbleNodeView.eraserTooltip,
+                "shortcut": "t",
                 "callback": function() {
                     this.toggleEraser();
                 }
             },
             "clear": {
                 "icon": "fa-solid fa-delete-left",
-                "tooltip": "Clear the entire canvas.",
+                "tooltip": "Clear the entire canvas",
+                "shortcut": "l",
                 "callback": function() {
                     this.scribbleView.clearMemory();
                 }
@@ -77,6 +85,7 @@ class ImageEditorScribbleNodeView extends ImageEditorNodeView {
             "increase": {
                 "icon": "fa-solid fa-plus",
                 "tooltip": "Increase Pencil Size",
+                "shortcut": "i",
                 "callback": function() {
                     this.scribbleView.increaseSize();
                 }
@@ -84,6 +93,7 @@ class ImageEditorScribbleNodeView extends ImageEditorNodeView {
             "decrease": {
                 "icon": "fa-solid fa-minus",
                 "tooltip": "Decrease Pencil Size",
+                "shortcut": "d",
                 "callback": function() {
                     this.scribbleView.decreaseSize();
                 }

@@ -407,6 +407,17 @@ class SystemManager:
 
         return download
 
+    def cancel_download(self, url: str) -> bool:
+        """
+        Stops an in-progress download.
+        """
+        for user_id in self.downloads:
+            for download in self.downloads[user_id]:
+                if download.src == url and not download.complete:
+                    download.cancel()
+                    return True
+        return False
+
     def invoke(
         self,
         user_id: int,

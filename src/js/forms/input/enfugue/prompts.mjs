@@ -71,6 +71,8 @@ class PromptInputView extends InputView {
         this.secondary.onInput(() => this.inputted());
         this.primary.onChange(() => this.changed());
         this.secondary.onChange(() => this.changed());
+        this.primary.onKeyPress((e) => this.keyPressed(e));
+        this.secondary.onKeyPress((e) => this.keyPressed(e));
     }
 
     /**

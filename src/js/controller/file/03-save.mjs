@@ -19,6 +19,11 @@ class SaveFileController extends MenuController {
     static menuIcon = "fa-solid fa-file-arrow-down";
     
     /**
+     * @var string The keyboard shortcut
+     */
+    static menuShortcut = "a";
+    
+    /**
      * On click, get state and save
      */
     async onClick() {

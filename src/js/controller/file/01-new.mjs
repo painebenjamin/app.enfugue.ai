@@ -16,6 +16,11 @@ class NewFileController extends MenuController {
     static menuIcon = "fa-solid fa-file";
 
     /**
+     * @var string The keyboard shortcut
+     */
+    static menuShortcut = "n";
+
+    /**
      * On click, reset state
      */
     async onClick() {

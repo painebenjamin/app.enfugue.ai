@@ -538,6 +538,7 @@ class NodeView extends View {
             buttons.copy = {
                 icon: 'fa-solid fa-copy',
                 tooltip: this.constructor.copyText,
+                shortcut: "p",
                 callback: () => {
                     this.editor.copyNode(this);
                 }
@@ -545,6 +546,7 @@ class NodeView extends View {
         }
         if (this.constructor.canFlipHeader) {
             buttons.flip = {
+                shortcut: "b",
                 icon: this.constructor.headerBottomIcon,
                 tooltip: this.constructor.headerBottomText,
                 callback: () => {
@@ -554,6 +556,7 @@ class NodeView extends View {
         };
         if (this.constructor.canClose) {
             buttons.close = {
+                shortcut: "v",
                 icon: 'fa-solid fa-window-close',
                 tooltip: this.constructor.closeText,
                 callback: () => {
@@ -562,6 +565,7 @@ class NodeView extends View {
                 }
             };
         }
+        this.buttons = buttons;
         for (let buttonName in buttons) {
             // Add in the constructor buttons, for extending classes.
             let buttonConfiguration = buttons[buttonName],

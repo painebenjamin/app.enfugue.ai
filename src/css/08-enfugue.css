@@ -52,8 +52,14 @@ enfugue-menu-category {
     border-right: 1px solid rgba(0,0,0,0.2);
 }
 
+enfugue-menu.highlight enfugue-menu-category,
 enfugue-menu-category:hover {
     background-color: rgba(255,255,255,0.1);
+}
+
+
+enfugue-menu.highlight enfugue-menu-category span.shortcut {
+    text-decoration: underline;
 }
 
 enfugue-menu > enfugue-menu-category:not(:first-of-type) {
@@ -74,6 +80,8 @@ enfugue-menu-item {
     justify-content: space-between;
     flex-wrap: nowrap;
     font-size: 14px;
+    line-height: 1em;
+    height: 35px;
     color: var(--theme-color-tertiary);
     background-color: var(--dark-color);
     cursor: pointer;
@@ -1035,21 +1043,39 @@ enfugue-status-icon.busy {
 enfugue-downloads {
     display: flex;
     flex-flow: column-reverse nowrap;
-    gap: 1em;
-    padding: 1em;
+    gap: 5px;
+    padding: 5px;
 }
 
 enfugue-download {
     display: flex;
     flex-flow: column nowrap;
     gap: 2px;
+    border: 1px solid var(--darker-color);
+    padding: 10px;
+    border-radius: 5px;
 }
 
 enfugue-download-name {
-    display: block;
+    display: flex;
+    flex-flow: row nowrap;
+    align-items: center;
+    justify-content: space-between;
     font-family: var(--header-font);
     font-size: 1.5em;
     color: var(--theme-color-secondary);
+}
+
+enfugue-download-name button {
+    display: block;
+    padding: 0;
+    text-align: center;
+    width: 20px;
+    height: 20px;
+    line-height: 0px;
+    border-radius: 20px;
+    flex-grow: 0;
+    flex-shrink: 0;
 }
 
 enfugue-download-progress {

@@ -96,6 +96,7 @@ class InvokeButtonController extends Controller {
                     formattedState["conditioning_scale"] = datum.conditioningScale;
                     formattedState["crop_inpaint"] = datum.cropInpaint;
                     formattedState["inpaint_feather"] = datum.inpaintFeather;
+                    formattedState["inpaint_controlnet"] = datum.inpaintControlnet;
                     formattedState["controlnet"] = datum.controlnet;
                     formattedState["invert"] = datum.colorSpace == "invert";
                     formattedState["invert_mask"] = true; // The UI is inversed
@@ -113,6 +114,7 @@ class InvokeButtonController extends Controller {
      * Can restart itself depending on errors
      */
     async tryInvoke() {
+        this.isInvoking = true;
         this.loadingBar.loading();
         this.invokeButton.disable().addClass("sliding-gradient");
         try {
@@ -136,6 +138,7 @@ class InvokeButtonController extends Controller {
         }
         this.invokeButton.enable().removeClass("sliding-gradient");
         this.loadingBar.doneLoading();
+        this.isInvoking = false;
     }
 
     /**
@@ -147,6 +150,11 @@ class InvokeButtonController extends Controller {
         this.loadingBar = new InvokeLoadingBarView();
         await this.application.sidebar.addChild(this.invokeButton);
         await this.application.sidebar.addChild(this.loadingBar);
+        this.subscribe("keyboardShortcut", (key) => {
+            if (key === "Enter" && this.isInvoking !== true) {
+                this.tryInvoke();
+            }
+        });
     }
 }
 

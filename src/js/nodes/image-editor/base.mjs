@@ -8,6 +8,11 @@ import { NodeView } from "../base.mjs";
  */
 class ImageEditorNodeView extends NodeView {
     /**
+     * @var string The name to show in the menu
+     */
+    static nodeTypeName = "Base";
+
+    /**
      * @var bool Enable header flipping
      */
     static canFlipHeader = true;
@@ -52,9 +57,10 @@ class ImageEditorNodeView extends NodeView {
      * @see view/nodes/base
      */
     static nodeButtons = {
-        anchor: {
+        options: {
             icon: "fa-solid fa-sliders",
             tooltip: "Show/Hide Options",
+            shortcut: "o",
             callback: function() {
                 this.toggleOptions();
             }

@@ -9,6 +9,11 @@ import { ImageEditorScribbleNodeView } from "./scribble.mjs";
  */
 class ImageEditorImageNodeView extends ImageEditorScribbleNodeView {
     /**
+     * @var string The name to show in the menu
+     */
+    static nodeTypeName = "Image";
+
+    /**
      * @var array<string> All fit modes.
      */
     static allFitModes = ["actual", "stretch", "cover", "contain"];
@@ -42,28 +47,32 @@ class ImageEditorImageNodeView extends ImageEditorScribbleNodeView {
         ...{
             "mirror-x": {
                 "icon": "fa-solid fa-left-right",
-                "tooltip": "Mirror the image horizontally.",
+                "tooltip": "Mirror Horizontally",
+                "shortcut": "h",
                 "callback": function() {
                     this.mirrorHorizontally();
                 }
             },
             "mirror-y": {
                 "icon": "fa-solid fa-up-down",
-                "tooltip": "Mirror the image vertically.",
+                "tooltip": "Mirror Vertically",
+                "shortcut": "v",
                 "callback": function() {
                     this.mirrorVertically();
                 }
             },
             "rotate-clockwise": {
                 "icon": "fa-solid fa-rotate-right",
-                "tooltip": "Rotate the image clockwise by 90 degrees.",
+                "tooltip": "Rotate Clockwise",
+                "shortcut": "r",
                 "callback": function() {
                     this.rotateClockwise();
                 }
             },
             "rotate-counter-clockwise": {
                 "icon": "fa-solid fa-rotate-left",
-                "tooltip": "Rotate the image counter-clockwise by 90 degrees.",
+                "tooltip": "Rotate Counter-Clockwise",
+                "shortcut": "w",
                 "callback": function() {
                     this.rotateCounterClockwise();
                 }

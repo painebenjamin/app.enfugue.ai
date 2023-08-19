@@ -19,6 +19,11 @@ class DiscussionController extends MenuController {
      * @var string The icon to display
      */
     static menuIcon = "fa-solid fa-comments";
+    
+    /**
+     * @var string The keyboard shortcut
+     */
+    static menuShortcut = "c";
 
     /**
      * On click, open window

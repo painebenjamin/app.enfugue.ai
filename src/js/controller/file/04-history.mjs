@@ -94,6 +94,11 @@ class HistoryController extends MenuController {
     static menuIcon = "fa-solid fa-clock-rotate-left";
 
     /**
+     * @var string The keyboard shortcut
+     */
+    static menuShortcut = "y";
+
+    /**
      * @var object Config to pass into the string input
      */
     static searchHistoryConfig = {

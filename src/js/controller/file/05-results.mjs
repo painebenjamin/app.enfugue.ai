@@ -130,6 +130,11 @@ class ResultsController extends MenuController {
      * @var string The classes of the <i> element in the menu
      */
     static menuIcon = "fa-solid fa-images";
+    
+    /**
+     * @var string The keyboard shortcut
+     */
+    static menuShortcut = "r";
 
     /**
      * On initialization, register callbacks with table view.

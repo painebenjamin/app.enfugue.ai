@@ -19,6 +19,11 @@ class DocumentationController extends MenuController {
      * @var string The icon to display
      */
     static menuIcon = "fa-solid fa-book";
+    
+    /**
+     * @var string The keyboard shortcut
+     */
+    static menuShortcut = "d";
 
     /**
      * On click, open window

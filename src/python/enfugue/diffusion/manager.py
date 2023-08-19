@@ -42,7 +42,16 @@ def redact(kwargs: Dict[str, Any]) -> Dict[str, Any]:
     """
     Redacts prompts from logs to encourage log sharing for troubleshooting.
     """
-    return dict([(key, value if "prompt" not in key else "***") for key, value in kwargs.items()])
+    redacted = {}
+    for key, value in kwargs.items():
+        if type(value) not in [str, float, int, bool, type(None)]:
+            redacted[key] = type(value).__name__
+        elif "prompt" in key and value is not None:
+            redacted[key] = "***"
+        else:
+            redacted[key] = value
+    
+    return redacted
 
 
 class KeepaliveThread(threading.Thread):
@@ -390,6 +399,20 @@ class DiffusionPipelineManager:
             logger.debug(f"Hot-swapping refiner pipeline multi-diffusion scheduler.")
             self._refiner_pipeline.multi_scheduler = self.multi_scheduler.from_config(self._refiner_pipeline.multi_scheduler_config)  # type: ignore
 
+    def get_vae_path(self, vae: Optional[str] = None) -> Optional[str]:
+        """
+        Gets the path to the VAE repository based on the passed path or key
+        """
+        if vae == "ema":
+            return VAE_EMA
+        elif vae == "mse":
+            return VAE_MSE
+        elif vae == "xl":
+            return VAE_XL
+        elif vae == "xl16":
+            return VAE_XL16
+        return vae
+
     def get_vae(self, vae: Optional[str] = None) -> Optional[AutoencoderKL]:
         """
         Loads the VAE
@@ -402,7 +425,6 @@ class DiffusionPipelineManager:
 
         if not os.path.exists(expected_vae_location):
             logger.info(f"VAE {vae} does not exist in cache directory {self.engine_cache_dir}, it will be downloaded.")
-
         result = AutoencoderKL.from_pretrained(
             vae,
             torch_dtype=self.dtype,
@@ -427,18 +449,7 @@ class DiffusionPipelineManager:
         """
         Sets a new vae.
         """
-        if new_vae == "ema":
-            pretrained_path = VAE_EMA
-        elif new_vae == "mse":
-            pretrained_path = VAE_MSE
-        elif new_vae == "xl":
-            pretrained_path = VAE_XL
-        elif new_vae == "xl16":
-            pretrained_path = VAE_XL16
-        else:
-            # Custom
-            pretrained_path = new_vae
-
+        pretrained_path = self.get_vae_path(new_vae)
         existing_vae = getattr(self, "_vae", None)
 
         if (
@@ -481,7 +492,7 @@ class DiffusionPipelineManager:
             self._refiner_vae = self.get_vae(self.refiner_vae_name)
         return self._refiner_vae
 
-    @vae.setter
+    @refiner_vae.setter
     def refiner_vae(
         self,
         new_vae: Optional[str],
@@ -489,18 +500,7 @@ class DiffusionPipelineManager:
         """
         Sets a new refiner vae.
         """
-        if new_vae == "ema":
-            pretrained_path = VAE_EMA
-        elif new_vae == "mse":
-            pretrained_path = VAE_MSE
-        elif new_vae == "xl":
-            pretrained_path = VAE_XL
-        elif new_vae == "xl16":
-            pretrained_path = VAE_XL16
-        else:
-            # Custom
-            pretrained_path = new_vae
-
+        pretrained_path = self.get_vae_path(new_vae)
         existing_vae = getattr(self, "_refiner_vae", None)
 
         if (
@@ -522,7 +522,7 @@ class DiffusionPipelineManager:
                     self._refiner_pipeline.vae = self._vae
                     if self.refiner_is_sdxl:
                         self._refiner_pipeline.register_to_config(
-                            force_full_precision_vae = new_vae in ["xl", "stabilityai/sdxl-vae"]
+                            force_full_precision_vae = new_vae in ["xl", VAE_XL]
                         )
 
     @property
@@ -543,7 +543,7 @@ class DiffusionPipelineManager:
             self._inpainter_vae = self.get_vae(self.inpainter_vae_name)
         return self._inpainter_vae
 
-    @vae.setter
+    @inpainter_vae.setter
     def inpainter_vae(
         self,
         new_vae: Optional[str],
@@ -551,18 +551,7 @@ class DiffusionPipelineManager:
         """
         Sets a new inpainter vae.
         """
-        if new_vae == "ema":
-            pretrained_path = VAE_EMA
-        elif new_vae == "mse":
-            pretrained_path = VAE_MSE
-        elif new_vae == "xl":
-            pretrained_path = VAE_XL
-        elif new_vae == "xl16":
-            pretrained_path = VAE_XL16
-        else:
-            # Custom
-            pretrained_path = new_vae
-
+        pretrained_path = self.get_vae_path(new_vae)
         existing_vae = getattr(self, "_inpainter_vae", None)
 
         if (
@@ -2233,11 +2222,13 @@ class DiffusionPipelineManager:
                 "requires_safety_checker": self.safe,
                 "torch_dtype": self.dtype,
                 "cache_dir": self.engine_cache_dir,
-                "force_full_precision_vae": self.is_sdxl and self.vae_name != "xl16"
+                "force_full_precision_vae": self.is_sdxl and self.vae_name not in ["xl16", VAE_XL16],
+                "controlnet": self.controlnet,
             }
-
-            vae = self.vae  # Load into memory here
-            controlnet = self.controlnet  # Load into memory here
+            
+            vae = self.vae
+            if vae is not None:
+                kwargs["vae"] = vae
 
             if self.use_tensorrt:
                 if self.is_sdxl:
@@ -2260,13 +2251,9 @@ class DiffusionPipelineManager:
                     kwargs["tokenizer_2"] = None
                     kwargs["text_encoder_2"] = None
                 logger.debug(
-                    f"Initializing pipeline from diffusers cache directory at {self.model_diffusers_cache_dir}. Arguments are {kwargs}"
+                    f"Initializing pipeline from diffusers cache directory at {self.model_diffusers_cache_dir}. Arguments are {redact(kwargs)}"
                 )
-                if vae is not None:
-                    kwargs["vae"] = vae
-                pipeline = self.pipeline_class.from_pretrained(
-                    self.model_diffusers_cache_dir, controlnet=controlnet, **kwargs
-                )
+                pipeline = self.pipeline_class.from_pretrained(self.model_diffusers_cache_dir, **kwargs)
             elif self.model_diffusers_cache_dir is not None:
                 if not self.safe:
                     kwargs["safety_checker"] = None
@@ -2274,22 +2261,16 @@ class DiffusionPipelineManager:
                     kwargs["tokenizer_2"] = None
                     kwargs["text_encoder_2"] = None
                 logger.debug(
-                    f"Initializing pipeline from diffusers cache directory at {self.model_diffusers_cache_dir}. Arguments are {kwargs}"
+                    f"Initializing pipeline from diffusers cache directory at {self.model_diffusers_cache_dir}. Arguments are {redact(kwargs)}"
                 )
-                if vae is not None:
-                    kwargs["vae"] = vae
-                pipeline = self.pipeline_class.from_pretrained(
-                    self.model_diffusers_cache_dir, controlnet=controlnet, **kwargs
-                )
+                pipeline = self.pipeline_class.from_pretrained(self.model_diffusers_cache_dir, **kwargs)
             else:
                 kwargs["load_safety_checker"] = self.safe
                 if self.vae_name is not None:
-                    if self.vae_name == "mse":
-                        kwargs["vae_path"] = VAE_MSE
-                    elif self.vae_name == "ema":
-                        kwargs["vae_path"] = VAE_EMA
-                logger.debug(f"Initializing pipeline from checkpoint at {self.model}. Arguments are {kwargs}")
-                pipeline = self.pipeline_class.from_ckpt(self.model, controlnet=controlnet, **kwargs)
+                    kwargs["vae_path"] = self.get_vae_path(self.vae_name)
+                kwargs.pop("vae", None)
+                logger.debug(f"Initializing pipeline from checkpoint at {self.model}. Arguments are {redact(kwargs)}")
+                pipeline = self.pipeline_class.from_ckpt(self.model, **kwargs)
                 if self.should_cache:
                     logger.debug("Saving pipeline to pretrained.")
                     pipeline.save_pretrained(self.model_diffusers_dir)
@@ -2342,22 +2323,13 @@ class DiffusionPipelineManager:
                 "chunking_size": self.chunking_size,
                 "torch_dtype": self.dtype,
                 "requires_safety_checker": False,
-                "force_full_precision_vae": self.refiner_is_sdxl and self.vae_name != "xl16"
+                "force_full_precision_vae": self.refiner_is_sdxl and self.refiner_vae_name not in ["xl16", VAE_XL16],
+                "controlnet": None
             }
-
-            if self.vae_name in ["xl", "xl16"] and not self.refiner_is_sdxl:
-                vae = None
-            elif self.vae_name not in ["xl", "xl16"] and self.refiner_is_sdxl:
-                vae = None
-            else:
-                vae = self.vae  # Load into memory here
-
-            if self.refiner_is_sdxl:
-                if self.controlnet_name is not None:
-                    logger.warning(f"SDXL refiner does not support ControlNet, refusing to load '{self.controlnet_name}'")
-                controlnet = None
-            else:
-                controlnet = self.controlnet # Load into memory here
+            
+            vae = self.refiner_vae
+            if vae is not None:
+                kwargs["vae"] = vae
 
             if self.refiner_use_tensorrt:
                 if "unet" in self.TENSORRT_STAGES:
@@ -2386,16 +2358,12 @@ class DiffusionPipelineManager:
                     kwargs["tokenizer_2"] = None
 
                 logger.debug(
-                    f"Initializing refiner pipeline from diffusers cache directory at {self.refiner_diffusers_cache_dir}. Arguments are {kwargs}"
+                    f"Initializing refiner pipeline from diffusers cache directory at {self.refiner_diffusers_cache_dir}. Arguments are {redact(kwargs)}"
                 )
-
-                if vae is not None:
-                    kwargs["vae"] = vae
 
                 refiner_pipeline = self.refiner_pipeline_class.from_pretrained(
                     self.refiner_diffusers_cache_dir,
                     safety_checker=None,
-                    controlnet=controlnet,
                     **kwargs,
                 )
             elif self.refiner_engine_cache_exists:
@@ -2406,28 +2374,24 @@ class DiffusionPipelineManager:
                 else:
                     kwargs["text_encoder_2"] = None
                     kwargs["tokenizer_2"] = None
+                
                 logger.debug(
-                    f"Initializing refiner pipeline from diffusers cache directory at {self.refiner_diffusers_cache_dir}. Arguments are {kwargs}"
+                    f"Initializing refiner pipeline from diffusers cache directory at {self.refiner_diffusers_cache_dir}. Arguments are {redact(kwargs)}"
                 )
-                if vae is not None:
-                    kwargs["vae"] = vae
+                
                 refiner_pipeline = self.refiner_pipeline_class.from_pretrained(
                     self.refiner_diffusers_cache_dir,
                     safety_checker=None,
-                    controlnet=controlnet,
                     **kwargs,
                 )
             else:
-                if self.vae_name is not None:
-                    if self.vae_name == "mse":
-                        kwargs["vae_path"] = VAE_MSE
-                    elif self.vae_name == "ema":
-                        kwargs["vae_path"] = VAE_EMA
-                logger.debug(f"Initializing refiner pipeline from checkpoint at {self.refiner}. Arguments are {kwargs}")
+                if self.refiner_vae_name is not None:
+                    kwargs["vae_path"] = self.get_vae_path(self.refiner_vae_name)
+                kwargs.pop("vae", None)
+                logger.debug(f"Initializing refiner pipeline from checkpoint at {self.refiner}. Arguments are {redact(kwargs)}")
                 refiner_pipeline = self.refiner_pipeline_class.from_ckpt(
                     self.refiner,
                     load_safety_checker=False,
-                    controlnet=controlnet,
                     **kwargs,
                 )
                 if self.should_cache_refiner:
@@ -2497,14 +2461,13 @@ class DiffusionPipelineManager:
                 "requires_safety_checker": self.safe,
                 "requires_aesthetic_score": False,
                 "controlnet": None,
-                "force_full_precision_vae": self.inpainter_is_sdxl and self.vae_name != "xl16"
+                "force_full_precision_vae": self.inpainter_is_sdxl and self.inpainter_vae_name not in ["xl16", VAE_XL16]
             }
 
-            if self.vae_name in ["xl", "xl16"] and not self.inpainter_is_sdxl:
-                vae = None
-            else:
-                vae = self.vae  # Load into memory here
+            vae = self.inpainter_vae
+            if vae is not None:
 
+                kwargs["vae"] = vae
             if self.inpainter_use_tensorrt:
                 if self.inpainter_is_sdxl: # Not possible yet
                     raise ValueError(f"Sorry, TensorRT is not yet supported for SDXL.")
@@ -2524,19 +2487,13 @@ class DiffusionPipelineManager:
                     kwargs["tokenizer_2"] = None
 
                 logger.debug(
-                    f"Initializing inpainter pipeline from diffusers cache directory at {self.inpainter_diffusers_cache_dir}. Arguments are {kwargs}"
+                    f"Initializing inpainter pipeline from diffusers cache directory at {self.inpainter_diffusers_cache_dir}. Arguments are {redact(kwargs)}"
                 )
-
-                if vae is not None:
-                    kwargs["vae"] = vae
 
                 inpainter_pipeline = self.inpainter_pipeline_class.from_pretrained(
                     self.inpainter_diffusers_cache_dir, **kwargs
                 )
             elif self.inpainter_engine_cache_exists:
-                logger.debug(
-                    f"Initializing inpainter pipeline from diffusers cache directory at {self.inpainter_diffusers_cache_dir}. Arguments are {kwargs}"
-                )
                 if not self.safe:
                     kwargs["safety_checker"] = None
                 if not self.inpainter_is_sdxl:
@@ -2544,21 +2501,22 @@ class DiffusionPipelineManager:
                     kwargs["tokenizer_2"] = None
                     kwargs["text_encoder_2"] = None
                     kwargs["tokenizer_2"] = None
-                if vae is not None:
-                    kwargs["vae"] = vae
+                
+                logger.debug(
+                    f"Initializing inpainter pipeline from diffusers cache directory at {self.inpainter_diffusers_cache_dir}. Arguments are {redact(kwargs)}"
+                )
 
                 inpainter_pipeline = self.inpainter_pipeline_class.from_pretrained(
                     self.inpainter_diffusers_cache_dir, **kwargs
                 )
             else:
+                if self.inpainter_vae_name is not None:
+                    kwargs["vae_path"] = self.get_vae_path(self.inpainter_vae_name)
+                
                 logger.debug(
-                    f"Initializing inpainter pipeline from checkpoint at {self.inpainter}. Arguments are {kwargs}"
+                    f"Initializing inpainter pipeline from checkpoint at {self.inpainter}. Arguments are {redact(kwargs)}"
                 )
-                if self.vae_name is not None:
-                    if self.vae_name == "mse":
-                        kwargs["vae_path"] = VAE_MSE
-                    elif self.vae_name == "ema":
-                        kwargs["vae_path"] = VAE_EMA
+
                 inpainter_pipeline = self.inpainter_pipeline_class.from_ckpt(
                     self.inpainter, load_safety_checker=self.safe, **kwargs
                 )
@@ -2758,18 +2716,30 @@ class DiffusionPipelineManager:
             return None
         from diffusers.models import ControlNetModel
 
-        expected_controlnet_location = os.path.join(self.engine_cache_dir, "models--" + controlnet.replace("/", "--"))
-
-        if not os.path.exists(expected_controlnet_location):
-            logger.info(
-                f"Controlnet {controlnet} does not exist in cache directory {self.engine_cache_dir}, it will be downloaded."
+        if ".safetensors" in controlnet or ".ckpt" in controlnet or "/" not in controlnet:
+            expected_controlnet_location = os.path.join(self.engine_cache_dir, os.path.basename(controlnet))
+            if not os.path.exists(expected_controlnet_location):
+                logger.info(
+                    f"Controlnet {controlnet} does not exist in cache directory {self.engine_cache_dir}, it will be downloaded."
+                )
+            check_download(controlnet, expected_controlnet_location)
+            return ControlNetModel.from_single_file(
+                expected_controlnet_location,
+                torch_dtype=torch.half,
+                cache_dir=self.engine_cache_dir,
+            )
+        else:
+            expected_controlnet_location = os.path.join(self.engine_cache_dir, "models--" + controlnet.replace("/", "--"))
+            if not os.path.exists(expected_controlnet_location):
+                logger.info(
+                    f"Controlnet {controlnet} does not exist in cache directory {self.engine_cache_dir}, it will be downloaded."
+                )
+            result = ControlNetModel.from_pretrained(
+                controlnet,
+                torch_dtype=torch.half,
+                cache_dir=self.engine_cache_dir,
             )
 
-        result = ControlNetModel.from_pretrained(
-            controlnet,
-            torch_dtype=torch.half,
-            cache_dir=self.engine_cache_dir,
-        )
         return result
     
     def get_default_controlnet_path_by_name(
@@ -2823,7 +2793,7 @@ class DiffusionPipelineManager:
             key_parts += ["xl"]
         key_parts += [name]
         configured_path = self.configuration.get(".".join(key_parts), None)
-        if configured_path is None:
+        if not configured_path:
             return self.get_default_controlnet_path_by_name(name, is_sdxl)
         return configured_path
 
@@ -2893,7 +2863,9 @@ class DiffusionPipelineManager:
         refiner_aesthetic_score: Optional[float] = None,
         refiner_negative_aesthetic_score: Optional[float] = None,
         refiner_prompt: Optional[str] = None,
+        refiner_prompt_2: Optional[str] = None,
         refiner_negative_prompt: Optional[str] = None,
+        refiner_negative_prompt_2: Optional[str] = None,
         scale_to_refiner_size: bool = True,
         task_callback: Optional[Callable[[str], None]] = None,
         next_intention: Optional[Literal["inpainting", "inference", "refining", "upscaling"]] = None,
@@ -2903,7 +2875,6 @@ class DiffusionPipelineManager:
         Passes an invocation down to the pipeline, doing whatever it needs to do to initialize it.
         Will switch between inpainting and non-inpainting models
         """
-        logger.debug(f"Calling pipeline with arguments {redact(kwargs)}")
         if task_callback is None:
             task_callback = lambda arg: None
         self.start_keepalive()
@@ -2949,6 +2920,7 @@ class DiffusionPipelineManager:
 
             self.stop_keepalive()
             task_callback("Executing Inference")
+            logger.debug(f"Calling pipeline with arguments {redact(kwargs)}")
             result = pipe(generator=self.generator, **kwargs)
 
             if self.refiner is not None:
@@ -3016,8 +2988,20 @@ class DiffusionPipelineManager:
                         # check if we have a different prompt
                         if refiner_prompt:
                             kwargs["prompt"] = refiner_prompt
+                            if "prompt_2" in kwargs and not refiner_prompt_2:
+                                # if giving a refining prompt but not a second refining prompt,
+                                # and the primary prompt has a secondary prompt, then remove
+                                # the non-refining secondary prompt as it overrides too much
+                                # of the refining prompt if it gets merged
+                                kwargs.pop("prompt_2")
+                        if refiner_prompt_2:
+                            kwargs["prompt_2"] = refiner_prompt_2
                         if refiner_negative_prompt:
                             kwargs["negative_prompt"] = refiner_negative_prompt
+                            if "negative_prompt_2" in kwargs and not refiner_negative_prompt_2:
+                                kwargs.pop("negative_prompt_2")
+                        if refiner_negative_prompt_2:
+                            kwargs["negative_prompt_2"] = refiner_negative_prompt_2
                         
                         width, height = image.size
                         image_scale = 1
@@ -3052,7 +3036,7 @@ class DiffusionPipelineManager:
                                 original_callback(result["images"][:i] + images + result["images"][i+1:]) # type: ignore
 
                             kwargs["latent_callback"] = mixed_result_callback
-                        logger.debug(f"Refining result {i} with arguments {kwargs}")
+                        logger.debug(f"Refining result {i} with arguments {redact(kwargs)}")
                         pipe = self.refiner_pipeline # Instantiate if needed
                         self.stop_keepalive()  # This checks, we can call it all we want
                         task_callback(f"Refining Sample {i+1}")

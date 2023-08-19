@@ -91,6 +91,11 @@ class AboutController extends MenuController {
      * @var int The height of the about window
      */
     static aboutWindowHeight = 550;
+    
+    /**
+     * @var string The keyboard shortcut
+     */
+    static menuShortcut = "a";
 
     /**
      * On click, reset state

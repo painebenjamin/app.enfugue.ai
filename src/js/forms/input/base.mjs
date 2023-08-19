@@ -66,6 +66,9 @@ class InputView extends View {
         this.onClickCallbacks = [];
         this.onMouseUpCallbacks = [];
         this.onMouseDownCallbacks = [];
+        this.onKeyPressCallbacks = [];
+        this.onKeyDownCallbacks = [];
+        this.onKeyUpCallbacks = [];
     }
 
     /**
@@ -132,6 +135,33 @@ class InputView extends View {
      */
     onMouseUp(callback) {
         this.onMouseUpCallbacks.push(callback);
+    }
+    
+    /**
+     * Adds a callback to perform when the input first has a key press.
+     *
+     * @param callable $callback The callback function.
+     */
+    onKeyPress(callback) {
+        this.onKeyPressCallbacks.push(callback);
+    }
+
+    /**
+     * Adds a callback to perform when the input first has a key down.
+     *
+     * @param callable $callback The callback function.
+     */
+    onKeyDown(callback) {
+        this.onKeyDownCallbacks.push(callback);
+    }
+
+    /**
+     * Adds a callback to perform when the input first has a key up.
+     *
+     * @param callable $callback The callback function.
+     */
+    onKeyUp(callback) {
+        this.onKeyUpCallbacks.push(callback);
     }
 
     /**
@@ -250,6 +280,48 @@ class InputView extends View {
             mouseDownCallback(e);
         }
     }
+    
+    /**
+     * Trigger onKeyPress callbacks.
+     *
+     * @param Event $e The keypress event.
+     */
+    keyPressed(e) {
+        if (e) {
+            e.stopPropagation();
+        }
+        for (let keyPressCallback of this.onKeyPressCallbacks) {
+            keyPressCallback(e);
+        }
+    }
+    /**
+     * Trigger onKeyDown callbacks.
+     *
+     * @param Event $e The keypress event.
+     */
+    keyDowned(e) {
+        if (e) {
+            e.stopPropagation();
+        }
+        for (let keyDownCallback of this.onKeyDownCallbacks) {
+            keyDownCallback(e);
+        }
+    }
+    
+    /**
+     * Trigger onKeyUp callbacks.
+     *
+     * @param Event $e The keypress event.
+     */
+    keyUpped(e) {
+        if (e) {
+            e.stopPropagation();
+        }
+        for (let keyUpCallback of this.onKeyUpCallbacks) {
+            keyUpCallback(e);
+        }
+    }
+
 
     /**
      * Disables this input.
@@ -356,7 +428,11 @@ class InputView extends View {
             .on("focus", (e) => this.focused(e))
             .on("click", (e) => this.clicked(e))
             .on("mouseup", (e) => this.mouseUpped(e))
-            .on("mousedown", (e) => this.mouseDowned(e));
+            .on("mousedown", (e) => this.mouseDowned(e))
+            .on("keypress", (e) => this.keyPressed(e))
+            .on("keyup", (e) => this.keyUpped(e))
+            .on("keydown", (e) => this.keyDowned(e));
+
 
         if (this.constructor.tagName == "input") {
             node.type(this.constructor.inputType);

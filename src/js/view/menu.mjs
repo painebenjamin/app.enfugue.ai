@@ -13,6 +13,31 @@ const E = new ElementBuilder({
 });
 
 /**
+ * Formats a name with a shortcut
+ */
+function formatName(name, shortcut = null) {
+    if (isEmpty(shortcut)) {
+        return name;
+    }
+    let formatted = "<span>",
+        highlighted = false;
+
+    for (let i = 0; i < name.length; i++) {
+        let character = name[i];
+        if (!highlighted && character.toLowerCase() === shortcut.toLowerCase()) {
+            formatted += `</span><span class="shortcut">${character}</span>`;
+            highlighted = true;
+        } else {
+            formatted += character;
+        }
+    }
+    if (formatted[formatted.length-1] !== ">") {
+        formatted += "</span>";
+    }
+    return formatted;
+}
+
+/**
  * The MenuView allows Categories and items
  */
 class MenuView extends ParentView {
@@ -28,6 +53,29 @@ class MenuView extends ParentView {
         for (let child of this.children) {
             if (child instanceof MenuCategoryView){
                 child.removeClass("active");
+            }
+        }
+    }
+
+    /**
+     * Shows a category by shortcut
+     */
+    async fireCategoryShortcut(key) {
+        for (let child of this.children) {
+            if (child instanceof MenuCategoryView) {
+                if (!isEmpty(child.shortcut) && child.shortcut.toLowerCase() === key.toLowerCase()) {
+                    this.toggleCategory(child.name);
+                    return;
+                }
+                if (child.hasClass("active")) {
+                    for (let grandchild of child.children) {
+                        if (!isEmpty(grandchild.shortcut) && grandchild.shortcut.toLowerCase() === key.toLowerCase()) {
+                            await grandchild.activate();
+                            this.hideCategories();
+                            return;
+                        }
+                    }
+                }
             }
         }
     }
@@ -56,6 +104,22 @@ class MenuView extends ParentView {
         }
         return newValue;
     }
+
+    /**
+     * Removes a specific category
+     *
+     * @param string $name The name of the category
+     * @return bool True if removed, false if not
+     */
+    removeCategory(name) {
+        for (let child of this.children) {
+            if (child instanceof MenuCategoryView && child.name === name){
+                this.removeChild(child);
+                return true;
+            }
+        }
+        return false;
+    }
     
     /**
      * Adds a new category
@@ -63,10 +127,10 @@ class MenuView extends ParentView {
      * @param string $name The name of the category
      * @return MenuCategoryView The instantiated category
      */
-    addCategory(name) {
+    addCategory(name, shortcut) {
         let index = 0;
         while (this.children[index] instanceof MenuCategoryView) index++;
-        return this.insertChild(index, MenuCategoryView, name);
+        return this.insertChild(index, MenuCategoryView, name, shortcut);
     }
 
     /**
@@ -93,12 +157,13 @@ class MenuCategoryView extends ParentView {
      * @var object $config The base configuration object
      * @var string $name The name of the category
      */
-    constructor(config, name) {
+    constructor(config, name, shortcut) {
         super(config);
         this.name = name;
+        this.shortcut = shortcut;
         this.buttons = [];
     }
-    
+
     /**
      * Sets the name after construction
      *
@@ -110,7 +175,7 @@ class MenuCategoryView extends ParentView {
             this.node
                 .find(E.getCustomTag("categoryHeader"))
                 .find("span")
-                .content(this.name);
+                .content(formatName(this.name, this.shortcut));
         }
     }
 
@@ -177,8 +242,8 @@ class MenuCategoryView extends ParentView {
      * @param string $icon The icon classes to display
      * @return IconItemView
      */
-    async addItem(name, icon) {
-        return this.addChild(IconItemView, name, icon);
+    async addItem(name, icon, shortcut) {
+        return this.addChild(IconItemView, name, icon, shortcut);
     }
 
     /**
@@ -186,7 +251,7 @@ class MenuCategoryView extends ParentView {
      */
     async build() {
         let node = await super.build(),
-            header = E.categoryHeader().content(E.span().content(this.name));
+            header = E.categoryHeader().content(E.span().content(formatName(this.name, this.shortcut)));
 
         for (let button of this.buttons) {
             header.append(button);
@@ -210,9 +275,10 @@ class MenuItemView extends View {
      * @param object $config The configuration object
      * @param string $name The name of the menu item (text)
      */
-    constructor(config, name) {
+    constructor(config, name, shortcut) {
         super(config);
         this.name = name;
+        this.shortcut = shortcut;
         this.callbacks = [];
     }
 
@@ -238,19 +304,32 @@ class MenuItemView extends View {
     }
 
     /**
+     * Fires callbacks
+     */
+    async activate() {
+        if (this.node !== undefined) {
+            if (this.node.hasClass("disabled")) return;
+            this.node.addClass("disabled").addClass("loading");
+            for (let callback of this.callbacks) {
+                await callback();
+            }
+            this.node.removeClass("disabled").removeClass("loading");
+        } else {
+            for (let callback of this.callbacks) {
+                await callback();
+            }
+        }
+    }
+
+    /**
      * Builds the node and binds events.
      */
     async build() {
         let node = await super.build();
-        node.prepend(E.span().content(this.name));
-        node.on("click", async (e) => {
+        node.prepend(E.span().content(formatName(this.name, this.shortcut)));
+        node.on("click", async(e) => {
             e.preventDefault();
-            if (node.hasClass("disabled")) return;
-            node.addClass("disabled").addClass("loading");
-            for (let callback of this.callbacks) {
-                await callback();
-            }
-            node.removeClass("disabled").removeClass("loading");
+            this.activate()
         });
         return node;
     }
@@ -265,8 +344,8 @@ class IconItemView extends MenuItemView {
      * @param string $name The name (text) of the item.
      * @param string $icon The icon classes or image source
      */
-    constructor(config, name, icon) {
-        super(config, name);
+    constructor(config, name, icon, shortcut) {
+        super(config, name, shortcut);
         this.icon = icon;
     }
 

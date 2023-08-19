@@ -15,6 +15,11 @@ class ModelManagerController extends MenuController {
      * @var string The class of the icon in the UI
      */
     static menuIcon = "fa-solid fa-table-list";
+    
+    /**
+     * @var string The keyboard shortcut
+     */
+    static menuShortcut = "c";
 
     /**
      * When clicked, show manager

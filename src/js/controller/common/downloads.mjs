@@ -37,13 +37,19 @@ class DownloadsView extends View {
             return;
         }
         for (let download of downloads) {
-            let downloadNode = this.node.find(`#DL${download.filename.replace('.', '_')}`);
+            let downloadNode = this.node.find(`#download-${download.id}`);
             if (isEmpty(downloadNode)) {
                 this.node.append(this.createDownloadNode(download));
             } else {
                 downloadNode.find(E.getCustomTag("downloadSize")).content(this.getDownloadSizeText(download));
                 downloadNode.find(E.getCustomTag("downloadProgress")).css(this.getDownloadProgressCSS(download));
                 downloadNode.find(E.getCustomTag("downloadTime")).content(this.getDownloadTimeText(download));
+                let cancelDownloadButton = downloadNode.find("button");
+                if (["complete", "canceled"].indexOf(download.status) == -1) {
+                    cancelDownloadButton.disabled(false).removeClass("disabled");
+                } else {
+                    cancelDownloadButton.disabled(true).addClass("disabled");
+                }
             }
         }
     }
@@ -86,7 +92,11 @@ class DownloadsView extends View {
      * Gets the text to say regarding timing when showing a download
      */
     getDownloadTimeText(download) {
-        if (isEmpty(download.total)) {
+        if (download.status === "error") {
+            return "Error";
+        } else if (download.status === "canceled") {
+            return "Download Canceled";
+        } else if (isEmpty(download.total)) {
             return "Download Pending";
         } else if (download.downloaded === download.total) {
             let bytesPerSecond = download.total / download.elapsed;
@@ -104,8 +114,20 @@ class DownloadsView extends View {
      * Creates a new node for an individual download
      */
     createDownloadNode(download) {
-        return E.download().id(`DL${download.filename.replace('.', '_')}`).content(
-            E.downloadName().content(download.filename),
+        let cancelButton = E.button().content("×").data("tooltip", "Cancel Download").on("click", () => {
+            if (!cancelButton.hasClass("disabled")) {
+                this.constructor.cancelDownload(download);
+                cancelButton.disabled(true).addClass("disabled");
+            }
+        });
+        if (["complete", "canceled"].indexOf(download.status) !== -1) {
+            cancelButton.disabled(true).addClass("disabled");
+        }
+        return E.download().id(`download-${download.id}`).content(
+            E.downloadName().content(
+                E.span().content(download.filename),
+                cancelButton
+            ),
             E.downloadSize().content(this.getDownloadSizeText(download)),
             E.downloadProgress().css(this.getDownloadProgressCSS(download)),
             E.downloadTime().content(this.getDownloadTimeText(download))
@@ -202,6 +224,24 @@ class DownloadsController extends Controller {
     }
 
     /**
+     * Cancels a download
+     */
+    async cancelDownload(download) {
+        try {
+            await this.model.post("download/cancel", null, null, {"url": download.source});
+            this.application.notifications.push("info", "Success", `Canceled downloading ${download.filename}`);
+            this.checkDownloads();
+        } catch(e) {
+            let errorMessage = isEmpty(e) 
+                ? "Couldn't communicate with server." 
+                : isEmpty(e.detail)
+                   ? `${e}`
+                   : e.detail;
+            this.notify("error", "Couldn't Cancel Download", errorMessage);
+        }
+    }
+
+    /**
      * Shows the downloads
      */
     async showDownloads() {
@@ -261,6 +301,7 @@ class DownloadsController extends Controller {
      * On initialization, append status indicator to header
      */
     async initialize() {
+        DownloadsView.cancelDownload = (download) => this.cancelDownload(download);
         this.downloadStatusIndicator = E.downloadStatus().content(
             E.i().class("fa-solid fa-download"),
             E.downloadCount().hide()

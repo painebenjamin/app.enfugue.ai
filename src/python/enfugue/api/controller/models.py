@@ -465,7 +465,7 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         inpainter_vae = request.parsed.get("inpainter_vae", None)
         if inpainter_vae:
             self.database.add(
-                self.orm.DiffusionModelinpainterVAE(
+                self.orm.DiffusionModelInpainterVAE(
                     diffusion_model_name=model_name,
                     name=inpainter_vae,
                 )

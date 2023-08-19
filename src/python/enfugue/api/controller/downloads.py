@@ -49,6 +49,21 @@ class EnfugueAPIDownloadsController(EnfugueAPIControllerBase):
             return self.manager.download(request.token.user.id, request.parsed["url"], target_file).format()
         except KeyError as ex:
             raise BadRequestError(f"Missing required argument {ex}")
+    
+    @handlers.path("^/api/download/cancel$")
+    @handlers.methods("POST")
+    @handlers.format()
+    @handlers.secured("Download", "delete")
+    def cancel_download(self, request: Request, response: Response) -> None:
+        """
+        Cancels a download.
+        """
+        try:
+            if self.manager.cancel_download(request.parsed["url"]):
+                return
+            raise BadRequestError(f"Not downloading {request.parsed['url']}")
+        except KeyError as ex:
+            raise BadRequestError(f"Missing required argument {ex}")
 
     @handlers.path("^/api/download$")
     @handlers.methods("GET")

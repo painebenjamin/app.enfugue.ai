@@ -15,6 +15,11 @@ class OpenFileController extends MenuController {
      * @var string The icon to display
      */
     static menuIcon = "fa-solid fa-file-arrow-up";
+    
+    /**
+     * @var string The keyboard shortcut
+     */
+    static menuShortcut = "o";
 
     /**
      * When clicked, read file then set state

@@ -6,7 +6,7 @@ import shutil
 import datetime
 
 from pathlib import Path
-from typing import Dict, Any, Tuple, List, TypedDict, cast
+from typing import Dict, Any, Tuple, List, Optional, TypedDict, cast
 
 from sqlalchemy import delete
 
@@ -122,7 +122,7 @@ class EnfugueAPISystemController(EnfugueAPIControllerBase):
             key_parts += ["xl"]
         key_parts += [name]
         configured_path = self.configuration.get(".".join(key_parts), None)
-        if configured_path is None:
+        if not configured_path:
             return self.get_default_controlnet_path(name, is_sdxl)
         return configured_path
 
@@ -146,8 +146,8 @@ class EnfugueAPISystemController(EnfugueAPIControllerBase):
             "inpainting": "never" if self.configuration.get("enfugue.pipeline.inpainter", None) == False else None
         }
         for controlnet in self.CONTROLNETS:
-            settings[controlnet] = self.get_controlnet_path(controlnet)
-            settings[f"{controlnet}_xl"] = self.get_controlnet_path(controlnet, True)
+            settings[controlnet] = self.get_controlnet_path(controlnet) # type: ignore
+            settings[f"{controlnet}_xl"] = self.get_controlnet_path(controlnet, True) # type: ignore
         return settings
 
     @handlers.path("^/api/settings$")

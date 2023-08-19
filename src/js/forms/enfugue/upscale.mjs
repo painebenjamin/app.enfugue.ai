@@ -60,7 +60,7 @@ class UpscaleFormView extends FormView {
             }
         },
         "Upscale Diffusion": {
-            "upcsaleDiffusionPipeline": {
+            "upscalePipeline": {
                 "label": "Pipeline",
                 "class": UpscaleDiffusionPipelineInputView
             },

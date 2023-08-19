@@ -118,6 +118,34 @@ class CurrentInvocationImageView extends ImageView {
     }
 
     /**
+     * Adds the image menu to the passed menu
+     */
+    async prepareMenu(menu) {
+        let hideImage = await menu.addItem("Hide Image", "fa-solid fa-eye-slash", "d");
+        hideImage.onClick(() => this.editor.application.images.hideCurrentInvocation());
+
+        if (!!navigator.clipboard && typeof ClipboardItem === "function") {
+            let copyImage = await menu.addItem("Copy to Clipboard", "fa-solid fa-clipboard", "c");
+            copyImage.onClick(() => this.copyToClipboard());
+        }
+        
+        let popoutImage = await menu.addItem("Popout Image", "fa-solid fa-arrow-up-right-from-square", "p");
+        popoutImage.onClick(() => this.sendToWindow());
+
+        let saveImage = await menu.addItem("Save As", "fa-solid fa-floppy-disk", "a");
+        saveImage.onClick(() => this.saveToDisk());
+
+        let adjustImage = await menu.addItem("Adjust Image", "fa-solid fa-sliders", "j");
+        adjustImage.onClick(() => this.startImageAdjustment());
+
+        let filterImage = await menu.addItem("Filter Image", "fa-solid fa-wand-magic-sparkles", "l");
+        filterImage.onClick(() => this.startImageFilter());
+
+        let editImage = await menu.addItem("Edit Image", "fa-solid fa-pen-to-square", "e");
+        editImage.onClick(() => this.sendToCanvas());
+    }
+
+    /**
      * Override parent setImage to also set the image on the adjustment canvas, if present
      */
     setImage(newImage) {

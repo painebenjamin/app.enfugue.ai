@@ -1,10 +1,12 @@
 import os
+import time
 import datetime
 from typing import Optional, Dict, Callable, Tuple, Any, cast
 from multiprocessing import Process, Queue as MakeQueue
 from multiprocessing.queues import Queue
 from queue import Empty
 from enfugue.util import logger
+from pibble.util.strings import get_uuid
 
 __all__ = ["DownloadProcess", "Download"]
 
@@ -82,6 +84,7 @@ class Download:
         parameters: Dict[str, Any] = {},
         progress: bool = True,
     ) -> None:
+        self.id = get_uuid()
         self.src = src
         self.dest = dest
         self.create_time = datetime.datetime.now()
@@ -92,6 +95,7 @@ class Download:
         self.last_downloaded_bytes = None
         self.last_total_bytes = None
         self.process = DownloadProcess(src, dest, chunk_size, headers, parameters, self.progress_queue)
+        self.canceled = False
 
     def start(self) -> None:
         """
@@ -155,14 +159,21 @@ class Download:
         Gets the entire details of the download in one dictionary.
         """
         elapsed, downloaded, total = None, None, None
-        status = "queued"
-        if self.started:
-            status = "complete" if self.closed else "downloading"
+        status = "canceled" if self.canceled else "queued"
+        if self.started and not self.canceled:
+            if self.closed:
+                status = "complete"
+            elif self.started and not self.process.is_alive():
+                status = "error"
+            elif self.process.is_alive():
+                status = "downloading"
+            else:
+                status = "unknown"
             last_progress = self.get_last_progress()
             if last_progress is not None:
                 elapsed, downloaded, total = last_progress
-            self.check_raise_exitcode()
         return {
+            "id": self.id,
             "status": status,
             "source": self.src,
             "destination": self.dest,
@@ -171,6 +182,25 @@ class Download:
             "downloaded": downloaded,
             "total": total,
         }
+
+    def cancel(self) -> None:
+        """
+        Cancels this download.
+        """
+        if not self.complete:
+            self.close()
+            self.canceled = True
+            remove_attempts = 0
+            max_remove_attempts = 10
+            while os.path.exists(self.dest):
+                try:
+                    os.unlink(self.dest)
+                except Exception as ex:
+                    remove_attempts += 1
+                    if remove_attempts >= max_remove_attempts:
+                        logger.error(f"Couldn't remove {self.dest} after {max_remove_attempts} tries. Last error was {ex}")
+                        return
+                    time.sleep(0.2)
 
     @property
     def started(self) -> bool:

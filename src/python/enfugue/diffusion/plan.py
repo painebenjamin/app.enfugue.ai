@@ -91,6 +91,8 @@ class NodeDict(TypedDict):
     remove_background: Optional[bool]
     invert: Optional[bool]
     invert_mask: Optional[bool]
+    crop_inpaint: Optional[bool]
+    inpaint_feather: Optional[int]
 
 
 class DiffusionStep:
@@ -99,8 +101,6 @@ class DiffusionStep:
     """
 
     result: StableDiffusionPipelineOutput
-    crop_inpaint: bool = True
-    inpaint_feather: int = 32
 
     def __init__(
         self,
@@ -123,6 +123,12 @@ class DiffusionStep:
         refiner_guidance_scale: Optional[float] = DEFAULT_REFINER_GUIDANCE_SCALE,
         refiner_aesthetic_score: Optional[float] = DEFAULT_AESTHETIC_SCORE,
         refiner_negative_aesthetic_score: Optional[float] = DEFAULT_NEGATIVE_AESTHETIC_SCORE,
+        refiner_prompt: Optional[str] = None,
+        refiner_prompt_2: Optional[str] = None,
+        refiner_negative_prompt: Optional[str] = None,
+        refiner_negative_prompt_2: Optional[str] = None,
+        crop_inpaint: Optional[bool] = True,
+        inpaint_feather: Optional[int] = None,
         remove_background: bool = False,
         process_control_image: bool = True,
         scale_to_model_size: bool = True,
@@ -154,9 +160,15 @@ class DiffusionStep:
             if refiner_negative_aesthetic_score is not None
             else DEFAULT_NEGATIVE_AESTHETIC_SCORE
         )
+        self.refiner_prompt = refiner_prompt
+        self.refiner_prompt_2 = refiner_prompt_2
+        self.refiner_negative_prompt = refiner_negative_prompt
+        self.refiner_negative_prompt_2 = refiner_negative_prompt_2
         self.remove_background = remove_background
         self.process_control_image = process_control_image
         self.scale_to_model_size = scale_to_model_size
+        self.crop_inpaint = crop_inpaint if crop_inpaint is not None else True
+        self.inpaint_feather = inpaint_feather if inpaint_feather is not None else 32
 
     def get_serialization_dict(self, image_directory: Optional[str]=None) -> Dict[str, Any]:
         """
@@ -180,8 +192,14 @@ class DiffusionStep:
             "refiner_guidance_scale": self.refiner_guidance_scale,
             "refiner_aesthetic_score": self.refiner_aesthetic_score,
             "refiner_negative_aesthetic_score": self.refiner_negative_aesthetic_score,
+            "refiner_prompt": self.refiner_prompt,
+            "refiner_prompt_2": self.refiner_prompt_2,
+            "refiner_negative_prompt": self.refiner_negative_prompt,
+            "refiner_negative_prompt_2": self.refiner_negative_prompt_2,
             "process_control_image": self.process_control_image,
             "scale_to_model_size": self.scale_to_model_size,
+            "crop_inpaint": self.crop_inpaint,
+            "inpaint_feather": self.inpaint_feather,
         }
 
         serialize_children: List[DiffusionStep] = []
@@ -224,6 +242,10 @@ class DiffusionStep:
             "refiner_guidance_scale": self.refiner_guidance_scale,
             "refiner_aesthetic_score": self.refiner_aesthetic_score,
             "refiner_negative_aesthetic_score": self.refiner_negative_aesthetic_score,
+            "refiner_prompt": self.refiner_prompt,
+            "refiner_prompt_2": self.refiner_prompt_2,
+            "refiner_negative_prompt": self.refiner_negative_prompt,
+            "refiner_negative_prompt_2": self.refiner_negative_prompt_2,
         }
 
     def get_inpaint_bounding_box(self, pipeline_size: int) -> List[Tuple[int, int]]:
@@ -518,11 +540,17 @@ class DiffusionStep:
             "refiner_guidance_scale",
             "refiner_aesthetic_score",
             "refiner_negative_aesthetic_score",
+            "refiner_prompt",
+            "refiner_prompt_2",
+            "refiner_negative_prompt",
+            "refiner_negative_prompt_2",
             "width",
             "height",
             "remove_background",
             "process_control_image",
             "scale_to_model_size",
+            "crop_inpaint",
+            "inpaint_feather"
         ]:
             if key in step_dict:
                 kwargs[key] = step_dict[key]
@@ -624,7 +652,9 @@ class DiffusionPlan:
         inversion: Optional[Union[str, List[str]]] = None,
         scheduler: Optional[SCHEDULER_LITERAL] = None,
         multi_scheduler: Optional[MULTI_SCHEDULER_LITERAL] = None,
-        vae: Optional[VAE_LITERAL] = None,
+        vae: Optional[str] = None,
+        refiner_vae: Optional[str] = None,
+        inpainter_vae: Optional[str] = None,
         width: Optional[int] = None,
         height: Optional[int] = None,
         image_callback_steps: Optional[int] = DEFAULT_IMAGE_CALLBACK_STEPS,
@@ -640,6 +670,7 @@ class DiffusionPlan:
         upscale: Optional[Union[UPSCALE_LITERAL, List[UPSCALE_LITERAL]]] = None,
         upscale_diffusion: bool = False,
         upscale_iterative: bool = False,
+        upscale_pipeline: Optional[str] = None,
         upscale_diffusion_steps: Optional[Union[int, List[int]]] = DEFAULT_UPSCALE_DIFFUSION_STEPS,
         upscale_diffusion_guidance_scale: Optional[
             Union[float, int, List[Union[float, int]]]
@@ -671,6 +702,8 @@ class DiffusionPlan:
         self.scheduler = scheduler
         self.multi_scheduler = multi_scheduler
         self.vae = vae
+        self.refiner_vae = refiner_vae
+        self.inpainter_vae = inpainter_vae
         self.width = width if width is not None else self.size
         self.height = height if height is not None else self.size
         self.image = image
@@ -687,6 +720,7 @@ class DiffusionPlan:
         self.upscale = upscale
         self.upscale_iterative = bool(upscale_iterative)
         self.upscale_diffusion = bool(upscale_diffusion)
+        self.upscale_pipeline = upscale_pipeline
         self.upscale_diffusion_chunking_size = (
             upscale_diffusion_chunking_size if upscale_diffusion_chunking_size is not None else self.size // 4
         )
@@ -813,7 +847,7 @@ class DiffusionPlan:
 
                 if self.upscale_diffusion:
                     task_callback("Preparing upscale pipeline")
-                    if self.refiner:
+                    if self.refiner and self.upscale_pipeline != "base":
                         # Refiners have safety disabled from the jump
                         logger.debug("Using refiner for upscaling.")
                         re_enable_safety = False
@@ -882,7 +916,7 @@ class DiffusionPlan:
                                 pipeline.controlnet = None
                         else:
                             pipeline.controlnet = None
-                        if self.refiner:
+                        if self.refiner and self.upscale_pipeline != "base":
                             upscale_pipeline = pipeline.refiner_pipeline
                         else:
                             pipeline.reload_pipeline()  # If we didn't change controlnet, then pipeline is still on CPU
@@ -926,7 +960,9 @@ class DiffusionPlan:
         pipeline.scheduler = self.scheduler
         pipeline.multi_scheduler = self.multi_scheduler
         pipeline.vae = self.vae
+        pipeline.refiner_vae = self.refiner_vae
         pipeline.refiner_size = self.refiner_size
+        pipeline.inpainter_vae = self.inpainter_vae
         pipeline.inpainter_size = self.inpainter_size
         if self.build_tensorrt:
             pipeline.build_tensorrt = True
@@ -1135,6 +1171,7 @@ class DiffusionPlan:
                 "amount": self.outscale,
                 "iterative": self.upscale_iterative,
                 "diffusion": upscale_diffusion_dict,
+                "pipeline": self.upscale_pipeline
             }
 
         serialized_image = self.image
@@ -1152,6 +1189,8 @@ class DiffusionPlan:
             "scheduler": self.scheduler,
             "multi_scheduler": self.multi_scheduler,
             "vae": self.vae,
+            "refiner_vae": self.refiner_vae,
+            "inpainter_vae": self.inpainter_vae,
             "width": self.width,
             "height": self.height,
             "size": self.size,
@@ -1195,6 +1234,8 @@ class DiffusionPlan:
             "scheduler",
             "multi_scheduler",
             "vae",
+            "refiner_vae",
+            "inpainter_vae",
             "width",
             "height",
             "image_callback_steps",
@@ -1223,6 +1264,7 @@ class DiffusionPlan:
             kwargs["upscale"] = upscale["method"]
             kwargs["outscale"] = upscale["amount"]
             kwargs["upscale_iterative"] = upscale.get("iterative", False)
+            kwargs["upscale_pipeline"] = upscale.get("pipeline", None)
             upscale_diffusion = upscale.get("diffusion", None)
             if isinstance(upscale_diffusion, dict):
                 kwargs["upscale_diffusion"] = True
@@ -1269,12 +1311,15 @@ class DiffusionPlan:
         inversion: Optional[Union[str, List[str]]] = None,
         scheduler: Optional[SCHEDULER_LITERAL] = None,
         multi_scheduler: Optional[MULTI_SCHEDULER_LITERAL] = None,
-        vae: Optional[VAE_LITERAL] = None,
+        vae: Optional[str] = None,
+        refiner_vae: Optional[str] = None,
+        inpainter_vae: Optional[str] = None,
         seed: Optional[int] = None,
         outscale: Optional[int] = 1,
         upscale: Optional[Union[UPSCALE_LITERAL, List[UPSCALE_LITERAL]]] = None,
         upscale_diffusion: bool = False,
         upscale_iterative: bool = False,
+        upscale_pipeline: Optional[str] = None,
         upscale_diffusion_steps: Optional[Union[int, List[int]]] = DEFAULT_UPSCALE_DIFFUSION_STEPS,
         upscale_diffusion_guidance_scale: Optional[
             Union[float, int, List[Union[float, int]]]
@@ -1323,6 +1368,8 @@ class DiffusionPlan:
                 "remove_background": None,
                 "invert": None,
                 "invert_mask": None,
+                "crop_inpaint": None,
+                "inpaint_feather": None
             }
         ]
         return DiffusionPlan.assemble(
@@ -1338,6 +1385,8 @@ class DiffusionPlan:
             scheduler=scheduler,
             multi_scheduler=multi_scheduler,
             vae=vae,
+            refiner_vae=refiner_vae,
+            inpainter_vae=inpainter_vae,
             seed=seed,
             width=width,
             height=height,
@@ -1345,6 +1394,7 @@ class DiffusionPlan:
             outscale=outscale,
             upscale_iterative=upscale_iterative,
             upscale_diffusion=upscale_diffusion,
+            upscale_pipeline=upscale_pipeline,
             upscale_diffusion_steps=upscale_diffusion_steps,
             upscale_diffusion_guidance_scale=upscale_diffusion_guidance_scale,
             upscale_diffusion_strength=upscale_diffusion_strength,
@@ -1369,7 +1419,9 @@ class DiffusionPlan:
         inversion: Optional[Union[str, List[str]]] = None,
         scheduler: Optional[SCHEDULER_LITERAL] = None,
         multi_scheduler: Optional[MULTI_SCHEDULER_LITERAL] = None,
-        vae: Optional[VAE_LITERAL] = None,
+        vae: Optional[str] = None,
+        refiner_vae: Optional[str] = None,
+        inpainter_vae: Optional[str] = None,
         model_prompt: Optional[str] = None,
         model_prompt_2: Optional[str] = None,
         model_negative_prompt: Optional[str] = None,
@@ -1402,15 +1454,22 @@ class DiffusionPlan:
         scale_to_model_size: bool = True,
         invert_control_image: bool = False,
         invert_mask: bool = False,
+        crop_inpaint: bool = True,
+        inpaint_feather: int = 32,
         guidance_scale: Optional[float] = DEFAULT_GUIDANCE_SCALE,
         refiner_strength: Optional[float] = DEFAULT_REFINER_STRENGTH,
         refiner_guidance_scale: Optional[float] = DEFAULT_REFINER_GUIDANCE_SCALE,
         refiner_aesthetic_score: Optional[float] = DEFAULT_AESTHETIC_SCORE,
         refiner_negative_aesthetic_score: Optional[float] = DEFAULT_NEGATIVE_AESTHETIC_SCORE,
+        refiner_prompt: Optional[str] = None,
+        refiner_prompt_2: Optional[str] = None,
+        refiner_negative_prompt: Optional[str] = None,
+        refiner_negative_prompt_2: Optional[str] = None,
         outscale: Optional[int] = 1,
         upscale: Optional[Union[UPSCALE_LITERAL, List[UPSCALE_LITERAL]]] = None,
         upscale_diffusion: bool = False,
         upscale_iterative: bool = False,
+        upscale_pipeline: Optional[str] = None,
         upscale_diffusion_steps: Optional[Union[int, List[int]]] = DEFAULT_UPSCALE_DIFFUSION_STEPS,
         upscale_diffusion_guidance_scale: Optional[Union[float, int, List[Union[float, int]]]] = DEFAULT_UPSCALE_DIFFUSION_GUIDANCE_SCALE,
         upscale_diffusion_strength: Optional[Union[float, List[float]]] = DEFAULT_UPSCALE_DIFFUSION_STRENGTH,
@@ -1442,6 +1501,8 @@ class DiffusionPlan:
             scheduler=scheduler,
             multi_scheduler=multi_scheduler,
             vae=vae,
+            refiner_vae=refiner_vae,
+            inpainter_vae=inpainter_vae,
             samples=samples,
             iterations=iterations,
             size=size,
@@ -1455,12 +1516,13 @@ class DiffusionPlan:
             outscale=outscale,
             prompt=prompt,
             prompt_2=prompt_2,
-            chunking_size=chunking_size,
-            chunking_blur=chunking_blur,
             negative_prompt=negative_prompt,
             negative_prompt_2=negative_prompt_2,
+            chunking_size=chunking_size,
+            chunking_blur=chunking_blur,
             upscale_iterative=upscale_iterative,
             upscale_diffusion=upscale_diffusion,
+            upscale_pipeline=upscale_pipeline,
             upscale_diffusion_steps=upscale_diffusion_steps,
             upscale_diffusion_guidance_scale=upscale_diffusion_guidance_scale,
             upscale_diffusion_strength=upscale_diffusion_strength,
@@ -1477,6 +1539,10 @@ class DiffusionPlan:
         upscale_diffusion_prompt_2_tokens = [TokenMerger()]
         upscale_diffusion_negative_prompt_tokens = [TokenMerger()]
         upscale_diffusion_negative_prompt_2_tokens = [TokenMerger()]
+        refiner_prompt_tokens = TokenMerger()
+        refiner_prompt_2_tokens = TokenMerger()
+        refiner_negative_prompt_tokens = TokenMerger()
+        refiner_negative_prompt_2_tokens = TokenMerger()
 
         if upscale_diffusion_prompt:
             if isinstance(upscale_diffusion_prompt, list):
@@ -1509,9 +1575,11 @@ class DiffusionPlan:
                 token_merger.add(prompt_2, GLOBAL_PROMPT_UPSCALE_WEIGHT)
 
         if model_prompt:
+            refiner_prompt_tokens.add(model_prompt, MODEL_PROMPT_WEIGHT)
             for token_merger in upscale_diffusion_prompt_tokens:
                 token_merger.add(model_prompt, MODEL_PROMPT_WEIGHT)
         if model_prompt_2:
+            refiner_prompt_2_tokens.add(model_prompt_2, MODEL_PROMPT_WEIGHT)
             for token_merger in upscale_diffusion_prompt_2_tokens:
                 token_merger.add(model_prompt_2, MODEL_PROMPT_WEIGHT)
 
@@ -1550,11 +1618,37 @@ class DiffusionPlan:
                 token_merger.add(negative_prompt_2, GLOBAL_PROMPT_UPSCALE_WEIGHT)
 
         if model_negative_prompt:
+            refiner_negative_prompt_tokens.add(model_negative_prompt, MODEL_PROMPT_WEIGHT)
             for token_merger in upscale_diffusion_negative_prompt_tokens:
                 token_merger.add(model_negative_prompt, MODEL_PROMPT_WEIGHT)
         if model_negative_prompt_2:
+            refiner_negative_prompt_2_tokens.add(model_negative_prompt_2, MODEL_PROMPT_WEIGHT)
             for token_merger in upscale_diffusion_negative_prompt_2_tokens:
                 token_merger.add(model_negative_prompt_2, MODEL_PROMPT_WEIGHT)
+
+        if refiner_prompt:
+            refiner_prompt_tokens.add(refiner_prompt)
+            refiner_prompt = str(refiner_prompt_tokens)
+        else:
+            refiner_prompt = None
+        
+        if refiner_prompt_2:
+            refiner_prompt_2_tokens.add(refiner_prompt_2)
+            refiner_prompt_2 = str(refiner_prompt_2_tokens)
+        else:
+            refiner_prompt_2 = None
+        
+        if refiner_negative_prompt:
+            refiner_negative_prompt_tokens.add(refiner_negative_prompt)
+            refiner_negative_prompt = str(refiner_negative_prompt_tokens)
+        else:
+            refiner_negative_prompt = None
+        
+        if refiner_negative_prompt_2:
+            refiner_negative_prompt_2_tokens.add(refiner_negative_prompt_2)
+            refiner_negative_prompt_2 = str(refiner_negative_prompt_2_tokens)
+        else:
+            refiner_negative_prompt_2 = None
 
         # Now assemble the diffusion steps
         node_count = len(nodes)
@@ -1644,6 +1738,12 @@ class DiffusionPlan:
                 refiner_guidance_scale=refiner_guidance_scale,
                 refiner_aesthetic_score=refiner_aesthetic_score,
                 refiner_negative_aesthetic_score=refiner_negative_aesthetic_score,
+                refiner_prompt=refiner_prompt,
+                refiner_prompt_2=refiner_prompt_2,
+                refiner_negative_prompt=refiner_negative_prompt,
+                refiner_negative_prompt_2=refiner_negative_prompt_2,
+                crop_inpaint=crop_inpaint,
+                inpaint_feather=inpaint_feather,
                 image=image,
                 mask=mask,
                 remove_background=remove_background,
@@ -1658,6 +1758,7 @@ class DiffusionPlan:
                 width = plan.width # Default
             if not height:
                 height = plan.height # Default
+            
             # Change plan defaults if passed
             plan.width = width
             plan.height = height
@@ -1687,6 +1788,10 @@ class DiffusionPlan:
                 refiner_guidance_scale=refiner_guidance_scale,
                 refiner_aesthetic_score=refiner_aesthetic_score,
                 refiner_negative_aesthetic_score=refiner_negative_aesthetic_score,
+                refiner_prompt=refiner_prompt,
+                refiner_prompt_2=refiner_prompt_2,
+                refiner_negative_prompt=refiner_negative_prompt,
+                refiner_negative_prompt_2=refiner_negative_prompt_2,
             )
 
             node_left = int(node_dict.get("x", 0))
@@ -1707,6 +1812,8 @@ class DiffusionPlan:
             node_conditioning_scale: Optional[float] = node_dict.get("conditioning_scale", None)
             node_image = node_dict.get("image", None)
             node_inpaint_mask = node_dict.get("mask", None)
+            node_crop_inpaint = node_dict.get("crop_inpaint", crop_inpaint)
+            node_inpaint_feather = node_dict.get("inpaint_feather", inpaint_feather)
             node_invert = node_dict.get("invert", False)
             node_invert_mask = node_dict.get("invert_mask", False)
             node_process_control_image = node_dict.get("process_control_image", True)
@@ -1833,10 +1940,16 @@ class DiffusionPlan:
                         negative_prompt_2=str(node_negative_prompt_2_tokens),
                         guidance_scale=guidance_scale,
                         num_inference_steps=node_inference_steps if node_inference_steps else num_inference_steps,
+                        crop_inpaint=node_crop_inpaint,
+                        inpaint_feather=node_inpaint_feather,
                         refiner_strength=refiner_strength,
                         refiner_guidance_scale=refiner_guidance_scale,
                         refiner_aesthetic_score=refiner_aesthetic_score,
                         refiner_negative_aesthetic_score=refiner_negative_aesthetic_score,
+                        refiner_prompt=refiner_prompt,
+                        refiner_prompt_2=refiner_prompt_2,
+                        refiner_negative_prompt=refiner_negative_prompt,
+                        refiner_negative_prompt_2=refiner_negative_prompt_2,
                     )
                     step_image = inpaint_image_step
                 elif node_image_needs_outpainting and (node_infer or node_control):
@@ -1850,12 +1963,18 @@ class DiffusionPlan:
                             prompt_2=str(node_prompt_2_tokens),
                             negative_prompt=str(node_negative_prompt_tokens),
                             negative_prompt_2=str(node_negative_prompt_2_tokens),
+                            crop_inpaint=node_crop_inpaint,
+                            inpaint_feather=node_inpaint_feather,
                             guidance_scale=guidance_scale,
                             num_inference_steps=node_inference_steps if node_inference_steps else num_inference_steps,
                             refiner_strength=refiner_strength,
                             refiner_guidance_scale=refiner_guidance_scale,
                             refiner_aesthetic_score=refiner_aesthetic_score,
                             refiner_negative_aesthetic_score=refiner_negative_aesthetic_score,
+                            refiner_prompt=refiner_prompt,
+                            refiner_prompt_2=refiner_prompt_2,
+                            refiner_negative_prompt=refiner_negative_prompt,
+                            refiner_negative_prompt_2=refiner_negative_prompt_2,
                         )
                         step_image = outpaint_image_step
                     elif node_invert:
@@ -1912,6 +2031,10 @@ class DiffusionPlan:
                 step.width = node_width
                 step.height = node_height
                 step.remove_background = node_remove_background
+                step.refiner_prompt = refiner_prompt
+                step.refiner_prompt_2 = refiner_prompt_2
+                step.refiner_negative_prompt = refiner_negative_prompt
+                step.refiner_negative_prompt_2 = refiner_negative_prompt_2
             else:
                 raise ValueError("Can't assemble a node from arguments")
 
