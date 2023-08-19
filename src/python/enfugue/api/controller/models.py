@@ -492,7 +492,7 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
 
         for field_name in self.MODEL_DEFAULT_FIELDS:
             field_value = request.parsed.get(field_name, None)
-            if field_value:
+            if field_value is not None:
                 new_config = self.orm.DiffusionModelDefaultConfiguration(
                     diffusion_model_name=model.name, configuration_key=field_name, configuration_value=field_value
                 )
@@ -620,7 +620,7 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
                 self.database.commit()
             for field_name in self.MODEL_DEFAULT_FIELDS:
                 field_value = request.parsed.get(field_name, None)
-                if field_value:
+                if field_value is not None:
                     new_config = self.orm.DiffusionModelDefaultConfiguration(
                         diffusion_model_name=new_model.name,
                         configuration_key=field_name,
