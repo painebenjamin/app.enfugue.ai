@@ -53,7 +53,7 @@ class EnfugueInterfaceServer(
 
     def configure(self, **configuration: Any) -> None:
         """
-        Intercept configure() to add the static directory and paths.
+        Intercept configure() to add the static directory, paths and versions
         """
 
         production_root = get_local_static_directory()
@@ -81,6 +81,9 @@ class EnfugueInterfaceServer(
 
         cms_config = server.get("cms", {})
         cms_path_config = cms_config.get("path", {})
+        cms_context_config = cms_config.get("context", {}).get("base", {})
+        cms_script_config = cms_context_config.get("scripts", [])
+        cms_stylesheet_config = cms_context_config.get("links", {}).get("stylesheet", [])
         
         server_secure = os.getenv("SERVER_SECURE", server.get("secure", False))
         if isinstance(server_secure, str):
@@ -98,8 +101,40 @@ class EnfugueInterfaceServer(
             cms_path_config["static"] = f"{cms_path_config['root']}static/"
         if "api" not in cms_path_config:
             cms_path_config["api"] = f"{cms_path_config['root']}api/"
-        
+
         cms_config["path"] = cms_path_config
+
+        for script in cms_script_config:
+            src = script["src"]
+            if not src.startswith("http"):
+                if "?" in src:
+                    src += f"&v={self.version}"
+                else:
+                    src += f"?v={self.version}"
+                script["src"] = src
+
+        for stylesheet in cms_stylesheet_config:
+            href = stylesheet["href"]
+            if not href.startswith("http"):
+                if "?" in href:
+                    href += f"&v={self.version}"
+                else:
+                    href += f"?v={self.version}"
+                stylesheet["href"] = href
+
+        if "context" not in cms_config:
+            cms_config["context"] = {
+                "base": {
+                    "scripts": cms_script_config,
+                    "stylesheets": cms_stylesheet_config
+                }
+            }
+        else:
+            if cms_script_config:
+                cms_config["context"]["base"]["scripts"] = cms_script_config
+            if cms_stylesheet_config:
+                cms_config["context"]["base"]["links"]["stylesheet"] = cms_stylesheet_config
+
         server["cms"] = cms_config
 
         template_config = server.get("template", {})

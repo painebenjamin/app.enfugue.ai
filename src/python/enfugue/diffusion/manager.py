@@ -2568,7 +2568,12 @@ class DiffusionPipelineManager:
         Offloads the pipeline to CPU if present.
         """
         if hasattr(self, "_pipeline"):
-            if intention == "inpainting" and hasattr(self, "_inpainter_pipeline"):
+            if self.pipeline_switch_mode == "unload":
+                logger.debug("Offloading is disabled, unloading pipeline.")
+                self.unload_pipeline("switching modes" if not intention else f"switching to {intention}")
+            elif self.pipeline_switch_mode is None:
+                logger.debug("Offloading is disabled, keeping pipeline in memory.")
+            elif intention == "inpainting" and hasattr(self, "_inpainter_pipeline"):
                 logger.debug("Swapping inpainter out of CPU and pipeline into CPU")
                 self.swap_pipelines(self._inpainter_pipeline, self._pipeline)
             elif intention == "refining" and hasattr(self, "_refiner_pipeline"):
@@ -2584,7 +2589,8 @@ class DiffusionPipelineManager:
         """
         Reloads the pipeline to the device if present.
         """
-        if hasattr(self, "_pipeline"):
+        if hasattr(self, "_pipeline") and self.pipeline_switch_mode == "offload":
+            logger.debug("Reloading pipeline from CPU")
             self._pipeline = self._pipeline.to(self.device, torch_dtype=self.dtype)
 
     def unload_refiner(self, reason: str) -> None:
@@ -2600,7 +2606,12 @@ class DiffusionPipelineManager:
         Offloads the pipeline to CPU if present.
         """
         if hasattr(self, "_refiner_pipeline"):
-            if intention == "inference" and hasattr(self, "_pipeline"):
+            if self.pipeline_switch_mode == "unload":
+                logger.debug("Offloading is disabled, unloading refiner pipeline.")
+                self.unload_refiner("switching modes" if not intention else f"switching to {intention}")
+            elif self.pipeline_switch_mode is None:
+                logger.debug("Offloading is disabled, keeping refiner pipeline in memory.")
+            elif intention == "inference" and hasattr(self, "_pipeline"):
                 logger.debug("Swapping pipeline out of CPU and refiner into CPU")
                 self.swap_pipelines(self._pipeline, self._refiner_pipeline)
             elif intention == "inpainting" and hasattr(self, "_inpainter_pipeline"):
@@ -2616,7 +2627,7 @@ class DiffusionPipelineManager:
         """
         Reloads the pipeline to the device if present.
         """
-        if hasattr(self, "_refiner_pipeline"):
+        if hasattr(self, "_refiner_pipeline") and self.pipeline_switch_mode == "offload":
             logger.debug("Reloading refiner from CPU")
             self._refiner_pipeline = self._refiner_pipeline.to(self.device, torch_dtype=self.dtype)
 
@@ -2635,7 +2646,12 @@ class DiffusionPipelineManager:
         if hasattr(self, "_inpainter_pipeline"):
             import torch
             
-            if intention == "inference" and hasattr(self, "_pipeline"):
+            if self.pipeline_switch_mode == "unload":
+                logger.debug("Offloading is disabled, unloading inpainter pipeline.")
+                self.unload_inpainter("switching modes" if not intention else f"switching to {intention}")
+            elif self.pipeline_switch_mode is None:
+                logger.debug("Offloading is disabled, keeping inpainter pipeline in memory.")
+            elif intention == "inference" and hasattr(self, "_pipeline"):
                 logger.debug("Swapping pipeline out of CPU and inpainter into CPU")
                 self.swap_pipelines(self._pipeline, self._inpainter_pipeline)
             elif intention == "refining" and hasattr(self, "_refiner_pipeline"):
@@ -2651,7 +2667,7 @@ class DiffusionPipelineManager:
         """
         Reloads the pipeline to the device if present.
         """
-        if hasattr(self, "_inpainter_pipeline"):
+        if hasattr(self, "_inpainter_pipeline") and self.pipeline_switch_mode == "offload":
             logger.debug("Reloading inpainter from CPU")
             self._inpainter_pipeline = self._inpainter_pipeline.to(self.device, torch_dtype=self.dtype)
 
@@ -2886,17 +2902,11 @@ class DiffusionPipelineManager:
             task_callback(f"Preparing {intention.title()} Pipeline")
             if inpainting and (self.has_inpainter or self.create_inpainter):
                 size = self.inpainter_size
-                if self.pipeline_switch_mode == "offload":
-                    self.offload_pipeline(intention) # type: ignore
-                elif self.pipeline_switch_mode == "unload":
-                    self.unload_pipeline("switching to inpainting")
+                self.offload_pipeline(intention) # type: ignore
                 self.reload_inpainter()
             else:
                 size = self.size
-                if self.pipeline_switch_mode == "offload":
-                    self.offload_inpainter(intention) # type: ignore
-                elif self.pipeline_switch_mode == "unload":
-                    self.unload_inpainter("switching from inpainting")
+                self.offload_inpainter(intention) # type: ignore
                 self.reload_pipeline()
 
             called_width = kwargs.get("width", size)
@@ -2939,26 +2949,19 @@ class DiffusionPipelineManager:
                     # Loading both SDXL checkpoints into memory at once requires a LOT of VRAM - more than 24GB, at least.
                     # If the refiner is not cached, it takes even more; possibly too much.
                     # Add a catch here to unload the main pipeline if loading the refiner pipeline and it's not cached.
-                    
-                    should_offload = self.pipeline_switch_mode == "offload"
-                    should_unload = self.pipeline_switch_mode == "unload" or (
-                        self.refiner_is_sdxl and not self.refiner_engine_cache_exists
-                    )
 
                     task_callback("Preparing Refining Pipeline")
-
-                    if should_unload:
+                    
+                    if self.refiner_is_sdxl and not self.refiner_engine_cache_exists:
+                        # Force unload
                         if inpainting:
                             self.unload_inpainter("switching to refining")
                         else:
                             self.unload_pipeline("switching to refining")
-                    elif should_offload:
-                        if inpainting:
-                            self.offload_inpainter("refining")
-                        else:
-                            self.offload_pipeline("refining")
+                    elif inpainting:
+                        self.offload_inpainter("refining")
                     else:
-                        logger.debug("Keeping pipeline in memory")
+                        self.offload_pipeline("refining")
 
                     self.reload_refiner()
 
@@ -3055,13 +3058,7 @@ class DiffusionPipelineManager:
                     elif next_intention == "upscaling":
                         logger.debug("Next intention is upscaling, unloading pipeline and sending refiner to CPU")
                         self.unload_pipeline("unloading for upscaling")
-                        self.offload_refiner()
-                    elif self.pipeline_switch_mode == "offload":
-                        self.offload_refiner(intention if next_intention is None else next_intention) # type: ignore
-                    elif self.pipeline_switch_mode == "unload":
-                        self.unload_refiner("unloading for next inference")
-                    else:
-                        logger.debug("Keeping refiner in memory")
+                    self.offload_refiner(intention if next_intention is None else next_intention) # type: ignore
             return result
         finally:
             self.tensorrt_is_enabled = True
