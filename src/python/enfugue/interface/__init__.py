@@ -11,7 +11,7 @@ from lxml.builder import E
 
 from pibble.util.helpers import url_join
 from pibble.util.imaging import contrast_color
-from pibble.util.strings import snake_case, Serializer
+from pibble.util.strings import snake_case, encode, Serializer
 
 from pibble.api.exceptions import NotFoundError
 from pibble.api.server.webservice.template import TemplateServer
@@ -30,8 +30,11 @@ from pibble.ext.user.server.base import (
     UserExtensionServerBase,
 )
 from pibble.ext.session.server.base import SessionExtensionServerBase
-
-from enfugue.util import logger, get_local_static_directory
+from enfugue.util import (
+    logger,
+    get_local_static_directory,
+    get_version
+)
 from enfugue.interface.helpers import (
     HTMLPropertiesHelperFunction,
     SerializeHelperFunction,
@@ -137,6 +140,7 @@ class EnfugueInterfaceServer(
             "orm": self.orm,
             "database": self.database,
             "paths": self.configuration["server.cms.path"],
+            "version": self.version
         }
 
         if hasattr(request, "token"):
@@ -144,6 +148,23 @@ class EnfugueInterfaceServer(
             context["admin"] = self.check_user_permission(request.token.user, "System", "update")
 
         return context
+
+    @property
+    def version(self) -> str:
+        """
+        Gets the version of enfugue
+        """
+        if not hasattr(self, "_version"):
+            self._version = get_version()
+        return self._version
+
+    def inject_version(self, path: str) -> io.BytesIO:
+        """
+        Reads a .mjs file and injects version queries into any import statement.
+        This forces the browser to re-cache when versions change
+        """
+        contents = open(path, "r", encoding="utf-8").read()
+        return io.BytesIO(encode(contents.replace(".mjs", f".mjs?v={self.version}")))
 
     @handlers.path("^/$")
     @handlers.methods("GET")
@@ -288,6 +309,11 @@ class EnfugueInterfaceServer(
             if os.path.exists(root_path) and os.path.isfile(root_path):
                 if root_path.endswith(".mjs"):
                     # Force content-type
+                    response.content_type = "application/javascript"
+                    return self.inject_version(root_path)
+                elif root_path.endswith(".js"):
+                    # Force content-type again, pibble is weird with .min.js
+                    # All of enfugue is .mjs so these are vendor resources
                     response.content_type = "application/javascript"
                     return open(root_path, "rb")
                 else:
