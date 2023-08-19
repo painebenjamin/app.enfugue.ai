@@ -224,8 +224,10 @@ class Application {
      * actions as well as versions from remote.
      */
     async startAnnouncements() {
-        this.announcements = new AnnouncementsController(this);
-        await this.announcements.initialize();
+        if (this.userIsAdmin) {
+            this.announcements = new AnnouncementsController(this);
+            await this.announcements.initialize();
+        }
     }
 
     /**
@@ -287,7 +289,7 @@ class Application {
      * Sets getters for dynamic inputs
      */
     async registerDynamicInputs() {
-        if (isEmpty(window.enfugue) || !window.enfugue.admin) {
+        if (!this.userIsAdmin) {
             // Remove other input
             delete DefaultVaeInputView.defaultOptions.other;
         }
@@ -343,11 +345,21 @@ class Application {
     }
 
     /**
+     * Returns true if the frontend thinks this user is an admin
+     * All API calls are authenticated
+     * 
+     * @return bool True if the user is admin
+     */
+    get userIsAdmin() {
+        return !isEmpty(window.enfugue) && window.enfugue.admin === true;
+    }
+
+    /**
      * Returns the menu categories to import based on user context
      */
     getMenuCategories() {
         let menuCategories = {...this.constructor.menuCategories};
-        if (!isEmpty(window.enfugue) && window.enfugue.admin === true) {
+        if (this.userIsAdmin) {
             menuCategories = {...menuCategories, ...this.constructor.adminMenuCategories };
         }
         menuCategories.help = "Help";
