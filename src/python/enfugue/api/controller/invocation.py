@@ -130,6 +130,9 @@ class EnfugueAPIInvocationController(EnfugueAPIControllerBase):
 
         if model_name and model_type == "model":
             plan_kwargs = self.get_plan_kwargs_from_model(model_name)
+            # Now remove things from the payload that should not be overridable
+            for ignored_arg in ["refiner", "refiner_size", "refiner_vae", "inpainter", "inpainter_size", "inpainter_vae", "lora", "lycoris", "inversion"]:
+                request.parsed.pop(ignored_arg, None)
         elif model_name and model_type == "checkpoint":
             plan_kwargs["model"] = self.check_find_model("checkpoint", model_name)
             

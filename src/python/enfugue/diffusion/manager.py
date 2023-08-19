@@ -2442,6 +2442,8 @@ class DiffusionPipelineManager:
         if not hasattr(self, "_inpainter_pipeline"):
             if not self.inpainter:
                 target_checkpoint_path = self.default_inpainter_path
+                if target_checkpoint_path.startswith("http"):
+                    target_checkpoint_path = self.check_download_checkpoint(target_checkpoint_path)
                 if not os.path.exists(target_checkpoint_path):
                     if self.create_inpainter:
                         logger.info(f"Creating inpainting checkpoint from {self.model}")
