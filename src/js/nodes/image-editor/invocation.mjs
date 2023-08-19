@@ -141,7 +141,7 @@ class CurrentInvocationImageView extends ImageView {
         let filterImage = await menu.addItem("Filter Image", "fa-solid fa-wand-magic-sparkles", "l");
         filterImage.onClick(() => this.startImageFilter());
 
-        let editImage = await menu.addItem("Edit Image", "fa-solid fa-pen-to-square", "e");
+        let editImage = await menu.addItem("Edit Image", "fa-solid fa-pen-to-square", "t");
         editImage.onClick(() => this.sendToCanvas());
     }
 
