@@ -56,7 +56,7 @@ class ImageEditorImageNodeView extends ImageEditorScribbleNodeView {
             "mirror-y": {
                 "icon": "fa-solid fa-up-down",
                 "tooltip": "Mirror Vertically",
-                "shortcut": "v",
+                "shortcut": "y",
                 "callback": function() {
                     this.mirrorVertically();
                 }
