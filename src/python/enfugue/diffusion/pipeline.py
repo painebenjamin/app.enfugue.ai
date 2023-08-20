@@ -2346,7 +2346,12 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             # Clear no longer needed tensors
             del prepared_mask
             del prepared_image_latents
-            del prepared_control_image
+
+        
+            if self.controlnet is not None:
+                # Unload controlnet from GPU to save memory for decoding
+                self.controlnet = self.controlnet.to("cpu")
+                del prepared_control_image
 
             if output_type != "latent":
                 if self.is_sdxl:
@@ -2381,9 +2386,6 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
         if hasattr(self, "final_offload_hook") and self.final_offload_hook is not None:
             self.final_offload_hook.offload()
-
-        if self.controlnet is not None:
-            self.controlnet = self.controlnet.to("cpu")  # Unload controlnet from GPU
 
         if not return_dict:
             return (output, output_nsfw)
