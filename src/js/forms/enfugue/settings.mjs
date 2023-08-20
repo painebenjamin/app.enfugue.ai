@@ -5,6 +5,7 @@ import {
     NumberInputView,
     SelectInputView,
     StringInputView,
+    SliderPreciseInputView,
     PipelineSwitchModeInputView,
     PipelineCacheModeInputView,
     PipelinePrecisionModeInputView,
@@ -67,6 +68,16 @@ class SystemSettingsFormView extends FormView {
             "inpainting": {
                 "label": "Inpainting Mode",
                 "class": PipelineInpaintingModeInputView
+            },
+            "intermediate_steps": {
+                "label": "Intermediate Steps",
+                "class": SliderPreciseInputView,
+                "config": {
+                    "min": 0,
+                    "max": 200,
+                    "step": 1,
+                    "tooltip": "The number of steps to wait before decoding the image is at is being diffused. Setting this to a lower number will give you more feedback as your image is being generated, but will also increase the time it takes to make images overall. Set this to 0 to disable intermediates entirely, which can aid in making inference faster and reducing memory usage."
+                }
             },
             "max_queued_invocations": {
                 "label": "Queue Size",

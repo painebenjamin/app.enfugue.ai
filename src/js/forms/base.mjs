@@ -566,6 +566,7 @@ class FormView extends View {
                 }
 
                 inputView.fieldSet = fieldSet;
+                inputView.form = this;
 
                 if (!isEmpty(this.errors[fieldName])) {
                     errorNode.content(this.errors[fieldName]);

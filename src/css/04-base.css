@@ -244,8 +244,9 @@ fieldset.collapsed legend::after {
 fieldset .field-container input,
 fieldset .field-container select,
 fieldset .field-container textarea,
-fieldset .field-container goodydata-search-list,
-fieldset .field-container goodydata-color-input {
+fieldset .field-container enfugue-search-list,
+fieldset .field-container enfugue-color-input,
+fieldset .field-container enfugue-slider-input {
     flex-grow: 1;
     margin: 0;
     width: 100%;

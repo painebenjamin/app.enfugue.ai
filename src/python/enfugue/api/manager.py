@@ -152,6 +152,15 @@ class SystemManager:
         directory = os.path.join(self.engine_root_dir, "intermediates")
         check_make_directory(directory)
         return directory
+    
+    @property
+    def engine_intermediate_steps(self) -> int:
+        """
+        Gets the number of steps to wait before decoding an intermediate
+        Default to 10; set to 1 to decode every intermediate (not recommended,)
+        or set to 0 to disable intermediate.
+        """
+        return self.configuration.get("enfugue.engine.intermediates", 10)
 
     @property
     def engine_tensorrt_dir(self) -> str:
@@ -436,6 +445,8 @@ class SystemManager:
 
         if disable_intermediate_decoding:
             kwargs["decode_nth_intermediate"] = None
+        else:
+            kwargs["decode_nth_intermediate"] = self.engine_intermediate_steps
 
         invocation = Invocation(
             engine=self.engine,
@@ -443,7 +454,7 @@ class SystemManager:
             engine_image_dir=self.engine_image_dir,
             engine_intermediate_dir=self.engine_intermediate_dir,
             **kwargs,
-        )  # TODO: Add config for safety
+        )
 
         if can_start:
             invocation.start()

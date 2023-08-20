@@ -150,8 +150,8 @@ class InvokeButtonController extends Controller {
         this.loadingBar = new InvokeLoadingBarView();
         await this.application.sidebar.addChild(this.invokeButton);
         await this.application.sidebar.addChild(this.loadingBar);
-        this.subscribe("keyboardShortcut", (key) => {
-            if (key === "Enter" && this.isInvoking !== true) {
+        this.subscribe("tryInvoke", () => {
+            if (this.isInvoking !== true) {
                 this.tryInvoke();
             }
         });

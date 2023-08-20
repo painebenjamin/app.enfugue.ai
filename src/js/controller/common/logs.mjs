@@ -2,6 +2,7 @@
 import { isEmpty, waitFor, deepClone } from "../../base/helpers.mjs";
 import { ElementBuilder } from "../../base/builder.mjs";
 import { Controller } from "../base.mjs";
+import { ButtonInputView } from "../../forms/input/misc.mjs";
 import { TableView } from "../../view/table.mjs";
 import { View } from "../../view/base.mjs";
 
@@ -113,6 +114,55 @@ class LogTableView extends TableView {
 }
 
 /**
+ * This view includes the logs table and a button to pause
+ */
+class LogsView extends View {
+    /**
+     * @var string The tag name for the log view
+     */
+    static tagName = "enfugue-logs-view";
+
+    /**
+     * On construct, build logs and button
+     */
+    constructor(config, data) {
+        super(config);
+        this.paused = false;
+        this.logsTable = new LogTableView(config, data);
+        this.pauseLogs = new ButtonInputView(config, "pause", {"value": "Pause Logs"});
+        this.pauseLogs.onChange(() => {
+            this.paused = !this.paused;
+            if (this.paused) {
+                this.pauseLogs.setValue("Unpause Logs", false);
+            } else {
+                this.pauseLogs.setValue("Pause Logs", false);
+            }
+        });
+    }
+
+    /**
+     * Sets the data in the logs table (if not paused)
+     */
+    setData(newData) {
+        if (!this.paused) {
+            this.logsTable.setData(newData, false);
+        }
+    }
+
+    /**
+     * On build, get nodes
+     */
+    async build() {
+        let node = await super.build();
+        node.append(
+            await this.pauseLogs.getNode(),
+            await this.logsTable.getNode()
+        );
+        return node;
+    }
+}
+
+/**
  * The LogsController allows tailing the log for increased visibility
  */
 class LogsController extends Controller {
@@ -172,12 +222,12 @@ class LogsController extends Controller {
     /**
      * Gets the System Logs View
      */
-    async getLogsTable() {
-        if (isEmpty(this.logsTable)) {
+    async getLogsView() {
+        if (isEmpty(this.logsView)) {
             await waitFor(() => this.logs !== null && this.logs !== undefined);
-            this.logsTable = new LogTableView(this.config, this.logs);
+            this.logsView = new LogsView(this.config, this.logs);
         }
-        return this.logsTable;
+        return this.logsView;
     };
 
     /**
@@ -186,8 +236,8 @@ class LogsController extends Controller {
     async startLogTailer() {
         this.timer = setInterval(async () => {
             let newLogs = await this.getLogs();
-            if (!isEmpty(this.logsTable)) {
-                this.logsTable.setData(newLogs, false);
+            if (!isEmpty(this.logsView)) {
+                this.logsView.setData(newLogs);
             }
             if (!isEmpty(this.glanceView)) {
                 this.glanceView.setData(newLogs);
@@ -199,10 +249,10 @@ class LogsController extends Controller {
      * Builds the manager if not yet built.
      */
     async showLogDetails() {
-        if (isEmpty(this.logDetails)) {
+        if (isEmpty(this.logWindow)) {
             this.logWindow = await this.spawnWindow(
                 "Engine Logs",
-                await this.getLogsTable(),
+                await this.getLogsView(),
                 this.constructor.logsWindowWidth,
                 this.constructor.logsWindowHeight
             );

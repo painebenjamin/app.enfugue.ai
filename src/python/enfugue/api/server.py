@@ -323,11 +323,18 @@ class EnfugueAPIServerBase(
         Invokes the platform and saves any resulting images, returning their paths.
         """
         invocation = self.manager.invoke(
-            user_id, plan, disable_intermediate_decoding=disable_intermediate_decoding, **kwargs
+            user_id,
+            plan,
+            disable_intermediate_decoding=disable_intermediate_decoding,
+            **kwargs
         )
         if save:
             self.database.add(
-                self.orm.DiffusionInvocation(id=invocation.uuid, user_id=user_id, plan=self.format_plan(plan))
+                self.orm.DiffusionInvocation(
+                    id=invocation.uuid,
+                    user_id=user_id,
+                    plan=self.format_plan(plan)
+                )
             )
             self.database.commit()
         return invocation

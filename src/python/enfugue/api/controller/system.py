@@ -143,11 +143,14 @@ class EnfugueAPISystemController(EnfugueAPIControllerBase):
             "switch_mode": self.configuration.get("enfugue.pipeline.switch", "offload"),
             "cache_mode": self.configuration.get("enfugue.pipeline.cache", "xl"),
             "precision": self.configuration.get("enfugue.dtype", None),
-            "inpainting": "never" if self.configuration.get("enfugue.pipeline.inpainter", None) == False else None
+            "inpainting": "never" if self.configuration.get("enfugue.pipeline.inpainter", None) == False else None,
+            "intermediate_steps": self.configuration.get("enfugue.engine.intermediates", 10)
         }
+
         for controlnet in self.CONTROLNETS:
             settings[controlnet] = self.get_controlnet_path(controlnet) # type: ignore
             settings[f"{controlnet}_xl"] = self.get_controlnet_path(controlnet, True) # type: ignore
+
         return settings
 
     @handlers.path("^/api/settings$")
@@ -165,27 +168,39 @@ class EnfugueAPISystemController(EnfugueAPIControllerBase):
                 if request.parsed["auth"]:
                     self.database.execute(delete(self.orm.User).filter(self.orm.User.username == "noauth"))
                 self.database.commit()
+
         if "safe" in request.parsed:
             self.user_config["enfugue.safe"] = request.parsed["safe"]
             self.manager.stop_engine()
+
+        if "intermediate_steps" in request.parsed:
+            if request.parsed["intermediate_steps"] is None:
+                del self.user_config["enfugue.engine.intermediates"]
+                self.configuration["enfugue.engine.intermediates"]
+            else:
+                self.user_config["enfugue.engine.intermediates"] = request.parsed["intermediate_steps"]
+
         if "switch_mode" in request.parsed:
             if not request.parsed["switch_mode"]:
                 self.user_config["enfugue.pipeline.switch"] = None
             else:
                 self.user_config["enfugue.pipeline.switch"] = request.parsed["switch_mode"]
             self.manager.stop_engine()
+
         if "cache_mode" in request.parsed:
             if not request.parsed["cache_mode"]:
                 self.user_config["enfugue.pipeline.cache"] = None
             else:
                 self.user_config["enfugue.pipeline.cache"] = request.parsed["cache_mode"]
             self.manager.stop_engine()
+
         if "precision" in request.parsed:
             if not request.parsed["precision"]:
                 self.user_config["enfugue.dtype"] = None
             else:
                 self.user_config["enfugue.dtype"] = request.parsed["precision"]
             self.manager.stop_engine()
+
         if "inpainting" in request.parsed:
             if not request.parsed["inpainting"]:
                 del self.user_config["enfugue.pipeline.inpainter"]
@@ -200,11 +215,13 @@ class EnfugueAPISystemController(EnfugueAPIControllerBase):
         ]:
             if key in request.parsed:
                 self.user_config[f"enfugue.{key}"] = request.parsed[key]
+
         for controlnet in self.CONTROLNETS:
             if controlnet in request.parsed:
                 self.user_config[f"enfugue.controlnet.{controlnet}"] = request.parsed[controlnet]
             if f"{controlnet}_xl" in request.parsed:
                 self.user_config[f"enfugue.controlnet.xl.{controlnet}"] = request.parsed[f"{controlnet}_xl"]
+
         self.configuration.update(**self.user_config.dict())
         return self.get_settings(request, response)
 

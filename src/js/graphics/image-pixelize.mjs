@@ -18,7 +18,7 @@ function performPixelize(image) {
     const topLeftX = this.thread.x - (this.thread.x % this.constants.size);
     
     let pixel = [0.0, 0.0, 0.0];
-    let sampleCount = 0;
+    let sampleCount = 1;
 
     for (let i = 0; i < this.constants.size; i++) {
         for (let j = 0; j < this.constants.size; j++) {

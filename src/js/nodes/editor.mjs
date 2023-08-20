@@ -454,7 +454,7 @@ class NodeEditorView extends View {
             if (this.constructor.canMove) {
                 node.append(position);
                 canvas.on('mousedown', (e) => {
-                    if (!(e.which === 2 || (e.which === 1 && (e.ctrlKey || e.altKey)))) {
+                    if (!(e.which === 2 || (e.which === 1 && (e.ctrlKey || e.altKey || e.shiftKey)))) {
                         return;
                     }
                     e.preventDefault();

@@ -2013,6 +2013,13 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             self.chunking_size = chunking_size
         if chunking_blur is not None:
             self.chunking_blur = chunking_blur
+        
+        # Check latent callback steps, disable if 0
+        if latent_callback_steps == 0:
+            latent_callback_steps = None
+
+        # Convenient bool for later
+        decode_intermediates = latent_callback_steps is not None and latent_callback is not None
 
         # Define outputs here to process later
         prepared_latents: Optional[torch.Tensor] = None
@@ -2063,20 +2070,29 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         num_scheduled_inference_steps = len(timesteps)
 
         # Calculate total steps including all unet and vae calls
-        chunked_steps = 1
+        encoding_steps = 0
+        decoding_steps = 1
 
         if image is not None:
-            chunked_steps += 1
+            encoding_steps += 1
         if mask is not None:
-            chunked_steps += 1
+            encoding_steps += 1
             if not is_inpainting_unet:
-                chunked_steps += 1
-        if latent_callback is not None and latent_callback_steps is not None:
-            chunked_steps += num_scheduled_inference_steps // latent_callback_steps
+                encoding_steps += 1
+        if decode_intermediates:
+            decoding_steps += num_scheduled_inference_steps // latent_callback_steps # type: ignore
 
-        overall_num_steps = num_chunks * (num_scheduled_inference_steps + chunked_steps)
+        chunk_plural = "s" if num_chunks != 1 else ""
+        step_plural = "s" if num_scheduled_inference_steps != 1 else ""
+        encoding_plural = "s" if encoding_steps != 1 else ""
+        decoding_plural = "s" if decoding_steps != 1 else ""
+        overall_num_steps = num_chunks * (num_scheduled_inference_steps + encoding_steps + decoding_steps)
         logger.debug(
-            f"Calculated overall steps to be {overall_num_steps} ({num_chunks} chunks, {num_inference_steps} steps, {num_scheduled_inference_steps} scheduled steps)"
+            " ".join([
+                f"Calculated overall steps to be {overall_num_steps}",
+                f"[{num_chunks} chunk{chunk_plural} * ({num_scheduled_inference_steps} inference step{step_plural}",
+                f"+ {encoding_steps} encoding step{encoding_plural} + {decoding_steps} decoding step{decoding_plural})]"
+            ])
         )
         step_complete = self.get_step_complete_callback(overall_num_steps, progress_callback)
                 
@@ -2277,6 +2293,11 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             # 6. Prepare extra step kwargs.
             extra_step_kwargs = self.prepare_extra_step_kwargs(scheduler, generator, eta)
 
+            # Swap out VAE here if not needed for mostly free VRAM
+            if not decode_intermediates:
+                logger.debug("Intermediates are disabled, sending VAE to CPU during denoising")
+                self.vae.to("cpu")
+
             # Make sure controlnet on device
             if self.controlnet is not None:
                 self.controlnet = self.controlnet.to(device=device)
@@ -2347,12 +2368,19 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             del prepared_mask
             del prepared_image_latents
 
-        
             if self.controlnet is not None:
                 # Unload controlnet from GPU to save memory for decoding
                 self.controlnet = self.controlnet.to("cpu")
                 del prepared_control_image
-
+            
+            # Swap VAE back in here if it was not needed during denoising
+            if not decode_intermediates:
+                logger.debug("Reloading VAE from CPU")
+                self.vae.to(
+                    dtype=torch.float32 if self.config.force_full_precision_vae else prepared_latents.dtype,
+                    device=device
+                )
+            
             if output_type != "latent":
                 if self.is_sdxl:
                     use_torch_2_0_or_xformers = self.vae.decoder.mid_block.attentions[0].processor in [

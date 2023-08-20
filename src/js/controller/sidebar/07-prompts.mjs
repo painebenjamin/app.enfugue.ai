@@ -44,6 +44,9 @@ class PromptsController extends Controller {
             this.engine.prompt = values.prompt;
             this.engine.negativePrompt = values.negativePrompt;
         });
+        this.promptsForm.onShortcutSubmit(() => {
+            this.application.publish("tryInvoke");
+        });
         this.application.sidebar.addChild(this.promptsForm);
     }
 }

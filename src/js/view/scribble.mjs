@@ -146,7 +146,7 @@ class ScribbleView extends View {
      * The 'mousedown' handler
      */
     onNodeMouseDown(e) {
-        if (e.which !== 1) return;
+        if (e.which !== 1 || (e.shiftKey || e.ctrlKey)) return;
         e.preventDefault();
         e.stopPropagation();
         this.active = true;
