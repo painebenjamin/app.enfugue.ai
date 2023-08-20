@@ -941,6 +941,9 @@ class DiffusionPlan:
                             image_callback(images)
                     if re_enable_safety:
                         pipeline.safe = True
+                    if self.refiner and self.upscale_pipeline != "base":
+                        logger.debug("Offloading refiner for next inference.")
+                        pipeline.offload_refiner()
         pipeline.stop_keepalive() # Make sure this is stopped
         return StableDiffusionPipelineOutput(images=images, nsfw_content_detected=nsfw)
 
