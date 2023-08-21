@@ -489,7 +489,6 @@ class DiffusionStep:
                 latent_callback(images)
 
             invocation_kwargs["latent_callback"] = pasted_latent_callback
-            invocation_kwargs["latent_callback_steps"] = 5
 
         result = pipeline(**invocation_kwargs)
 
@@ -656,7 +655,6 @@ class DiffusionPlan:
         inpainter_vae: Optional[str] = None,
         width: Optional[int] = None,
         height: Optional[int] = None,
-        image_callback_steps: Optional[int] = DEFAULT_IMAGE_CALLBACK_STEPS,
         nodes: List[DiffusionNode] = [],
         image: Optional[Union[str, PIL.Image.Image]] = None,
         chunking_size: Optional[int] = None,
@@ -706,7 +704,6 @@ class DiffusionPlan:
         self.width = width if width is not None else self.size
         self.height = height if height is not None else self.size
         self.image = image
-        self.image_callback_steps = image_callback_steps
         self.chunking_size = chunking_size if chunking_size is not None else self.size // 8  # Pass 0 to disable
         self.chunking_blur = chunking_blur if chunking_blur is not None else self.size // 8  # Pass 0 to disable
         self.samples = samples if samples is not None else 1
@@ -1204,7 +1201,6 @@ class DiffusionPlan:
             "negative_prompt": self.negative_prompt,
             "negative_prompt_2": self.negative_prompt_2,
             "image": serialized_image,
-            "image_callback_steps": self.image_callback_steps,
             "nodes": [node.get_serialization_dict(image_directory) for node in self.nodes],
             "samples": self.samples,
             "iterations": self.iterations,
@@ -1240,7 +1236,6 @@ class DiffusionPlan:
             "inpainter_vae",
             "width",
             "height",
-            "image_callback_steps",
             "chunking_size",
             "chunking_blur",
             "samples",
@@ -1433,7 +1428,6 @@ class DiffusionPlan:
         seed: Optional[int] = None,
         width: Optional[int] = None,
         height: Optional[int] = None,
-        image_callback_steps: int = DEFAULT_IMAGE_CALLBACK_STEPS,
         nodes: List[NodeDict] = [],
         chunking_size: Optional[int] = None,
         chunking_blur: Optional[int] = None,
@@ -1513,7 +1507,6 @@ class DiffusionPlan:
             seed=seed,
             width=width,
             height=height,
-            image_callback_steps=image_callback_steps,
             upscale=upscale,
             outscale=outscale,
             prompt=prompt,
