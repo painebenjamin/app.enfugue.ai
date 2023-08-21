@@ -147,22 +147,28 @@ class EnfugueAPIInvocationController(EnfugueAPIControllerBase):
                 request.parsed.pop(ignored_arg, None)
         elif model_name and model_type == "checkpoint":
             plan_kwargs["model"] = self.check_find_model("checkpoint", model_name)
-            
+
             refiner = request.parsed.pop("refiner", None)
             plan_kwargs["refiner"] = self.check_find_model("checkpoint", refiner) if refiner else None
+            if "refiner" not in plan_kwargs:
+                request.parsed.pop("refiner_size", None) # Don't allow override if not overriding checkpoint
+                request.parsed.pop("refiner_vae", None)
 
             inpainter = request.parsed.pop("inpainter", None)
             plan_kwargs["inpainter"] = self.check_find_model("checkpoint", inpainter) if inpainter else None
-            
+
+            if "inpainter" not in plan_kwargs:
+                request.parsed.pop("inpainter_size", None)
+                request.parsed.pop("inpainter_vae", None)
+
             lora = request.parsed.pop("lora", [])
             plan_kwargs["lora"] = self.check_find_adaptations("lora", True, lora) if lora else None
 
             lycoris = request.parsed.pop("lycoris", [])
             plan_kwargs["lycoris"] = self.check_find_adaptations("lycoris", True, lycoris) if lycoris else None
-            
+
             inversion = request.parsed.pop("inversion", [])
             plan_kwargs["inversion"] = self.check_find_adaptations("inversion", False, inversion) if inversion else None
-             
         # Always take passed scheduler
         scheduler = request.parsed.pop("scheduler", None)
         multi_scheduler = request.parsed.pop("multi_scheduler", None)

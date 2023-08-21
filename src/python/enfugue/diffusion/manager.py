@@ -2227,8 +2227,6 @@ class DiffusionPipelineManager:
             }
             
             vae = self.vae
-            if vae is not None:
-                kwargs["vae"] = vae
 
             if self.use_tensorrt:
                 if self.is_sdxl:
@@ -2240,11 +2238,16 @@ class DiffusionPipelineManager:
                         kwargs["controlled_unet_engine_dir"] = self.model_tensorrt_controlled_unet_dir
                 if "vae" in self.TENSORRT_STAGES:
                     kwargs["vae_engine_dir"] = self.model_tensorrt_vae_dir
+                elif vae is not None:
+                    kwargs["vae"] = vae
+
                 if "clip" in self.TENSORRT_STAGES:
                     kwargs["clip_engine_dir"] = self.model_tensorrt_clip_dir
                 if not self.safe:
                     kwargs["safety_checker"] = None
+
                 self.check_create_engine_cache()
+
                 if self.model_diffusers_cache_dir is None:
                     raise IOError("Couldn't create engine cache, check logs.")
                 if not self.is_sdxl:
@@ -2260,6 +2263,8 @@ class DiffusionPipelineManager:
                 if not self.is_sdxl:
                     kwargs["tokenizer_2"] = None
                     kwargs["text_encoder_2"] = None
+                if vae is not None:
+                    kwargs["vae"] = vae
                 logger.debug(
                     f"Initializing pipeline from diffusers cache directory at {self.model_diffusers_cache_dir}. Arguments are {redact(kwargs)}"
                 )
@@ -2268,7 +2273,6 @@ class DiffusionPipelineManager:
                 kwargs["load_safety_checker"] = self.safe
                 if self.vae_name is not None:
                     kwargs["vae_path"] = self.get_vae_path(self.vae_name)
-                kwargs.pop("vae", None)
                 logger.debug(f"Initializing pipeline from checkpoint at {self.model}. Arguments are {redact(kwargs)}")
                 pipeline = self.pipeline_class.from_ckpt(self.model, **kwargs)
                 if self.should_cache:
@@ -2328,8 +2332,6 @@ class DiffusionPipelineManager:
             }
             
             vae = self.refiner_vae
-            if vae is not None:
-                kwargs["vae"] = vae
 
             if self.refiner_use_tensorrt:
                 if "unet" in self.TENSORRT_STAGES:
@@ -2345,6 +2347,9 @@ class DiffusionPipelineManager:
 
                 if "vae" in self.TENSORRT_STAGES:
                     kwargs["vae_engine_dir"] = self.refiner_tensorrt_vae_dir
+                elif vae is not None:
+                    kwargs["vae"] = vae
+
                 if "clip" in self.TENSORRT_STAGES:
                     kwargs["clip_engine_dir"] = self.refiner_tensorrt_clip_dir
 
@@ -2374,11 +2379,11 @@ class DiffusionPipelineManager:
                 else:
                     kwargs["text_encoder_2"] = None
                     kwargs["tokenizer_2"] = None
-                
+                if vae is not None:
+                    kwargs["vae"] = vae
                 logger.debug(
                     f"Initializing refiner pipeline from diffusers cache directory at {self.refiner_diffusers_cache_dir}. Arguments are {redact(kwargs)}"
                 )
-                
                 refiner_pipeline = self.refiner_pipeline_class.from_pretrained(
                     self.refiner_diffusers_cache_dir,
                     safety_checker=None,
@@ -2387,7 +2392,6 @@ class DiffusionPipelineManager:
             else:
                 if self.refiner_vae_name is not None:
                     kwargs["vae_path"] = self.get_vae_path(self.refiner_vae_name)
-                kwargs.pop("vae", None)
                 logger.debug(f"Initializing refiner pipeline from checkpoint at {self.refiner}. Arguments are {redact(kwargs)}")
                 refiner_pipeline = self.refiner_pipeline_class.from_ckpt(
                     self.refiner,
@@ -2467,16 +2471,18 @@ class DiffusionPipelineManager:
             }
 
             vae = self.inpainter_vae
-            if vae is not None:
 
-                kwargs["vae"] = vae
             if self.inpainter_use_tensorrt:
                 if self.inpainter_is_sdxl: # Not possible yet
                     raise ValueError(f"Sorry, TensorRT is not yet supported for SDXL.")
                 if "unet" in self.TENSORRT_STAGES:
                     kwargs["unet_engine_dir"] = self.inpainter_tensorrt_unet_dir
+
                 if "vae" in self.TENSORRT_STAGES:
                     kwargs["vae_engine_dir"] = self.inpainter_tensorrt_vae_dir
+                elif vae is not None:
+                    kwargs["vae"] = vae
+
                 if "clip" in self.TENSORRT_STAGES:
                     kwargs["clip_engine_dir"] = self.inpainter_tensorrt_clip_dir
 
@@ -2503,6 +2509,8 @@ class DiffusionPipelineManager:
                     kwargs["tokenizer_2"] = None
                     kwargs["text_encoder_2"] = None
                     kwargs["tokenizer_2"] = None
+                if vae is not None:
+                    kwargs["vae"] = vae
                 
                 logger.debug(
                     f"Initializing inpainter pipeline from diffusers cache directory at {self.inpainter_diffusers_cache_dir}. Arguments are {redact(kwargs)}"

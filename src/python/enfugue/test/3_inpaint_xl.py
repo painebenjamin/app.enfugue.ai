@@ -36,18 +36,6 @@ def main() -> None:
         )
 
         plan.execute(manager)["images"][0].save(os.path.join(save_dir, f"result-xl.png"))
-        
-        ## Now run base to compare
-        from diffusers.pipelines.stable_diffusion_xl import StableDiffusionXLInpaintPipeline
-        pipeline = StableDiffusionXLInpaintPipeline.from_pretrained(
-            os.path.join(manager.engine_diffusers_dir, "sd_xl_base_1.0")
-        )
-        pipeline.to("cuda")
-        pipeline(
-            prompt = prompt,
-            image = image,
-            mask_image = mask,
-        )["images"][0].save(os.path.join(save_dir, f"result-xl-compare.png"))
 
 if __name__ == "__main__":
     main()
