@@ -132,12 +132,20 @@ class PromptInputView extends InputView {
      * On build, append text inputs.
      */
     async build() {
-        let node = await super.build();
+        // Set tooltip on child items to avoid conflicting tooltips
+        let node = await super.build(),
+            nodeTooltip = node.data("tooltip"),
+            primaryInput = await this.primary.getNode(),
+            secondaryInput = await this.secondary.getNode();
+
+        node.data("tooltip", null);
+        primaryInput.data("tooltip", nodeTooltip);
+        secondaryInput.data("tooltip", nodeTooltip);
         return node.append(
             await this.addSecondary.getNode(),
             await this.removeSecondary.getNode(),
-            await this.primary.getNode(),
-            await this.secondary.getNode()
+            primaryInput,
+            secondaryInput
         );
     }
 }
