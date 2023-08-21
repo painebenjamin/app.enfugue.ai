@@ -941,6 +941,12 @@ input.download-input-view {
     width: calc(100% - 2em);
 }
 
+enfugue-logs-view > input {
+    float: right;
+    margin-right: 1em;
+    margin-top: 1em;
+}
+
 enfugue-log-glance-view {
     position: absolute;
     display: block;
