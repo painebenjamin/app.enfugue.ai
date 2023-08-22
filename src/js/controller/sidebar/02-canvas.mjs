@@ -22,6 +22,7 @@ class CanvasController extends Controller {
             "canvas": {
                 "width": this.config.model.invocation.width,
                 "height": this.config.model.invocation.height,
+                "useChunking": true,
                 "chunkingSize": this.config.model.invocation.chunkingSize,
                 "chunkingBlur": this.config.model.invocation.chunkingBlur
             }
@@ -48,8 +49,12 @@ class CanvasController extends Controller {
             this.images.height = values.height;
             this.engine.width = values.width;
             this.engine.height = values.height;
-            this.engine.chunkingSize = values.chunkingSize
-            this.engine.chunkingBlur = values.chunkingBlur;
+            if (values.useChunking) {
+                this.engine.chunkingSize = values.chunkingSize
+                this.engine.chunkingBlur = values.chunkingBlur;
+            } else {
+                this.engine.chunkingSize = 0;
+            }
         });
 
         // Add form to sidebar
@@ -59,16 +64,21 @@ class CanvasController extends Controller {
         this.subscribe("modelPickerChange", async (newModel) => {
             if (!isEmpty(newModel)) {
                 let defaultConfig = newModel.defaultConfiguration,
-                    canvasConfig = {};
+                    canvasConfig = {
+                        "useChunking": true
+                    };
                 
                 if (!isEmpty(defaultConfig.width)) {
-                    canvasConfig.width = defaultConfig.width;
+                    canvasConfig.width = defaultConfig.widthu;
                 }
                 if (!isEmpty(defaultConfig.height)) {
                     canvasConfig.height = defaultConfig.height;
                 }
                 if (!isEmpty(defaultConfig.chunking_size)) {
                     canvasConfig.chunkingSize = defaultConfig.chunking_size;
+                    if (canvasConfig.chunkingSize === 0) {
+                        canvasConfig.useChunking = false;
+                    }
                 }
                 if (!isEmpty(defaultConfig.chunking_blur)) {
                     canvasConfig.chunkingBlur = defaultConfig.chunking_blur;
