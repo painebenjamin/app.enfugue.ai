@@ -345,7 +345,6 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
 
         build_metadata = {"model": model_name, "network": network_name}
         plan.nodes = [DiffusionNode([(0, 0), (plan.size, plan.size)], step)]
-        plan.image_callback_steps = None  # Disable decoding
         return self.invoke(
             request.token.user.id,
             plan,
