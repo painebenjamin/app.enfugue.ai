@@ -64,12 +64,10 @@ class CanvasController extends Controller {
         this.subscribe("modelPickerChange", async (newModel) => {
             if (!isEmpty(newModel)) {
                 let defaultConfig = newModel.defaultConfiguration,
-                    canvasConfig = {
-                        "useChunking": true
-                    };
-                
+                    canvasConfig = {};
+
                 if (!isEmpty(defaultConfig.width)) {
-                    canvasConfig.width = defaultConfig.widthu;
+                    canvasConfig.width = defaultConfig.width;
                 }
                 if (!isEmpty(defaultConfig.height)) {
                     canvasConfig.height = defaultConfig.height;
@@ -83,7 +81,11 @@ class CanvasController extends Controller {
                 if (!isEmpty(defaultConfig.chunking_blur)) {
                     canvasConfig.chunkingBlur = defaultConfig.chunking_blur;
                 }
+
                 if (!isEmpty(canvasConfig)) {
+                    if (isEmpty(canvasConfig.useChunking)) {
+                        canvasConfig.useChunking = true;
+                    }
                     await this.canvasForm.setValues(canvasConfig);
                     await this.canvasForm.submit();
                 }
