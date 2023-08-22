@@ -69,6 +69,7 @@ import {
 } from "./input/enfugue/image-editor.mjs";
 import {
     OutputScaleInputView,
+    UpscaleAmountInputView,
     UpscaleMethodsInputView,
     UpscaleDiffusionIterativeControlnetInputView,
     UpscaleDiffusionPromptInputView,
@@ -135,6 +136,7 @@ export {
     PipelinePrecisionModeInputView,
     PipelineInpaintingModeInputView,
     OutputScaleInputView,
+    UpscaleAmountInputView,
     UpscaleMethodsInputView,
     UpscaleDiffusionIterativeControlnetInputView,
     UpscaleDiffusionPromptInputView,

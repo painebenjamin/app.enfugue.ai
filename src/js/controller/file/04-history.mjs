@@ -168,8 +168,14 @@ class HistoryController extends MenuController {
                 }
             }
             if (!isEmpty(item.state.images)) {
-                let nodeNumber = 1;
-                for (let node of item.state.images) {
+                let nodeNumber = 1,
+                    nodes;
+                if (Array.isArray(item.state.images)) {
+                    nodes = item.state.images;
+                } else {
+                    nodes = item.state.images.nodes;
+                }
+                for (let node of nodes) {
                     let nodeSummaryParts = {};
                     switch (node.classname) {
                         case "ImageEditorImageNodeView":

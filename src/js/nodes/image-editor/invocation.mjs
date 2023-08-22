@@ -4,6 +4,10 @@ import { isEmpty } from "../../base/helpers.mjs";
 import { ImageView } from "../../view/image.mjs";
 import { ToolbarView } from "../../view/menu.mjs";
 import {
+    QuickUpscaleFormView,
+    QuickDownscaleFormView
+} from "../../forms/enfugue/upscale.mjs";
+import {
     ImageAdjustmentView,
     ImageFilterView
 } from "./filter.mjs";
@@ -85,6 +89,26 @@ class CurrentInvocationImageView extends ImageView {
     static imageFilterWindowHeight = 350;
 
     /**
+     * @var int The width of the upscale window in pixels
+     */
+    static imageUpscaleWindowWidth = 260;
+
+    /**
+     * @var int The height of the upscale window in pixels
+     */
+    static imageUpscaleWindowHeight = 210;
+
+    /**
+     * @var int The width of the upscale window in pixels
+     */
+    static imageDownscaleWindowWidth = 260;
+
+    /**
+     * @var int The height of the upscale window in pixels
+     */
+    static imageDownscaleWindowHeight = 210;
+
+    /**
      * Gets the toolbar node, building if needed
      */
     async getTools() {
@@ -113,6 +137,12 @@ class CurrentInvocationImageView extends ImageView {
 
             this.editImage = await this.toolbar.addItem("Edit Image", "fa-solid fa-pen-to-square");
             this.editImage.onClick(() => this.sendToCanvas());
+
+            this.upscaleImage = await this.toolbar.addItem("Upscale Image", "fa-solid fa-up-right-and-down-left-from-center");
+            this.upscaleImage.onClick(() => this.startImageUpscale());
+
+            this.downscaleImage = await this.toolbar.addItem("Downscale Image", "fa-solid fa-down-left-and-up-right-to-center");
+            this.downscaleImage.onClick(() => this.startImageDownscale());
         }
         return this.toolbar;
     }
@@ -143,6 +173,12 @@ class CurrentInvocationImageView extends ImageView {
 
         let editImage = await menu.addItem("Edit Image", "fa-solid fa-pen-to-square", "t");
         editImage.onClick(() => this.sendToCanvas());
+
+        let upscaleImage = await menu.addItem("Upscale Image", "fa-solid fa-up-right-and-down-left-from-center", "u");
+        upscaleImage.onClick(() => this.startImageUpscale());
+
+        let downscaleImage = await menu.addItem("Downscale Image", "fa-solid fa-down-left-and-up-right-to-center", "w");
+        downscaleImage.onClick(() => this.startImageDownscale());
     }
 
     /**
@@ -185,21 +221,103 @@ class CurrentInvocationImageView extends ImageView {
     }
 
     /**
+     * Starts downscaling the image
+     * Replaces the current visible canvas with an in-progress edit.
+     */
+    async startImageDownscale() {
+        if (this.checkActiveTool("downscale")) return;
+
+        let imageBeforeDownscale = this.src,
+            setDownscaleAmount = async (amount) => {
+                let image = new ImageView(this.config, imageBeforeDownscale);
+                await image.waitForLoad();
+                await image.downscale(amount);
+                this.setImage(image.src);
+                this.editor.width = image.width;
+                this.editor.height = image.height;
+            },
+            saveResults = false;
+
+        this.imageDownscaleForm = new QuickDownscaleFormView(this.config);
+        this.imageDownscaleWindow = await this.editor.application.windows.spawnWindow(
+            "Downscale Image",
+            this.imageDownscaleForm,
+            this.constructor.imageDownscaleWindowWidth,
+            this.constructor.imageDownscaleWindowHeight
+        );
+        this.imageDownscaleWindow.onClose(() => {
+            this.imageDownscaleForm = null;
+            this.imageDownscaleWindow = null;
+            if (!saveResults) {
+                this.setImage(imageBeforeDownscale);
+            }
+        });
+        this.imageDownscaleForm.onChange(async () => {
+            let image = new ImageView(this.config, imageBeforeDownscale);
+            await image.waitForLoad();
+            await image.downscale(this.imageDownscaleForm.values.downscale);
+            this.setImage(image.src);
+            this.editor.width = image.width;
+            this.editor.height = image.height;
+        });
+        this.imageDownscaleForm.onSubmit(async (values) => {
+            saveResults = true;
+            // Remove window
+            this.imageDownscaleWindow.remove();
+        });
+        this.imageDownscaleForm.onCancel(() => this.imageDownscaleWindow.remove());
+        setDownscaleAmount(2); // Default to 2
+    }
+
+    /**
+     * Starts upscaling the image
+     * Does not replace the current visible canvas.
+     * This will use the canvas and upscale settings to send to the backend.
+     */
+    async startImageUpscale() {
+        if (this.checkActiveTool("upscale")) return;
+        this.imageUpscaleForm = new QuickUpscaleFormView(this.config);
+        this.imageUpscaleWindow = await this.editor.application.windows.spawnWindow(
+            "Upscale Image",
+            this.imageUpscaleForm,
+            this.constructor.imageUpscaleWindowWidth,
+            this.constructor.imageUpscaleWindowHeight
+        );
+        this.imageUpscaleWindow.onClose(() => {
+            this.imageUpscaleForm = null;
+            this.imageUpscaleWindow = null;
+        });
+        this.imageUpscaleForm.onCancel(() => this.imageUpscaleWindow.remove());
+        this.imageUpscaleForm.onSubmit(async (values) => {
+            await this.editor.application.initializeStateFromImage(
+                await this.getImageAsDataURL(),
+                false, // Don't save history
+                true, // Keep current state
+                {
+                    "upscale": {"outscale": values.upscale},
+                    "generation": {"samples": 1},
+                    "samples": null
+                } // State overrides
+            );
+            // Remove window
+            this.imageUpscaleWindow.remove();
+
+            // Hide current invocation
+            this.editor.application.images.hideCurrentInvocation()
+
+            // Wait a few ticks then trigger
+            setTimeout(() => {
+                this.editor.application.publish("tryInvoke");
+            }, 2000);
+        });
+    }
+
+    /**
      * Starts filtering the image
      * Replaces the current visible canvas with an in-progress edit.
      */
     async startImageFilter() {
-        if (!isEmpty(this.imageFilterWindow)) {
-            return this.imageFilterWindow.focus();
-        }
-        if (!isEmpty(this.imageAdjustmentWindow)) {
-            return this.editor.application.notifications.push(
-                "warn",
-                "Can't Filter Right Now",
-                "Complete image adjustments before trying to filter."
-            );
-        }
-
+        if (this.checkActiveTool("filter")) return;
         this.imageFilterView = new ImageFilterView(this.config, this.src, this.node.element.parentElement),
         this.imageFilterWindow = await this.editor.application.windows.spawnWindow(
             "Filter Image",
@@ -235,16 +353,7 @@ class CurrentInvocationImageView extends ImageView {
      * Replaces the current visible canvas with an in-progress edit.
      */
     async startImageAdjustment() {
-        if (!isEmpty(this.imageAdjustmentWindow)) {
-            return this.imageAdjustmentWindow.focus();
-        }
-        if (!isEmpty(this.imageFilterWindow)) {
-            return this.editor.application.notifications.push(
-                "warn",
-                "Can't Adjust Right Now",
-                "Complete image filters before trying to adjust."
-            );
-        }
+        if (this.checkActivetool("adjust")) return;
         this.imageAdjustmentView = new ImageAdjustmentView(this.config, this.src, this.node.element.parentElement),
         this.imageAdjustmentWindow = await this.editor.application.windows.spawnWindow(
             "Adjust Image",
@@ -273,6 +382,64 @@ class CurrentInvocationImageView extends ImageView {
             this.imageAdjustmentWindow.remove();
             reset();
         });
+    }
+
+    /**
+     * Checks if there is an active tool and either:
+     * 1. If the active tool matches the intended action, focus on it
+     * 2. If the active tool does not, display a warning
+     * Then return true. If there is no active tool, return false.
+     */
+    checkActiveTool(intendedAction) {
+        if (!isEmpty(this.imageAdjustmentWindow)) {
+            if (intendedAction !== "adjust") {
+                this.editor.application.notifications.push(
+                    "warn",
+                    "Finish Adjusting",
+                    `Complete adjustments before trying to ${intendedAction}.`
+                );
+            } else {
+                this.imageAdjustmentWindow.focus();
+            }
+            return true;
+        }
+        if (!isEmpty(this.imageFilterWindow)) {
+            if (intendedAction !== "filter") {
+                this.editor.application.notifications.push(
+                    "warn",
+                    "Finish Filtering",
+                    `Complete filtering before trying to ${intendedAction}.`
+                );
+            } else {
+                this.imageFilterWindow.focus();
+            }
+            return true;
+        }
+        if (!isEmpty(this.imageUpscaleWindow)) {
+            if (intendedAction !== "upscale") {
+                this.editor.application.notifications.push(
+                    "warn",
+                    "Finish Upscaling",
+                    `Complete your upscale selection or cancel before trying to ${intendedAction}.`
+                );
+            } else {
+                this.imageUpscaleWindow.focus();
+            }
+            return true;
+        }
+        if (!isEmpty(this.imagedownscaleWindow)) {
+            if (intendedAction !== "downscale") {
+                this.editor.application.notifications.push(
+                    "warn",
+                    "Finish Downscaling",
+                    `Complete your downscale selection or cancel before trying to ${intendedAction}.`
+                );
+            } else {
+                this.imagedownscaleWindow.focus();
+            }
+            return true;
+        }
+        return false;
     }
 
     /**

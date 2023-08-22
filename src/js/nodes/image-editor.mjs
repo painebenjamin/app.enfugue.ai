@@ -22,6 +22,8 @@ class ImageEditorView extends NodeEditorView {
     constructor(application) {
         super(application.config, window.innerWidth-300, window.innerHeight-70);
         this.application = application;
+        this.currentInvocation = new CurrentInvocationImageView(this);
+        this.currentInvocation.hide();
     }
 
     /**
@@ -101,6 +103,16 @@ class ImageEditorView extends NodeEditorView {
             this.configuredHeight = null;
             this.configuredWidth = null;
         }
+    }
+
+    /**
+     * Sets the dimensions
+     */
+    setDimensions(width, height) {
+        this.width = width;
+        this.height = height;
+        this.configuredWidth = null;
+        this.configuredHeight = null;
     }
 
     /**
@@ -201,10 +213,38 @@ class ImageEditorView extends NodeEditorView {
     async build() {
         let node = await super.build(),
             grid = E.createElement("enfugue-image-editor-grid");
-        this.currentInvocation = new CurrentInvocationImageView(this);
-        this.currentInvocation.hide();
         node.find("enfugue-node-canvas").append(grid, await this.currentInvocation.getNode());
         return node;
+    }
+
+    /**
+     * Get state, includes current invocation
+     */
+    getState() {
+        let state = super.getState();
+        if (this.hasClass("has-image")) {
+            return {
+                "image": this.currentInvocation.src,
+                "nodes": state
+            };
+        }
+        return state;
+    }
+
+    /**
+     * Set state, may include current invocation
+     */
+    setState(newState) {
+        if (Array.isArray(newState)) {
+            this.hideCurrentInvocation();
+            return super.setState(newState);
+        }
+        if (isEmpty(newState.image)) {
+            this.hideCurrentInvocation();
+        } else {
+            this.setCurrentInvocationImage(newState.image);
+        }
+        return super.setState(newState.nodes);
     }
 
     /**
@@ -219,7 +259,7 @@ class ImageEditorView extends NodeEditorView {
             "src": image.src,
             "name": "Initial Image"
         };
-        return {...baseState, ...ImageEditorImageNodeView.getDefaultState()};        
+        return {...ImageEditorImageNodeView.getDefaultState(), ...baseState};
     }
 }
 

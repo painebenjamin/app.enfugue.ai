@@ -116,6 +116,20 @@ class ImageView extends View {
     }
 
     /**
+     * Halves the image dimensions
+     */
+    async downscale(ratio = 2) {
+        await this.waitForLoad();
+        let canvas = document.createElement("canvas")
+        canvas.width = Math.floor(this.width / ratio);
+        canvas.height = Math.floor(this.height / ratio);
+        let context = canvas.getContext("2d");
+        context.drawImage(this.image, 0, 0, canvas.width, canvas.height);
+        this.setImage(canvas.toDataURL());
+        await this.waitForLoad();
+    }
+
+    /**
      * Mirrors the image horizontally
      *
      * @return Promise

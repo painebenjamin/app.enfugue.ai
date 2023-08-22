@@ -33,6 +33,26 @@ class OutputScaleInputView extends SelectInputView {
 }
 
 /**
+ * The select box for dedicated upscaling form
+ */
+class UpscaleAmountInputView extends SelectInputView {
+    /**
+     * @var object The option values and label
+     */
+    static defaultOptions = {
+        "2": "2×",
+        "4": "4×",
+        "8": "8×",
+        "16": "16×"
+    };
+
+    /**
+     * @var string The value, keep as string for compat
+     */
+    static defaultValue = "2";
+}
+
+/**
  * The upscale mode input view
  * ESRGAN is probably best overall, but we allow a bunch of options
  */
@@ -299,6 +319,7 @@ class UpscaleDiffusionPipelineInputView extends SelectInputView {
 
 export {
     OutputScaleInputView,
+    UpscaleAmountInputView,
     UpscaleMethodsInputView,
     UpscaleDiffusionIterativeControlnetInputView,
     UpscaleDiffusionPromptInputView,

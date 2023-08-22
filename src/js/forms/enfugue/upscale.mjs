@@ -5,6 +5,7 @@ import {
     CheckboxInputView,
     NumberInputView,
     OutputScaleInputView,
+    UpscaleAmountInputView,
     UpscaleMethodsInputView,
     UpscaleDiffusionIterativeControlnetInputView,
     UpscaleDiffusionPromptInputView,
@@ -138,4 +139,56 @@ class UpscaleFormView extends FormView {
     };
 }
 
-export { UpscaleFormView };
+/**
+ * The quick upscale form is used when a user directly selects 'Upscale' from an image
+ */
+class QuickUpscaleFormView extends FormView {
+    /**
+     * @var bool Show the cancel button
+     */
+    static showCancel = true;
+
+    /**
+     * @var object Just one fieldset
+     */
+    static fieldSets = {
+        "Upscale Amount": {
+            "upscale": {
+                "class": UpscaleAmountInputView,
+                "config": {
+                    "tooltip": "Select the amount of upscaling to apply. All other upscaling settings will remain as-is."
+                }
+            }
+        }
+    }
+};
+
+/**
+ * The quick downscale form is used when a user directly selects 'Downscale' from an image
+ */
+class QuickDownscaleFormView extends FormView {
+    /**
+     * @var bool Show the cancel button
+     */
+    static showCancel = true;
+
+    /**
+     * @var object Just one fieldset
+     */
+    static fieldSets = {
+        "Downscale Amount": {
+            "downscale": {
+                "class": UpscaleAmountInputView,
+                "config": {
+                    "tooltip": "Select the amount of downscaling to apply. Downscaling is performed via repeated bi-linear sampling."
+                }
+            }
+        }
+    }
+};
+
+export {
+    UpscaleFormView,
+    QuickUpscaleFormView,
+    QuickDownscaleFormView
+};

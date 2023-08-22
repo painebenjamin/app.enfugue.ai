@@ -45,8 +45,12 @@ class InvokeButtonController extends Controller {
      * Gets the step data from the canvas for invocation.
      */
     getNodes() {
-        let canvasState = this.images.getState();
-        return canvasState.map((datum) => {
+        let canvasState = this.images.getState(),
+            nodes = Array.isArray(canvasState)
+                ? canvasState
+                : canvasState.nodes || [];
+
+        return nodes.map((datum) => {
             let formattedState = {
                 "x": datum.x,
                 "y": datum.y,
@@ -138,6 +142,7 @@ class InvokeButtonController extends Controller {
         }
         this.invokeButton.enable().removeClass("sliding-gradient");
         this.loadingBar.doneLoading();
+        this.application.autosave();
         this.isInvoking = false;
     }
 

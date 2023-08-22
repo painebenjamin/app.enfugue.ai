@@ -225,7 +225,7 @@ class NodeEditorView extends View {
     }
 
     /**
-     * Sets a new height for this node.
+     * Sets a new height for this editor.
      * @param int $newHeight The new height to set.
      */
     set height(newHeight) {
@@ -241,8 +241,8 @@ class NodeEditorView extends View {
     }
 
     /**
-     * Sets a new width for this node.
-     * @param int $newHeight The new height to set.
+     * Sets a new width for this editor.
+     * @param int $newWidth The new width to set.
      */
     set width(newWidth) {
         this.canvasWidth = newWidth;
@@ -250,6 +250,27 @@ class NodeEditorView extends View {
             let nodeCanvas = this.node.find(E.getCustomTag('nodeCanvas'));
             nodeCanvas.width(newWidth).css('width', `${newWidth}px`);
             this.decorations.setDimension(newWidth, this.height);
+            for (let node of this.nodes) {
+                node.resetDimension();
+            }
+        }
+    }
+
+    /**
+     * Sets a new width and height for this editor.
+     * @param int $newWidth The new width to set.
+     * @param int $newHeight The new height to set.
+     */
+    setDimension(newWidth, newHeight) {
+        this.canvasWidth = newWidth;
+        this.canvasHeight = newHeight;
+        if (this.node !== undefined) {
+            let nodeCanvas = this.node.find(E.getCustomTag('nodeCanvas'));
+            nodeCanvas.width(newWidth).height(newHeight).css({
+                "width": `${newWidth}px`,
+                "height": `${newHeight}px`
+            });
+            this.decorations.setDimension(newWidth, newHeight);
             for (let node of this.nodes) {
                 node.resetDimension();
             }

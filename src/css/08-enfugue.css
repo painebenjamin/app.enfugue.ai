@@ -60,6 +60,7 @@ enfugue-menu-category:hover {
 
 enfugue-menu.highlight enfugue-menu-category span.shortcut {
     text-decoration: underline;
+    color: var(--theme-color-primary);
 }
 
 enfugue-menu > enfugue-menu-category:not(:first-of-type) {

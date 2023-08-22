@@ -782,7 +782,7 @@ class Application {
      * Gets all stateful controllers
      */
     getStatefulControllers() {
-        let controllerArray = [this.modelPicker].concat(this.toolbarControllers).concat(this.sidebarControllers);
+        let controllerArray = [this.modelPicker, this.engine].concat(this.toolbarControllers).concat(this.sidebarControllers);
         for (let controllerName in this.menuControllers) {
             controllerArray = controllerArray.concat(this.menuControllers[controllerName]);
         }
@@ -831,8 +831,6 @@ class Application {
             if (!isEmpty(newState.canvas.height)) this.images.height = newState.canvas.height;
         }
         if (newState.images !== undefined && newState.images !== null) {
-            this.engine.hideSampleChooser();
-            this.images.hideCurrentInvocation();
             this.images.setState(newState.images);
         }
     }
@@ -852,11 +850,15 @@ class Application {
     /**
      * Initializes state from an image
      */
-    async initializeStateFromImage(image, saveHistory = true) {
+    async initializeStateFromImage(image, saveHistory = true, keepState = null, overrideState = null) {
         try {
             let baseState = {},
-                keepState = await this.yesNo("Would you like to keep settings?<br /><br />This will maintain things like prompts and other global settings the same while only changing the dimensions to match the image."),
                 controllerArray = this.getStatefulControllers();
+
+            if (keepState === null) {
+                keepState = await this.yesNo("Would you like to keep settings?<br /><br />This will maintain things like prompts and other global settings the same while only changing the dimensions to match the image.");
+            }
+
             for (let controller of controllerArray) {
                 if (keepState) {
                     baseState = {...baseState, ...controller.getState()};
@@ -864,18 +866,33 @@ class Application {
                     baseState = {...baseState, ...controller.getDefaultState()};
                 }
             }
+
             if (isEmpty(baseState.canvas)) {
                 baseState.canvas = {};
             }
             baseState.canvas.width = image.width;
             baseState.canvas.height = image.height;
-            baseState.images = [ImageEditorView.getNodeDataForImage(image)];
+            baseState.images = {
+                nodes: [ImageEditorView.getNodeDataForImage(image)],
+                image: null
+            };
+
+            if (!isEmpty(overrideState)) {
+                for (let overrideKey in overrideState) {
+                    if (baseState[overrideKey] !== undefined) {
+                        if (overrideState[overrideKey] === null) {
+                            baseState[overrideKey] = null;
+                        } else if (typeof baseState[overrideKey] == "object" && typeof overrideState[overrideKey] == "object") {
+                            baseState[overrideKey] = {...baseState[overrideKey], ...overrideState[overrideKey]};
+                        } else {
+                            baseState[overrideKey] = overrideState[overrideKey];
+                        }
+                    }
+                }
+            }
 
             this.engine.hideSampleChooser();
-            this.images.hideCurrentInvocation();
-            this.images.width = image.width;
-            this.images.height = image.height;
-
+            this.images.setDimension(image.width, image.height);
             await this.setState(baseState, saveHistory);
         } catch(e) {
             // pass
