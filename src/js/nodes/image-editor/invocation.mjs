@@ -276,6 +276,7 @@ class CurrentInvocationImageView extends ImageView {
      */
     async startImageUpscale() {
         if (this.checkActiveTool("upscale")) return;
+
         this.imageUpscaleForm = new QuickUpscaleFormView(this.config);
         this.imageUpscaleWindow = await this.editor.application.windows.spawnWindow(
             "Upscale Image",
@@ -291,13 +292,13 @@ class CurrentInvocationImageView extends ImageView {
         this.imageUpscaleForm.onSubmit(async (values) => {
             await this.editor.application.initializeStateFromImage(
                 await this.getImageAsDataURL(),
-                false, // Don't save history
-                true, // Keep current state
+                true, // Save history
+                true, // Keep current state, except for...
                 {
                     "upscale": {"outscale": values.upscale},
                     "generation": {"samples": 1},
                     "samples": null
-                } // State overrides
+                } // ...these state overrides
             );
             // Remove window
             this.imageUpscaleWindow.remove();
@@ -305,7 +306,7 @@ class CurrentInvocationImageView extends ImageView {
             // Hide current invocation
             this.editor.application.images.hideCurrentInvocation()
 
-            // Wait a few ticks then trigger
+            // Wait a few ticks then trigger invoke
             setTimeout(() => {
                 this.editor.application.publish("tryInvoke");
             }, 2000);
@@ -318,6 +319,7 @@ class CurrentInvocationImageView extends ImageView {
      */
     async startImageFilter() {
         if (this.checkActiveTool("filter")) return;
+
         this.imageFilterView = new ImageFilterView(this.config, this.src, this.node.element.parentElement),
         this.imageFilterWindow = await this.editor.application.windows.spawnWindow(
             "Filter Image",
@@ -354,6 +356,7 @@ class CurrentInvocationImageView extends ImageView {
      */
     async startImageAdjustment() {
         if (this.checkActivetool("adjust")) return;
+
         this.imageAdjustmentView = new ImageAdjustmentView(this.config, this.src, this.node.element.parentElement),
         this.imageAdjustmentWindow = await this.editor.application.windows.spawnWindow(
             "Adjust Image",

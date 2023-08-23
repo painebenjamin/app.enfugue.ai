@@ -45,8 +45,7 @@ class CanvasController extends Controller {
         // Create form
         this.canvasForm = new CanvasFormView(this.config);
         this.canvasForm.onSubmit(async (values) => {
-            this.images.width = values.width;
-            this.images.height = values.height;
+            this.images.setDimension(values.width, values.height);
             this.engine.width = values.width;
             this.engine.height = values.height;
             if (values.useChunking) {
