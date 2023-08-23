@@ -355,7 +355,7 @@ class CurrentInvocationImageView extends ImageView {
      * Replaces the current visible canvas with an in-progress edit.
      */
     async startImageAdjustment() {
-        if (this.checkActivetool("adjust")) return;
+        if (this.checkActiveTool("adjust")) return;
 
         this.imageAdjustmentView = new ImageAdjustmentView(this.config, this.src, this.node.element.parentElement),
         this.imageAdjustmentWindow = await this.editor.application.windows.spawnWindow(
