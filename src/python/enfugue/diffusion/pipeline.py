@@ -366,6 +366,16 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 vae_config = create_vae_diffusers_config(original_config, image_size=image_size)
                 converted_vae_checkpoint = convert_ldm_vae_checkpoint(checkpoint, vae_config)
 
+                if (
+                    "model" in original_config
+                    and "params" in original_config.model
+                    and "scale_factor" in original_config.model.params
+                ):
+                    vae_scaling_factor = original_config.model.params.scale_factor
+                else:
+                    vae_scaling_factor = 0.18215  # default SD scaling factor
+
+                vae_config["scaling_factor"] = vae_scaling_factor
                 vae = AutoencoderKL(**vae_config)
                 vae.load_state_dict(converted_vae_checkpoint)
             except KeyError as ex:
