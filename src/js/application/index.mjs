@@ -827,8 +827,8 @@ class Application {
             await controller.setState(newState);
         }
         if (!isEmpty(newState.canvas)) {
-            if (!isEmpty(newState.canvas.width)) this.images.width = newState.canvas.width;
-            if (!isEmpty(newState.canvas.height)) this.images.height = newState.canvas.height;
+            this.images.hideCurrentInvocation();
+            this.images.setDimension(newState.canvas.width, newState.canvas.height);
         }
         if (newState.images !== undefined && newState.images !== null) {
             this.images.setState(newState.images);
@@ -892,7 +892,6 @@ class Application {
             }
 
             this.engine.hideSampleChooser();
-            this.images.setDimension(image.width, image.height);
             await this.setState(baseState, saveHistory);
         } catch(e) {
             // pass
