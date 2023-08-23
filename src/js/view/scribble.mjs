@@ -64,7 +64,8 @@ class ScribbleView extends View {
      */
     clearMemory() {
         let memoryContext = this.memoryCanvas.getContext("2d");
-        memoryContext.clearRect(0, 0, this.memoryCanvas.width, this.memoryCanvas.height);
+        memoryContext.fillStyle = "#ffffff";
+        memoryContext.fillRect(0, 0, this.memoryCanvas.width, this.memoryCanvas.height);
         this.updateVisibleCanvas();
     }
 
@@ -100,6 +101,8 @@ class ScribbleView extends View {
             newMemoryCanvas.width = width;
             newMemoryCanvas.height = height;
             let newMemoryContext = newMemoryCanvas.getContext("2d");
+            newMemoryContext.fillStyle = "#ffffff";
+            newMemoryContext.fillRect(0, 0, width, height);
             newMemoryContext.drawImage(this.memoryCanvas, 0, 0);
             this.memoryCanvas = newMemoryCanvas;
         }
@@ -146,7 +149,7 @@ class ScribbleView extends View {
      * The 'mousedown' handler
      */
     onNodeMouseDown(e) {
-        if (e.which !== 1 || (e.shiftKey || e.ctrlKey)) return;
+        if (e.which !== 1 || (e.metaKey || e.ctrlKey)) return;
         e.preventDefault();
         e.stopPropagation();
         this.active = true;
@@ -233,7 +236,8 @@ class ScribbleView extends View {
         context.save();
         this.drawPencilShape(context, x, y);
         context.clip();
-        context.clearRect(0, 0, this.memoryCanvas.width, this.memoryCanvas.height);
+        context.fillStyle = "#ffffff";
+        context.fillRect(0, 0, this.memoryCanvas.width, this.memoryCanvas.height);
         context.restore();
         this.updateVisibleCanvas();
     }

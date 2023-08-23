@@ -217,7 +217,14 @@ class CurrentInvocationImageView extends ImageView {
      * Asks for details regarding additional state when clicked
      */
     async sendToCanvas() {
-        this.editor.application.initializeStateFromImage(await this.getImageAsDataURL());
+        this.editor.application.initializeStateFromImage(
+            await this.getImageAsDataURL(),
+            true, // Save history
+            null, // Prompt for current state
+            {
+                "samples": null
+            } // Remove sample chooser
+        );
     }
 
     /**
@@ -228,13 +235,14 @@ class CurrentInvocationImageView extends ImageView {
         if (this.checkActiveTool("downscale")) return;
 
         let imageBeforeDownscale = this.src,
+            widthBeforeDownscale = this.width,
+            heightBeforeDownscale = this.height,
             setDownscaleAmount = async (amount) => {
                 let image = new ImageView(this.config, imageBeforeDownscale);
                 await image.waitForLoad();
                 await image.downscale(amount);
                 this.setImage(image.src);
-                this.editor.width = image.width;
-                this.editor.height = image.height;
+                this.editor.setDimension(image.width, image.height, false);
             },
             saveResults = false;
 
@@ -250,22 +258,15 @@ class CurrentInvocationImageView extends ImageView {
             this.imageDownscaleWindow = null;
             if (!saveResults) {
                 this.setImage(imageBeforeDownscale);
+                this.editor.setDimension(widthBeforeDownscale, heightBeforeDownscale, false);
             }
         });
-        this.imageDownscaleForm.onChange(async () => {
-            let image = new ImageView(this.config, imageBeforeDownscale);
-            await image.waitForLoad();
-            await image.downscale(this.imageDownscaleForm.values.downscale);
-            this.setImage(image.src);
-            this.editor.width = image.width;
-            this.editor.height = image.height;
-        });
+        this.imageDownscaleForm.onChange(async () => setDownscaleAmount(this.imageDownscaleForm.values.downscale));
+        this.imageDownscaleForm.onCancel(() => this.imageDownscaleWindow.remove());
         this.imageDownscaleForm.onSubmit(async (values) => {
             saveResults = true;
-            // Remove window
             this.imageDownscaleWindow.remove();
         });
-        this.imageDownscaleForm.onCancel(() => this.imageDownscaleWindow.remove());
         setDownscaleAmount(2); // Default to 2
     }
 

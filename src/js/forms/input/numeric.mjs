@@ -112,9 +112,9 @@ class NumberInputView extends InputView {
             let stepInteger = this.stepValue * Math.pow(10, this.precision),
                 inputInteger = inputValue * Math.pow(10, this.precision),
                 stepOffset = inputInteger % stepInteger;
-            
             if (stepOffset !== 0) {
                 let offsetValue = parseFloat(((inputInteger - stepOffset) / Math.pow(10, this.precision)).toFixed(this.precision));
+                console.log(stepInteger, inputInteger, stepOffset, offsetValue);
                 this.setValue(offsetValue, false);
             }
         }

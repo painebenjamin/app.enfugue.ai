@@ -34,7 +34,7 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         "height",
         "chunking_size",
         "chunking_blur",
-        "inference_steps",
+        "num_inference_steps",
         "guidance_scale",
         "refiner_denoising_strength",
         "refiner_guidance_scale",

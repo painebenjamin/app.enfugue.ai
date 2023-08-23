@@ -260,8 +260,9 @@ class NodeEditorView extends View {
      * Sets a new width and height for this editor.
      * @param int $newWidth The new width to set.
      * @param int $newHeight The new height to set.
+     * @param bool $resetNodes Whether or not to reset the dimensions of the nodes on this canvas.
      */
-    setDimension(newWidth, newHeight) {
+    setDimension(newWidth, newHeight, resetNodes = true) {
         this.canvasWidth = newWidth;
         this.canvasHeight = newHeight;
         if (this.node !== undefined) {
@@ -271,8 +272,10 @@ class NodeEditorView extends View {
                 "height": `${newHeight}px`
             });
             this.decorations.setDimension(newWidth, newHeight);
-            for (let node of this.nodes) {
-                node.resetDimension();
+            if (resetNodes) {
+                for (let node of this.nodes) {
+                    node.resetDimension();
+                }
             }
         }
     }
@@ -475,7 +478,7 @@ class NodeEditorView extends View {
             if (this.constructor.canMove) {
                 node.append(position);
                 canvas.on('mousedown', (e) => {
-                    if (!(e.which === 2 || (e.which === 1 && (e.ctrlKey || e.altKey || e.shiftKey)))) {
+                    if (!(e.which === 2 || (e.which === 1 && (e.ctrlKey || e.altKey || e.metaKey)))) {
                         return;
                     }
                     e.preventDefault();

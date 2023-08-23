@@ -995,7 +995,12 @@ class DiffusionPipelineManager:
         """
         Gets the CLIP key for the current configuration.
         """
-        return DiffusionPipelineManager.get_clip_key(size=self.size, lora=[], lycoris=[], inversion=[])
+        return DiffusionPipelineManager.get_clip_key(
+            size=self.refiner_size,
+            lora=[],
+            lycoris=[],
+            inversion=[]
+        )
 
     @property
     def refiner_tensorrt_clip_dir(self) -> str:
@@ -1026,7 +1031,12 @@ class DiffusionPipelineManager:
         """
         Gets the CLIP key for the current configuration.
         """
-        return DiffusionPipelineManager.get_clip_key(size=self.size, lora=[], lycoris=[], inversion=[])
+        return DiffusionPipelineManager.get_clip_key(
+            size=self.inpainter_size,
+            lora=[],
+            lycoris=[],
+            inversion=[]
+        )
 
     @property
     def inpainter_tensorrt_clip_dir(self) -> str:
@@ -1127,7 +1137,12 @@ class DiffusionPipelineManager:
         """
         Gets the UNET key for the current configuration.
         """
-        return DiffusionPipelineManager.get_unet_key(size=self.size, lora=[], lycoris=[], inversion=[])
+        return DiffusionPipelineManager.get_unet_key(
+            size=self.refiner_size,
+            lora=[],
+            lycoris=[],
+            inversion=[]
+        )
 
     @property
     def refiner_tensorrt_unet_dir(self) -> str:
@@ -1158,7 +1173,12 @@ class DiffusionPipelineManager:
         """
         Gets the UNET key for the current configuration.
         """
-        return DiffusionPipelineManager.get_unet_key(size=self.size, lora=[], lycoris=[], inversion=[])
+        return DiffusionPipelineManager.get_unet_key(
+            size=self.inpainter_size,
+            lora=[],
+            lycoris=[],
+            inversion=[]
+        )
 
     @property
     def inpainter_tensorrt_unet_dir(self) -> str:
@@ -1259,7 +1279,12 @@ class DiffusionPipelineManager:
         """
         Gets the UNET key for the current configuration.
         """
-        return DiffusionPipelineManager.get_controlled_unet_key(size=self.size, lora=[], lycoris=[], inversion=[])
+        return DiffusionPipelineManager.get_controlled_unet_key(
+            size=self.refiner_size,
+            lora=[],
+            lycoris=[],
+            inversion=[]
+        )
 
     @property
     def refiner_tensorrt_controlled_unet_dir(self) -> str:
@@ -1333,7 +1358,7 @@ class DiffusionPipelineManager:
         """
         Gets the UNET key for the current configuration.
         """
-        return DiffusionPipelineManager.get_vae_key(size=self.size)
+        return DiffusionPipelineManager.get_vae_key(size=self.refiner_size)
 
     @property
     def refiner_tensorrt_vae_dir(self) -> str:
@@ -1364,7 +1389,7 @@ class DiffusionPipelineManager:
         """
         Gets the UNET key for the current configuration.
         """
-        return DiffusionPipelineManager.get_vae_key(size=self.size)
+        return DiffusionPipelineManager.get_vae_key(size=self.inpainter_size)
 
     @property
     def inpainter_tensorrt_vae_dir(self) -> str:
@@ -1423,6 +1448,10 @@ class DiffusionPipelineManager:
         """
         if new_enabled != self.tensorrt_is_enabled and self.tensorrt_is_ready:
             self.unload_pipeline("TensorRT enabled or disabled")
+        if new_enabled != self.tensorrt_is_enabled and self.inpainter_tensorrt_is_ready:
+            self.unload_inpainter("TensorRT enabled or disabled")
+        if new_enabled != self.tensorrt_is_enabled and self.refiner_tensorrt_is_ready:
+            self.unload_refiner("TensorRT enabled or disabled")
         self._tensorrt_enabled = new_enabled
 
     @property
@@ -1513,6 +1542,10 @@ class DiffusionPipelineManager:
         self._build_tensorrt = new_build
         if not self.tensorrt_is_ready and self.tensorrt_is_supported:
             self.unload_pipeline("preparing for TensorRT build")
+        if not self.inpainter_tensorrt_is_ready and self.tensorrt_is_supported:
+            self.unload_inpainter("preparing for TensorRT build")
+        if not self.refiner_tensorrt_is_ready and self.tensorrt_is_supported:
+            self.unload_refiner("preparing for TensorRT build")
 
     @property
     def use_tensorrt(self) -> bool:
@@ -2254,7 +2287,7 @@ class DiffusionPipelineManager:
                     kwargs["tokenizer_2"] = None
                     kwargs["text_encoder_2"] = None
                 logger.debug(
-                    f"Initializing pipeline from diffusers cache directory at {self.model_diffusers_cache_dir}. Arguments are {redact(kwargs)}"
+                    f"Initializing TensorRT pipeline from diffusers cache directory at {self.model_diffusers_cache_dir}. Arguments are {redact(kwargs)}"
                 )
                 pipeline = self.pipeline_class.from_pretrained(self.model_diffusers_cache_dir, **kwargs)
             elif self.model_diffusers_cache_dir is not None:
@@ -2363,7 +2396,7 @@ class DiffusionPipelineManager:
                     kwargs["tokenizer_2"] = None
 
                 logger.debug(
-                    f"Initializing refiner pipeline from diffusers cache directory at {self.refiner_diffusers_cache_dir}. Arguments are {redact(kwargs)}"
+                    f"Initializing refiner TensorRT pipeline from diffusers cache directory at {self.refiner_diffusers_cache_dir}. Arguments are {redact(kwargs)}"
                 )
 
                 refiner_pipeline = self.refiner_pipeline_class.from_pretrained(
@@ -2495,7 +2528,7 @@ class DiffusionPipelineManager:
                     kwargs["tokenizer_2"] = None
 
                 logger.debug(
-                    f"Initializing inpainter pipeline from diffusers cache directory at {self.inpainter_diffusers_cache_dir}. Arguments are {redact(kwargs)}"
+                    f"Initializing inpainter TensorRT pipeline from diffusers cache directory at {self.inpainter_diffusers_cache_dir}. Arguments are {redact(kwargs)}"
                 )
 
                 inpainter_pipeline = self.inpainter_pipeline_class.from_pretrained(

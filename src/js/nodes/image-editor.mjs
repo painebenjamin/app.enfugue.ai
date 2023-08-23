@@ -97,22 +97,18 @@ class ImageEditorView extends NodeEditorView {
             this.removeClass("has-image");
             this.application.menu.removeCategory("Image");
         }
-        if (!isEmpty(this.configuredWidth) && !isEmpty(this.configuredHeight)) {
-            this.width = this.configuredWidth;
-            this.height = this.configuredHeight;
-            this.configuredHeight = null;
-            this.configuredWidth = null;
-        }
+        this.resetDimension(false);
     }
 
     /**
-     * Sets the dimensions
+     * Resets the editor to the previous set of dimensions
      */
-    setDimensions(width, height) {
-        this.width = width;
-        this.height = height;
-        this.configuredWidth = null;
-        this.configuredHeight = null;
+    resetDimension(resetNodes = true) {
+        if (!isEmpty(this.configuredWidth) && !isEmpty(this.configuredHeight)) {
+            this.setDimension(this.configuredWidth, this.configuredHeight, resetNodes);
+            this.configuredHeight = null;
+            this.configuredWidth = null;
+        }
     }
 
     /**
@@ -129,8 +125,7 @@ class ImageEditorView extends NodeEditorView {
             if (isEmpty(this.configuredHeight)) {
                 this.configuredHeight = this.height;
             }
-            this.width = this.currentInvocation.width;
-            this.height = this.currentInvocation.height;
+            this.setDimension(this.currentInvocation.width, this.currentInvocation.height, false);
         }
         this.currentInvocation.show();
         if (!this.hasClass("has-image")) {

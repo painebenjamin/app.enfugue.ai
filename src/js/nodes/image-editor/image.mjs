@@ -127,6 +127,8 @@ class ImageEditorImageNodeView extends ImageEditorScribbleNodeView {
             let nodeHeader = this.node.find("enfugue-node-header");
             if (this.inpaint) {
                 this.scribbleView.show();
+                // Make sure the scribble view is the right size
+                this.scribbleView.resizeCanvas(this.w, this.h);
                 for (let button of this.constructor.scribbleButtons) {
                     nodeHeader.find(`.node-button-${button}`).show();
                 }
@@ -244,6 +246,7 @@ class ImageEditorImageNodeView extends ImageEditorScribbleNodeView {
             let scribbleImage = new Image();
             scribbleImage.onload = () => {
                 this.scribbleView.setMemory(scribbleImage);
+                this.scribbleView.resizeCanvas(this.w, this.h);
                 this.scribbleView.show();
                 if (this.node !== undefined) {
                     let nodeHeader = this.node.find("enfugue-node-header");

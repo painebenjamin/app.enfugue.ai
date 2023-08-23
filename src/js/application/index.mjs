@@ -4,7 +4,8 @@ import {
     getQueryParameters,
     getDataParameters,
     waitFor,
-    createEvent
+    createEvent,
+    sleep
 } from "../base/helpers.mjs";
 import { Session } from "../base/session.mjs";
 import { Publisher } from "../base/publisher.mjs";
@@ -170,7 +171,7 @@ class Application {
             console.error(`Couldn't find application configuration using selector ${this.config.view.applicationContainer}, abandoning initialization.`);
             return;
         }
-        this.session = Session.getScope("enfugue");
+        this.session = Session.getScope("enfugue", 60 * 60 * 1000 * 24 * 30); // 1 month session
         this.model = new Model(this.config);
         this.menu = new MenuView(this.config);
         this.sidebar = new SidebarView(this.config);
@@ -827,7 +828,6 @@ class Application {
             await controller.setState(newState);
         }
         if (!isEmpty(newState.canvas)) {
-            this.images.hideCurrentInvocation();
             this.images.setDimension(newState.canvas.width, newState.canvas.height);
         }
         if (newState.images !== undefined && newState.images !== null) {
@@ -890,10 +890,12 @@ class Application {
                     }
                 }
             }
-
+            this.images.hideCurrentInvocation();
             this.engine.hideSampleChooser();
+            await sleep(1); // Sleep 1 frame
             await this.setState(baseState, saveHistory);
         } catch(e) {
+            console.error(e);
             // pass
         }
     }

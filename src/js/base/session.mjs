@@ -6,9 +6,9 @@ class SessionStorage {
         this.scopes = {};
     }
 
-    getScope(key) {
+    getScope(key, ttl) {
         if (!this.scopes.hasOwnProperty(key)) {
-            this.scopes[key] = new ScopedStorage(key, this.driver);
+            this.scopes[key] = new ScopedStorage(key, this.driver, ttl);
         }
         return this.scopes[key];
     }

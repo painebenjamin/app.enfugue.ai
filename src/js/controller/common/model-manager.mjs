@@ -118,8 +118,6 @@ class ModelManagerController extends Controller {
                 }
             }
 
-            console.log(modelValues);
-
             let modelForm = new ModelFormView(this.config, deepClone(modelValues)),
                 modelWindow;
             

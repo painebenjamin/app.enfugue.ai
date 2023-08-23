@@ -278,6 +278,34 @@ class NodeView extends View {
     }
 
     /**
+     * Gets the left position with padding accounted for
+     */
+    get x() {
+        return this.left + this.constructor.padding;
+    }
+
+    /**
+     * Gets the top position with padding accounted for
+     */
+    get y() {
+        return this.top + this.constructor.padding;
+    }
+
+    /**
+     * Gets the width with padding accounted for
+     */
+    get w() {
+        return this.width - (this.constructor.padding * 2);
+    }
+
+    /**
+     * Gets the height with padding accounted for
+     */
+    get h() {
+        return this.height - (this.constructor.padding * 2);
+    }
+
+    /**
      * Gets the data of this node, which includes the name, class, and dimensions.
      *
      * @return object The data for this node
@@ -286,10 +314,10 @@ class NodeView extends View {
         return {
             name: this.getName(),
             classname: this.constructor.name,
-            x: this.left + this.constructor.padding,
-            y: this.top + this.constructor.padding,
-            w: this.width - (this.constructor.padding * 2),
-            h: this.height - (this.constructor.padding * 2)
+            x: this.x,
+            y: this.y,
+            w: this.w,
+            h: this.h
         };
     }
 

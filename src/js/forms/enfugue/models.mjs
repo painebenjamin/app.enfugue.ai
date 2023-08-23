@@ -198,7 +198,7 @@ class ModelFormView extends FormView {
                     "value": null
                 }
             },
-            "inference_steps": {
+            "num_inference_steps": {
                 "label": "Inference Steps",
                 "class": NumberInputView,
                 "config": {
