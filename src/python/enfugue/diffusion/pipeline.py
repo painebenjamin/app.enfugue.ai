@@ -314,8 +314,6 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             }
             scheduler = EulerDiscreteScheduler.from_config(scheduler_dict)
             scheduler_type = "euler"
-            if vae_path is None:
-                vae_path = "stabilityai/sdxl-vae"
         else:
             beta_start = original_config.model.params.linear_start
             beta_end = original_config.model.params.linear_end
