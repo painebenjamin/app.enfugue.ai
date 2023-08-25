@@ -53,6 +53,7 @@ class ModelManagerController extends Controller {
         this.tableView = new ModelTableView(this.config, this.model.DiffusionModel);
         this.buttonView = new NewModelInputView(this.config);
 
+        // Set columns, formatters, searchables
         this.tableView.setColumns({
             "name": "Name",
             "model": "Model",
@@ -60,6 +61,7 @@ class ModelManagerController extends Controller {
             "prompt": "Prompt",
             "negative_prompt": "Negative Prompt"
         });
+        this.tableView.setSearchFields(["name", "prompt", "negative_prompt", "model"]);
         this.tableView.setFormatter("size", (datum) => `${datum}px`);
         
         // Add the 'Edit' button

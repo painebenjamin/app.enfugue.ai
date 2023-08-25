@@ -125,7 +125,21 @@ class PNG {
         return new Promise((resolve, reject) => {
             try {
                 let reader = new FileReader();
-                reader.onload = (e) => resolve(new PNG(file.name, e.target.result));
+                reader.onload = (e) => {
+                    let png = new PNG(file.name, e.target.result);
+                    try {
+                        png.chunks;
+                        resolve(png);
+                    } catch(e) {
+                        // If it failed here, it may not be a PNG. Coerce it.
+                        let newReader = new FileReader();
+                        newReader.onerror = (e) => reject(newReader);
+                        newReader.onload = (e) => {
+                            PNG.fromURL(e.target.result).then(resolve).catch(reject);
+                        }
+                        newReader.readAsDataURL(file);
+                    }
+                };
                 reader.onerror = (e) => reject(reader);
                 reader.readAsArrayBuffer(file);
             } catch(e) {

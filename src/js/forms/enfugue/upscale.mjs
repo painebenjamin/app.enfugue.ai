@@ -140,7 +140,7 @@ class UpscaleFormView extends FormView {
 }
 
 /**
- * The quick upscale form is used when a user directly selects 'Upscale' from an image
+ * The quick upscale form is used when a user directly selects 'Upscale' from an image,
  */
 class QuickUpscaleFormView extends FormView {
     /**
@@ -149,18 +149,32 @@ class QuickUpscaleFormView extends FormView {
     static showCancel = true;
 
     /**
-     * @var object Just one fieldset
+     * @var object modify amount to always be >= 2
      */
     static fieldSets = {
         "Upscale Amount": {
-            "upscale": {
-                "class": UpscaleAmountInputView,
-                "config": {
-                    "tooltip": "Select the amount of upscaling to apply. All other upscaling settings will remain as-is."
-                }
+            "outscale": {
+                "class": UpscaleAmountInputView
             }
-        }
-    }
+        },
+        "Upscale Methods": UpscaleFormView.fieldSets["Upscale Methods"],
+        "Upscale Diffusion": UpscaleFormView.fieldSets["Upscale Diffusion"],
+    };
+
+    /**
+     * @var array Don't hide all field sets
+     */
+    static collapseFieldSets = [
+        "Upscale Methods",
+        "Upscale Diffusion"
+    ];
+
+    /**
+     * @var object The conditions to display some inputs
+     */
+    static fieldSetConditions = {
+        "Upscale Diffusion": (values) => values.upscaleDiffusion
+    };
 };
 
 /**

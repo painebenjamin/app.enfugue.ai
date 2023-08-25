@@ -91,12 +91,12 @@ class CurrentInvocationImageView extends ImageView {
     /**
      * @var int The width of the upscale window in pixels
      */
-    static imageUpscaleWindowWidth = 260;
+    static imageUpscaleWindowWidth = 300;
 
     /**
      * @var int The height of the upscale window in pixels
      */
-    static imageUpscaleWindowHeight = 210;
+    static imageUpscaleWindowHeight = 320;
 
     /**
      * @var int The width of the upscale window in pixels
@@ -295,11 +295,12 @@ class CurrentInvocationImageView extends ImageView {
                 true, // Save history
                 true, // Keep current state, except for...
                 {
-                    "upscale": {"outscale": values.upscale},
+                    "upscale": values,
                     "generation": {"samples": 1},
                     "samples": null
                 } // ...these state overrides
             );
+
             // Remove window
             this.imageUpscaleWindow.remove();
 

@@ -328,7 +328,7 @@ class ListInputView extends EnumerableInputView {
                 this.changed();
             });
 
-            if (this.value === optionValue) {
+            if (this.value == optionValue) {
                 optionNode.addClass("selected");
             }
 

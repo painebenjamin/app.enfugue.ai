@@ -760,6 +760,7 @@ class ModelTableView extends View {
             this.paging.disable();
             this.pageIndex = pageIndex;
             this.paging.setOptions(this.pageOptions);
+            this.paging.setValue(this.pageIndex + 1, false);
             await this.table.setData(await this.getTableData(), !this.customColumns);
             if (this.node !== undefined) {
                 this.node
@@ -866,6 +867,14 @@ class ModelTableView extends View {
      */
     setFormatter(column, formatter) {
         this.table.setFormatter(column, formatter);
+    }
+
+    /**
+     * Sets the search fields that will be used for querying.
+     * @param array $fields The array of search fields to use.
+     */
+    setSearchFields(searchFields) {
+        this.searchFields = searchFields;
     }
 
     /**

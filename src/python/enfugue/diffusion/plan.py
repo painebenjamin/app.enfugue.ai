@@ -2052,7 +2052,7 @@ class DiffusionPlan:
                         step.strength = node_strength
                     if node_infer:
                         step.image = step_image
-                        step.name="Image to Image Node {i+1}"
+                        step.name = f"Image to Image Node {i+1}"
                     if node_control and node_controlnet:
                         if node_infer:
                             step.name = f"Controlled Image to Image Node {i+1}"

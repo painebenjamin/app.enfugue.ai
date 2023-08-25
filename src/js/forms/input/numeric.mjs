@@ -109,13 +109,17 @@ class NumberInputView extends InputView {
         } else if (!isEmpty(this.maxValue) && inputValue > this.maxValue) {
             this.setValue(this.maxValue, false);
         } else if (!isEmpty(this.stepValue)) {
-            let stepInteger = this.stepValue * Math.pow(10, this.precision),
-                inputInteger = inputValue * Math.pow(10, this.precision),
+            let stepInteger = Math.round(this.stepValue * Math.pow(10, this.precision)),
+                inputInteger = Math.round(inputValue * Math.pow(10, this.precision)),
                 stepOffset = inputInteger % stepInteger;
             if (stepOffset !== 0) {
                 let offsetValue = parseFloat(((inputInteger - stepOffset) / Math.pow(10, this.precision)).toFixed(this.precision));
-                console.log(stepInteger, inputInteger, stepOffset, offsetValue);
                 this.setValue(offsetValue, false);
+            } else {
+                let recalculatedValue = inputInteger / Math.pow(10, this.precision);
+                if (recalculatedValue != inputValue) {
+                    this.setValue(recalculatedValue, false);
+                }
             }
         }
     }
