@@ -123,7 +123,7 @@ class ImageEditorNodeView extends NodeView {
     /**
      * Gets the base state and appends form values.
      */
-    getState() {
+    getState(includeImages = true) {
         let state = super.getState();
         state.prompt = this.prompt || null;
         state.negativePrompt = this.negativePrompt || null;

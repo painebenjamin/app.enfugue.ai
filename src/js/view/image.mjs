@@ -2,6 +2,7 @@
 import { View } from "./base.mjs";
 import { waitFor, isEmpty } from "../base/helpers.mjs";
 import { ElementBuilder } from "../base/builder.mjs";
+import { PNG } from "../base/png.mjs";
 
 const E = new ElementBuilder({
     "imageDetails": "enfugue-image-details",
@@ -24,12 +25,28 @@ class ImageView extends View {
      */
     constructor(config, src) {
         super(config);
-        this.loadedCallbacks = [];
         this.src = src;
-        this.image = new Image();
-        this.image.onload = () => this.imageLoaded();
+        this.loadedCallbacks = [];
+        this.metadata = {};
         if (!isEmpty(src)) {
-            this.image.src = src;
+            let callable = PNG.fromURL;
+            if (src instanceof File) {
+                callable = PNG.fromFile;
+            } else if (src instanceof Image) {
+                src = src.src;
+            }
+            callable.call(PNG, src).then((png) => {
+                this.png = png;
+                this.metadata = {...this.metadata, ...png.metadata};
+                this.src = png.base64;
+                this.image = new Image();
+                this.image.onload = () => this.imageLoaded();
+                this.image.src = this.src;
+            }).catch((e) => {
+                console.error(e);
+                this.loaded = true;
+                this.error = true;
+            });
         }
     }
 
@@ -43,15 +60,25 @@ class ImageView extends View {
             return;
         }
         this.loaded = false;
-        this.onLoad(() => {
-            if (this.node !== undefined) {
-                this.node.src(this.src);
-            }
+        let callable = PNG.fromURL;
+        if (src instanceof File) {
+            callable = PNG.fromFile;
+        } else if (src instanceof Image) {
+            src = src.src;
+        }
+        callable.call(PNG, src).then((png) => {
+            this.png = png;
+            this.metadata = {...this.metadata, ...png.metadata};
+            png.addMetadata(this.metadata);
+            this.src = png.base64;
+            this.image = new Image();
+            this.image.onload = () => this.imageLoaded();
+            this.image.src = this.src;
+        }).catch((e) => {
+            console.error(e);
+            this.loaded = true;
+            this.error = true;
         });
-        this.src = src;
-        this.image = new Image();
-        this.image.onload = () => this.imageLoaded();
-        this.image.src = src;
     }
 
     /**
@@ -74,6 +101,22 @@ class ImageView extends View {
      */
     waitForLoad() {
         return waitFor(() => this.loaded);
+    }
+
+    /**
+     * This fires onLoad callbacks.
+     */
+    imageLoaded() {
+        this.loaded = true;
+        this.width = this.image.width;
+        this.height = this.image.height;
+        for (let callback of this.loadedCallbacks) {
+            callback(this);
+        }
+        this.loadedCallbacks = [];
+        if (this.node !== undefined) {
+            this.node.src(this.src);
+        }
     }
 
     /**
@@ -104,15 +147,9 @@ class ImageView extends View {
      *
      * @return Promise
      */
-    getBlob() {
-        return new Promise((resolve) => {
-            let canvas = document.createElement("canvas");
-            canvas.width = this.width;
-            canvas.height = this.height;
-            let context = canvas.getContext("2d");
-            context.drawImage(this.image, 0, 0);
-            canvas.toBlob(resolve, "image/png");
-        });
+    async getBlob() {
+        await this.waitForLoad();
+        return this.png.blob;
     }
 
     /**
@@ -196,19 +233,6 @@ class ImageView extends View {
         this.setImage(canvas.toDataURL());
         await this.waitForLoad();
     }
-    
-    /**
-     * This fires onLoad callbacks.
-     */
-    imageLoaded() {
-        this.loaded = true;
-        this.width = this.image.width;
-        this.height = this.image.height;
-        for (let callback of this.loadedCallbacks) {
-            callback(this);
-        }
-        this.loadedCallbacks = [];
-    }
 
     /**
      * On build, simple set image source
@@ -216,10 +240,12 @@ class ImageView extends View {
     async build() {
         let node = await super.build();
         if (!isEmpty(this.src)) {
+            await this.waitForLoad();
             node.attr("src", this.src);
         }
         return node;
     }
+
 }
 
 /**

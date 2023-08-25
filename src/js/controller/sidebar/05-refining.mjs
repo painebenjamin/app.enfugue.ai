@@ -10,7 +10,7 @@ class RefiningController extends Controller {
     /**
      * Get data from the refining form
      */
-    getState() {
+    getState(includeImages = true) {
         return { "refining": this.refiningForm.values };
     }
     

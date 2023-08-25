@@ -10,7 +10,7 @@ class EngineController extends Controller {
     /**
      * Return data from the engine form
      */
-    getState() {
+    getState(includeImages = true) {
         return { "engine": this.engineForm.values };
     }
 

@@ -5,7 +5,7 @@ import requests
 import datetime
 import webbrowser
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from webob import Request, Response
 
@@ -316,6 +316,7 @@ class EnfugueAPIServerBase(
         user_id: int,
         plan: DiffusionPlan,
         save: bool = True,
+        ui_state: Optional[str] = None,
         disable_intermediate_decoding: bool = False,
         **kwargs: Any,
     ) -> Invocation:
@@ -325,6 +326,7 @@ class EnfugueAPIServerBase(
         invocation = self.manager.invoke(
             user_id,
             plan,
+            ui_state=ui_state,
             disable_intermediate_decoding=disable_intermediate_decoding,
             **kwargs
         )

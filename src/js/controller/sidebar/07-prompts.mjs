@@ -10,7 +10,7 @@ class PromptsController extends Controller {
     /**
      * When asked for state, return data from form
      */
-    getState() {
+    getState(includeImages = true) {
         return { 
             "prompts": this.promptsForm.values
         };

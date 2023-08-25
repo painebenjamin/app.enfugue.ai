@@ -214,10 +214,10 @@ class ImageEditorImageNodeView extends ImageEditorScribbleNodeView {
     /**
      * Override getState to include the image, fit and anchor
      */
-    getState() {
-        let state = super.getState();
-        state.scribbleSrc = this.scribbleView.src;
-        state.src = this.content.src;
+    getState(includeImages = true) {
+        let state = super.getState(includeImages);
+        state.scribbleSrc = includeImages ? this.scribbleView.src : null;
+        state.src = includeImages ? this.content.src : null;
         state.anchor = this.anchor || null;
         state.fit = this.fit || null;
         state.infer = this.infer || false;

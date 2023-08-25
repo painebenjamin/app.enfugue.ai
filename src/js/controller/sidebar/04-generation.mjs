@@ -10,7 +10,7 @@ class GenerationController extends Controller {
     /**
      * Get data from the generation form
      */
-    getState() {
+    getState(includeImages = true) {
         return { "generation": this.generationForm.values };
     }
     

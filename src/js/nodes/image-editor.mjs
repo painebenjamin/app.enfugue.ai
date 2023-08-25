@@ -156,6 +156,7 @@ class ImageEditorView extends NodeEditorView {
     async addImageNode(imageSource, imageName = "Image") {
         let imageView = new ImageView(this.config, imageSource),
             [x, y] = this.getNextNodePoint();
+
         await imageView.waitForLoad();
         return await this.addNode(
             ImageEditorImageNodeView,
@@ -215,9 +216,9 @@ class ImageEditorView extends NodeEditorView {
     /**
      * Get state, includes current invocation
      */
-    getState() {
-        let state = super.getState();
-        if (this.hasClass("has-image")) {
+    getState(includeImages = true) {
+        let state = super.getState(includeImages);
+        if (this.hasClass("has-image") && includeImages) {
             return {
                 "image": this.currentInvocation.src,
                 "nodes": state

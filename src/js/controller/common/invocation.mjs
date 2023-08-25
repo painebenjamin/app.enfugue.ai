@@ -1410,13 +1410,13 @@ class InvocationController extends Controller {
     /**
      * Get state is only for UI; only use the sample choosers here
      */
-    getState() {
+    getState(includeImages = true) {
+        if (!includeImages) {
+            return this.getDefaultState();
+        }
         let chooserChildren = this.invocationSampleChooser.children();
         if (chooserChildren.length < 2) {
-            return {
-                "samples": null,
-                "sample": null
-            };
+            return this.getDefaultState();
         }
         return {
             "sample": this.invocationSampleIndex,

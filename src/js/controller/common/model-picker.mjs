@@ -245,7 +245,7 @@ class ModelPickerController extends Controller {
     /**
      * Get state from the model picker
      */
-    getState() {
+    getState(includeImages = true) {
         return {
             "model": this.modelPickerFormView.values,
             "modelConfig": this.abridgedModelFormView.values

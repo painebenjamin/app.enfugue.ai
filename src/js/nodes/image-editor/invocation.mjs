@@ -193,7 +193,6 @@ class CurrentInvocationImageView extends ImageView {
 
     /**
      * Triggers the copy to clipboard
-     * Chromium only as of 2023-06-21
      */
     async copyToClipboard() {
         navigator.clipboard.write([
@@ -377,6 +376,7 @@ class CurrentInvocationImageView extends ImageView {
         this.imageAdjustmentWindow.onClose(reset);
         this.imageAdjustmentView.onSave(async () => {
             this.setImage(this.imageAdjustmentView.getImageSource());
+            await this.waitForLoad();
             setTimeout(() => {
                 this.imageAdjustmentWindow.remove();
                 reset();
@@ -450,7 +450,8 @@ class CurrentInvocationImageView extends ImageView {
      * Opens the image in a new window
      */
     async sendToWindow() {
-        window.open(this.src);
+        const url = URL.createObjectURL(await this.getBlob());
+        window.open(url, "_blank");
     }
 
     /**

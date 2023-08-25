@@ -123,7 +123,7 @@ class InvokeButtonController extends Controller {
         this.invokeButton.disable().addClass("sliding-gradient");
         try {
             this.application.autosave();
-            await this.engine.invoke({"nodes": this.getNodes()});
+            await this.application.invoke({"nodes": this.getNodes()});
         } catch(e) {
             console.error(e);
             let errorMessage = `${e}`;

@@ -10,7 +10,7 @@ class TweaksController extends Controller {
     /**
      * Return data from the tweaks form
      */
-    getState() {
+    getState(includeImages = true) {
         return { "tweaks": this.tweaksForm.values };
     }
 

@@ -163,9 +163,9 @@ class ImageEditorScribbleNodeView extends ImageEditorNodeView {
     /**
      * Override getState to add the scribble and form state
      */
-    getState() {
-        let state = super.getState();
-        state.src = this.scribbleView.src;
+    getState(includeImages = true) {
+        let state = super.getState(includeImages);
+        state.src = includeImages ? this.scribbleView.src : null;
         return state;
     }
 

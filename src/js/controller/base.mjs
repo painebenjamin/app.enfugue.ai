@@ -122,8 +122,9 @@ class Controller {
 
     /**
      * Gets any state the controller would like to keep.
+     * @param bool $includeImages Whether or not to include images for size considerations
      */
-    getState() {
+    getState(includeImages = true) {
         return {};
     }
     

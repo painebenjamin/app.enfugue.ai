@@ -43,8 +43,8 @@ class ImageEditorPromptNodeView extends ImageEditorNodeView {
     /**
      * Gets state from the content
      */
-    getState() {
-        let state = super.getState();
+    getState(includeImages = true) {
+        let state = super.getState(includeImages);
         state = {...state, ...this.content.values};
         return state;
     }

@@ -268,7 +268,9 @@ export let truncate = (str, length, postfix = "…") => {
     if (str.length <= length) {
         return str;
     }
-    return str.substring(0, str.lastIndexOf(" ", length)) + postfix;
+    let truncateIndex = str.lastIndexOf(" ", length);
+    if (truncateIndex === -1) truncateIndex = length;
+    return str.substring(0, truncateIndex) + postfix;
 };
 
 /**

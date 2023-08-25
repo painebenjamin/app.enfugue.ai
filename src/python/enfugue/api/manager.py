@@ -431,6 +431,7 @@ class SystemManager:
         self,
         user_id: int,
         plan: DiffusionPlan,
+        ui_state: Optional[str] = None,
         disable_intermediate_decoding: bool = False,
         **kwargs: Any,
     ) -> Invocation:
@@ -453,6 +454,7 @@ class SystemManager:
             plan=plan,
             engine_image_dir=self.engine_image_dir,
             engine_intermediate_dir=self.engine_intermediate_dir,
+            ui_state=ui_state,
             **kwargs,
         )
 

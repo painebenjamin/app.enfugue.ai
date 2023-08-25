@@ -3,12 +3,14 @@ import datetime
 
 from typing import Any, Optional, List, Dict
 from pibble.util.helpers import resolve
-from pibble.util.strings import get_uuid
+from pibble.util.strings import get_uuid, Serializer
 
-from enfugue.util import logger
+from enfugue.util import logger, get_version
 from enfugue.diffusion.engine import DiffusionEngine
 from enfugue.diffusion.plan import DiffusionPlan
 from multiprocessing import Lock
+
+from PIL.PngImagePlugin import PngInfo
 
 __all__ = ["Invocation"]
 
@@ -39,6 +41,7 @@ class Invocation:
         plan: DiffusionPlan,
         engine_image_dir: str,
         engine_intermediate_dir: str,
+        ui_state: Optional[str] = None,
         decode_nth_intermediate: Optional[int] = 10,
         communication_timeout: Optional[int] = 180,
         metadata: Optional[Dict[str, Any]] = None,
@@ -52,6 +55,7 @@ class Invocation:
 
         self.results_dir = engine_image_dir
         self.intermediate_dir = engine_intermediate_dir
+        self.ui_state = ui_state
         self.intermediate_steps = decode_nth_intermediate
         self.communication_timeout = communication_timeout
         self.metadata = metadata
@@ -104,7 +108,13 @@ class Invocation:
                             self.results.append("nsfw")
                         elif self.save:
                             image_path = f"{self.results_dir}/{self.uuid}_{i}.png"
-                            image.save(image_path)
+                            pnginfo = PngInfo()
+                            pnginfo.add_text("EnfugueVersion", f"{get_version()}")
+                            for key in image.text:
+                                pnginfo.add_text(key, image.text[key])
+                            if self.ui_state is not None:
+                                pnginfo.add_text("EnfugueUIState", Serializer.serialize(self.ui_state))
+                            image.save(image_path, pnginfo=pnginfo)
                             self.results.append(image_path)
                         else:
                             self.results.append("unsaved")

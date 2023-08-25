@@ -177,11 +177,19 @@ class EnfugueAPIInvocationController(EnfugueAPIControllerBase):
         if multi_scheduler:
             plan_kwargs["multi_scheduler"] = multi_scheduler
         disable_decoding = request.parsed.pop("intermediates", None) == False
+        ui_state: Optional[str] = None
         for key, value in request.parsed.items():
-            if value is not None:
+            if key == "state":
+                ui_state = value
+            elif value is not None:
                 plan_kwargs[key] = value
         plan = DiffusionPlan.assemble(**plan_kwargs)
-        return self.invoke(request.token.user.id, plan, disable_intermediate_decoding=disable_decoding).format()
+        return self.invoke(
+            request.token.user.id,
+            plan,
+            ui_state=ui_state,
+            disable_intermediate_decoding=disable_decoding
+        ).format()
 
     @handlers.path("^/api/invocation$")
     @handlers.methods("GET")

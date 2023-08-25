@@ -301,6 +301,8 @@ class ParentView extends View {
         } else if (childClass instanceof View) {
             child = childClass;
         } else {
+            console.trace();
+            console.error(childClass);
             throw `Cannot add child of type ${typeof childClass}`;
         }
         child.parent = this;

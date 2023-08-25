@@ -1,6 +1,7 @@
 /** @module controller/toolbar/01-load-image */
 import { MenuController } from "../menu.mjs";
 import { truncate, promptFiles, isEmpty } from "../../base/helpers.mjs";
+import { PNG } from "../../base/png.mjs";
 
 /**
  * The load image controller allows for selecting an image from a file dialog
@@ -27,9 +28,7 @@ class LoadImageController extends MenuController {
             // No files selected
         }
         if (!isEmpty(imageToLoad)) {
-            let reader = new FileReader();
-            reader.onload = (e) => this.images.addImageNode(e.target.result, truncate(imageToLoad.name, 16));
-            reader.readAsDataURL(imageToLoad);
+            this.application.loadImage(imageToLoad, truncate(imageToLoad.name, 16));
         }
     }
 }

@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import io
 import os
 import PIL
 import PIL.Image
 import PIL.ImageDraw
 import PIL.ImageOps
 import math
+
+from PIL.PngImagePlugin import PngInfo
 
 from typing import (
     Optional,
@@ -19,7 +22,7 @@ from typing import (
     TYPE_CHECKING,
 )
 
-from pibble.util.strings import get_uuid
+from pibble.util.strings import get_uuid, Serializer
 
 from enfugue.util import (
     logger,
@@ -942,7 +945,53 @@ class DiffusionPlan:
                         logger.debug("Offloading refiner for next inference.")
                         pipeline.offload_refiner()
         pipeline.stop_keepalive() # Make sure this is stopped
-        return StableDiffusionPipelineOutput(images=images, nsfw_content_detected=nsfw)
+        return self.format_output(images, nsfw)
+
+    def get_image_metadata(self, image: PIL.Image.Image) -> Dict[str, Any]:
+        """
+        Gets metadata from an image
+        """
+        (width, height) = image.size
+        return {
+            "width": width,
+            "height": height,
+            "metadata": image.text
+        }
+
+    def redact_images_from_metadata(self, metadata: Dict[str, Any]) -> None:
+        """
+        Removes images from a metadata dictionary
+        """
+        for key in ["image", "control_image", "mask"]:
+            if metadata.get(key, None) is not None:
+                metadata[key] = self.get_image_metadata(metadata[key])
+        if "children" in metadata:
+            for child in metadata["children"]:
+                self.redact_images_from_metadata(child)
+        if "nodes" in metadata:
+            for child in metadata["nodes"]:
+                self.redact_images_from_metadata(child)
+
+    def format_output(self, images: List[PIL.Image.Image], nsfw: List[bool]) -> StableDiffusionPipelineOutput:
+        """
+        Adds Enfugue metadata to an image result
+        """
+        from diffusers.pipelines.stable_diffusion import StableDiffusionPipelineOutput
+
+        metadata_dict = self.get_serialization_dict()
+        self.redact_images_from_metadata(metadata_dict)
+        formatted_images = []
+        for i, image in enumerate(images):
+            byte_io = io.BytesIO()
+            metadata = PngInfo()
+            metadata.add_text("EnfugueGenerationData", Serializer.serialize(metadata_dict))
+            image.save(byte_io, format="PNG", pnginfo=metadata)
+            formatted_images.append(PIL.Image.open(byte_io))
+
+        return StableDiffusionPipelineOutput(
+            images=formatted_images,
+            nsfw_content_detected=nsfw
+        )
 
     def prepare_pipeline(self, pipeline: DiffusionPipelineManager) -> None:
         """

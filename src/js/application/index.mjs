@@ -197,14 +197,16 @@ class Application {
         await this.registerMenuControllers();
         await this.registerSidebarControllers();
         await this.registerToolbarControllers();
-
         await this.startAutosave();
         await this.startAnnouncements();
         await this.startLogs();
         await this.startKeepalive();
         await this.registerLogout();
+        await sleep(1000);
 
         window.onpopstate = (e) => this.popState(e);
+        document.addEventListener("dragover", (e) => this.onDragOver(e));
+        document.addEventListener("drop", (e) => this.onDrop(e));
         document.addEventListener("paste", (e) => this.onPaste(e));
         document.addEventListener("keypress", (e) => this.onKeyPress(e));
         document.addEventListener("keyup", (e) => this.onKeyUp(e));
@@ -739,26 +741,42 @@ class Application {
         let pastedItems = (e.clipboardData || e.originalEvent.clipboardData).items;
         for (let item of pastedItems) {
             if (item.kind === "file") {
-                let blob = item.getAsFile(),
-                    reader = new FileReader();
-                reader.onload = (e) => this.images.addImageNode(e.target.result, "Pasted Image");
-                reader.readAsDataURL(blob);
+                this.loadImage(item.getAsFile());
             } else {
                 item.getAsString((text) => this.onTextPaste(text));
             }
         }
     }
-    
+
     /**
-     * The onImagePaste handlers put an image on the canvas.
+     * Checks loaded image metadata
+     */
+    getStateFromMetadata(metadata) {
+        if (!isEmpty(metadata.EnfugueUIState)) {
+            return JSON.parse(metadata.EnfugueUIState);
+        }
+        return {};
+    }
+
+    /**
+     * The onImagePaste handlers put an image on the canvas, or loads metadata.
      * @param string $image The image source as a Data URI
      */
-    async onImagePaste(image) {
+    async loadImage(image, name = "Pasted Image") {
         let imageView = new ImageView(this.config, image);
         await imageView.waitForLoad();
+        let stateData = this.getStateFromMetadata(imageView.metadata);
+        if (!isEmpty(stateData)) {
+            if (await this.yesNo("It looks like this image was made with Enfugue. Would you like to load the identified generation settings?")) {
+                await this.setState(stateData);
+                this.notifications.push("info", "Generation Settings Loaded", "Image generation settings were successfully retrieved from image metadata.");
+                return;
+            }
+        }
+        this.images.hideCurrentInvocation();
         this.images.addNode(
-            ImageEditorImageNodeView, 
-            "Pasted Image", 
+            ImageEditorImageNodeView,
+            name,
             imageView,
             0,
             0,
@@ -793,11 +811,11 @@ class Application {
     /**
      * Gets current state of all inputs
      */
-    getState() {
-        let state = {"images": this.images.getState()},
+    getState(includeImages = true) {
+        let state = {"images": this.images.getState(includeImages)},
             controllerArray = this.getStatefulControllers();
         for (let controller of controllerArray) {
-            state = {...state, ...controller.getState()};
+            state = {...state, ...controller.getState(includeImages)};
         }
         return state;
     }
@@ -901,6 +919,14 @@ class Application {
     }
 
     /**
+     * Passes through to invoke, setting state in the process
+     */
+    invoke(kwargs) {
+        kwargs.state = this.getState(false);
+        return this.engine.invoke(kwargs);
+    }
+
+    /**
      * The global onKeyPress fires keyboard shortcuts.
      */
     onKeyPress(e) {
@@ -925,6 +951,26 @@ class Application {
     onKeyUp(e){
         if (e.key === "Shift") {
             this.menu.removeClass("highlight");
+        }
+    }
+
+    /**
+     * Don't do anything on drag over.
+     */
+    onDragOver(e){
+        e.preventDefault();
+    }
+
+    /**
+     * On drop, treat as image paste.
+     */
+    onDrop(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        try {
+            this.loadImage(e.dataTransfer.files[0]);
+        } catch(e) {
+            console.warn(e);
         }
     }
 

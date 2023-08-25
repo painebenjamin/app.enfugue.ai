@@ -284,7 +284,9 @@ class NodeEditorView extends View {
      * Gets the data from the nodes on the canvas
      */
     getState() {
-        return this.nodes.map((node) => node.getState());
+        return this.nodes.map(
+            (node) => node.getState.apply(node, Array.from(arguments))
+        );
     }
 
     /**

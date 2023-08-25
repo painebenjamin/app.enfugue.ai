@@ -10,7 +10,7 @@ class CanvasController extends Controller {
     /**
      * Get state from the form
      */
-    getState() {
+    getState(includeImages = true) {
         return { "canvas": this.canvasForm.values };
     }
     
