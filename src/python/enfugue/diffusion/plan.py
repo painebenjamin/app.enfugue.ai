@@ -955,7 +955,7 @@ class DiffusionPlan:
         return {
             "width": width,
             "height": height,
-            "metadata": image.text
+            "metadata": getattr(image, "text", {})
         }
 
     def redact_images_from_metadata(self, metadata: Dict[str, Any]) -> None:

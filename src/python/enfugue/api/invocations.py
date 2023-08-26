@@ -109,9 +109,10 @@ class Invocation:
                         elif self.save:
                             image_path = f"{self.results_dir}/{self.uuid}_{i}.png"
                             pnginfo = PngInfo()
-                            for key in image.text:
+                            image_text_metadata = getattr(image, "text", {})
+                            for key in image_text_metadata:
                                 if key not in ["EnfugueVersion", "EnfugueUIState"]:
-                                    pnginfo.add_text(key, image.text[key])
+                                    pnginfo.add_text(key, image_text_metadata[key])
                             pnginfo.add_text("EnfugueVersion", f"{get_version()}")
                             if self.ui_state is not None:
                                 pnginfo.add_text("EnfugueUIState", Serializer.serialize(self.ui_state))
