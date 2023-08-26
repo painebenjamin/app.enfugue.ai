@@ -18,6 +18,7 @@ from typing import (
 import os
 import PIL
 import PIL.Image
+import copy
 import math
 import torch
 import inspect
@@ -1648,6 +1649,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 added_cond_kwargs=added_cond_kwargs,
             )
 
+        chunk_scheduler_status = [copy.deepcopy(self.multi_scheduler.__dict__)] * num_chunks
         num_steps = len(timesteps)
         num_warmup_steps = num_steps - num_inference_steps * self.multi_scheduler.order
 
@@ -1688,6 +1690,11 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 latent_model_input = (
                     torch.cat([latents_for_view] * 2) if do_classifier_free_guidance else latents_for_view
                 )
+
+                # Re-match chunk scheduler status
+                self.multi_scheduler.__dict__.update(chunk_scheduler_status[j])
+
+                # Scale model input
                 latent_model_input = self.multi_scheduler.scale_model_input(latent_model_input, t)
 
                 # Get controlnet input if configured
@@ -1738,6 +1745,9 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     latents_for_view,
                     **extra_step_kwargs,
                 ).prev_sample
+
+                # Save chunk scheduler status after sample
+                chunk_scheduler_status[j] = copy.deepcopy(self.multi_scheduler.__dict__)
 
                 # If using mask and not using fine-tuned inpainting, then we calculate
                 # the same denoising on the image without unet and cross with the
