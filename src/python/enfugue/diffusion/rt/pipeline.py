@@ -42,7 +42,6 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         scheduler: KarrasDiffusionSchedulers,
         safety_checker: StableDiffusionSafetyChecker,
         feature_extractor: CLIPImageProcessor,
-        multi_scheduler: Optional[KarrasDiffusionSchedulers] = None,
         requires_safety_checker: bool = True,
         force_zeros_for_empty_prompt: bool = True,
         requires_aesthetic_score: bool = False,
@@ -74,7 +73,6 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
             scheduler=scheduler,
             safety_checker=safety_checker,
             feature_extractor=feature_extractor,
-            multi_scheduler=multi_scheduler,
             requires_safety_checker=requires_safety_checker,
             force_zeros_for_empty_prompt=force_zeros_for_empty_prompt,
             force_full_precision_vae=force_full_precision_vae,
@@ -107,11 +105,6 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         if not isinstance(self.scheduler, DDIMScheduler):
             logger.debug(f"TensorRT pipeline changing default scheduler from {type(self.scheduler).__name__} to DDIM")
             self.scheduler = DDIMScheduler.from_config(self.scheduler_config)
-        if self.multi_scheduler is not None and not isinstance(self.multi_scheduler, DDIMScheduler):
-            logger.debug(
-                f"TensorRT pipeline changing default multi-diffusion scheduler from {type(self.multi_scheduler).__name__} to DDIM"
-            )
-            self.multi_scheduler = DDIMScheduler.from_config(self.multi_scheduler_config)
 
         self.stream = None  # loaded in load_resources()
         self.models = {}  # loaded in load_models()
@@ -265,13 +258,12 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         dtype: Union[str, torch.dtype],
         device: Union[str, torch.device],
         generator: Optional[torch.Generator] = None,
-        scheduler: Optional[KarrasDiffusionSchedulers] = None,
     ) -> torch.Tensor:
         """
         Override to change to float32
         """
         return super(EnfugueTensorRTStableDiffusionPipeline, self).create_latents(
-            batch_size, num_channels_latents, height, width, torch.float32, device, generator, scheduler=scheduler
+            batch_size, num_channels_latents, height, width, torch.float32, device, generator,
         )
 
     def encode_prompt(

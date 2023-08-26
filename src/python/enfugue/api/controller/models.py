@@ -435,14 +435,6 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
                 )
             )
 
-        multi_scheduler = request.parsed.get("multi_scheduler", None)
-        if multi_scheduler:
-            self.database.add(
-                self.orm.DiffusionModelScheduler(
-                    diffusion_model_name=model_name, name=multi_scheduler, context="multi_diffusion"
-                )
-            )
-
         vae = request.parsed.get("vae", None)
         if vae:
             self.database.add(
@@ -578,13 +570,6 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
             if scheduler:
                 new_scheduler = self.orm.DiffusionModelScheduler(diffusion_model_name=new_model.name, name=scheduler)
                 self.database.add(new_scheduler)
-                self.database.commit()
-            multi_scheduler = request.parsed.get("multi_scheduler", None)
-            if multi_scheduler:
-                new_multi_scheduler = self.orm.DiffusionModelScheduler(
-                    diffusion_model_name=new_model.name, name=multi_scheduler, context="multi_diffusion"
-                )
-                self.database.add(new_multi_scheduler)
                 self.database.commit()
             vae = request.parsed.get("vae", None)
             if vae:

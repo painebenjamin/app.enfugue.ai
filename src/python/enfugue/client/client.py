@@ -161,7 +161,6 @@ class EnfugueClient(UserExtensionClientBase, JSONWebServiceAPIClient):
         lycoris: Optional[List[WeightedModelDict]] = None,
         inversion: Optional[List[str]] = None,
         scheduler: Optional[SCHEDULER_LITERAL] = None,
-        multi_scheduler: Optional[MULTI_SCHEDULER_LITERAL] = None,
         vae: Optional[str] = None,
         refiner_vae: Optional[str] = None,
         inpainter_vae: Optional[str] = None,
@@ -273,8 +272,6 @@ class EnfugueClient(UserExtensionClientBase, JSONWebServiceAPIClient):
             kwargs["lycoris"] = lycoris
         if scheduler is not None:
             kwargs["scheduler"] = scheduler
-        if multi_scheduler is not None:
-            kwargs["multi_scheduler"] = multi_scheduler
         if vae is not None:
             kwargs["vae"] = vae
         if refiner_vae is not None:

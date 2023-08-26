@@ -105,7 +105,6 @@ class DiffusionPipelineManager:
     _keepalive_thread: KeepaliveThread
     _keepalive_callback: Callable[[], None]
     _scheduler: KarrasDiffusionSchedulers
-    _multi_scheduler: KarrasDiffusionSchedulers
     _pipeline: EnfugueStableDiffusionPipeline
     _refiner_pipeline: EnfugueStableDiffusionPipeline
     _inpainter_pipeline: EnfugueStableDiffusionPipeline
@@ -365,39 +364,6 @@ class DiffusionPipelineManager:
         if hasattr(self, "_refiner_pipeline"):
             logger.debug(f"Hot-swapping refiner pipeline scheduler.")
             self._refiner_pipeline.scheduler = self.scheduler.from_config(self._refiner_pipeline.scheduler_config)  # type: ignore
-
-    @property
-    def multi_scheduler(self) -> Optional[KarrasDiffusionSchedulers]:
-        """
-        Gets the multi-diffusion scheduler class to instantiate.
-        """
-        if not hasattr(self, "_multi_scheduler"):
-            return None
-        return self._multi_scheduler
-
-    @multi_scheduler.setter
-    def multi_scheduler(self, new_multi_scheduler: Optional[MULTI_SCHEDULER_LITERAL]) -> None:
-        """
-        Sets the multi-diffusion scheduler class
-        """
-        if not new_multi_scheduler:
-            if hasattr(self, "_multi_scheduler"):
-                delattr(self, "_multi_scheduler")
-                self.unload_pipeline("returning to default multi-diffusion scheduler")
-            return
-        multi_scheduler_class = self.get_scheduler_class(new_multi_scheduler)
-        if not hasattr(self, "_multi_scheduler") or self._multi_scheduler is not multi_scheduler_class:
-            logger.debug(f"Changing to multi-diffusion scheduler {multi_scheduler_class.__name__} ({new_multi_scheduler})")
-            self._multi_scheduler = multi_scheduler_class
-        if hasattr(self, "_pipeline"):
-            logger.debug(f"Hot-swapping pipeline multi-diffusion scheduler.")
-            self._pipeline.multi_scheduler = self.multi_scheduler.from_config(self._pipeline.multi_scheduler_config)  # type: ignore
-        if hasattr(self, "_inpainter_pipeline"):
-            logger.debug(f"Hot-swapping inpainter pipeline multi-diffusion scheduler.")
-            self._inpainter_pipeline.multi_scheduler = self.multi_scheduler.from_config(self._inpainter_pipeline.multi_scheduler_config)  # type: ignore
-        if hasattr(self, "_refiner_pipeline"):
-            logger.debug(f"Hot-swapping refiner pipeline multi-diffusion scheduler.")
-            self._refiner_pipeline.multi_scheduler = self.multi_scheduler.from_config(self._refiner_pipeline.multi_scheduler_config)  # type: ignore
 
     def get_vae_path(self, vae: Optional[str] = None) -> Optional[str]:
         """
@@ -2325,8 +2291,6 @@ class DiffusionPipelineManager:
             # load scheduler
             if self.scheduler is not None:
                 pipeline.scheduler = self.scheduler.from_config(pipeline.scheduler_config)
-            if self.multi_scheduler is not None:
-                pipeline.multi_scheduler = self.multi_scheduler.from_config(pipeline.scheduler_config)
             self._pipeline = pipeline.to(self.device)
         return self._pipeline
 
@@ -2437,8 +2401,6 @@ class DiffusionPipelineManager:
             # load scheduler
             if self.scheduler is not None:
                 refiner_pipeline.scheduler = self.scheduler.from_config(refiner_pipeline.scheduler_config)
-            if self.multi_scheduler is not None:
-                refiner_pipeline.multi_scheduler = self.multi_scheduler.from_config(refiner_pipeline.scheduler_config)
             self._refiner_pipeline = refiner_pipeline.to(self.device)
         return self._refiner_pipeline
 
@@ -2579,10 +2541,6 @@ class DiffusionPipelineManager:
             # load scheduler
             if self.scheduler is not None:
                 inpainter_pipeline.scheduler = self.scheduler.from_config(inpainter_pipeline.scheduler_config)
-            if self.multi_scheduler is not None:
-                inpainter_pipeline.multi_scheduler = self.multi_scheduler.from_config(
-                    inpainter_pipeline.scheduler_config
-                )
             self._inpainter_pipeline = inpainter_pipeline.to(self.device)
         return self._inpainter_pipeline
 

@@ -171,11 +171,8 @@ class EnfugueAPIInvocationController(EnfugueAPIControllerBase):
             plan_kwargs["inversion"] = self.check_find_adaptations("inversion", False, inversion) if inversion else None
         # Always take passed scheduler
         scheduler = request.parsed.pop("scheduler", None)
-        multi_scheduler = request.parsed.pop("multi_scheduler", None)
         if scheduler:
             plan_kwargs["scheduler"] = scheduler
-        if multi_scheduler:
-            plan_kwargs["multi_scheduler"] = multi_scheduler
         disable_decoding = request.parsed.pop("intermediates", None) == False
         ui_state: Optional[str] = None
         for key, value in request.parsed.items():

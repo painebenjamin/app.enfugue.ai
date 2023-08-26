@@ -4,7 +4,6 @@ import {
     NumberInputView, 
     FloatInputView,
     SchedulerInputView,
-    MultiDiffusionSchedulerInputView
 } from "../input.mjs";
 
 let defaultGuidanceScale = 7,
@@ -53,10 +52,6 @@ class TweaksFormView extends FormView {
             "scheduler": {
                 "label": "Scheduler",
                 "class": SchedulerInputView
-            },
-            "multiScheduler": {
-                "label": "Multi-Diffusion Scheduler",
-                "class": MultiDiffusionSchedulerInputView
             }
         }
     };

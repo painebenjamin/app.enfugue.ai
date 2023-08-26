@@ -915,23 +915,6 @@ class InvocationController extends Controller {
     }
 
     /**
-     * @return str The multi-diffusion scheduler, if set
-     */
-    get multiScheduler() {
-        return this.kwargs.multi_scheduler || null;
-    }
-    
-    /**
-     * @param str Set the new scheduler for multi-diffusion
-     */
-    set multiScheduler(newScheduler) {
-        if (this.multiScheduler !== newScheduler) {
-            this.publish("engineMultiDiffusionSchedulerChange");
-        }
-        this.kwargs.multi_scheduler = newScheduler;
-    }
-
-    /**
      * @return str The vae, if set
      */
     get vae() {

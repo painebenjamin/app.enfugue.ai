@@ -17,7 +17,6 @@ import {
     InpainterEngineSizeInputView,
     RefinerEngineSizeInputView,
     SchedulerInputView,
-    MultiDiffusionSchedulerInputView,
     PromptInputView,
     OutputScaleInputView,
     UpscaleMethodsInputView,
@@ -149,10 +148,6 @@ class ModelFormView extends FormView {
             "scheduler": {
                 "class": SchedulerInputView,
                 "label": "Scheduler"
-            },
-            "multi_scheduler": {
-                "class": MultiDiffusionSchedulerInputView,
-                "label": "Multi-Diffusion Scheduler"
             },
             "width": {
                 "label": "Width",

@@ -26,7 +26,6 @@ __all__ = [
     "CONTROLNET_ANIME",
     "CONTROLNET_LITERAL",
     "SCHEDULER_LITERAL",
-    "MULTI_SCHEDULER_LITERAL",
     "DEVICE_LITERAL",
     "PIPELINE_SWITCH_MODE_LITERAL",
     "UPSCALE_LITERAL",
@@ -70,7 +69,6 @@ CONTROLNET_LITERAL = Literal[
 SCHEDULER_LITERAL = Literal[
     "ddim", "ddpm", "deis", "dpmsm", "dpmss", "heun", "dpmd", "adpmd", "dpmsde", "unipc", "lmsd", "pndm", "eds", "eads"
 ]
-MULTI_SCHEDULER_LITERAL = Literal["ddim", "ddpm", "deis", "dpmsm", "dpmss", "eds", "eads"]
 DEVICE_LITERAL = Literal["cpu", "cuda", "dml", "mps"]
 PIPELINE_SWITCH_MODE_LITERAL = Literal["offload", "unload"]
 UPSCALE_LITERAL = Literal["esrgan", "esrganime", "gfpgan", "lanczos", "bilinear", "bicubic", "nearest"]

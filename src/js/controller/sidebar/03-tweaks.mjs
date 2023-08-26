@@ -32,7 +32,6 @@ class TweaksController extends Controller {
                 "guidanceScale": this.config.model.invocation.guidanceScale,
                 "inferenceSteps": this.config.model.invocation.inferenceSteps,
                 "scheduler": null,
-                "multiScheduler": null
             }
         }
     }
@@ -47,7 +46,6 @@ class TweaksController extends Controller {
             this.engine.guidanceScale = values.guidanceScale;
             this.engine.inferenceSteps = values.inferenceSteps;
             this.engine.scheduler = values.scheduler;
-            this.engine.multiScheduler = values.multiScheduler;
         });
 
         // Subscribe to model changes to look for defaults
@@ -64,9 +62,6 @@ class TweaksController extends Controller {
                 }
                 if (!isEmpty(defaultConfig.scheduler)) {
                     tweaksConfig.scheduler = defaultConfig.scheduler;
-                }
-                if (!isEmpty(defaultConfig.multi_scheduler)) {
-                    tweaksConfig.multiScheduler = defaultConfig.multi_scheduler;
                 }
                 if (!isEmpty(tweaksConfig)) {
                     this.tweaksForm.setValues(tweaksConfig);

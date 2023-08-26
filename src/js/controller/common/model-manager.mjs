@@ -111,13 +111,7 @@ class ModelManagerController extends Controller {
             }
 
             if (!isEmpty(row.scheduler)) {
-                for (let scheduler of row.scheduler) {
-                    if (scheduler.context === "multi_diffusion") {
-                        modelValues.multi_scheduler = scheduler.name;
-                    } else {
-                        modelValues.scheduler = scheduler.name;
-                    }
-                }
+                modelValues.scheduler = row.scheduler[0].name;
             }
 
             let modelForm = new ModelFormView(this.config, deepClone(modelValues)),

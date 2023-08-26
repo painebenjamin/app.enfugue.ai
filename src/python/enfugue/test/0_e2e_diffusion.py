@@ -225,13 +225,11 @@ def main() -> None:
                 prompt=prompt,
                 scheduler=scheduler
             )
-        
-        # Multi Schedulers
-        for scheduler in ["ddim", "ddpm", "deis", "dpmsm", "dpmss", "eds", "eads"]:
+
             invoke(
                 f"txt2img-multi-scheduler-{scheduler}",
                 prompt=prompt,
-                multi_scheduler=scheduler,
+                scheduler=scheduler,
                 height=768,
                 width=786,
                 chunking_size=256,

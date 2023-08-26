@@ -215,13 +215,9 @@ class EnfugueAPIServerBase(
             )
         else:
             inpainter, inpainter_size = None, None
-        scheduler, multi_scheduler = None, None
-        if diffusion_model.scheduler:
-            for model_scheduler in diffusion_model.scheduler:
-                if model_scheduler.context == "multi_diffusion":
-                    multi_scheduler = model_scheduler.name
-                else:
-                    scheduler = model_scheduler.name
+        scheduler = diffusion_model.scheduler
+        if scheduler:
+            scheduler = scheduler[0].name
         vae = diffusion_model.vae
         if vae:
             vae = diffusion_model.vae[0].name
@@ -291,7 +287,6 @@ class EnfugueAPIServerBase(
             "lycoris": lycoris,
             "inversion": inversion,
             "scheduler": scheduler,
-            "multi_scheduler": multi_scheduler,
             "vae": vae,
             "refiner_vae": refiner_vae,
             "inpainter_vae": inpainter_vae

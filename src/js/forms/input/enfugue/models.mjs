@@ -214,40 +214,6 @@ class SchedulerInputView extends SelectInputView {
     static allowEmpty = true;
 };
 
-
-/**
- * Limit options for multidiffusion scheduler
- */
-class MultiDiffusionSchedulerInputView extends SelectInputView {
-    /**
-     * @var object Option values and labels
-     */
-    static defaultOptions = {
-        "ddim": "DDIM: Denoising Diffusion Implicit Models (Recommended)",
-        "eds": "Euler Discrete Scheduler (Recommended)",
-        "ddpm": "DDPM: Denoising Diffusion Probabilistic Models (Blurrier)",
-        "eads": "Euler Ancestral Discrete Scheduler (Blurrier)",
-        "deis": "DEIS: Diffusion Exponential Integrator Sampler (Distorted)",
-        "dpmsm": "DPM-Solver++ Multi-Step (Distorted)",
-        "dpmss": "DPM-Solver++ Single-Step (Distorted)",
-    };
-
-    /**
-     * @var string The tooltip
-     */
-    static tooltip = "During chunked diffusion (also called multi-diffusion or sliced diffusion,) each denoising step is performed multiple times over different windows of the image. This necessitates that the scheduler be capable of stepping backward as well as forward, and not all schedulers were designed with this in mind. The schedulers in this list are supported during multi-diffusion, but only two are recommended: DDIM, which is the default scheduler for SD 1.5, and Euler Discrete, which is the default scheduler for SDXL.";
-    
-    /**
-     * @var string Default text
-     */
-    static placeholder = "Default";
-
-    /**
-     * @var bool Allow null
-     */
-    static allowEmpty = true;
-};
-
 /**
  * Add text for inpainter engine size
  */
@@ -483,7 +449,6 @@ export {
     VaeInputView,
     DefaultVaeInputView,
     SchedulerInputView,
-    MultiDiffusionSchedulerInputView,
     ModelPickerStringInputView,
     ModelPickerListInputView,
     ModelPickerInputView

@@ -39,7 +39,6 @@ if TYPE_CHECKING:
     from diffusers.pipelines.stable_diffusion import StableDiffusionPipelineOutput
     from enfugue.diffusion.constants import (
         SCHEDULER_LITERAL,
-        MULTI_SCHEDULER_LITERAL,
         CONTROLNET_LITERAL,
         UPSCALE_LITERAL,
     )
@@ -652,7 +651,6 @@ class DiffusionPlan:
         lycoris: Optional[Union[str, List[str], Tuple[str, float], List[Union[str, Tuple[str, float]]]]] = None,
         inversion: Optional[Union[str, List[str]]] = None,
         scheduler: Optional[SCHEDULER_LITERAL] = None,
-        multi_scheduler: Optional[MULTI_SCHEDULER_LITERAL] = None,
         vae: Optional[str] = None,
         refiner_vae: Optional[str] = None,
         inpainter_vae: Optional[str] = None,
@@ -700,7 +698,6 @@ class DiffusionPlan:
         self.lycoris = lycoris
         self.inversion = inversion
         self.scheduler = scheduler
-        self.multi_scheduler = multi_scheduler
         self.vae = vae
         self.refiner_vae = refiner_vae
         self.inpainter_vae = inpainter_vae
@@ -1006,7 +1003,6 @@ class DiffusionPlan:
         pipeline.inversion = self.inversion
         pipeline.size = self.size
         pipeline.scheduler = self.scheduler
-        pipeline.multi_scheduler = self.multi_scheduler
         pipeline.vae = self.vae
         pipeline.refiner_vae = self.refiner_vae
         pipeline.refiner_size = self.refiner_size
@@ -1235,7 +1231,6 @@ class DiffusionPlan:
             "lycoris": self.lycoris,
             "inversion": self.inversion,
             "scheduler": self.scheduler,
-            "multi_scheduler": self.multi_scheduler,
             "vae": self.vae,
             "refiner_vae": self.refiner_vae,
             "inpainter_vae": self.inpainter_vae,
@@ -1279,7 +1274,6 @@ class DiffusionPlan:
             "lycoris",
             "inversion",
             "scheduler",
-            "multi_scheduler",
             "vae",
             "refiner_vae",
             "inpainter_vae",
@@ -1356,7 +1350,6 @@ class DiffusionPlan:
         lycoris: Optional[Union[str, List[str], Tuple[str, float], List[Union[str, Tuple[str, float]]]]] = None,
         inversion: Optional[Union[str, List[str]]] = None,
         scheduler: Optional[SCHEDULER_LITERAL] = None,
-        multi_scheduler: Optional[MULTI_SCHEDULER_LITERAL] = None,
         vae: Optional[str] = None,
         refiner_vae: Optional[str] = None,
         inpainter_vae: Optional[str] = None,
@@ -1429,7 +1422,6 @@ class DiffusionPlan:
             lycoris=lycoris,
             inversion=inversion,
             scheduler=scheduler,
-            multi_scheduler=multi_scheduler,
             vae=vae,
             refiner_vae=refiner_vae,
             inpainter_vae=inpainter_vae,
@@ -1464,7 +1456,6 @@ class DiffusionPlan:
         lycoris: Optional[Union[str, List[str], Tuple[str, float], List[Union[str, Tuple[str, float]]]]] = None,
         inversion: Optional[Union[str, List[str]]] = None,
         scheduler: Optional[SCHEDULER_LITERAL] = None,
-        multi_scheduler: Optional[MULTI_SCHEDULER_LITERAL] = None,
         vae: Optional[str] = None,
         refiner_vae: Optional[str] = None,
         inpainter_vae: Optional[str] = None,
@@ -1544,7 +1535,6 @@ class DiffusionPlan:
             lycoris=lycoris,
             inversion=inversion,
             scheduler=scheduler,
-            multi_scheduler=multi_scheduler,
             vae=vae,
             refiner_vae=refiner_vae,
             inpainter_vae=inpainter_vae,

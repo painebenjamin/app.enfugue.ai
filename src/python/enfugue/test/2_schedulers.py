@@ -3,7 +3,7 @@ Uses the engine to create a simple image using default settings
 """
 import os
 import PIL
-from typing import List
+from typing import List, Any
 from pibble.util.log import DebugUnifiedLoggingContext
 from enfugue.util import logger
 from enfugue.diffusion.plan import DiffusionPlan
@@ -38,8 +38,12 @@ def main() -> None:
             "latent_callback_steps": 1,
             "latent_callback_type": "pil"
         }
-
-        def run_and_save(filename: str) -> None:
+        multi_kwargs = {
+            "width": 768,
+            "chunking_size": 128,
+            "chunking_blur": 128
+        }
+        def run_and_save(filename: str, **other_kwargs: Any) -> None:
             steps = kwargs["num_inference_steps"]
             basename, ext = os.path.splitext(filename)
             j = 0
@@ -49,12 +53,13 @@ def main() -> None:
                 j += 1
             kwargs["latent_callback"] = intermediate_callback
             manager.seed = 1234567
-            manager(**kwargs)["images"][0].save(os.path.join(save_dir, f"{basename}-{steps:02d}{ext}"))
+            manager(**{**kwargs, **other_kwargs})["images"][0].save(os.path.join(save_dir, f"{basename}-{steps:02d}{ext}"))
         
         for scheduler in SCHEDULERS:
             try:
                 manager.scheduler = scheduler
-                run_and_save(f"puppy-{scheduler}.png")
+                run_and_save(f"single-{scheduler}.png")
+                run_and_save(f"multi-{scheduler}.png", **multi_kwargs)
             except Exception as ex:
                 logger.error("Error with scheduler {0}: {1}({2})".format(scheduler, type(ex).__name__, ex))
 

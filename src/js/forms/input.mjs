@@ -49,7 +49,6 @@ import {
     VaeInputView,
     DefaultVaeInputView,
     SchedulerInputView,
-    MultiDiffusionSchedulerInputView,
     ModelPickerStringInputView,
     ModelPickerListInputView,
     ModelPickerInputView
@@ -127,7 +126,6 @@ export {
     VaeInputView,
     DefaultVaeInputView,
     SchedulerInputView,
-    MultiDiffusionSchedulerInputView,
     ModelPickerStringInputView,
     ModelPickerListInputView,
     ModelPickerInputView,
