@@ -56,10 +56,10 @@ dependencies:
     - lycoris-lora==1.7.2
     - certifi>=2023.5.7
     - protobuf==3.20.1
-    - diffusers==0.20.0
     - enfugue==0.2.1
     - git+https://github.com/CompVis/taming-transformers.git@master#egg=taming-transformers
     - git+https://github.com/openai/CLIP.git@main#egg=clip
     - git+https://github.com/CompVis/stable-diffusion.git@main#egg=latent-diffusion
+    - git+https://github.com/huggingface/diffusers@main#egg=diffusers
     - --extra-index-url https://download.pytorch.org/whl/cu117
     - --extra-index-url https://pypi.ngc.nvidia.com

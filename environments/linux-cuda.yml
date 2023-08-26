@@ -50,10 +50,10 @@ dependencies:
     - timm>=0.9.2,<1.0
     - certifi>=2023.5.7
     - lycoris-lora>=1.8
-    - diffusers==0.20.0
     - enfugue==0.2.1
     - git+https://github.com/CompVis/taming-transformers.git@master#egg=taming-transformers
     - git+https://github.com/openai/CLIP.git@main#egg=clip
     - git+https://github.com/CompVis/stable-diffusion.git@main#egg=latent-diffusion
+    - git+https://github.com/huggingface/diffusers@main#egg=diffusers
     - --extra-index-url https://download.pytorch.org/whl/nightly/cu121
     - --extra-index-url https://pypi.ngc.nvidia.com
