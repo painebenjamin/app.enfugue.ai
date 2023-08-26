@@ -176,11 +176,22 @@ class DiffusionEngine:
 
         if hasattr(self, "process") and self.process.is_alive():
             raise IOError("Couldn't terminate process")
-
-        del self.process
-        del self.intermediates
-        del self.results
-        del self.instructions
+        try:
+            del self.process
+        except AttributeError:
+            pass
+        try:
+            del self.intermediates
+        except AttributeError:
+            pass
+        try:
+            del self.results
+        except AttributeError:
+            pass
+        try:
+            del self.instructions
+        except AttributeError:
+            pass
 
     def keepalive(self, timeout: Union[int, float] = 0.2) -> bool:
         """
