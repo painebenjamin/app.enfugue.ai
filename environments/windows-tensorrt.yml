@@ -56,7 +56,7 @@ dependencies:
     - lycoris-lora==1.7.2
     - certifi>=2023.5.7
     - protobuf==3.20.1
-    - enfugue==0.2.1
+    - enfugue==0.2.2
     - git+https://github.com/CompVis/taming-transformers.git@master#egg=taming-transformers
     - git+https://github.com/openai/CLIP.git@main#egg=clip
     - git+https://github.com/CompVis/stable-diffusion.git@main#egg=latent-diffusion
