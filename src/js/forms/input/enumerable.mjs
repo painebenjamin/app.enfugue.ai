@@ -1,5 +1,5 @@
 /** @module forms/input/enumerable */
-import { isEmpty, jaroWinkler, strip } from "../../base/helpers.mjs";
+import { isEmpty, jaroWinkler, strip, stripHTML } from "../../base/helpers.mjs";
 import { ElementBuilder } from "../../base/builder.mjs";
 import { InputView } from "./base.mjs";
 import { StringInputView } from "./string.mjs";
@@ -768,13 +768,13 @@ class SearchListInputView extends EnumerableInputView {
             await this.listInput.sortFilterOptions(
                 (a, b, va, vb) => {
                     return (
-                        jaroWinkler(vb.toLowerCase(), searchValue) -
-                        jaroWinkler(va.toLowerCase(), searchValue)
+                        jaroWinkler(strip(stripHTML(vb)).toLowerCase(), searchValue) -
+                        jaroWinkler(strip(stripHTML(va)).toLowerCase(), searchValue)
                     );
                 },
                 (key, value) => {
                     return (
-                        1.0 - jaroWinkler(value.toLowerCase(), searchValue) >=
+                        1.0 - jaroWinkler(strip(stripHTML(value)).toLowerCase(), searchValue) >=
                         this.constructor.filterThreshold
                     );
                 }

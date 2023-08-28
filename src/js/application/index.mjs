@@ -202,7 +202,6 @@ class Application {
         await this.startLogs();
         await this.startKeepalive();
         await this.registerLogout();
-        await sleep(1000);
 
         window.onpopstate = (e) => this.popState(e);
         document.addEventListener("dragover", (e) => this.onDragOver(e));
