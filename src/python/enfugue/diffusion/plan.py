@@ -232,6 +232,7 @@ class DiffusionStep:
             "height": self.height,
             "prompt": self.prompt,
             "prompt_2": self.prompt_2,
+            "negative_prompt": self.negative_prompt,
             "negative_prompt_2": self.negative_prompt_2,
             "image": self.image,
             "control_image": self.control_image,
