@@ -997,6 +997,9 @@ class DOMElement {
                 }
             });
         }
+        if (this.tagName === 'input' && this.attributes.value !== undefined) {
+            this.element.value = this.attributes.value;
+        }
 
         return this.element;
     }

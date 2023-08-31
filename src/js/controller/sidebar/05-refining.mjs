@@ -20,6 +20,7 @@ class RefiningController extends Controller {
     getDefaultState() {
         return {
             "refining": {
+                "refinerStart": 0.85,
                 "refinerStrength": 0.3,
                 "refinerGuidanceScale": 5.0,
                 "refinerAestheticScore": 6.0,
@@ -45,6 +46,7 @@ class RefiningController extends Controller {
     async initialize() {
         this.refiningForm = new RefiningFormView(this.config);
         this.refiningForm.onSubmit(async (values) => {
+            this.engine.refinerStart = values.refinerStart;
             this.engine.refinerStrength = values.refinerStrength;
             this.engine.refinerGuidanceScale = values.refinerGuidanceScale;
             this.engine.refinerAestheticScore = values.refinerAestheticScore;
@@ -61,6 +63,9 @@ class RefiningController extends Controller {
                 let defaultConfig = model.defaultConfiguration,
                     refiningConfig = {};
                 
+                if (!isEmpty(defaultConfig.refiner_start)) {
+                    refiningConfig.refinerStart = defaultConfig.refiner_start;
+                }
                 if (!isEmpty(defaultConfig.refiner_strength)) {
                     refiningConfig.refinerStrength = defaultConfig.refiner_strength;
                 }

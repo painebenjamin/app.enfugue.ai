@@ -26,7 +26,7 @@ class GenerationFormView extends FormView {
                 "class": NumberInputView,
                 "config": {
                     "min": 1,
-                    "max": 8,
+                    "max": 32,
                     "value": 1,
                     "step": 1,
                     "tooltip": "The number of concurrent samples to generate. Each sample linearly increases the amount of VRAM required, but only logarithmically increases the inference time."

@@ -779,6 +779,23 @@ class InvocationController extends Controller {
     }
 
     /**
+     * @return float refining engine start from 0 to 1
+     */
+    get refinerStart() {
+        return this.kwargs.refiner_start || 0.85;
+    }
+
+    /**
+     * @param float refining engine start from 0 to 1
+     */
+    set refinerStart(newRefinerStart) {
+        if(this.refinerStart !== newRefinerStart) {
+            this.publish("engineRefinerStartChange", newRefinerStart);
+        }
+        this.kwargs.refiner_start = newRefinerStart;
+    }
+
+    /**
      * @return float The strength of the refiner when using SDXL
      */
     get refinerStrength() {

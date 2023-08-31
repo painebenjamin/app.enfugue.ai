@@ -79,7 +79,7 @@ class InvocationTableView extends ModelTableView {
                     let imageName = `${datum.id}_${i}.png`,
                         imageSource = `/api/invocation/images/${imageName}`,
                         thumbnailSource = `/api/invocation/thumbnails/${imageName}`,
-                        imageView = new ImageView(this.config, thumbnailSource),
+                        imageView = new ImageView(this.config, thumbnailSource, false),
                         imageContainer = E.invocationOutput()
                             .content(await imageView.getNode())
                             .on("click", async () => {

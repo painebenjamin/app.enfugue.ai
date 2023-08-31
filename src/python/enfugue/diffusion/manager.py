@@ -15,7 +15,7 @@ from hashlib import md5
 
 from pibble.api.configuration import APIConfiguration
 from pibble.api.exceptions import ConfigurationError
-from pibble.util.files import dump_json
+from pibble.util.files import dump_json, load_json
 
 from enfugue.util import logger, check_download, check_make_directory, find_file_in_directory
 from enfugue.diffusion.constants import *
@@ -28,6 +28,7 @@ DEFAULT_SDXL_MODEL_FILE = os.path.basename(DEFAULT_SDXL_MODEL)
 DEFAULT_SDXL_REFINER_FILE = os.path.basename(DEFAULT_SDXL_REFINER)
 
 if TYPE_CHECKING:
+    from diffusers.pipelines.stable_diffusion import StableDiffusionPipelineOutput
     from diffusers.models import ControlNetModel, AutoencoderKL
     from diffusers.schedulers.scheduling_utils import KarrasDiffusionSchedulers
     from enfugue.diffusion.pipeline import EnfugueStableDiffusionPipeline
@@ -1587,6 +1588,22 @@ class DiffusionPipelineManager:
         self._refiner_strength = new_strength
 
     @property
+    def refiner_start(self) -> float:
+        """
+        Gets where in the denoising phase we should switch to refining.
+        """
+        if not hasattr(self, "_refiner_strength"):
+            self._refiner_start = self.configuration.get("enfugue.refiner.start", 0.85)
+        return self._refiner_start
+
+    @refiner_start.setter
+    def refiner_start(self, new_refiner_start: float) -> None:
+        """
+        Sets where in the denoising phase we should switch to refining.
+        """
+        self._refiner_start = max(min(new_refiner_start, 1.0), 0.0)
+
+    @property
     def refiner_guidance_scale(self) -> float:
         """
         Gets the guidance_ cale of the refiner
@@ -2125,6 +2142,20 @@ class DiffusionPipelineManager:
         return "xl" in self.refiner_name.lower()
 
     @property
+    def refiner_requires_aesthetic_score(self) -> bool:
+        """
+        If the refiner model is cached, check the model_index.json file for the requirement of an aesthetic score.
+        Otherwise, we guess by file name.
+        """
+        if not self.refiner_name:
+            return False
+        if self.refiner_diffusers_cache_dir is not None:
+            model_index = os.path.join(self.refiner_diffusers_cache_dir, "model_index.json")
+            if os.path.exists(model_index):
+                return load_json(model_index).get("requires_aesthetic_score", False)
+        return "xl" in self.refiner_name.lower() and "refine" in self.refiner_name.lower()
+
+    @property
     def inpainter_is_sdxl(self) -> bool:
         """
         If the inpainter model is cached, we can know for sure by checking for sdxl-exclusive models.
@@ -2352,9 +2383,10 @@ class DiffusionPipelineManager:
 
                 self.check_create_refiner_engine_cache()
                 if self.refiner_is_sdxl:
-                    kwargs["text_encoder"] = None
-                    kwargs["tokenizer"] = None
-                    kwargs["requires_aesthetic_score"] = True
+                    if self.refiner_requires_aesthetic_score:
+                        kwargs["text_encoder"] = None
+                        kwargs["tokenizer"] = None
+                        kwargs["requires_aesthetic_score"] = True
                 else:
                     kwargs["text_encoder_2"] = None
                     kwargs["tokenizer_2"] = None
@@ -2370,9 +2402,10 @@ class DiffusionPipelineManager:
                 )
             elif self.refiner_engine_cache_exists:
                 if self.refiner_is_sdxl:
-                    kwargs["text_encoder"] = None
-                    kwargs["tokenizer"] = None
-                    kwargs["requires_aesthetic_score"] = True
+                    if self.refiner_requires_aesthetic_score:
+                        kwargs["text_encoder"] = None
+                        kwargs["tokenizer"] = None
+                        kwargs["requires_aesthetic_score"] = True
                 else:
                     kwargs["text_encoder_2"] = None
                     kwargs["tokenizer_2"] = None
@@ -2554,7 +2587,7 @@ class DiffusionPipelineManager:
             del self._inpainter_pipeline
             self.clear_memory()
 
-    def unload_pipeline(self, reason: str) -> None:
+    def unload_pipeline(self, reason: str = "none") -> None:
         """
         Calls the pipeline deleter.
         """
@@ -2592,7 +2625,7 @@ class DiffusionPipelineManager:
             logger.debug("Reloading pipeline from CPU")
             self._pipeline = self._pipeline.to(self.device, torch_dtype=self.dtype)
 
-    def unload_refiner(self, reason: str) -> None:
+    def unload_refiner(self, reason: str = "none") -> None:
         """
         Calls the refiner deleter.
         """
@@ -2630,7 +2663,7 @@ class DiffusionPipelineManager:
             logger.debug("Reloading refiner from CPU")
             self._refiner_pipeline = self._refiner_pipeline.to(self.device, torch_dtype=self.dtype)
 
-    def unload_inpainter(self, reason: str) -> None:
+    def unload_inpainter(self, reason: str = "none") -> None:
         """
         Calls the inpainter deleter.
         """
@@ -2875,6 +2908,7 @@ class DiffusionPipelineManager:
 
     def __call__(
         self,
+        refiner_start: Optional[float] = None,
         refiner_strength: Optional[float] = None,
         refiner_guidance_scale: Optional[float] = None,
         refiner_aesthetic_score: Optional[float] = None,
@@ -2887,177 +2921,171 @@ class DiffusionPipelineManager:
         task_callback: Optional[Callable[[str], None]] = None,
         next_intention: Optional[Literal["inpainting", "inference", "refining", "upscaling"]] = None,
         **kwargs: Any,
-    ) -> Any:
+    ) -> StableDiffusionPipelineOutput:
         """
         Passes an invocation down to the pipeline, doing whatever it needs to do to initialize it.
         Will switch between inpainting and non-inpainting models
         """
         if task_callback is None:
             task_callback = lambda arg: None
+        latent_callback = noop
+        will_refine = (refiner_strength != 0 or (refiner_start != 0 and refiner_start != 1)) and self.refiner is not None
+        callback_images: List[PIL.Image.Image] = []
+        if kwargs.get("latent_callback", None) is not None and kwargs.get("latent_callback_type", "pil") == "pil":
+            latent_callback = kwargs["latent_callback"]
+            if will_refine:
+                # Memoize last latent callbacks because we aren't returning an image from the first execution
+                previous_callback = latent_callback
+                def memoize_callback(images: List[PIL.Image.Image]) -> None:
+                    nonlocal callback_images
+                    callback_images = images
+                    previous_callback(images)
+                latent_callback = memoize_callback # type: ignore[assignment]
+                kwargs["latent_callback"] = memoize_callback
         self.start_keepalive()
         try:
             inpainting = kwargs.get("mask", None) is not None
-            intention = "inpainting" if inpainting else "inference"
+            refining = (
+                kwargs.get("image", None) is not None and
+                kwargs.get("strength", 0) in [0, None] and
+                refiner_strength != 0 and
+                refiner_start != 1 and
+                self.refiner is not None
+            )
+            intention = "inpainting" if inpainting else "refining" if refining else "inference"
             task_callback(f"Preparing {intention.title()} Pipeline")
             if inpainting and (self.has_inpainter or self.create_inpainter):
                 size = self.inpainter_size
                 self.offload_pipeline(intention) # type: ignore
+                self.offload_refiner(intention) # type: ignore
                 self.reload_inpainter()
+            elif refining:
+                self.offload_pipeline(intention) # type: ignore
+                self.offload_inpainter(intention) # type: ignore
             else:
                 size = self.size
+                self.offload_refiner(intention) # type: ignore
                 self.offload_inpainter(intention) # type: ignore
                 self.reload_pipeline()
 
-            called_width = kwargs.get("width", size)
-            called_height = kwargs.get("height", size)
-            chunk_size = kwargs.get("chunking_size", self.chunking_size)
-
-            if called_width < size:
-                self.tensorrt_is_enabled = False
-                logger.info(f"Width ({called_width}) less than configured width ({size}), disabling TensorRT")
-            elif called_height < size:
-                logger.info(f"Height ({called_height}) less than configured height ({size}), disabling TensorRT")
-                self.tensorrt_is_enabled = False
-            elif (called_width != size or called_height != size) and not chunk_size:
-                logger.info(f"Dimensions do not match size of engine and chunking is disabled, disabling TensorRT")
-                self.tensorrt_is_enabled = False
+            if refining:
+                # Set result here to passed image
+                from diffusers.pipelines.stable_diffusion import StableDiffusionPipelineOutput
+                samples = kwargs.get("samples", 1)
+                result = StableDiffusionPipelineOutput(
+                    images=[kwargs["image"]] * samples,
+                    nsfw_content_detected=[False] * samples
+                )
             else:
-                self.tenssort_is_enabled = True
+                called_width = kwargs.get("width", size)
+                called_height = kwargs.get("height", size)
+                chunk_size = kwargs.get("chunking_size", self.chunking_size)
 
-            if inpainting and (self.has_inpainter or self.create_inpainter):
-                pipe = self.inpainter_pipeline
-            else:
-                pipe = self.pipeline
-
-            self.stop_keepalive()
-            task_callback("Executing Inference")
-            logger.debug(f"Calling pipeline with arguments {redact(kwargs)}")
-            result = pipe(generator=self.generator, **kwargs)
-
-            if self.refiner is not None:
-                if refiner_strength is not None and refiner_strength <= 0:
-                    logger.debug("Refinement strength is zero, not refining.")
+                # Check sizes
+                if called_width < size:
+                    self.tensorrt_is_enabled = False
+                    logger.info(f"Width ({called_width}) less than configured width ({size}), disabling TensorRT")
+                elif called_height < size:
+                    logger.info(f"Height ({called_height}) less than configured height ({size}), disabling TensorRT")
+                    self.tensorrt_is_enabled = False
+                elif (called_width != size or called_height != size) and not chunk_size:
+                    logger.info(f"Dimensions do not match size of engine and chunking is disabled, disabling TensorRT")
+                    self.tensorrt_is_enabled = False
                 else:
-                    self.start_keepalive()
-                    latent_callback = noop
-                    if kwargs.get("latent_callback", None) is not None and kwargs.get("latent_callback_type", "pil") == "pil":
-                        latent_callback = kwargs["latent_callback"]
+                    self.tenssort_is_enabled = True
 
-                    latent_callback(result["images"]) # type: ignore
+                if inpainting and (self.has_inpainter or self.create_inpainter):
+                    pipe = self.inpainter_pipeline
+                else:
+                    pipe = self.pipeline
 
-                    # Loading both SDXL checkpoints into memory at once requires a LOT of VRAM - more than 24GB, at least.
-                    # If the refiner is not cached, it takes even more; possibly too much.
-                    # Add a catch here to unload the main pipeline if loading the refiner pipeline and it's not cached.
+                # Check refining settings
+                if self.refiner is not None and refiner_strength != 0:
+                    refiner_start = self.refiner_start if refiner_start is None else refiner_start
+                    if refiner_start > 0 and refiner_start < 1:
+                        kwargs["denoising_end"] = refiner_start
+                        kwargs["output_type"] = "latent"
 
-                    task_callback("Preparing Refining Pipeline")
-                    
-                    if self.refiner_is_sdxl and not self.refiner_engine_cache_exists:
-                        # Force unload
-                        if inpainting:
-                            self.unload_inpainter("switching to refining")
-                        else:
-                            self.unload_pipeline("switching to refining")
-                    elif inpainting:
-                        self.offload_inpainter("refining")
+                self.stop_keepalive()
+                task_callback("Executing Inference")
+                logger.debug(f"Calling pipeline with arguments {redact(kwargs)}")
+                result = pipe(generator=self.generator, **kwargs)
+
+            if will_refine:
+                self.start_keepalive()
+
+                # Loading both SDXL checkpoints into memory at once requires a LOT of VRAM - more than 24GB, at least.
+                # If the refiner is not cached, it takes even more; possibly too much.
+                # Add a catch here to unload the main pipeline if loading the refiner pipeline and it's not cached.
+
+                task_callback("Preparing Refining Pipeline")
+
+                if self.refiner_is_sdxl and not self.refiner_engine_cache_exists:
+                    # Force unload
+                    if inpainting:
+                        self.unload_inpainter("switching to refining")
                     else:
-                        self.offload_pipeline("refining")
+                        self.unload_pipeline("switching to refining")
+                elif inpainting:
+                    self.offload_inpainter("refining")
+                else:
+                    self.offload_pipeline("refining")
 
-                    self.reload_refiner()
+                self.reload_refiner()
+                kwargs.pop("image", None)  # Remove any previous image
+                kwargs.pop("mask", None)  # Remove any previous mask
+                kwargs["latent_callback"] = latent_callback # Revert to original callback, we'll wrap later if needed
+                kwargs["output_type"] = "pil"
+                kwargs["latent_callback_type"] = "pil"
+                kwargs["strength"] = refiner_strength if refiner_strength else self.refiner_strength
+                kwargs["denoising_start"] = kwargs.pop("denoising_end", None)
+                kwargs["guidance_scale"] = (
+                    refiner_guidance_scale if refiner_guidance_scale else self.refiner_guidance_scale
+                )
+                kwargs["aesthetic_score"] = (
+                    refiner_aesthetic_score if refiner_aesthetic_score else self.refiner_aesthetic_score
+                )
+                kwargs["negative_aesthetic_score"] = (
+                    refiner_negative_aesthetic_score
+                    if refiner_negative_aesthetic_score
+                    else self.refiner_negative_aesthetic_score
+                )
 
-                    for i, image in enumerate(result["images"]):  # type: ignore
-                        is_nsfw = "nsfw_content_detected" in result and result["nsfw_content_detected"][i]  # type: ignore
-                        if is_nsfw:
-                            logger.info(f"Result {i} has NSFW content, not refining.")
-                            continue
+                # check if we have a different prompt
+                if refiner_prompt:
+                    kwargs["prompt"] = refiner_prompt
+                    if "prompt_2" in kwargs and not refiner_prompt_2:
+                        # if giving a refining prompt but not a second refining prompt,
+                        # and the primary prompt has a secondary prompt, then remove
+                        # the non-refining secondary prompt as it overrides too much
+                        # of the refining prompt if it gets merged
+                        kwargs.pop("prompt_2")
+                if refiner_prompt_2:
+                    kwargs["prompt_2"] = refiner_prompt_2
+                if refiner_negative_prompt:
+                    kwargs["negative_prompt"] = refiner_negative_prompt
+                    if "negative_prompt_2" in kwargs and not refiner_negative_prompt_2:
+                        kwargs.pop("negative_prompt_2")
+                if refiner_negative_prompt_2:
+                    kwargs["negative_prompt_2"] = refiner_negative_prompt_2
 
-                        kwargs.pop("image", None)  # Remove any previous image
-                        kwargs.pop("mask", None)  # Remove any previous mask
-                        kwargs.pop("num_images_per_prompt", None) # Remove samples, we'll refine one at a time
+                logger.debug(f"Refining results with arguments {redact(kwargs)}")
+                pipe = self.refiner_pipeline # Instantiate if needed
+                self.stop_keepalive()  # This checks, we can call it all we want
+                task_callback(f"Refining")
 
-                        kwargs["latent_callback"] = latent_callback # Revert to original callback, we'll wrap later if needed
-                        kwargs["latent_callback_type"] = "pil"
-                        kwargs["strength"] = refiner_strength if refiner_strength else self.refiner_strength
-                        kwargs["guidance_scale"] = (
-                            refiner_guidance_scale if refiner_guidance_scale else self.refiner_guidance_scale
-                        )
-                        kwargs["aesthetic_score"] = (
-                            refiner_aesthetic_score if refiner_aesthetic_score else self.refiner_aesthetic_score
-                        )
-                        kwargs["negative_aesthetic_score"] = (
-                            refiner_negative_aesthetic_score
-                            if refiner_negative_aesthetic_score
-                            else self.refiner_negative_aesthetic_score
-                        )
+                refiner_result = pipe(  # type: ignore
+                    generator=self.generator, image=result["images"], **kwargs
+                )
 
-                        # check if we have a different prompt
-                        if refiner_prompt:
-                            kwargs["prompt"] = refiner_prompt
-                            if "prompt_2" in kwargs and not refiner_prompt_2:
-                                # if giving a refining prompt but not a second refining prompt,
-                                # and the primary prompt has a secondary prompt, then remove
-                                # the non-refining secondary prompt as it overrides too much
-                                # of the refining prompt if it gets merged
-                                kwargs.pop("prompt_2")
-                        if refiner_prompt_2:
-                            kwargs["prompt_2"] = refiner_prompt_2
-                        if refiner_negative_prompt:
-                            kwargs["negative_prompt"] = refiner_negative_prompt
-                            if "negative_prompt_2" in kwargs and not refiner_negative_prompt_2:
-                                kwargs.pop("negative_prompt_2")
-                        if refiner_negative_prompt_2:
-                            kwargs["negative_prompt_2"] = refiner_negative_prompt_2
-                        
-                        width, height = image.size
-                        image_scale = 1
-
-                        # Check if we need to scale up for refiner (e.g. refining 1.5 with XL)
-                        if (width < self.refiner_size or height < self.refiner_size) and scale_to_refiner_size:
-                            if width < self.refiner_size:
-                                image_scale = self.refiner_size / width
-                            if height < self.refiner_size:
-                                image_scale = max(image_scale, self.refiner_size / height)
-                            new_width = 8 * round((width * image_scale) / 8)
-                            new_height = 8 * round((height * image_scale) / 8)
-                            image = image.resize((new_width, new_height))
-                            kwargs["width"] = new_width
-                            kwargs["height"] = new_height
-                            if "latent_callback" in kwargs and kwargs.get("latent_callback_type", "pil") == "pil":
-                                original_callback = kwargs["latent_callback"]
-
-                                def resize_callback(images: List[PIL.Image.Image]) -> None:
-                                    original_callback([image.resize((width, height)) for image in images])
-
-                                kwargs["latent_callback"] = resize_callback
-                            logger.debug(
-                                f"Scaling image up to {new_width}×{new_height} (×{image_scale:.3f}) for refiner"
-                            )
-                        
-                        # Change callback to include other samples, if present
-                        if "latent_callback" in kwargs and kwargs.get("latent_callback_type", "pil") == "pil":
-                            original_callback = kwargs["latent_callback"]
-
-                            def mixed_result_callback(images: List[PIL.Image.Image]) -> None:
-                                original_callback(result["images"][:i] + images + result["images"][i+1:]) # type: ignore
-
-                            kwargs["latent_callback"] = mixed_result_callback
-                        logger.debug(f"Refining result {i} with arguments {redact(kwargs)}")
-                        pipe = self.refiner_pipeline # Instantiate if needed
-                        self.stop_keepalive()  # This checks, we can call it all we want
-                        task_callback(f"Refining Sample {i+1}")
-                        
-                        refined_image = pipe(  # type: ignore
-                            generator=self.generator, image=image, **kwargs
-                        )["images"][0]  # type: ignore
-                        if image_scale != 1:
-                            logger.debug(f"Scaling refined image back down to {width}×{height}")
-                            refined_image = refined_image.resize((width, height))  # type: ignore
-                        result["images"][i] = refined_image  # type: ignore
-                    if next_intention == "refining":
-                        logger.debug("Next intention is refining, leaving refiner in memory")
-                    elif next_intention == "upscaling":
-                        logger.debug("Next intention is upscaling, unloading pipeline and sending refiner to CPU")
-                        self.unload_pipeline("unloading for upscaling")
-                    self.offload_refiner(intention if next_intention is None else next_intention) # type: ignore
+                # Callback with the result
+                result = refiner_result
+                if next_intention == "refining":
+                    logger.debug("Next intention is refining, leaving refiner in memory")
+                elif next_intention == "upscaling":
+                    logger.debug("Next intention is upscaling, unloading pipeline and sending refiner to CPU")
+                    self.unload_pipeline("unloading for upscaling")
+                self.offload_refiner(intention if next_intention is None else next_intention) # type: ignore
             return result
         finally:
             self.tensorrt_is_enabled = True

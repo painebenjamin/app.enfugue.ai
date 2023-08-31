@@ -23,30 +23,37 @@ class ImageView extends View {
      * @param object $config The base config object
      * @param string $src The image source
      */
-    constructor(config, src) {
+    constructor(config, src, usePng = true) {
         super(config);
         this.src = src;
+        this.usePng = usePng;
         this.loadedCallbacks = [];
         this.metadata = {};
         if (!isEmpty(src)) {
-            let callable = PNG.fromURL;
-            if (src instanceof File) {
-                callable = PNG.fromFile;
-            } else if (src instanceof Image) {
-                src = src.src;
-            }
-            callable.call(PNG, src).then((png) => {
-                this.png = png;
-                this.metadata = {...this.metadata, ...png.metadata};
-                this.src = png.base64;
+            if (usePng) {
+                let callable = PNG.fromURL;
+                if (src instanceof File) {
+                    callable = PNG.fromFile;
+                } else if (src instanceof Image) {
+                    src = src.src;
+                }
+                callable.call(PNG, src).then((png) => {
+                    this.png = png;
+                    this.metadata = {...this.metadata, ...png.metadata};
+                    this.src = png.base64;
+                    this.image = new Image();
+                    this.image.onload = () => this.imageLoaded();
+                    this.image.src = this.src;
+                }).catch((e) => {
+                    console.error(e);
+                    this.loaded = true;
+                    this.error = true;
+                });
+            } else {
                 this.image = new Image();
-                this.image.onload = () => this.imageLoaded();
+                this.image.onload = this.imageLoaded();
                 this.image.src = this.src;
-            }).catch((e) => {
-                console.error(e);
-                this.loaded = true;
-                this.error = true;
-            });
+            }
         }
     }
 
@@ -60,25 +67,32 @@ class ImageView extends View {
             return;
         }
         this.loaded = false;
-        let callable = PNG.fromURL;
-        if (src instanceof File) {
-            callable = PNG.fromFile;
-        } else if (src instanceof Image) {
-            src = src.src;
-        }
-        callable.call(PNG, src).then((png) => {
-            this.png = png;
-            this.metadata = {...this.metadata, ...png.metadata};
-            png.addMetadata(this.metadata);
-            this.src = png.base64;
+        if (this.usePng) {
+            let callable = PNG.fromURL;
+            if (src instanceof File) {
+                callable = PNG.fromFile;
+            } else if (src instanceof Image) {
+                src = src.src;
+            }
+            callable.call(PNG, src).then((png) => {
+                this.png = png;
+                this.metadata = {...this.metadata, ...png.metadata};
+                png.addMetadata(this.metadata);
+                this.src = png.base64;
+                this.image = new Image();
+                this.image.onload = () => this.imageLoaded();
+                this.image.src = this.src;
+            }).catch((e) => {
+                console.error(e);
+                this.loaded = true;
+                this.error = true;
+            });
+        } else {
+            this.src = src;
             this.image = new Image();
             this.image.onload = () => this.imageLoaded();
-            this.image.src = this.src;
-        }).catch((e) => {
-            console.error(e);
-            this.loaded = true;
-            this.error = true;
-        });
+            this.image.src = src;
+        }
     }
 
     /**

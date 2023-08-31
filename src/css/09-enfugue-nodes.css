@@ -661,14 +661,15 @@ enfugue-node-editor.image-editor enfugue-node-canvas enfugue-toolbar-item::after
 .field-container.scheduler-input-view,
 .field-container.multi-diffusion-scheduler-input-view,
 .field-container.prompt-input-view,
+fieldset.field-set-refining-defaults .slider-precise-input-view,
 fieldset.field-set-prompts .field-container,
-
 fieldset.field-set-secondary-prompts .field-container,
 fieldset.field-set-directories .field-container,
 fieldset.field-set-engine .field-container,
 fieldset.field-set-diffusion .field-container,
 fieldset.field-set-filters .field-container.string-input-view-search,
-fieldset.field-set-dimensions .field-container.checkbox-input-view
+fieldset.field-set-dimensions .field-container.checkbox-input-view,
+enfugue-sidebar .field-container.slider-precise-input-view
 {
     flex-basis: 100%;
 }

@@ -297,6 +297,7 @@ $(BUILD_VENDOR_SCRIPTS): $(VENDOR_SCRIPTS)
 	@mkdir -p $(shell dirname $@)
 	cp $(SRC_SCRIPT) $@
 	bash $@ $(abspath $(BUILD_DIR))/static/
+	rm $@
 
 ## Minify javascript
 .PHONY: js

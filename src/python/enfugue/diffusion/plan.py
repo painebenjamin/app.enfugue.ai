@@ -2,11 +2,14 @@ from __future__ import annotations
 
 import io
 import os
+import sys
 import PIL
 import PIL.Image
 import PIL.ImageDraw
 import PIL.ImageOps
 import math
+
+from random import randint
 
 from PIL.PngImagePlugin import PngInfo
 
@@ -55,6 +58,7 @@ DEFAULT_UPSCALE_DIFFUSION_STEPS = 100
 DEFAULT_UPSCALE_DIFFUSION_GUIDANCE_SCALE = 12
 DEFAULT_UPSCALE_DIFFUSION_STRENGTH = 0.2
 
+DEFAULT_REFINER_START = 0.85
 DEFAULT_REFINER_STRENGTH = 0.3
 DEFAULT_REFINER_GUIDANCE_SCALE = 5.0
 DEFAULT_AESTHETIC_SCORE = 6.0
@@ -120,6 +124,7 @@ class DiffusionStep:
         strength: Optional[float] = DEFAULT_IMG2IMG_STRENGTH,
         num_inference_steps: Optional[int] = DEFAULT_INFERENCE_STEPS,
         guidance_scale: Optional[float] = DEFAULT_GUIDANCE_SCALE,
+        refiner_start: Optional[float] = DEFAULT_REFINER_START,
         refiner_strength: Optional[float] = DEFAULT_REFINER_STRENGTH,
         refiner_guidance_scale: Optional[float] = DEFAULT_REFINER_GUIDANCE_SCALE,
         refiner_aesthetic_score: Optional[float] = DEFAULT_AESTHETIC_SCORE,
@@ -149,6 +154,7 @@ class DiffusionStep:
         self.conditioning_scale = conditioning_scale if conditioning_scale is not None else DEFAULT_CONDITIONING_SCALE
         self.num_inference_steps = num_inference_steps if num_inference_steps is not None else DEFAULT_INFERENCE_STEPS
         self.guidance_scale = guidance_scale if guidance_scale is not None else DEFAULT_GUIDANCE_SCALE
+        self.refiner_start = refiner_start if refiner_start is not None else DEFAULT_REFINER_START
         self.refiner_strength = refiner_strength if refiner_strength is not None else DEFAULT_REFINER_STRENGTH
         self.refiner_guidance_scale = (
             refiner_guidance_scale if refiner_guidance_scale is not None else DEFAULT_REFINER_GUIDANCE_SCALE
@@ -189,6 +195,7 @@ class DiffusionStep:
             "num_inference_steps": self.num_inference_steps,
             "guidance_scale": self.guidance_scale,
             "remove_background": self.remove_background,
+            "refiner_start": self.refiner_start,
             "refiner_strength": self.refiner_strength,
             "refiner_guidance_scale": self.refiner_guidance_scale,
             "refiner_aesthetic_score": self.refiner_aesthetic_score,
@@ -240,6 +247,7 @@ class DiffusionStep:
             "strength": self.strength,
             "num_inference_steps": self.num_inference_steps,
             "guidance_scale": self.guidance_scale,
+            "refiner_start": self.refiner_start,
             "refiner_strength": self.refiner_strength,
             "refiner_guidance_scale": self.refiner_guidance_scale,
             "refiner_aesthetic_score": self.refiner_aesthetic_score,
@@ -437,6 +445,7 @@ class DiffusionStep:
                     logger.debug(f"Calculated pixel area savings of {pixel_savings:.1f}% by cropping to ({x0}, {y0}), ({x1}, {y1}) ({bbox_width}px by {bbox_height}px)")
                     # Disable refining
                     invocation_kwargs["refiner_strength"] = 0
+                    invocation_kwargs["refiner_start"] = 1
                     image_position = (x0, y0)
                     image_background = image.copy()
                     image = image.crop((x0, y0, x1, y1))
@@ -537,6 +546,7 @@ class DiffusionStep:
             "strength",
             "num_inference_steps",
             "guidance_scale",
+            "refiner_start",
             "refiner_strength",
             "refiner_guidance_scale",
             "refiner_aesthetic_score",
@@ -709,7 +719,7 @@ class DiffusionPlan:
         self.chunking_blur = chunking_blur if chunking_blur is not None else self.size // 8  # Pass 0 to disable
         self.samples = samples if samples is not None else 1
         self.iterations = iterations if iterations is not None else 1
-        self.seed = seed
+        self.seed = seed if seed is not None else randint(1, sys.maxsize)
 
         self.build_tensorrt = build_tensorrt
         self.nodes = nodes
@@ -1494,6 +1504,7 @@ class DiffusionPlan:
         crop_inpaint: bool = True,
         inpaint_feather: int = 32,
         guidance_scale: Optional[float] = DEFAULT_GUIDANCE_SCALE,
+        refiner_start: Optional[float] = DEFAULT_REFINER_START,
         refiner_strength: Optional[float] = DEFAULT_REFINER_STRENGTH,
         refiner_guidance_scale: Optional[float] = DEFAULT_REFINER_GUIDANCE_SCALE,
         refiner_aesthetic_score: Optional[float] = DEFAULT_AESTHETIC_SCORE,
@@ -1769,6 +1780,7 @@ class DiffusionPlan:
                 num_inference_steps=num_inference_steps,
                 guidance_scale=guidance_scale,
                 strength=strength,
+                refiner_start=refiner_start,
                 refiner_strength=refiner_strength,
                 refiner_guidance_scale=refiner_guidance_scale,
                 refiner_aesthetic_score=refiner_aesthetic_score,
@@ -1819,6 +1831,7 @@ class DiffusionPlan:
             step = DiffusionStep(
                 num_inference_steps=num_inference_steps,
                 guidance_scale=guidance_scale,
+                refiner_start=refiner_start,
                 refiner_strength=refiner_strength,
                 refiner_guidance_scale=refiner_guidance_scale,
                 refiner_aesthetic_score=refiner_aesthetic_score,
@@ -1856,7 +1869,7 @@ class DiffusionPlan:
             node_remove_background = bool(node_dict.get("remove_background", False))
             node_inference_steps: Optional[int] = node_dict.get("inference_steps", None)  # type: ignore[assignment]
             node_guidance_scale: Optional[float] = node_dict.get("guidance_scale", None)  # type: ignore[assignment]
-
+            node_refiner_start: Optional[float] = node_dict.get("refiner_start", None) # type: ignore[assignment]
             node_refiner_strength: Optional[float] = node_dict.get("refiner_strength", None)  # type: ignore[assignment]
             node_refiner_guidance_scale: Optional[float] = node_dict.get("refiner_guidance_scale", None)  # type: ignore[assignment]
             node_refiner_aesthetic_score: Optional[float] = node_dict.get("refiner_aesthetic_score", None)  # type: ignore[assignment]
@@ -1977,6 +1990,7 @@ class DiffusionPlan:
                         num_inference_steps=node_inference_steps if node_inference_steps else num_inference_steps,
                         crop_inpaint=node_crop_inpaint,
                         inpaint_feather=node_inpaint_feather,
+                        refiner_start=refiner_start,
                         refiner_strength=refiner_strength,
                         refiner_guidance_scale=refiner_guidance_scale,
                         refiner_aesthetic_score=refiner_aesthetic_score,
@@ -2002,6 +2016,7 @@ class DiffusionPlan:
                             inpaint_feather=node_inpaint_feather,
                             guidance_scale=guidance_scale,
                             num_inference_steps=node_inference_steps if node_inference_steps else num_inference_steps,
+                            refiner_start=refiner_start,
                             refiner_strength=refiner_strength,
                             refiner_guidance_scale=refiner_guidance_scale,
                             refiner_aesthetic_score=refiner_aesthetic_score,
@@ -2026,8 +2041,16 @@ class DiffusionPlan:
                     step_image = node_image
 
                 if not node_infer and not node_inpaint and not node_control:
-                    # Just paste image
-                    step.name = f"Pass-through Node {i+1}"
+                    # No inference
+                    if refiner and refiner_strength is not None and refiner_strength > 0:
+                        step.name = f"Refining Node {i+1}"
+                        step.strength = 0.0
+                        step.prompt = str(node_prompt_tokens)
+                        step.prompt_2 = str(node_prompt_2_tokens)
+                        step.negative_prompt = str(node_negative_prompt_tokens)
+                        step.negative_prompt_2 = str(node_negative_prompt_2_tokens)
+                    else:
+                        step.name = f"Pass-through Node {i+1}"
                     step.image = step_image
                 elif not node_infer and node_inpaint and not node_control:
                     # Just inpaint image
@@ -2078,6 +2101,8 @@ class DiffusionPlan:
                 step.num_inference_steps = node_inference_steps
             if node_guidance_scale:
                 step.guidance_scale = node_guidance_scale
+            if node_refiner_start:
+                step.refiner_start = node_refiner_start
             if node_refiner_strength:
                 step.refiner_strength = node_refiner_strength
             if node_refiner_guidance_scale:

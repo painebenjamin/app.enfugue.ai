@@ -20,6 +20,8 @@ import {
     PromptInputView,
     OutputScaleInputView,
     UpscaleMethodsInputView,
+    SliderPreciseInputView,
+    FloatInputView,
     UpscaleDiffusionStepsInputView,
     UpscaleDiffusionPromptInputView,
     UpscaleDiffusionNegativePromptInputView,
@@ -216,15 +218,26 @@ class ModelFormView extends FormView {
             }
         },
         "Refining Defaults": {
-            "refiner_denoising_strength": {
-                "label": "Refiner Denoising Strength",
-                "class": NumberInputView,
+            "refiner_start": {
+                "label": "Refiner Start",
+                "class": SliderPreciseInputView,
                 "config": {
-                    "tooltip": "When using a refiner, this will control how much of the original image is kept, and how much of it is replaced with refined content. A value of 1.0 represents total destruction of the first image.",
                     "min": 0.0,
                     "max": 1.0,
                     "step": 0.01,
-                    "value": null
+                    "value": 0.85,
+                    "tooltip": "When using a refiner, this will control at what point during image generation we should switch to the refiner.<br /><br />For example, if you are using 40 inference steps and this value is 0.5, 20 steps will be performed on the base pipeline, and 20 steps performed on the refiner pipeline. A value of exactly 0 or 1 will make refining it's own step, and instead you can use the 'refining strength' field to control how strong the refinement is."
+                }
+            },
+            "refiner_strength": {
+                "label": "Refiner Denoising Strength",
+                "class": FloatInputView,
+                "config": {
+                    "minimum": 0.0,
+                    "maximum": 1.0,
+                    "step": 0.01,
+                    "value": null,
+                    "tooltip": "When using a refiner, this will control how much of the original image is kept, and how much of it is replaced with refined content. A value of 1.0 represents total destruction of the first image. This only applies when using refining as it's own distinct step, e.g., the 'refiner start' value is 0 or 1."
                 }
             },
             "refiner_guidance_scale": {
