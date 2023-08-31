@@ -1240,7 +1240,7 @@ class InvocationController extends Controller {
                     loadedNode.css("width", `${lastPercentComplete.toFixed(2)}%`);
                     let iterationSpeed = lastRate,
                         iterationUnit = "it/s";
-                    if (!isEmpty(iterationSpeed) && iterationSpeed < Infinity) {
+                    if (!isEmpty(iterationSpeed) && iterationSpeed < Infinity && iterationSpeed !== 0) {
                         if (iterationSpeed < 1) {
                             iterationSpeed = 1 / iterationSpeed;
                             iterationUnit = "s/it";
