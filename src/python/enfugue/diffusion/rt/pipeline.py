@@ -1,7 +1,9 @@
+from __future__ import annotations
+
 import torch
 import tensorrt as trt
 
-from typing import Optional, List, Dict, Iterator, Any, Union, Tuple
+from typing import Optional, List, Dict, Iterator, Any, Union, Tuple, TYPE_CHECKING
 from typing_extensions import Self
 
 from contextlib import contextmanager
@@ -25,6 +27,8 @@ from enfugue.diffusion.util import DTypeConverter
 from enfugue.diffusion.rt.engine import Engine
 from enfugue.diffusion.rt.model import BaseModel, UNet, VAE, CLIP, ControlledUNet, ControlNet
 
+if TYPE_CHECKING:
+    from enfugue.diffusers.support.ip import IPAdapter
 
 class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
     models: Dict[str, BaseModel]
@@ -46,6 +50,7 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         force_zeros_for_empty_prompt: bool = True,
         requires_aesthetic_score: bool = False,
         force_full_precision_vae: bool = False,
+        ip_adapter: Optional[IPAdapter] = None,
         engine_size: int = 512,  # Recommended even for machines that can handle more
         chunking_size: int = 32,
         chunking_blur: int = 64,
@@ -77,6 +82,7 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
             force_zeros_for_empty_prompt=force_zeros_for_empty_prompt,
             force_full_precision_vae=force_full_precision_vae,
             requires_aesthetic_score=requires_aesthetic_score,
+            ip_adapter=ip_adapter,
             engine_size=engine_size,
             chunking_size=chunking_size,
             chunking_blur=chunking_blur,
@@ -174,7 +180,12 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
             )
 
     @contextmanager
-    def get_runtime_context(self, batch_size: int, device: Union[str, torch.device]) -> Iterator[None]:
+    def get_runtime_context(
+        self,
+        batch_size: int,
+        device: Union[str, torch.device],
+        ip_adapter_scale: Optional[float] = None,
+    ) -> Iterator[None]:
         """
         We initialize the TensorRT runtime here.
         """

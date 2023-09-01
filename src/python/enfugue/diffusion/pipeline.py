@@ -13,6 +13,7 @@ from typing import (
     Literal,
     Mapping,
     cast,
+    TYPE_CHECKING
 )
 
 import os
@@ -76,6 +77,8 @@ from enfugue.util import logger, check_download_to_dir, TokenMerger
 # This is ~64k×64k. Absurd, but I don't judge
 PIL.Image.MAX_IMAGE_PIXELS = 2**32
 
+if TYPE_CHECKING:
+    from enfugue.diffusers.support.ip import IPAdapter
 
 class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
     """
@@ -109,6 +112,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         force_zeros_for_empty_prompt: bool = True,
         requires_aesthetic_score: bool = False,
         force_full_precision_vae: bool = False,
+        ip_adapter: Optional[IPAdapter] = None,
         engine_size: int = 512,
         chunking_size: int = 64,
         chunking_blur: int = 64,
@@ -147,6 +151,10 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
         # Register other networks
         self.register_modules(controlnet=controlnet, text_encoder_2=text_encoder_2, tokenizer_2=tokenizer_2)
+
+        # Add IP Adapter
+        self.ip_adapter = ip_adapter
+        self.ip_adapter_loaded = False
 
     @classmethod
     def debug_tensors(cls, **kwargs: Union[Dict, List, torch.Tensor]) -> None:
@@ -484,7 +492,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             for buffer in module.buffers():
                 size += buffer.nelement() * buffer.element_size()
         return size
-    
+
     def get_size_from_module(self, module: torch.nn.Module) -> int:
         """
         Gets the size of a module in bytes
@@ -508,6 +516,51 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 modules.append(module)
         modules.sort(key = lambda item: self.get_size_from_module(item), reverse=True)
         return modules
+
+    def load_ip_adapter(self, device: Union[str, torch.device], scale: float = 1.0) -> None:
+        """
+        Loads the IP Adapter
+        """
+        if getattr(self, "ip_adapter", None) is None:
+            raise RuntimeError("Pipeline does not have an IP adapter")
+        if self.ip_adapter_loaded:
+            altered = self.ip_adapter.set_scale(self.unet, scale) # type: ignore[union-attr]
+            if altered == 0:
+                logger.error("IP adapter appeared loaded, but setting scale did not modify it.")
+                self.ip_adapter.load(self.unet, self.is_sdxl, scale) # type: ignore[union-attr]
+        else:
+            logger.debug("Loading IP adapter")
+            self.ip_adapter.load(self.unet, self.is_sdxl, scale) # type: ignore[union-attr]
+            self.ip_adapter_loaded = True
+
+    def unload_ip_adapter(self) -> None:
+        """
+        Unloads the IP adapter by resetting attention processors to previous values
+        """
+        if getattr(self, "ip_adapter", None) is None:
+            raise RuntimeError("Pipeline does not have an IP adapter")
+        if self.ip_adapter_loaded:
+            logger.debug("Unloading IP adapter")
+            self.ip_adapter.unload(self.unet) # type: ignore[union-attr]
+            self.ip_adapter_loaded = False
+
+    def get_image_embeds(
+        self,
+        image: PIL.Image.Image,
+        num_images_per_prompt: int
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """
+        Uses the IP adapter to get prompt embeddings from the image
+        """
+        if getattr(self, "ip_adapter", None) is None:
+            raise RuntimeError("Pipeline does not have an IP adapter")
+        image_prompt_embeds, image_uncond_prompt_embeds = self.ip_adapter.probe(image) # type: ignore[union-attr]
+        bs_embed, seq_len, _ = image_prompt_embeds.shape
+        image_prompt_embeds = image_prompt_embeds.repeat(1, num_images_per_prompt, 1)
+        image_prompt_embeds = image_prompt_embeds.view(bs_embed * num_images_per_prompt, seq_len, -1)
+        image_uncond_prompt_embeds = image_uncond_prompt_embeds.repeat(1, num_images_per_prompt, 1)
+        image_uncond_prompt_embeds = image_uncond_prompt_embeds.view(bs_embed * num_images_per_prompt, seq_len, -1)
+        return image_prompt_embeds, image_uncond_prompt_embeds
 
     def encode_prompt(
         self,
@@ -686,9 +739,14 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         return prompt_embeds  # type: ignore
 
     @contextmanager
-    def get_runtime_context(self, batch_size: int, device: Union[str, torch.device]) -> Iterator[None]:
+    def get_runtime_context(
+        self,
+        batch_size: int,
+        device: Union[str, torch.device],
+        ip_adapter_scale: Optional[float] = None,
+    ) -> Iterator[None]:
         """
-        Used by other implementations (tensorrt), but not base.
+        Builds the runtime context, which ensures everything is on the right devices
         """
         if isinstance(device, str):
             device = torch.device(device)
@@ -700,6 +758,12 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             self.text_encoder_2.to(device)
         if self.controlnet is not None:
             self.controlnet.to(device)
+
+        if ip_adapter_scale is not None:
+            self.load_ip_adapter(device, ip_adapter_scale)
+        else:
+            self.unload_ip_adapter()
+
         if device.type == "cpu":
             with torch.autocast("cpu"):
                 yield
@@ -2011,7 +2075,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         chunking_blur: Optional[int] = None,
         denoising_start: Optional[float] = None,
         denoising_end: Optional[float] = None,
-        strength: float = 0.8,
+        ip_adapter_scale: Optional[float] = None,
+        strength: Optional[float] = 0.8,
         num_inference_steps: int = 40,
         guidance_scale: float = 7.5,
         conditioning_scale: float = 1.0,
@@ -2059,6 +2124,10 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         if latent_callback_steps == 0:
             latent_callback_steps = None
 
+        # Check ip_adapter_scale, disable if no image or passed latents
+        if not isinstance(image, str) and not isinstance(image, PIL.Image.Image):
+            ip_adapter_scale = None
+
         # Convenient bool for later
         decode_intermediates = latent_callback_steps is not None and latent_callback is not None
 
@@ -2093,7 +2162,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         num_chunks = max(1, len(self.get_chunks(height, width)))
         self.scheduler.set_timesteps(num_inference_steps, device=device)
 
-        if image is not None and mask is None:
+        if image is not None and mask is None and strength is not None:
             # Scale timesteps by strength
             timesteps, num_inference_steps = self.get_timesteps(
                 num_inference_steps,
@@ -2154,8 +2223,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             logger.debug(f"Configuration indicates VAE may operate in half precision")
             self.vae.to(dtype=torch.float16)
 
-        with self.get_runtime_context(batch_size, device):
-            # Base runtime has no context, but extensions do
+        with self.get_runtime_context(batch_size, device, ip_adapter_scale):
             if self.is_sdxl:
                 # XL uses more inputs for prompts than 1.5
                 (
@@ -2277,7 +2345,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 # prepared_mask = only mask
                 # prepared_image_latents = masked image
                 # init_image = only image when not using inpainting unet
-            elif prepared_image is not None:
+            elif prepared_image is not None and strength is not None:
                 # img2img
                 prepared_latents = self.prepare_image_latents(
                     prepared_image,
@@ -2346,11 +2414,27 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 logger.debug("Intermediates are disabled, sending VAE to CPU during denoising")
                 self.vae.to("cpu")
 
-            # Make sure controlnet on device
-            if self.controlnet is not None:
-                self.controlnet = self.controlnet.to(device=device)
-
-            # 7. Prepared added time IDs and embeddings (SDXL)
+            # Get prompt embeds here if using ip adapter
+            if ip_adapter_scale is not None and isinstance(image, PIL.Image.Image):
+                image_prompt_embeds, image_uncond_prompt_embeds = self.get_image_embeds(
+                    image,
+                    num_images_per_prompt
+                )
+                if self.is_sdxl:
+                    negative_prompt_embeds = cast(torch.Tensor, negative_prompt_embeds)
+                    prompt_embeds = torch.cat([prompt_embeds, image_prompt_embeds], dim=1)
+                    negative_prompt_embeds = torch.cat([negative_prompt_embeds, image_uncond_prompt_embeds], dim=1)
+                else:
+                    if do_classifier_free_guidance:
+                        _negative_prompt_embeds, _prompt_embeds = prompt_embeds.chunk(2)
+                    else:
+                        _negative_prompt_embeds, _prompt_embeds = negative_prompt_embeds, prompt_embeds # type: ignore
+                    prompt_embeds = torch.cat([_prompt_embeds, image_prompt_embeds], dim=1)
+                    negative_prompt_embeds = torch.cat([_negative_prompt_embeds, image_uncond_prompt_embeds], dim=1)
+                    if do_classifier_free_guidance:
+                        prompt_embeds = torch.cat([negative_prompt_embeds, prompt_embeds])
+                
+            # Prepared added time IDs and embeddings (SDXL)
             if self.is_sdxl:
                 negative_prompt_embeds = cast(torch.Tensor, negative_prompt_embeds)
                 pooled_prompt_embeds = cast(torch.Tensor, pooled_prompt_embeds)
@@ -2386,8 +2470,12 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 added_cond_kwargs = {"text_embeds": add_text_embeds, "time_ids": add_time_ids}
             else:
                 added_cond_kwargs = None
+            
+            # Make sure controlnet on device
+            if self.controlnet is not None:
+                self.controlnet = self.controlnet.to(device=device)
 
-            # 8. Denoising loop
+            # Denoising loop
             prepared_latents = self.denoise(
                 height=height,
                 width=width,

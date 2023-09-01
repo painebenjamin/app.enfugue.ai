@@ -32,7 +32,7 @@ if TYPE_CHECKING:
     from diffusers.models import ControlNetModel, AutoencoderKL
     from diffusers.schedulers.scheduling_utils import KarrasDiffusionSchedulers
     from enfugue.diffusion.pipeline import EnfugueStableDiffusionPipeline
-    from enfugue.diffusion.support import EdgeDetector, DepthDetector, PoseDetector, LineDetector, Upscaler
+    from enfugue.diffusion.support import EdgeDetector, DepthDetector, PoseDetector, LineDetector, Upscaler, IPAdapter
 
 def noop(*args: Any) -> None:
     """
@@ -2254,6 +2254,7 @@ class DiffusionPipelineManager:
                 "cache_dir": self.engine_cache_dir,
                 "force_full_precision_vae": self.is_sdxl and self.vae_name not in ["xl16", VAE_XL16],
                 "controlnet": self.controlnet,
+                "ip_adapter": self.ip_adapter
             }
             
             vae = self.vae
@@ -2356,7 +2357,8 @@ class DiffusionPipelineManager:
                 "torch_dtype": self.dtype,
                 "requires_safety_checker": False,
                 "force_full_precision_vae": self.refiner_is_sdxl and self.refiner_vae_name not in ["xl16", VAE_XL16],
-                "controlnet": None
+                "controlnet": None,
+                "ip_adapter": self.ip_adapter
             }
             
             vae = self.refiner_vae
@@ -2495,7 +2497,8 @@ class DiffusionPipelineManager:
                 "requires_safety_checker": self.safe,
                 "requires_aesthetic_score": False,
                 "controlnet": None,
-                "force_full_precision_vae": self.inpainter_is_sdxl and self.inpainter_vae_name not in ["xl16", VAE_XL16]
+                "force_full_precision_vae": self.inpainter_is_sdxl and self.inpainter_vae_name not in ["xl16", VAE_XL16],
+                "ip_adapter": self.ip_adapter
             }
 
             vae = self.inpainter_vae
@@ -2758,6 +2761,17 @@ class DiffusionPipelineManager:
             self._pose_detector = PoseDetector(self.engine_other_dir, self.device, self.dtype)
         return self._pose_detector
 
+    @property
+    def ip_adapter(self) -> IPAdapter:
+        """
+        Gets the IP adapter.
+        """
+        if not hasattr(self, "_ip_adapter"):
+            from enfugue.diffusion.support.ip import IPAdapter
+
+            self._ip_adapter = IPAdapter(self.engine_other_dir, self.device, self.dtype)
+        return self._ip_adapter
+
     def get_controlnet(self, controlnet: Optional[str] = None) -> Optional[ControlNetModel]:
         """
         Loads a controlnet
@@ -2948,6 +2962,7 @@ class DiffusionPipelineManager:
             refining = (
                 kwargs.get("image", None) is not None and
                 kwargs.get("strength", 0) in [0, None] and
+                kwargs.get("ip_adapter_scale", None) is None and
                 refiner_strength != 0 and
                 refiner_start != 1 and
                 self.refiner is not None
@@ -2993,6 +3008,11 @@ class DiffusionPipelineManager:
                     self.tensorrt_is_enabled = False
                 else:
                     self.tenssort_is_enabled = True
+                
+                # Check IP adapter for TensorRT
+                if kwargs.get("ip_adapter_scale", None) is not None and self.tensorrt_is_enabled:
+                    logger.info(f"IP adapter requested, TensorRT is not compatible, disabling.")
+                    self.tensorrt_is_enabled = False
 
                 if inpainting and (self.has_inpainter or self.create_inpainter):
                     pipe = self.inpainter_pipeline
@@ -3005,6 +3025,15 @@ class DiffusionPipelineManager:
                     if refiner_start > 0 and refiner_start < 1:
                         kwargs["denoising_end"] = refiner_start
                         kwargs["output_type"] = "latent"
+
+                # Check IP adapter for downloads
+                if kwargs.get("ip_adapter_scale", None) is not None:
+                    if pipe.is_sdxl:
+                        _ = self.ip_adapter.xl_image_prompt_checkpoint
+                        _ = self.ip_adapter.xl_adapter_directory
+                    else:
+                        _ = self.ip_adapter.default_image_prompt_checkpoint
+                        _ = self.ip_adapter.default_adapter_directory
 
                 self.stop_keepalive()
                 task_callback("Executing Inference")
@@ -3034,6 +3063,7 @@ class DiffusionPipelineManager:
                 self.reload_refiner()
                 kwargs.pop("image", None)  # Remove any previous image
                 kwargs.pop("mask", None)  # Remove any previous mask
+                kwargs.pop("ip_adapter_scale", None) # IP adapter seems to absolutely explode with refiner
                 kwargs["latent_callback"] = latent_callback # Revert to original callback, we'll wrap later if needed
                 kwargs["output_type"] = "pil"
                 kwargs["latent_callback_type"] = "pil"
