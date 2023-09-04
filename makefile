@@ -180,7 +180,7 @@ $(BUILD_DOCKERFILE): $(SRC_DOCKERFILE) $(PYTHON_ARTIFACTS)
 
 ## Split on Linux
 .PHONY: split
-split: $(ARTIFACT)
+split:
 	split -b $(ARCHIVE_SIZE) -a 1 -d $(ARTIFACT) $(shell basename $(ARTIFACT)).
 	rm $(ARTIFACT)
 

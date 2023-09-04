@@ -2178,7 +2178,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         num_chunks = max(1, len(self.get_chunks(height, width)))
         self.scheduler.set_timesteps(num_inference_steps, device=device)
 
-        if image is not None and mask is None and strength is not None:
+        if image is not None and mask is None and (strength is not None or denoising_start is not None):
             # Scale timesteps by strength
             timesteps, num_inference_steps = self.get_timesteps(
                 num_inference_steps,

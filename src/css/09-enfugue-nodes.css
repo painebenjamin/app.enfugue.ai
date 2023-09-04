@@ -207,6 +207,7 @@ enfugue-node enfugue-node-compound-contents ul.list-input-view {
     height: 30px;
     z-index: 2;
     pointer-events: none;
+    transition: opacity 0.25s ease-in-out;
 }
 
 enfugue-node.flipped enfugue-node-compound-contents ul.list-input-view {
@@ -217,6 +218,14 @@ enfugue-node.flipped enfugue-node-compound-contents ul.list-input-view {
 enfugue-node enfugue-node-compound-contents ul.list-input-view li {
     font-size: 11px;
     pointer-events: auto;
+}
+
+enfugue-node enfugue-node-compound-contents:hover ul.list-input-view.hide-hover {
+    opacity: 0;
+}
+
+enfugue-node enfugue-node-compound-contents:hover ul.list-input-view.hide-hover li {
+    pointer-events: none;
 }
 
 enfugue-windows-toolbar-item {

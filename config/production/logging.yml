@@ -5,3 +5,4 @@ file: ~/.cache/enfugue.log
 level: error
 silenced:
     - sqlalchemy.pool.impl.NullPool
+    - http.client

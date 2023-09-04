@@ -108,12 +108,15 @@ class ImageEditorCompoundImageNodeView extends CompoundNodeView {
             !this.content.selectedNode.optionsForm.hidden;
 
         if (optionsIsVisible) {
-            this.content.chooser.hide();
+            this.content.chooser.addClass("hide-hover");
         } else {
-            this.content.chooser.show();
+            this.content.chooser.removeClass("hide-hover");
         }
     }
 
+    /**
+     * Override setActiveIndex to check if we have to hide the chooser on hover
+     */
     async setActiveIndex(newIndex) {
         await super.setActiveIndex(newIndex);
         this.checkShowChooser();

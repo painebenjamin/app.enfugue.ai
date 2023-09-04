@@ -2371,6 +2371,7 @@ class DiffusionPipelineManager:
 
             # load scheduler
             if self.scheduler is not None:
+                logger.debug(f"Setting scheduler to {self.scheduler.__name__}")
                 pipeline.scheduler = self.scheduler.from_config(pipeline.scheduler_config)
             self._pipeline = pipeline.to(self.device)
         return self._pipeline
@@ -2480,6 +2481,7 @@ class DiffusionPipelineManager:
                     refiner_pipeline.save_pretrained(self.refiner_diffusers_dir)
             # load scheduler
             if self.scheduler is not None:
+                logger.debug(f"Setting refiner scheduler to {self.scheduler.__name__}")
                 refiner_pipeline.scheduler = self.scheduler.from_config(refiner_pipeline.scheduler_config)
             self._refiner_pipeline = refiner_pipeline.to(self.device)
         return self._refiner_pipeline
@@ -2621,6 +2623,7 @@ class DiffusionPipelineManager:
                     inpainter_pipeline.load_textual_inversion(inversion)
             # load scheduler
             if self.scheduler is not None:
+                logger.debug(f"Setting inpainter scheduler to {self.scheduler.__name__}")
                 inpainter_pipeline.scheduler = self.scheduler.from_config(inpainter_pipeline.scheduler_config)
             self._inpainter_pipeline = inpainter_pipeline.to(self.device)
         return self._inpainter_pipeline
@@ -3279,6 +3282,7 @@ class DiffusionPipelineManager:
                 self.reload_refiner()
                 kwargs.pop("image", None)  # Remove any previous image
                 kwargs.pop("mask", None)  # Remove any previous mask
+                kwargs.pop("control_images", None) # Remove previous ControlNet images
                 kwargs.pop("ip_adapter_scale", None) # IP adapter seems to absolutely explode with refiner
                 kwargs["latent_callback"] = latent_callback # Revert to original callback, we'll wrap later if needed
                 kwargs["output_type"] = "pil"
