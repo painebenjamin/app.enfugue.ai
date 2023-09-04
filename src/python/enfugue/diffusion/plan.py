@@ -142,7 +142,7 @@ class DiffusionStep:
         crop_inpaint: Optional[bool] = True,
         inpaint_feather: Optional[int] = None,
         remove_background: bool = False,
-        scale_to_model_size: bool = True,
+        scale_to_model_size: bool = False,
     ) -> None:
         self.name = name
         self.width = width
@@ -467,6 +467,7 @@ class DiffusionStep:
         if image is not None:
             image_width, image_height = image.size
             invocation_kwargs["image"] = image
+
         if mask is not None:
             mask_width, mask_height = mask.size
             if (
@@ -501,12 +502,14 @@ class DiffusionStep:
                 assert image.size == mask.size
             else:
                 image_width, image_height = mask.size
+
         if isinstance(ip_adapter_image, PIL.Image.Image):
             if image_width is None or image_height is None:
                 image_width, image_height = ip_adapter_image.size
             else:
                 image_prompt_width, image_prompt_height = ip_adapter_image.size
                 assert image_prompt_width == image_width and image_prompt_height == image_height
+
         if control_images is not None:
             for controlnet_name in control_images:
                 for control_image, conditioning_scale in control_images[controlnet_name]:
@@ -546,7 +549,7 @@ class DiffusionStep:
                 if invocation_kwargs.get(key, None) is not None:
                     invocation_kwargs[key] = self.scale_image(invocation_kwargs[key], image_scale)
             for controlnet_name in invocation_kwargs.get("control_images", {}):
-                for i, (control_image, conditioning_scale) in invocation_kwargs["control_images"].get(controlnet_name, []):
+                for i, (control_image, conditioning_scale) in enumerate(invocation_kwargs["control_images"].get(controlnet_name, [])):
                     invocation_kwargs["control_images"][controlnet_name][i] = (
                         self.scale_image(control_image, image_scale),
                         conditioning_scale
@@ -1559,7 +1562,6 @@ class DiffusionPlan:
         remove_background: bool = False,
         fill_background: bool = False,
         scale_to_model_size: bool = True,
-        invert_control_image: bool = False,
         invert_mask: bool = False,
         crop_inpaint: bool = True,
         inpaint_feather: int = 32,
@@ -2156,7 +2158,7 @@ class DiffusionPlan:
                             outpaint_if_necessary=True
                         )[0],
                         "controlnet": control_image["controlnet"],
-                        "scale": control_image.get("scale", None),
+                        "scale": control_image.get("scale", 1.0),
                         "process": control_image.get("process", True),
                         "invert": control_image.get("invert", False),
                         "fit": None,

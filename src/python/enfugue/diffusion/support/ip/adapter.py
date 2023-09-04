@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 
-from typing import List, Union, Dict, Any, Iterator, Optional, Tuple, TYPE_CHECKING
+from typing import List, Union, Dict, Any, Iterator, Optional, Tuple, Callable, TYPE_CHECKING
 from contextlib import contextmanager
 
 from transformers import (
@@ -43,11 +43,14 @@ class IPAdapter(SupportModel):
         self,
         unet: UNet2DConditionModel,
         is_sdxl: bool = False,
-        scale: float = 1.0
+        scale: float = 1.0,
+        keepalive_callback: Optional[Callable[[],None]] = None,
     ) -> None:
         """
         Loads the IP adapter.
         """
+        if keepalive_callback is None:
+            keepalive_callback = lambda: None
         import torch
         from diffusers.models.attention_processor import (
             AttnProcessor2_0,
@@ -98,11 +101,13 @@ class IPAdapter(SupportModel):
                     cross_attention_dim=cross_attention_dim,
                     scale=scale
                 ).to(self.device, dtype=self.dtype)
-
+        keepalive_callback()
         unet.set_attn_processor(new_attention_processors)
         layers = torch.nn.ModuleList(unet.attn_processors.values())
         state_dict = self.xl_state_dict if is_sdxl else self.default_state_dict
+        keepalive_callback()
         layers.load_state_dict(state_dict["ip_adapter"])
+        keepalive_callback()
         self.projector.load_state_dict(state_dict["image_proj"])
 
     def set_scale(self, unet: UNet2DConditionModel, new_scale: float) -> int:

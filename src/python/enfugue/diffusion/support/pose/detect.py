@@ -23,4 +23,4 @@ class PoseDetector(SupportModel):
             detector.to(self.device)
             result = detector(image, hand_and_face=True)
             del detector
-            return result
+            return result.resize(image.size)

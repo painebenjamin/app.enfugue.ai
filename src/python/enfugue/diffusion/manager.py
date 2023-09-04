@@ -3081,7 +3081,7 @@ class DiffusionPipelineManager:
 
         existing_controlnet_names = self.refiner_controlnet_names
 
-        logger.debug(f"Setting refuber pipeline ControlNet(s) to {controlnet_names} from {existing_controlnet_names}")
+        logger.debug(f"Setting refiner pipeline ControlNet(s) to {controlnet_names} from {existing_controlnet_names}")
         if controlnet_names == existing_controlnet_names:
             return # No changes
 

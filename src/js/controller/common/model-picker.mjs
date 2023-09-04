@@ -404,6 +404,7 @@ class ModelPickerController extends Controller {
             this.engine.inpainter = values.inpainter;
             this.engine.inpainterVae = values.inpainter_vae;
         });
+
         this.abridgedModelFormView.onChange(async () => {
             if (!isEmpty(this.abridgedModelFormView.values.refiner)) {
                 this.abridgedModelFormView.addClass("show-refiner");
@@ -429,6 +430,7 @@ class ModelPickerController extends Controller {
                 this.notify("info", "TensorRT Engine Build Failed", `${model} ${networkName} TensorRT Engine failed to build. Please try again.`);
             }
         });
+
         this.subscribe("invocationComplete", (payload) => {
             if (!isEmpty(payload.metadata) && !isEmpty(payload.metadata.tensorrt_build)) {
                 let network = payload.metadata.tensorrt_build.network,

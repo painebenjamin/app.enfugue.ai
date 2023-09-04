@@ -126,6 +126,8 @@ class InvokeButtonController extends Controller {
                             } else {
                                 imageNodeIndex = j;
                                 formattedState["image"] = child.src;
+                                formattedState["anchor"] = child.anchor;
+                                formattedState["fit"] = child.fit;
                             }
                         }
                         if (child.infer && imageNodeIndex == j) {

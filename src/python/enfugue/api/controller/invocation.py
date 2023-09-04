@@ -99,7 +99,7 @@ class EnfugueAPIInvocationController(EnfugueAPIControllerBase):
             model_name = model.get("model", None)
             model_weight = model.get("weight", 1.0)
             if not model_name:
-                raise BadRequestError(f"Bad model format - missing required dictionary key `model`")
+                raise BadRequestError(f"Bad model format for type `{model_type}` - missing required dictionary key `model`")
             if is_weighted:
                 return [(self.check_find_model(model_type, model_name), model_weight)]
             return [self.check_find_model(model_type, model_name)]

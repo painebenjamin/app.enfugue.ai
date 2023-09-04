@@ -520,7 +520,12 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         modules.sort(key = lambda item: self.get_size_from_module(item), reverse=True)
         return modules
 
-    def load_ip_adapter(self, device: Union[str, torch.device], scale: float = 1.0) -> None:
+    def load_ip_adapter(
+        self,
+        device: Union[str, torch.device],
+        scale: float = 1.0,
+        keepalive_callback: Optional[Callable[[], None]] = None
+    ) -> None:
         """
         Loads the IP Adapter
         """
@@ -533,7 +538,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 self.ip_adapter.load(self.unet, self.is_sdxl, scale) # type: ignore[union-attr]
         else:
             logger.debug("Loading IP adapter")
-            self.ip_adapter.load(self.unet, self.is_sdxl, scale) # type: ignore[union-attr]
+            self.ip_adapter.load(self.unet, self.is_sdxl, scale, keepalive_callback) # type: ignore[union-attr]
             self.ip_adapter_loaded = True
 
     def unload_ip_adapter(self) -> None:
@@ -747,6 +752,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         batch_size: int,
         device: Union[str, torch.device],
         ip_adapter_scale: Optional[float] = None,
+        step_complete: Optional[Callable[[bool], None]] = None
     ) -> Iterator[None]:
         """
         Builds the runtime context, which ensures everything is on the right devices
@@ -760,7 +766,11 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         if self.text_encoder_2 is not None:
             self.text_encoder_2.to(device)
         if ip_adapter_scale is not None:
-            self.load_ip_adapter(device, ip_adapter_scale)
+            self.load_ip_adapter(
+                device,
+                ip_adapter_scale,
+                None if step_complete is None else lambda: step_complete(False) # type: ignore[misc]
+            )
         else:
             self.unload_ip_adapter()
 
@@ -1076,7 +1086,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         device: Union[str, torch.device],
         dtype: torch.dtype,
         generator: Optional[torch.Generator] = None,
-        progress_callback: Optional[Callable[[], None]] = None,
+        progress_callback: Optional[Callable[[bool], None]] = None,
     ) -> torch.Tensor:
         """
         Encodes an image in chunks using the VAE.
@@ -1088,7 +1098,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         if total_steps == 1:
             result = self.encode_image_unchunked(image, dtype, generator)
             if progress_callback is not None:
-                progress_callback()
+                progress_callback(True)
             return result
 
         logger.debug(f"Encoding image in {total_steps} steps.")
@@ -1141,7 +1151,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             count[:, :, top:bottom, left:right] += multiplier
 
             if progress_callback is not None:
-                progress_callback()
+                progress_callback(True)
         if self.config.force_full_precision_vae:
             self.vae.to(dtype=dtype)
         return (torch.where(count > 0, value / count, value) * self.vae.config.scaling_factor).to(dtype=dtype)
@@ -1154,7 +1164,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         dtype: torch.dtype,
         device: Union[str, torch.device],
         generator: Optional[torch.Generator] = None,
-        progress_callback: Optional[Callable[[], None]] = None,
+        progress_callback: Optional[Callable[[bool], None]] = None,
         add_noise: bool = True,
     ) -> torch.Tensor:
         """
@@ -1199,7 +1209,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         device: Union[str, torch.device],
         generator: Optional[torch.Generator] = None,
         do_classifier_free_guidance: bool = False,
-        progress_callback: Optional[Callable[[], None]] = None,
+        progress_callback: Optional[Callable[[bool], None]] = None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Prepares both mask and image latents for inpainting
@@ -1243,7 +1253,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
     def get_timesteps(
         self,
         num_inference_steps: int,
-        strength: float,
+        strength: Optional[float],
         device: str,
         denoising_start: Optional[float] = None
     ) -> Tuple[torch.Tensor, int]:
@@ -1251,6 +1261,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         Gets the original timesteps from the scheduler based on strength when doing img2img
         """
         if denoising_start is None:
+            if strength is None:
+                raise ValueError("You must include at least one of 'denoising_start' or 'strength'")
             init_timestep = min(int(num_inference_steps * strength), num_inference_steps)
             t_start = max(num_inference_steps - init_timestep, 0)
         else:
@@ -1546,7 +1558,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         mask_image: Optional[torch.Tensor] = None,
         image: Optional[torch.Tensor] = None,
         control_images: Optional[Dict[str, List[Tuple[torch.Tensor, float]]]] = None,
-        progress_callback: Optional[Callable[[], None]] = None,
+        progress_callback: Optional[Callable[[bool], None]] = None,
         latent_callback: Optional[Callable[[Union[torch.Tensor, np.ndarray, List[PIL.Image.Image]]], None]] = None,
         latent_callback_steps: Optional[int] = 1,
         latent_callback_type: Literal["latent", "pt", "np", "pil"] = "latent",
@@ -1638,7 +1650,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 latents = (1 - init_mask) * init_latents + init_mask * latents
 
             if progress_callback is not None:
-                progress_callback()
+                progress_callback(True)
 
             # call the callback, if provided
             steps_since_last_callback += 1
@@ -1678,7 +1690,6 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 pass
         return data
 
-
     def denoise(
         self,
         height: int,
@@ -1695,7 +1706,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         mask_image: Optional[torch.Tensor] = None,
         image: Optional[torch.Tensor] = None,
         control_images: Optional[Dict[str, List[Tuple[torch.Tensor, float]]]] = None,
-        progress_callback: Optional[Callable[[], None]] = None,
+        progress_callback: Optional[Callable[[bool], None]] = None,
         latent_callback: Optional[Callable[[Union[torch.Tensor, np.ndarray, List[PIL.Image.Image]]], None]] = None,
         latent_callback_steps: Optional[int] = 1,
         latent_callback_type: Literal["latent", "pt", "np", "pil"] = "latent",
@@ -1892,7 +1903,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
                 # Call the progress callback
                 if progress_callback is not None:
-                    progress_callback()
+                    progress_callback(True)
 
             # multidiffusion
             latents = torch.where(count > 0, value / count, value)
@@ -1937,7 +1948,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         self,
         latents: torch.Tensor,
         device: Union[str, torch.device],
-        progress_callback: Optional[Callable[[], None]] = None,
+        progress_callback: Optional[Callable[[bool], None]] = None,
     ) -> torch.Tensor:
         """
         Decodes the latents in chunks as necessary.
@@ -1962,7 +1973,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         if total_steps <= 1:
             result = self.decode_latents_unchunked(latents, device)
             if progress_callback is not None:
-                progress_callback()
+                progress_callback(True)
             if self.config.force_full_precision_vae:
                 self.vae.to(dtype=latents.dtype)
             return result
@@ -2013,7 +2024,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             count[:, :, top_px:bottom_px, left_px:right_px] += multiplier
 
             if progress_callback is not None:
-                progress_callback()
+                progress_callback(True)
 
         # re-average pixels
         latents = torch.where(count > 0, value / count, value)
@@ -2045,7 +2056,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         progress_callback: Optional[Callable[[int, int, float], None]] = None,
         log_interval: int = 10,
         log_sampling_duration: Union[int, float] = 5,
-    ) -> Callable[[], None]:
+    ) -> Callable[[bool], None]:
         """
         Creates a scoped callback to trigger during iterations
         """
@@ -2053,10 +2064,11 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         window_start = datetime.datetime.now()
         digits = math.ceil(math.log10(overall_steps))
 
-        def step_complete() -> None:
+        def step_complete(increment_step: bool = True) -> None:
             nonlocal overall_step, window_start, window_start_step, its
-            overall_step += 1
-            if overall_step % log_interval == 0 or overall_step == overall_steps:
+            if increment_step:
+                overall_step += 1
+            if overall_step != 0 and overall_step % log_interval == 0 or overall_step == overall_steps:
                 seconds_in_window = (datetime.datetime.now() - window_start).total_seconds()
                 its = (overall_step - window_start_step) / seconds_in_window
                 unit = "s/it" if its < 1 else "it/s"
@@ -2239,7 +2251,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             logger.debug(f"Configuration indicates VAE may operate in half precision")
             self.vae.to(dtype=torch.float16)
 
-        with self.get_runtime_context(batch_size, device, ip_adapter_scale):
+        with self.get_runtime_context(batch_size, device, ip_adapter_scale, step_complete):
             if self.is_sdxl:
                 # XL uses more inputs for prompts than 1.5
                 (

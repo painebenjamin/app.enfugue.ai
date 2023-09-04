@@ -3,7 +3,7 @@ from __future__ import annotations
 import torch
 import tensorrt as trt
 
-from typing import Optional, List, Dict, Iterator, Any, Union, Tuple, TYPE_CHECKING
+from typing import Optional, List, Dict, Iterator, Any, Union, Tuple, Callable, TYPE_CHECKING
 from typing_extensions import Self
 
 from contextlib import contextmanager
@@ -179,6 +179,7 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         batch_size: int,
         device: Union[str, torch.device],
         ip_adapter_scale: Optional[float] = None,
+        step_complete_callback: Optional[Callable[[bool], None]] = None
     ) -> Iterator[None]:
         """
         We initialize the TensorRT runtime here.
