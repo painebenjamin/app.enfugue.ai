@@ -80,7 +80,7 @@ def main() -> None:
                 # Two seeds for controlled/non-controlled:
                 # Controlnet doesn't change enough if it uses the same
                 # seed as the prompt the image was generated with
-                kwargs["seed"] = 12345 if "controlnet" in kwargs else 54321
+                kwargs["seed"] = 12345 if "control_images" in kwargs else 54321
             if "model" not in kwargs:
                 kwargs["model"] = CHECKPOINT
             kwargs["intermediates"] = False
@@ -124,7 +124,8 @@ def main() -> None:
         invoke(
             "img2img",
             prompt=prompt,
-            image=base
+            image=base,
+            strength=0.8
         )
         
         # Base inpaint + fit
@@ -154,6 +155,13 @@ def main() -> None:
             image=inpaint_image,
             remove_background=True,
             fill_background=True
+        )
+
+        # IP Adapter
+        invoke(
+            "ip-adapter",
+            image=inpaint_image,
+            ip_adapter_scale=0.9
         )
         
         # Sizing, fitting and outpaint
@@ -206,16 +214,33 @@ def main() -> None:
             invoke(
                 f"txt2img-controlnet-{controlnet}",
                 prompt=prompt,
-                control_image=base,
-                controlnet=controlnet
+                control_images=[{
+                    "controlnet": controlnet,
+                    "image": base,
+                }]
             )
             
             invoke(
                 f"img2img-controlnet-{controlnet}",
                 prompt=prompt,
                 image=base,
-                control_image=base,
-                controlnet=controlnet
+                strength=0.8,
+                control_images=[{
+                    "controlnet": controlnet,
+                    "image": base,
+                }]
+            )
+            
+            invoke(
+                f"img2img-ip-controlnet-{controlnet}",
+                prompt=prompt,
+                image=base,
+                strength=0.8,
+                ip_adapter_scale=0.5,
+                control_images=[{
+                    "controlnet": controlnet,
+                    "image": base,
+                }]
             )
         
         # Schedulers
@@ -280,7 +305,7 @@ def main() -> None:
             )[0]
             
             # SDXL ControlNet
-            for controlnet in ["canny"]:
+            for controlnet in ["canny", "depth", ]:
                 invoke(
                     f"sdxl-{controlnet}-txt2img",
                     model=DEFAULT_SDXL_MODEL,
@@ -295,9 +320,13 @@ def main() -> None:
                     f"sdxl-{controlnet}-txt2img-refined",
                     model=DEFAULT_SDXL_MODEL,
                     refiner=DEFAULT_SDXL_REFINER,
-                    controlnet=controlnet,
-                    control_image=control,
-                    conditioning_scale=0.5,
+                    control_images=[
+                        {
+                            "controlnet": controlnet,
+                            "image": control,
+                            "scale": 0.5
+                        }
+                    ],
                     prompt="A bride and groom on their wedding day",
                     guidance_scale=6
                 )[0]
@@ -306,9 +335,15 @@ def main() -> None:
                     f"sdxl-{controlnet}-img2img",
                     model=DEFAULT_SDXL_MODEL,
                     refiner=DEFAULT_SDXL_REFINER,
-                    controlnet=controlnet,
                     image=control,
-                    control_image=control,
+                    strength=0.8,
+                    control_images=[
+                        {
+                            "controlnet": controlnet,
+                            "image": control,
+                            "scale": 0.5
+                        }
+                    ],
                     conditioning_scale=0.5,
                     prompt="A bride and groom on their wedding day",
                     guidance_scale=6
@@ -318,10 +353,33 @@ def main() -> None:
                     f"sdxl-{controlnet}-img2img-refined",
                     model=DEFAULT_SDXL_MODEL,
                     refiner=DEFAULT_SDXL_REFINER,
-                    controlnet=controlnet,
+                    control_images=[
+                        {
+                            "controlnet": controlnet,
+                            "image": control,
+                            "scale": 0.5
+                        }
+                    ],
                     image=control,
-                    control_image=control,
-                    conditioning_scale=0.5,
+                    strength=0.8,
+                    prompt="A bride and groom on their wedding day",
+                    guidance_scale=6
+                )[0]
+               
+                invoke(
+                    f"sdxl-{controlnet}-img2img-ip-refined",
+                    model=DEFAULT_SDXL_MODEL,
+                    refiner=DEFAULT_SDXL_REFINER,
+                    control_images=[
+                        {
+                            "controlnet": controlnet,
+                            "image": control,
+                            "scale": 0.5
+                        }
+                    ],
+                    image=control,
+                    strength=0.8,
+                    ip_adapter_scale=0.5,
                     prompt="A bride and groom on their wedding day",
                     guidance_scale=6
                 )[0]

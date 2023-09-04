@@ -10,7 +10,11 @@ import {
     NodeConnectionSpline
 } from './decorations.mjs';
 
-import { NodeView, OptionsNodeView } from './base.mjs';
+import {
+    NodeView,
+    OptionsNodeView,
+    CompoundNodeView
+} from './base.mjs';
 
 const E = new ElementBuilder({
     node: "enfugue-node",
@@ -89,7 +93,7 @@ class NodeEditorView extends View {
     /**
      * @var array<class> All supported node classes. Used when re-instantiating from static data.
      */
-    static nodeClasses = [NodeView];
+    static nodeClasses = [NodeView, OptionsNodeView, CompoundNodeView];
 
     /**
      * @var array<string> Any number of classes
@@ -290,6 +294,94 @@ class NodeEditorView extends View {
     }
 
     /**
+     * Calls callbacks for when a node is moved
+     * @param Node $movedNode The node that was moved.
+     */
+    nodeMoved(movedNode) {
+        let mergeNode;
+        for (let node of this.nodes) {
+            node.removeClass("merge-source");
+            node.removeClass("merge-target");
+
+            if (node == movedNode ||
+                !node.canMergeWith(movedNode) ||
+                movedNode.visibleLeft >= node.visibleRight ||
+                movedNode.visibleRight <= node.visibleLeft ||
+                movedNode.visibleTop >= node.visibleTop + node.visibleHeight ||
+                movedNode.visibleTop + movedNode.visibleHeight <= node.visibleTop
+            ) {
+                continue;
+            }
+
+            let intersectLeft = Math.max(movedNode.visibleLeft, node.visibleLeft),
+                intersectTop = Math.max(movedNode.visibleTop, node.visibleTop),
+                intersectRight = Math.min(movedNode.visibleLeft + movedNode.visibleWidth, node.visibleLeft + node.visibleWidth),
+                intersectBottom = Math.min(movedNode.visibleTop + movedNode.visibleHeight, node.visibleTop + node.visibleHeight),
+                intersectArea = (intersectRight - intersectLeft) * (intersectBottom - intersectTop),
+                intersectRatio = intersectArea / (node.visibleWidth * node.visibleHeight);
+
+            if (intersectRatio >= 0.666) {
+                mergeNode = node;
+            }
+        }
+
+        if (!isEmpty(mergeNode)) {
+            movedNode.addClass("merge-source");
+            mergeNode.addClass("merge-target");
+        }
+    }
+
+    /**
+     * Calls callbacks for when a node is placed (released somewhere or programmatically set)
+     * @param Node $movedNode The node that was placed.
+     */
+    nodePlaced(node) {
+        this.nodeMoved(node);
+        let sourceNode, targetNode;
+        for (let childNode of this.nodes) {
+            if (childNode.hasClass("merge-source")) {
+                sourceNode = childNode;
+            }
+            if (childNode.hasClass("merge-target")) {
+                targetNode = childNode;
+            }
+        }
+        if (!isEmpty(sourceNode) && !isEmpty(targetNode)) {
+            this.mergeNodes(sourceNode, targetNode);
+        }
+    }
+
+    /**
+     * Calls callbacks for when a node is placed (released somewhere or programmatically set)
+     * @param Node $movedNode The node that was placed.
+     */
+     mergeNodes(sourceNode, targetNode) {
+        sourceNode.removeClass("merge-source");
+        targetNode.removeClass("merge-target");
+        try {
+            let mergedNode = sourceNode.mergeWith(targetNode);
+            this.removeNode(sourceNode);
+            this.removeNode(targetNode);
+            this.addNode(mergedNode);
+        } catch(e) {
+            console.log("Experienced error merging nodes, ignoring", e);
+        }
+    }
+
+    /**
+     * Gets the node class from the name
+     */
+    getNodeClass(className) {
+        let nodeClass = this.nodeClasses
+            .filter((c) => c.name === className)
+            .shift();
+        if (nodeClass === undefined) {
+            throw `Class name out of scope: ${className}`;
+        }
+        return nodeClass;
+    }
+
+    /**
      * Sets new data for the nodes on the canvas
      * @param array<object> $nodes The node data as pulled from getState()
      */
@@ -299,13 +391,8 @@ class NodeEditorView extends View {
         }
         let canvas = this.node.find(E.getCustomTag("nodeCanvas"));
         for (let node of nodes) {
-            let nodeClass = this.nodeClasses
-                .filter((c) => c.name === node['classname'])
-                .shift();
-            if (nodeClass === undefined) {
-                throw 'Class name out of scope: ' + node['classname'];
-            }
-            let newNode = new nodeClass(this);
+            let nodeClass = this.getNodeClass(node.classname),
+                newNode = new nodeClass(this);
             this.nodes.push(newNode);
             await newNode.setState(node);
             canvas.append(await newNode.getNode());
@@ -342,8 +429,16 @@ class NodeEditorView extends View {
      * @param any ...arguments to pass to the constructor     
      */
     async addNode(nodeClass) {
-        let newNode = new nodeClass(this, ...Array.from(arguments).slice(1));
+        let newNode;
+        if (typeof nodeClass === "function") {
+            newNode = new nodeClass(this, ...Array.from(arguments).slice(1));
+        } else {
+            newNode = nodeClass;
+            nodeClass.editor = this;
+        }
 
+        let enableMerge = newNode.canMerge;
+        newNode.canMerge = false;
         this.nodes.push(newNode);
         this.nodes = this.nodes.map((v, i) => {
             v.index = i;
@@ -356,6 +451,8 @@ class NodeEditorView extends View {
 
             canvas.append(childNode);
         }
+
+        newNode.canMerge = enableMerge;
         return newNode;
     }
 

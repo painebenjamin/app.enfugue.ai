@@ -138,6 +138,14 @@ enfugue-node.focused {
     z-index: 2;
 }
 
+enfugue-node.merge-source {
+    background: var(--theme-color-primary);
+}
+
+enfugue-node.merge-target {
+    background-color: var(--theme-color-secondary);
+}
+
 enfugue-node-container {
     display: block;
     width: 100%;
@@ -173,6 +181,42 @@ enfugue-windows-toolbar-item {
 
 enfugue-node.flipped enfugue-node-header {
     bottom: 0;
+}
+
+enfugue-node enfugue-node-compound-contents {
+    display: block;
+    position: relative;
+    width: 100%;
+    height: 100%;
+}
+
+enfugue-node enfugue-node-compound-contents enfugue-node {
+    position: absolute;
+}
+
+enfugue-node enfugue-node-compound-contents enfugue-node enfugue-node-header {
+    display: none;
+}
+
+enfugue-node enfugue-node-compound-contents ul.list-input-view {
+    position: absolute;
+    left: 0;
+    bottom: 35px;
+    justify-content: center;
+    width: 100%;
+    height: 30px;
+    z-index: 2;
+    pointer-events: none;
+}
+
+enfugue-node.flipped enfugue-node-compound-contents ul.list-input-view {
+    bottom: auto;
+    top: 35px;
+}
+
+enfugue-node enfugue-node-compound-contents ul.list-input-view li {
+    font-size: 11px;
+    pointer-events: auto;
 }
 
 enfugue-windows-toolbar-item {
@@ -567,6 +611,13 @@ enfugue-node-editor.image-editor enfugue-node.image-editor-prompt-node-view form
     top: 0 !important;
 }
 
+enfugue-node-editor.image-editor enfugue-node.image-editor-image-node-view enfugue-image-scribble-view {
+    display: block;
+    position: absolute;
+    width: 100%;
+    height: 100%;
+}
+
 enfugue-node-editor.image-editor enfugue-node.image-editor-image-node-view enfugue-scribble-view {
     opacity: 0.5;
 }
@@ -581,6 +632,10 @@ enfugue-node-editor.image-editor enfugue-node form label,
 enfugue-node-editor.image-editor enfugue-node form input {
     font-size: 11px;
     color: white;
+}
+
+enfugue-node-editor.image-editor enfugue-node form enfugue-prompt-input-view input {
+    font-size: 9px;
 }
 
 enfugue-node-editor.image-editor enfugue-node form legend {

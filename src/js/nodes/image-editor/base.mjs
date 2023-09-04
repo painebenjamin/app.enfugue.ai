@@ -8,6 +8,11 @@ import { NodeView } from "../base.mjs";
  */
 class ImageEditorNodeView extends NodeView {
     /**
+     * @var bool Disable merging for most nodes
+     */
+    static canMerge = false;
+
+    /**
      * @var string The name to show in the menu
      */
     static nodeTypeName = "Base";
@@ -92,7 +97,7 @@ class ImageEditorNodeView extends NodeView {
             this.optionsForm = new this.constructor.optionsFormView(this.config);
             this.optionsForm.onSubmit((values) => this.updateOptions(values));
             let optionsNode = await this.optionsForm.getNode();
-            this.optionsForm.setValues(this.getState());
+            this.optionsForm.setValues(this.getState(), false);
             this.node.find("enfugue-node-contents").append(optionsNode);
         } else if (this.optionsForm.hidden) {
             this.optionsForm.show();
@@ -104,15 +109,8 @@ class ImageEditorNodeView extends NodeView {
     /**
      * When state is set, send to form
      */
-    setState(newState) {
-        super.setState({
-            name: newState.name,
-            x: newState.x - this.constructor.padding,
-            y: newState.y - this.constructor.padding,
-            h: newState.h + (this.constructor.padding * 2),
-            w: newState.w + (this.constructor.padding * 2)
-        });
-        
+    async setState(newState) {
+        await super.setState(newState);
         this.updateOptions(newState);
         
         if (!isEmpty(this.optionsForm)) {

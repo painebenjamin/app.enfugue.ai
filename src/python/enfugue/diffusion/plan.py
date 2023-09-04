@@ -31,6 +31,7 @@ from enfugue.util import (
     logger,
     feather_mask,
     fit_image,
+    images_are_equal,
     remove_background as execute_remove_background,
     TokenMerger,
     IMAGE_FIT_LITERAL,
@@ -73,28 +74,33 @@ MAX_IMAGE_SCALE = 3.0
 __all__ = ["NodeDict", "DiffusionStep", "DiffusionPlan"]
 
 
+class ControlImageDict(TypedDict):
+    controlnet: CONTROLNET_LITERAL
+    image: PIL.Image.Image
+    fit: Optional[IMAGE_FIT_LITERAL]
+    anchor: Optional[IMAGE_ANCHOR_LITERAL]
+    scale: Optional[float]
+    process: Optional[bool]
+    invert: Optional[bool]
+
 class NodeDict(TypedDict):
     w: int
     h: int
     x: int
     y: int
+    control_images: Optional[List[ControlImageDict]]
+    image: Optional[PIL.Image.Image]
+    mask: Optional[PIL.Image.Image]
     fit: Optional[IMAGE_FIT_LITERAL]
     anchor: Optional[IMAGE_ANCHOR_LITERAL]
-    infer: Optional[bool]
-    inpaint: Optional[bool]
-    control: Optional[bool]
-    controlnet: Optional[str]
     prompt: Optional[str]
     prompt_2: Optional[str]
     negative_prompt: Optional[str]
     negative_prompt_2: Optional[str]
     strength: Optional[float]
-    conditioning_scale: Optional[float]
-    image: Optional[PIL.Image.Image]
-    mask: Optional[PIL.Image.Image]
-    process_control_image: Optional[bool]
+    ip_adapter_image: Optional[PIL.Image.Image]
+    ip_adapter_scale: Optional[float]
     remove_background: Optional[bool]
-    invert: Optional[bool]
     invert_mask: Optional[bool]
     crop_inpaint: Optional[bool]
     inpaint_feather: Optional[int]
@@ -118,14 +124,14 @@ class DiffusionStep:
         negative_prompt_2: Optional[str] = None,
         image: Optional[Union[DiffusionStep, PIL.Image.Image, str]] = None,
         mask: Optional[Union[DiffusionStep, PIL.Image.Image, str]] = None,
-        control_image: Optional[Union[DiffusionStep, PIL.Image.Image, str]] = None,
-        controlnet: Optional[CONTROLNET_LITERAL] = None,
-        conditioning_scale: Optional[float] = DEFAULT_CONDITIONING_SCALE,
-        strength: Optional[float] = DEFAULT_IMG2IMG_STRENGTH,
+        control_images: Optional[List[ControlImageDict]] = None,
+        ip_adapter_scale: Optional[float] = None,
+        ip_adapter_image: Optional[float] = None,
+        strength: Optional[float] = None,
         num_inference_steps: Optional[int] = DEFAULT_INFERENCE_STEPS,
         guidance_scale: Optional[float] = DEFAULT_GUIDANCE_SCALE,
-        refiner_start: Optional[float] = DEFAULT_REFINER_START,
-        refiner_strength: Optional[float] = DEFAULT_REFINER_STRENGTH,
+        refiner_start: Optional[float] = None,
+        refiner_strength: Optional[float] = None,
         refiner_guidance_scale: Optional[float] = DEFAULT_REFINER_GUIDANCE_SCALE,
         refiner_aesthetic_score: Optional[float] = DEFAULT_AESTHETIC_SCORE,
         refiner_negative_aesthetic_score: Optional[float] = DEFAULT_NEGATIVE_AESTHETIC_SCORE,
@@ -136,7 +142,6 @@ class DiffusionStep:
         crop_inpaint: Optional[bool] = True,
         inpaint_feather: Optional[int] = None,
         remove_background: bool = False,
-        process_control_image: bool = True,
         scale_to_model_size: bool = True,
     ) -> None:
         self.name = name
@@ -148,14 +153,20 @@ class DiffusionStep:
         self.negative_prompt_2 = negative_prompt_2
         self.image = image
         self.mask = mask
-        self.control_image = control_image
-        self.controlnet = controlnet
-        self.strength = strength if strength is not None else DEFAULT_IMG2IMG_STRENGTH
-        self.conditioning_scale = conditioning_scale if conditioning_scale is not None else DEFAULT_CONDITIONING_SCALE
+        self.ip_adapter_scale = ip_adapter_scale
+        self.ip_adapter_image = ip_adapter_image
+        self.control_images = control_images
+        self.strength = strength
+        self.refiner_start = refiner_start
+        self.refiner_strength = refiner_strength
+        self.refiner_prompt = refiner_prompt
+        self.refiner_prompt_2 = refiner_prompt_2
+        self.refiner_negative_prompt = refiner_negative_prompt
+        self.refiner_negative_prompt_2 = refiner_negative_prompt_2
+        self.remove_background = remove_background
+        self.scale_to_model_size = scale_to_model_size
         self.num_inference_steps = num_inference_steps if num_inference_steps is not None else DEFAULT_INFERENCE_STEPS
         self.guidance_scale = guidance_scale if guidance_scale is not None else DEFAULT_GUIDANCE_SCALE
-        self.refiner_start = refiner_start if refiner_start is not None else DEFAULT_REFINER_START
-        self.refiner_strength = refiner_strength if refiner_strength is not None else DEFAULT_REFINER_STRENGTH
         self.refiner_guidance_scale = (
             refiner_guidance_scale if refiner_guidance_scale is not None else DEFAULT_REFINER_GUIDANCE_SCALE
         )
@@ -167,13 +178,6 @@ class DiffusionStep:
             if refiner_negative_aesthetic_score is not None
             else DEFAULT_NEGATIVE_AESTHETIC_SCORE
         )
-        self.refiner_prompt = refiner_prompt
-        self.refiner_prompt_2 = refiner_prompt_2
-        self.refiner_negative_prompt = refiner_negative_prompt
-        self.refiner_negative_prompt_2 = refiner_negative_prompt_2
-        self.remove_background = remove_background
-        self.process_control_image = process_control_image
-        self.scale_to_model_size = scale_to_model_size
         self.crop_inpaint = crop_inpaint if crop_inpaint is not None else True
         self.inpaint_feather = inpaint_feather if inpaint_feather is not None else 32
 
@@ -189,9 +193,8 @@ class DiffusionStep:
             "prompt_2": self.prompt_2,
             "negative_prompt": self.negative_prompt,
             "negative_prompt_2": self.negative_prompt_2,
-            "controlnet": self.controlnet,
-            "conditioning_scale": self.conditioning_scale,
             "strength": self.strength,
+            "ip_adapter_scale": self.ip_adapter_scale,
             "num_inference_steps": self.num_inference_steps,
             "guidance_scale": self.guidance_scale,
             "remove_background": self.remove_background,
@@ -204,14 +207,13 @@ class DiffusionStep:
             "refiner_prompt_2": self.refiner_prompt_2,
             "refiner_negative_prompt": self.refiner_negative_prompt,
             "refiner_negative_prompt_2": self.refiner_negative_prompt_2,
-            "process_control_image": self.process_control_image,
             "scale_to_model_size": self.scale_to_model_size,
             "crop_inpaint": self.crop_inpaint,
             "inpaint_feather": self.inpaint_feather,
         }
 
         serialize_children: List[DiffusionStep] = []
-        for key in ["image", "mask", "control_image"]:
+        for key in ["image", "mask", "ip_adapter_image"]:
             child = getattr(self, key)
             if isinstance(child, DiffusionStep):
                 if child in serialize_children:
@@ -225,7 +227,29 @@ class DiffusionStep:
                 serialized[key] = path
             else:
                 serialized[key] = child
-
+        if self.control_images:
+            control_images = []
+            for control_image in self.control_images:
+                image_dict = {
+                    "controlnet": control_image["controlnet"],
+                    "scale": control_image.get("scale", 1.0),
+                    "fit": control_image.get("fit", None),
+                    "anchor": control_image.get("anchor", None),
+                }
+                if isinstance(control_image["image"], DiffusionStep):
+                    if control_image["image"] in serialize_children:
+                        image_dict["image"] = serialize_children.index(control_image["image"])
+                    else:
+                        serialize_children.append(control_image["image"])
+                        image_dict["image"] = len(serialize_children) - 1
+                elif control_image["image"] is not None and image_directory is not None:
+                    path = os.path.join(image_directory, f"{get_uuid()}.png")
+                    control_image["image"].save(path)
+                    image_dict["image"] = path # type:ignore[assignment]
+                else:
+                    image_dict["image"] = control_image["image"]
+                control_images.append(image_dict)
+            serialized["control_images"] = control_images
         serialized["children"] = [child.get_serialization_dict(image_directory) for child in serialize_children]
         return serialized
 
@@ -242,9 +266,9 @@ class DiffusionStep:
             "negative_prompt": self.negative_prompt,
             "negative_prompt_2": self.negative_prompt_2,
             "image": self.image,
-            "control_image": self.control_image,
-            "conditioning_scale": self.conditioning_scale,
             "strength": self.strength,
+            "ip_adapter_scale": self.ip_adapter_scale,
+            "ip_adapter_image": self.ip_adapter_image,
             "num_inference_steps": self.num_inference_steps,
             "guidance_scale": self.guidance_scale,
             "refiner_start": self.refiner_start,
@@ -330,35 +354,35 @@ class DiffusionStep:
         image.paste(foreground, position, mask=mask)
         return image
 
-    def check_process_control_image(
-        self, pipeline: DiffusionPipelineManager, control_image: Optional[PIL.Image.Image]
-    ) -> Optional[PIL.Image.Image]:
+    @staticmethod
+    def process_control_image(
+        pipeline: DiffusionPipelineManager,
+        controlnet: str,
+        control_image: PIL.Image.Image
+    ) -> PIL.Image.Image:
         """
         Gets the control image for the pipeline based on the requested controlnet
         """
-        if self.controlnet is None or control_image is None:
-            return None
-        if self.process_control_image:
-            if self.controlnet == "canny":
-                return pipeline.edge_detector.canny(control_image)
-            if self.controlnet == "hed":
-                return pipeline.edge_detector.hed(control_image)
-            if self.controlnet == "scribble":
-                return pipeline.edge_detector.hed(control_image, scribble=True)
-            if self.controlnet == "pidi":
-                return pipeline.edge_detector.pidi(control_image)
-            if self.controlnet == "depth":
-                return pipeline.depth_detector.midas(control_image)
-            if self.controlnet == "normal":
-                return pipeline.depth_detector.normal(control_image)
-            if self.controlnet == "pose":
-                return pipeline.pose_detector.detect(control_image)
-            if self.controlnet == "line":
-                return pipeline.line_detector.detect(control_image)
-            if self.controlnet == "anime":
-                return pipeline.line_detector.detect(control_image, anime=True)
-            if self.controlnet == "mlsd":
-                return pipeline.line_detector.mlsd(control_image)
+        if controlnet == "canny":
+            return pipeline.edge_detector.canny(control_image)
+        if controlnet == "hed":
+            return pipeline.edge_detector.hed(control_image)
+        if controlnet == "scribble":
+            return pipeline.edge_detector.hed(control_image, scribble=True)
+        if controlnet == "pidi":
+            return pipeline.edge_detector.pidi(control_image)
+        if controlnet == "depth":
+            return pipeline.depth_detector.midas(control_image)
+        if controlnet == "normal":
+            return pipeline.depth_detector.normal(control_image)
+        if controlnet == "pose":
+            return pipeline.pose_detector.detect(control_image)
+        if controlnet == "line":
+            return pipeline.line_detector.detect(control_image)
+        if controlnet == "anime":
+            return pipeline.line_detector.detect(control_image, anime=True)
+        if controlnet == "mlsd":
+            return pipeline.line_detector.mlsd(control_image)
         return control_image
 
     def execute(
@@ -382,6 +406,13 @@ class DiffusionStep:
         else:
             image = self.image
 
+        if isinstance(self.ip_adapter_image, DiffusionStep):
+            ip_adapter_image = self.ip_adapter_image.execute(pipeline, samples=1, **kwargs)["images"][0] # type: ignore[unreachable]
+        elif isinstance(self.ip_adapter_image, str):
+            ip_adapter_image = PIL.Image.open(self.ip_adapter_image) # type: ignore[unreachable]
+        else:
+            ip_adapter_image = self.ip_adapter_image
+
         if isinstance(self.mask, DiffusionStep):
             mask = self.mask.execute(pipeline, samples=1, **kwargs)["images"][0]
         elif isinstance(self.mask, str):
@@ -389,14 +420,31 @@ class DiffusionStep:
         else:
             mask = self.mask
 
-        if isinstance(self.control_image, DiffusionStep):
-            control_image = self.control_image.execute(pipeline, samples=1, **kwargs)["images"][0]
-        elif isinstance(self.control_image, str):
-            control_image = PIL.Image.open(self.control_image)
-        else:
-            control_image = self.control_image
+        if self.control_images is not None:
+            control_images: Dict[str, List[Tuple[PIL.Image.Image, float]]] = {}
+            for control_image_dict in self.control_images:
+                control_image = control_image_dict["image"]
+                controlnet = control_image_dict["controlnet"]
 
-        if not self.prompt:
+                if isinstance(control_image, DiffusionStep):
+                    control_image = control_image.execute(pipeline, samples=1, **kwargs)["images"][0]
+                elif isinstance(control_image, str):
+                    control_image = PIL.Image.open(control_image)
+
+                conditioning_scale = control_image_dict.get("scale", 1.0)
+                if control_image_dict.get("process", True):
+                    control_image = self.process_control_image(pipeline, controlnet, control_image)
+                elif control_image_dict.get("invert", False):
+                    control_image = PIL.ImageOps.invert(control_image)
+
+                if controlnet not in control_images:
+                    control_images[controlnet] = [] # type: ignore[assignment]
+
+                control_images[controlnet].append((control_image, conditioning_scale)) # type: ignore[arg-type]
+        else:
+            control_images = None # type: ignore[assignment]
+
+        if not self.prompt and not mask and not control_images and not ip_adapter_image:
             if image:
                 if self.remove_background:
                     image = execute_remove_background(image)
@@ -410,7 +458,6 @@ class DiffusionStep:
                 return self.result
             raise ValueError("No prompt or image in this step; cannot invoke or pass through.")
 
-        pipeline.controlnet = self.controlnet
         invocation_kwargs = {**kwargs, **self.kwargs}
 
         image_scale = 1
@@ -420,19 +467,12 @@ class DiffusionStep:
         if image is not None:
             image_width, image_height = image.size
             invocation_kwargs["image"] = image
-        if control_image is not None:
-            if image is not None:
-                assert image.size == control_image.size
-            else:
-                image_width, image_height = control_image.size
-            invocation_kwargs["control_image"] = control_image
         if mask is not None:
             mask_width, mask_height = mask.size
             if (
                 self.crop_inpaint
                 and (mask_width > pipeline_size or mask_height > pipeline.size)
                 and image is not None
-                and control_image is None
             ):
                 (x0, y0), (x1, y1) = self.get_inpaint_bounding_box(pipeline_size)
 
@@ -459,10 +499,27 @@ class DiffusionStep:
             invocation_kwargs["mask"] = mask
             if image is not None:
                 assert image.size == mask.size
-            if control_image is not None:
-                assert control_image.size == mask.size
             else:
                 image_width, image_height = mask.size
+        if isinstance(ip_adapter_image, PIL.Image.Image):
+            if image_width is None or image_height is None:
+                image_width, image_height = ip_adapter_image.size
+            else:
+                image_prompt_width, image_prompt_height = ip_adapter_image.size
+                assert image_prompt_width == image_width and image_prompt_height == image_height
+        if control_images is not None:
+            for controlnet_name in control_images:
+                for control_image, conditioning_scale in control_images[controlnet_name]:
+                    if image_width is None or image_height is None:
+                        image_width, image_height = control_image.size
+                    else:
+                        this_width, this_height = control_image.size
+                        assert image_width == this_width and image_height == this_height
+            invocation_kwargs["control_images"] = control_images
+            if mask is not None:
+                pipeline.inpainter_controlnets = list(control_images.keys())
+            else:
+                pipeline.controlnets = list(control_images.keys())
 
         if self.width is not None and self.height is not None and image_width is None and image_height is None:
             image_width, image_height = self.width, self.height
@@ -482,13 +539,18 @@ class DiffusionStep:
 
         invocation_kwargs["width"] = 8 * math.ceil((image_width * image_scale) / 8)
         invocation_kwargs["height"] = 8 * math.ceil((image_height * image_scale) / 8)
-        invocation_kwargs["control_image"] = self.check_process_control_image(pipeline, control_image)
 
         if image_scale > 1:
             # scale input images up
-            for key in ["image", "mask", "control_image"]:
+            for key in ["image", "mask", "image_mask_image"]:
                 if invocation_kwargs.get(key, None) is not None:
                     invocation_kwargs[key] = self.scale_image(invocation_kwargs[key], image_scale)
+            for controlnet_name in invocation_kwargs.get("control_images", {}):
+                for i, (control_image, conditioning_scale) in invocation_kwargs["control_images"].get(controlnet_name, []):
+                    invocation_kwargs["control_images"][controlnet_name][i] = (
+                        self.scale_image(control_image, image_scale),
+                        conditioning_scale
+                    )
 
         latent_callback = invocation_kwargs.get("latent_callback", None)
         if image_background is not None and image_position is not None and latent_callback is not None:
@@ -541,11 +603,10 @@ class DiffusionStep:
             "prompt_2",
             "negative_prompt",
             "negative_prompt_2",
-            "controlnet",
-            "conditioning_scale",
             "strength",
             "num_inference_steps",
             "guidance_scale",
+            "ip_adapter_scale",
             "refiner_start",
             "refiner_strength",
             "refiner_guidance_scale",
@@ -558,7 +619,6 @@ class DiffusionStep:
             "width",
             "height",
             "remove_background",
-            "process_control_image",
             "scale_to_model_size",
             "crop_inpaint",
             "inpaint_feather"
@@ -567,7 +627,7 @@ class DiffusionStep:
                 kwargs[key] = step_dict[key]
 
         deserialized_children = [DiffusionStep.deserialize_dict(child) for child in step_dict.get("children", [])]
-        for key in ["image", "control_image", "mask"]:
+        for key in ["image", "mask", "ip_adapter_image"]:
             if key not in step_dict:
                 continue
             if isinstance(step_dict[key], int):
@@ -577,6 +637,22 @@ class DiffusionStep:
                 kwargs[key] = PIL.Image.open(step_dict[key])
             else:
                 kwargs[key] = step_dict[key]
+        if "control_images" in step_dict:
+            control_images: List[Dict[str, Any]] = []
+            for control_image_dict in step_dict["control_images"]:
+                control_image = control_image_dict["image"]
+                if isinstance(control_image, int):
+                    control_image = deserialized_children[control_image]
+                elif isinstance(control_image, str):
+                    control_image = PIL.Image.open(control_image)
+                control_images.append({
+                    "image": control_image,
+                    "controlnet": control_image_dict["controlnet"],
+                    "scale": control_image_dict.get("scale", 1.0),
+                    "process": control_image_dict.get("process", True),
+                    "invert": control_image_dict.get("invert", False)
+                })
+            kwargs["control_images"] = control_images
 
         return DiffusionStep(**kwargs)
 
@@ -675,6 +751,7 @@ class DiffusionPlan:
         iterations: Optional[int] = 1,
         seed: Optional[int] = None,
         build_tensorrt: bool = False,
+        outpaint: bool = True,
         outscale: Optional[int] = 1,
         upscale: Optional[Union[UPSCALE_LITERAL, List[UPSCALE_LITERAL]]] = None,
         upscale_diffusion: bool = False,
@@ -721,6 +798,7 @@ class DiffusionPlan:
         self.iterations = iterations if iterations is not None else 1
         self.seed = seed if seed is not None else randint(1, sys.maxsize)
 
+        self.outpaint = outpaint
         self.build_tensorrt = build_tensorrt
         self.nodes = nodes
         self.outscale = outscale if outscale is not None else 1
@@ -888,44 +966,24 @@ class DiffusionPlan:
                             "progress_callback": progress_callback,
                         }
 
+                        use_refiner = self.refiner and self.upscale_pipeline != "base"
                         upscale_controlnet = get_item_for_scale(self.upscale_diffusion_controlnet)
                         if upscale_controlnet is not None:
                             logger.debug(f"Enabling {upscale_controlnet} for upscale diffusion")
-                            if upscale_controlnet == "canny":
-                                pipeline.controlnet = "canny"
-                                kwargs["control_image"] = pipeline.edge_detector.canny(image)
-                            elif upscale_controlnet == "hed":
-                                pipeline.controlnet = "hed"
-                                kwargs["control_image"] = pipeline.edge_detector.hed(image)
-                            elif upscale_controlnet == "scribble":
-                                pipeline.controlnet = "scribble"
-                                kwargs["control_image"] = pipeline.edge_detector.hed(image, scribble=True)
-                            elif upscale_controlnet == "mlsd":
-                                pipeline.controlnet = "mlsd"
-                                kwargs["control_image"] = pipeline.line_detector.mlsd(image)
-                            elif upscale_controlnet == "line":
-                                pipeline.controlnet = "line"
-                                kwargs["control_image"] = pipeline.line_detector.line(image)
-                            elif upscale_controlnet == "anime":
-                                pipeline.controlnet = "anime"
-                                kwargs["control_image"] = pipeline.line_detector.line(image, anime=True)
-                            elif upscale_controlnet == "tile":
-                                pipeline.controlnet = "tile"
-                                kwargs["control_image"] = image
-                            elif upscale_controlnet == "depth":
-                                pipeline.controlnet = "depth"
-                                kwargs["control_image"] = pipeline.depth_detector.midas(image)
-                            elif upscale_controlnet == "normal":
-                                pipeline.controlnet = "normal"
-                                kwargs["control_image"] = pipeline.depth_detector.normal(image)
+                            if use_refiner:
+                                pipeline.refiner_controlnets = upscale_controlnet
                             else:
-                                logger.error(f"Unknown controlnet {upscale_controlnet}, ignoring.")
-                                pipeline.controlnet = None
-                        else:
-                            pipeline.controlnet = None
-                        if self.refiner and self.upscale_pipeline != "base":
+                                pipeline.controlnets = upscale_controlnet
+                            kwargs["control_images"] = [{
+                                upscale_controlnet: DiffusionStep.process_control_image(
+                                    pipeline, upscale_controlnet, image
+                                )
+                            }]
+                        elif use_refiner:
+                            pipeline.refiner_controlnets = None
                             upscale_pipeline = pipeline.refiner_pipeline
                         else:
+                            pipeline.controlnets = None
                             pipeline.reload_pipeline()  # If we didn't change controlnet, then pipeline is still on CPU
                             upscale_pipeline = pipeline.pipeline
 
@@ -970,9 +1028,12 @@ class DiffusionPlan:
         """
         Removes images from a metadata dictionary
         """
-        for key in ["image", "control_image", "mask"]:
-            if metadata.get(key, None) is not None:
+        for key in ["image", "ip_adapter_image", "mask"]:
+            if isinstance(metadata.get(key, None), PIL.Image.Image):
                 metadata[key] = self.get_image_metadata(metadata[key])
+        if "control_images" in metadata:
+            for i, control_dict in enumerate(metadata["control_images"]):
+                control_dict["image"] = self.get_image_metadata(control_dict["image"])
         if "children" in metadata:
             for child in metadata["children"]:
                 self.redact_images_from_metadata(child)
@@ -1132,7 +1193,7 @@ class DiffusionPlan:
 
         # Determine if there's anything left to outpaint
         image_r_min, image_r_max = outpaint_mask.getextrema()[1]
-        if image_r_max > 0 and self.prompt:
+        if image_r_max > 0 and self.prompt and self.outpaint:
             # Outpaint
             del invocation_kwargs["num_images_per_prompt"]
             outpaint_mask = feather_mask(outpaint_mask)
@@ -1263,6 +1324,7 @@ class DiffusionPlan:
             "chunking_size": self.chunking_size,
             "chunking_blur": self.chunking_blur,
             "build_tensorrt": self.build_tensorrt,
+            "outpaint": self.outpaint,
         }
 
     @staticmethod
@@ -1300,6 +1362,7 @@ class DiffusionPlan:
             "negative_prompt",
             "negative_prompt_2",
             "build_tensorrt",
+            "outpaint",
         ]:
             if arg in plan_dict:
                 kwargs[arg] = plan_dict[arg]
@@ -1403,23 +1466,19 @@ class DiffusionPlan:
                 "y": 0,
                 "fit": None,
                 "anchor": None,
-                "infer": False,
-                "inpaint": False,
-                "control": False,
-                "controlnet": None,
+                "control_images": None,
                 "prompt": None,
                 "prompt_2": None,
                 "negative_prompt": None,
                 "negative_prompt_2": None,
                 "strength": None,
-                "conditioning_scale": None,
                 "mask": None,
-                "process_control_image": None,
                 "remove_background": None,
-                "invert": None,
                 "invert_mask": None,
                 "crop_inpaint": None,
-                "inpaint_feather": None
+                "inpaint_feather": None,
+                "ip_adapter_image": None,
+                "ip_adapter_scale": None
             }
         ]
         return DiffusionPlan.assemble(
@@ -1492,10 +1551,11 @@ class DiffusionPlan:
         fit: Optional[IMAGE_FIT_LITERAL] = None,
         anchor: Optional[IMAGE_ANCHOR_LITERAL] = None,
         strength: Optional[float] = None,
-        control_image: Optional[Union[str, PIL.Image.Image]] = None,
-        controlnet: Optional[CONTROLNET_LITERAL] = None,
-        conditioning_scale: Optional[float] = None,
-        process_control_image: bool = True,
+        ip_adapter_scale: Optional[float] = None,
+        ip_adapter_image: Optional[Union[str, PIL.Image.Image]] = None,
+        ip_adapter_image_fit: Optional[IMAGE_FIT_LITERAL] = None,
+        ip_adapter_image_anchor: Optional[IMAGE_ANCHOR_LITERAL] = None,
+        control_images: Optional[List[ControlImageDict]] = None,
         remove_background: bool = False,
         fill_background: bool = False,
         scale_to_model_size: bool = True,
@@ -1726,7 +1786,6 @@ class DiffusionPlan:
                 negative_prompt_2_tokens.add(model_negative_prompt_2, MODEL_PROMPT_WEIGHT)
 
             if image:
-                name = "Image to Image"
                 if isinstance(image, str):
                     image = PIL.Image.open(image)
                 if width and height:
@@ -1735,7 +1794,6 @@ class DiffusionPlan:
                     width, height = image.size
                 
             if mask:
-                name = "Text to Image"
                 if isinstance(mask, str):
                     mask = PIL.Image.open(mask)
                 if width and height:
@@ -1743,20 +1801,37 @@ class DiffusionPlan:
                 else:
                     width, height = mask.size
             
-            if control_image:
-                name = "Controlled Image to Image" if image else "Controlled Text to Image"
-                if isinstance(control_image, str):
-                    control_image = PIL.Image.open(control_image)
+            if ip_adapter_image:
+                if isinstance(ip_adapter_image, str):
+                    ip_adapter_image = PIL.Image.open(ip_adapter_image)
                 if width and height:
-                    control_image = fit_image(control_image, width, height, fit, anchor)
+                    ip_adapter_image = fit_image(ip_adapter_image, width, height, ip_adapter_image_fit, ip_adapter_image_anchor)
                 else:
-                    width, height = control_image.size
+                    width, height = ip_adapter_image.size
+
+            if control_images:
+                for i, control_image_dict in enumerate(control_images):
+                    control_image = control_image_dict["image"]
+                    control_anchor = control_image_dict.get("anchor", anchor)
+                    control_fit = control_image_dict.get("fit", fit)
+
+                    if isinstance(control_image, str):
+                        control_image = PIL.Image.open(control_image)
+                    if width and height:
+                        control_image = fit_image(control_image, width, height, fit, anchor)
+                    else:
+                        width, height = control_image.size
+
+                    control_images[i] = { # type: ignore[call-overload]
+                        "image": control_image,
+                        "controlnet": control_image_dict["controlnet"],
+                        "process": control_image_dict.get("process", True),
+                        "scale": control_image_dict.get("scale", 1.0),
+                        "invert": control_image_dict.get("invert", False)
+                    }
 
             if mask and invert_mask:
                 mask = PIL.ImageOps.invert(mask.convert("L"))
-            
-            if control_image and not process_control_image and invert_control_image:
-                control_image = PIL.ImageOps.invert(control_image)
             
             if image and remove_background and fill_background:
                 image = execute_remove_background(image)
@@ -1769,6 +1844,31 @@ class DiffusionPlan:
                 black = PIL.Image.new("RGB", image.size, (0, 0, 0))
                 mask.paste(black, mask=alpha)
 
+            if control_images and image and mask and ip_adapter_scale:
+                name = "Controlled Inpainting with Image Prompting"
+            elif control_images and image and mask:
+                name = "Controlled Inpainting"
+            elif control_images and image and ip_adapter_scale and strength:
+                name = "Controlled Image to Image with Image Prompting"
+            elif control_images and image and ip_adapter_scale:
+                name = "Controlled Text to Image with Image Prompting"
+            elif control_images and image and strength:
+                name = "Controlled Image to Image"
+            elif control_images:
+                name = "Controlled Text to Image"
+            elif image and mask and ip_adapter_scale:
+                name = "Inpainting with Image Prompting"
+            elif image and mask:
+                name = "Inpainting"
+            elif image and strength and ip_adapter_scale:
+                name = "Image to Image with Image Prompting"
+            elif image and ip_adapter_scale:
+                name = "Text to Image with Image Prompting"
+            elif image and strength:
+                name = "Image to Image"
+            else:
+                name = "Text to Image"
+
             step = DiffusionStep(
                 name=name,
                 width=width,
@@ -1780,6 +1880,8 @@ class DiffusionPlan:
                 num_inference_steps=num_inference_steps,
                 guidance_scale=guidance_scale,
                 strength=strength,
+                ip_adapter_scale=ip_adapter_scale,
+                ip_adapter_image=ip_adapter_image,
                 refiner_start=refiner_start,
                 refiner_strength=refiner_strength,
                 refiner_guidance_scale=refiner_guidance_scale,
@@ -1794,11 +1896,8 @@ class DiffusionPlan:
                 image=image,
                 mask=mask,
                 remove_background=remove_background,
-                process_control_image=process_control_image,
                 scale_to_model_size=scale_to_model_size,
-                controlnet=controlnet,
-                control_image=control_image,
-                conditioning_scale=conditioning_scale,
+                control_images=control_images
             )
 
             if not width:
@@ -1847,26 +1946,24 @@ class DiffusionPlan:
             node_fit = node_dict.get("fit", None)
             node_anchor = node_dict.get("anchor", None)
 
-            node_infer = node_dict.get("infer", False)
-            node_inpaint = node_dict.get("inpaint", False)
-            node_control = node_dict.get("control", False)
-
-            node_controlnet = node_dict.get("controlnet", None)
             node_prompt = node_dict.get("prompt", None)
             node_prompt_2 = node_dict.get("prompt_2", None)
             node_negative_prompt = node_dict.get("negative_prompt", None)
             node_negative_prompt_2 = node_dict.get("negative_prompt_2", None)
             node_strength: Optional[float] = node_dict.get("strength", None)
-            node_conditioning_scale: Optional[float] = node_dict.get("conditioning_scale", None)
             node_image = node_dict.get("image", None)
             node_inpaint_mask = node_dict.get("mask", None)
             node_crop_inpaint = node_dict.get("crop_inpaint", crop_inpaint)
             node_inpaint_feather = node_dict.get("inpaint_feather", inpaint_feather)
-            node_invert = node_dict.get("invert", False)
             node_invert_mask = node_dict.get("invert_mask", False)
-            node_process_control_image = node_dict.get("process_control_image", True)
             node_scale_to_model_size = node_dict.get("scale_to_model_size", True)
             node_remove_background = bool(node_dict.get("remove_background", False))
+            node_ip_adapter_scale: Optional[float] = node_dict.get("ip_adapter_scale", None) # type: ignore[assignment]
+            node_ip_adapter_image: Optional[float] = node_dict.get("ip_adapter_image", None) # type: ignore[assignment]
+            node_ip_adapter_image_fit: Optional[str] = node_dict.get("ip_adapter_image_fit", None) # type: ignore[assignment]
+            node_ip_adapter_image_anchor: Optional[str] = node_dict.get("ip_adapter_image_anchor", None) # type: ignore[assignment]
+
+            node_control_images: Optional[List[ControlImageDict]] = node_dict.get("control_images", None)
             node_inference_steps: Optional[int] = node_dict.get("inference_steps", None)  # type: ignore[assignment]
             node_guidance_scale: Optional[float] = node_dict.get("guidance_scale", None)  # type: ignore[assignment]
             node_refiner_start: Optional[float] = node_dict.get("refiner_start", None) # type: ignore[assignment]
@@ -1884,12 +1981,24 @@ class DiffusionPlan:
                 node_width = int(node_dict["w"])
             elif node_image is not None:  # type: ignore[unreachable]
                 node_width, _ = node_image.size
+            elif node_inpaint_mask is not None:
+                node_width, _ = node_inpaint_mask.size
+            elif node_ip_adapter_image is not None:
+                node_width, _ = node_ip_adapter_image.size
+            elif node_control_images:
+                node_width, _ = node_control_images[next(iter(node_control_images))][0]["image"].size
             else:
                 raise ValueError(f"Node {i} missing width, pass 'w' or an image")
             if "h" in node_dict:
                 node_height = int(node_dict["h"])
             elif node_image is not None:  # type: ignore[unreachable]
                 _, node_height = node_image.size
+            elif node_inpaint_mask is not None:
+                _, node_height = node_inpaint_mask.size
+            elif node_ip_adapter_image is not None:
+                _, node_height = node_ip_adapter_image.size
+            elif node_control_images:
+                _, node_height = node_control_images[next(iter(node_control_images))][0]["image"].size
             else:
                 raise ValueError(f"Node {i} missing height, pass 'h' or an image")
 
@@ -1902,7 +2011,7 @@ class DiffusionPlan:
                 node_prompt_tokens.add(node_prompt)
                 for merger in upscale_diffusion_prompt_tokens:
                     merger.add(node_prompt, UPSCALE_PROMPT_STEP_WEIGHT / node_count)
-            if prompt and node_image:
+            if prompt and (node_image or node_ip_adapter_image or node_control_images):
                 # Only add global prompt to image nodes, it overrides too much on region nodes
                 node_prompt_tokens.add(prompt, GLOBAL_PROMPT_STEP_WEIGHT)
             if model_prompt:
@@ -1912,7 +2021,7 @@ class DiffusionPlan:
                 node_prompt_2_tokens.add(node_prompt_2)
                 for merger in upscale_diffusion_prompt_2_tokens:
                     merger.add(node_prompt_2, UPSCALE_PROMPT_STEP_WEIGHT / node_count)
-            if prompt_2 and node_image:
+            if prompt_2 and (node_image or node_ip_adapter_image or node_control_images):
                 # Only add global prompt to image nodes, it overrides too much on region nodes
                 node_prompt_2_tokens.add(prompt_2, GLOBAL_PROMPT_STEP_WEIGHT)
             if model_prompt_2:
@@ -1922,7 +2031,7 @@ class DiffusionPlan:
                 node_negative_prompt_tokens.add(node_negative_prompt)
                 for merger in upscale_diffusion_negative_prompt_tokens:
                     merger.add(node_negative_prompt, UPSCALE_PROMPT_STEP_WEIGHT / node_count)
-            if negative_prompt and node_image:
+            if negative_prompt and (node_image or node_ip_adapter_image or node_control_images):
                 # Only add global prompt to image nodes, it overrides too much on region nodes
                 node_negative_prompt_tokens.add(negative_prompt, GLOBAL_PROMPT_STEP_WEIGHT)
             if model_negative_prompt:
@@ -1932,56 +2041,52 @@ class DiffusionPlan:
                 node_negative_prompt_tokens.add(node_negative_prompt_2)
                 for merger in upscale_diffusion_negative_prompt_2_tokens:
                     merger.add(node_negative_prompt_2, UPSCALE_PROMPT_STEP_WEIGHT / node_count)
-            if negative_prompt_2 and node_image:
+            if negative_prompt_2 and (node_image or node_ip_adapter_image or node_control_images):
                 # Only add global prompt to image nodes, it overrides too much on region nodes
                 node_negative_prompt_2_tokens.add(negative_prompt_2, GLOBAL_PROMPT_STEP_WEIGHT)
             if model_negative_prompt_2:
                 node_negative_prompt_2_tokens.add(model_negative_prompt_2, MODEL_PROMPT_WEIGHT)
 
-            if node_image:
-                if node_remove_background:
-                    node_image = execute_remove_background(node_image)
+            black = PIL.Image.new("RGB", (node_width, node_height), (0, 0, 0))
+            white = PIL.Image.new("RGB", (node_width, node_height), (255, 255, 255))
+            outpaint_steps: List[DiffusionStep] = []
+            outpainted_images: Dict[int, PIL.Image.Image] = {}
 
-                # Resize node image to nearest multiple of 8
-                node_image_width, node_image_height = node_image.size
-                node_image_width = 8 * math.ceil(node_image_width / 8)
-                node_image_height = 8 * math.ceil(node_image_height / 8)
-                node_image = node_image.resize((node_image_width, node_image_height))
+            def prepare_image(
+                image: PIL.Image.Image,
+                outpaint_if_necessary: bool = False,
+                mask: Optional[PIL.Image.Image] = None,
+                fit: Optional[IMAGE_FIT_LITERAL] = None,
+                anchor: Optional[IMAGE_ANCHOR_LITERAL] = None
+            )-> Union[Tuple[PIL.Image.Image, PIL.Image.Image], Tuple[DiffusionStep, Any]]:
+                """
+                Checks if the image needs to be outpainted
+                """
+                nonlocal outpainted_images
+                for step_index, outpainted_image in outpainted_images.items():
+                    if images_are_equal(outpainted_image, image):
+                        return outpaint_steps[step_index], 0
 
-                node_image = fit_image(node_image, node_width, node_height, node_fit, node_anchor)
-                node_mask = PIL.Image.new("RGB", node_image.size, (255, 255, 255))
-                node_alpha = node_image.split()[-1]
-                node_alpha_clamp = PIL.Image.eval(node_alpha, lambda a: 255 if a > 128 else 0)
+                image_mask = PIL.Image.new("RGB", (node_width, node_height), (255, 255, 255)) # Mask for outpainting if needed
+                fitted_image = fit_image(image, node_width, node_height, fit, anchor)
+                fitted_alpha = fitted_image.split()[-1]
+                fitted_alpha_clamp = PIL.Image.eval(fitted_alpha, lambda a: 255 if a > 128 else 0)
 
-                black = PIL.Image.new("RGB", node_image.size, (0, 0, 0))
-                white = PIL.Image.new("RGB", node_image.size, (255, 255, 255))
-                node_mask.paste(black, mask=node_alpha)
-                node_mask_r_min, node_mask_r_max = node_mask.getextrema()[1]
+                image_mask.paste(black, mask=fitted_alpha)
 
-                node_image_needs_outpainting = node_mask_r_max > 0
+                if mask:
+                    image_mask.paste(mask)
+                    fitted_inverse_alpha = PIL.Image.eval(fitted_alpha_clamp, lambda a: 255 - a)
+                    image_mask.paste(white, mask=fitted_inverse_alpha)
 
-                if node_inpaint:
-                    if node_inpaint_mask:
-                        # Inpaint prior to anything else.
-                        node_inpaint_mask = node_inpaint_mask.convert("L")
-                        if node_invert_mask:
-                            node_inpaint_mask = PIL.ImageOps.invert(node_inpaint_mask)
-                    else:
-                        # Make blank mask
-                        node_inpaint_mask = PIL.Image.new("L", node_image.size, 0)
-                    if node_image_needs_outpainting:
-                        # Merge inpaint and outpaint masks
-                        node_mask.paste(node_inpaint_mask)
-                        node_inverse_alpha = PIL.Image.eval(node_alpha_clamp, lambda a: 255 - a)
-                        node_mask.paste(white, mask=node_inverse_alpha)
-                    else:
-                        # Just use inpaint mask
-                        node_mask.paste(node_inpaint_mask)
+                image_mask_r_min, image_mask_r_max = image_mask.getextrema()[1]
+                image_needs_outpainting = image_mask_r_max > 0
 
-                    inpaint_image_step = DiffusionStep(
-                        name=f"Inpaint Node {i+1}",
-                        image=node_image,
-                        mask=feather_mask(node_mask.convert("1")),
+                if image_needs_outpainting and outpaint_if_necessary:
+                    step = DiffusionStep(
+                        name=f"Outpaint Node {i+1}",
+                        image=fitted_image,
+                        mask=feather_mask(image_mask.convert("1")),
                         prompt=str(node_prompt_tokens),
                         prompt_2=str(node_prompt_2_tokens),
                         negative_prompt=str(node_negative_prompt_tokens),
@@ -2000,119 +2105,141 @@ class DiffusionPlan:
                         refiner_negative_prompt=refiner_negative_prompt,
                         refiner_negative_prompt_2=refiner_negative_prompt_2,
                     )
-                    step_image = inpaint_image_step
-                elif node_image_needs_outpainting and (node_infer or node_control):
-                    # There are gaps; add an outpaint step before the infer/control
-                    if node_infer or node_process_control_image:
-                        outpaint_image_step = DiffusionStep(
-                            name=f"In-place Outpaint Node {i+1}",
-                            image=node_image,
-                            mask=feather_mask(node_mask.convert("1")),
-                            prompt=str(node_prompt_tokens),
-                            prompt_2=str(node_prompt_2_tokens),
-                            negative_prompt=str(node_negative_prompt_tokens),
-                            negative_prompt_2=str(node_negative_prompt_2_tokens),
-                            crop_inpaint=node_crop_inpaint,
-                            inpaint_feather=node_inpaint_feather,
-                            guidance_scale=guidance_scale,
-                            num_inference_steps=node_inference_steps if node_inference_steps else num_inference_steps,
-                            refiner_start=refiner_start,
-                            refiner_strength=refiner_strength,
-                            refiner_guidance_scale=refiner_guidance_scale,
-                            refiner_aesthetic_score=refiner_aesthetic_score,
-                            refiner_negative_aesthetic_score=refiner_negative_aesthetic_score,
-                            refiner_prompt=refiner_prompt,
-                            refiner_prompt_2=refiner_prompt_2,
-                            refiner_negative_prompt=refiner_negative_prompt,
-                            refiner_negative_prompt_2=refiner_negative_prompt_2,
-                        )
-                        step_image = outpaint_image_step
-                    elif node_invert:
-                        # Paste on white
-                        white = PIL.Image.new("RGB", node_image.size, (255, 255, 255))
-                        white.paste(node_image, mask=node_alpha)
-                        step_image = white
-                    else:
-                        # Paste on black
-                        black = PIL.Image.new("RGB", node_image.size, (0, 0, 0))
-                        black.paste(node_image)
-                        step_image = black
-                else:
-                    step_image = node_image
+                    outpaint_steps.append(step)
+                    outpainted_images[len(outpaint_steps)-1] = image
+                    return step, None
+                return fitted_image, image_mask
 
-                if not node_infer and not node_inpaint and not node_control:
-                    # No inference
-                    if refiner and refiner_strength is not None and refiner_strength > 0:
-                        step.name = f"Refining Node {i+1}"
-                        step.strength = 0.0
-                        step.prompt = str(node_prompt_tokens)
-                        step.prompt_2 = str(node_prompt_2_tokens)
-                        step.negative_prompt = str(node_negative_prompt_tokens)
-                        step.negative_prompt_2 = str(node_negative_prompt_2_tokens)
-                    else:
-                        step.name = f"Pass-through Node {i+1}"
-                    step.image = step_image
-                elif not node_infer and node_inpaint and not node_control:
-                    # Just inpaint image
-                    step = step_image
-                    step.name = f"Inpaint Node {i+1}"
+            will_infer = node_strength is not None or node_inpaint_mask is not None
+
+            if node_inpaint_mask:
+                node_inpaint_mask = node_inpaint_mask.convert("L")
+                if node_invert_mask:
+                    node_inpaint_mask = PIL.ImageOps.invert(node_inpaint_mask)
+
+            if node_image:
+                if node_ip_adapter_scale and not node_ip_adapter_image:
+                    node_ip_adapter_image = node_image
+                if node_remove_background:
+                    node_image, new_inpaint_mask = prepare_image(
+                        execute_remove_background(node_image),
+                        mask=node_inpaint_mask,
+                        fit=node_fit,
+                        anchor=node_anchor
+                    )
+                    if node_inpaint_mask:
+                        node_inpaint_mask = new_inpaint_mask
                 else:
-                    # Some combination of ops
-                    step.prompt = str(node_prompt_tokens)
-                    step.prompt_2 = str(node_prompt_2_tokens)
-                    step.negative_prompt = str(node_negative_prompt_tokens)
-                    step.negative_prompt_2 = str(node_negative_prompt_2_tokens)
-                    if node_strength:
-                        step.strength = node_strength
-                    if node_infer:
-                        step.image = step_image
-                        step.name = f"Image to Image Node {i+1}"
-                    if node_control and node_controlnet:
-                        if node_infer:
-                            step.name = f"Controlled Image to Image Node {i+1}"
-                        else:
-                            step.name = f"Controlled Text to Image Node {i+1}"
-                        step.controlnet = node_controlnet  # type: ignore
-                        step.control_image = step_image
-                        if not node_process_control_image:
-                            step.process_control_image = False
-                            if node_invert and not isinstance(step_image, DiffusionStep):
-                                step.control_image = PIL.ImageOps.invert(step_image.convert("L"))  # type: ignore[unreachable]
-                        if node_conditioning_scale:
-                            step.conditioning_scale = node_conditioning_scale
-            elif node_prompt:
-                step.name = f"Region Prompt Node {i+1}"
-                step.prompt = str(node_prompt_tokens)
-                step.prompt_2 = str(node_prompt_2_tokens)
-                step.negative_prompt = str(node_negative_prompt_tokens)
-                step.negative_prompt_2 = str(node_negative_prompt_2_tokens)
-                step.width = node_width
-                step.height = node_height
-                step.remove_background = node_remove_background
-                step.refiner_prompt = refiner_prompt
-                step.refiner_prompt_2 = refiner_prompt_2
-                step.refiner_negative_prompt = refiner_negative_prompt
-                step.refiner_negative_prompt_2 = refiner_negative_prompt_2
+                    node_image, new_inpaint_mask = prepare_image(
+                        node_image,
+                        mask=node_inpaint_mask,
+                        fit=node_fit,
+                        anchor=node_anchor
+                    )
+                    if node_inpaint_mask:
+                        node_inpaint_mask = new_inpaint_mask
+
+            if node_ip_adapter_image:
+                node_ip_adapter_image = prepare_image( # type: ignore[assignment]
+                    node_ip_adapter_image,
+                    fit=node_ip_adapter_image_fit, # type: ignore[arg-type]
+                    anchor=node_ip_adapter_image_anchor, # type: ignore[arg-type]
+                )[0]
+
+            if node_control_images:
+                node_control_images = [
+                    {
+                        "image": prepare_image(
+                            control_image["image"],
+                            fit=control_image.get("fit", None),
+                            anchor=control_image.get("anchor", None),
+                            outpaint_if_necessary=True
+                        )[0],
+                        "controlnet": control_image["controlnet"],
+                        "scale": control_image.get("scale", None),
+                        "process": control_image.get("process", True),
+                        "invert": control_image.get("invert", False),
+                        "fit": None,
+                        "anchor": None
+                    }
+                    for control_image in node_control_images
+                ]
+
+            node_prompt_str = str(node_prompt_tokens)
+            node_prompt_2_str = str(node_prompt_2_tokens)
+            node_negative_prompt_str = str(node_negative_prompt_tokens)
+            node_negative_prompt_2_str = str(node_negative_prompt_2_tokens)
+
+            if node_inpaint_mask:
+                node_inpaint_mask_r_min, node_inpaint_mask_r_max = node_inpaint_mask.getextrema()[1]
+                image_needs_inpainting = node_inpaint_mask_r_max > 0
             else:
-                raise ValueError("Can't assemble a node from arguments")
+                image_needs_inpainting = False
 
-            # Set common args for node
-            if node_inference_steps:
-                step.num_inference_steps = node_inference_steps
-            if node_guidance_scale:
-                step.guidance_scale = node_guidance_scale
-            if node_refiner_start:
-                step.refiner_start = node_refiner_start
-            if node_refiner_strength:
-                step.refiner_strength = node_refiner_strength
-            if node_refiner_guidance_scale:
-                step.refiner_guidance_scale = node_refiner_guidance_scale
-            if node_refiner_aesthetic_score:
-                step.refiner_aesthetic_score = node_refiner_aesthetic_score
-            if node_refiner_negative_aesthetic_score:
-                step.refiner_negative_aesthetic_score = node_refiner_negative_aesthetic_score
-            if not node_scale_to_model_size:
-                step.scale_to_model_size = False
+            if node_strength is None or not image_needs_inpainting:
+                node_inpaint_mask = None
+
+            if node_control_images and node_image and node_inpaint_mask and node_ip_adapter_scale:
+                name = "Controlled Inpainting with Image Prompting"
+            elif node_control_images and node_image and node_inpaint_mask:
+                name = "Controlled Inpainting"
+            elif node_control_images and node_image and node_ip_adapter_scale and node_strength:
+                name = "Controlled Image to Image with Image Prompting"
+            elif node_control_images and (node_image or node_ip_adapter_image) and node_ip_adapter_scale:
+                name = "Controlled Text to Image with Image Prompting"
+            elif node_control_images and node_image and node_strength:
+                name = "Controlled Image to Image"
+            elif node_control_images:
+                name = "Controlled Text to Image"
+            elif node_image and node_inpaint_mask and node_ip_adapter_scale:
+                name = "Inpainting with Image Prompting"
+            elif node_image and node_inpaint_mask:
+                name = "Inpainting"
+            elif node_image and node_strength and node_ip_adapter_scale:
+                name = "Image to Image with Image Prompting"
+            elif (node_image or node_ip_adapter_image) and node_ip_adapter_scale:
+                name = "Text to Image with Image Prompting"
+            elif node_image and node_strength:
+                name = "Image to Image"
+            elif node_image:
+                name = "Image Pass-Through"
+                plan.outpaint = False
+                node_prompt_str = None # type: ignore[assignment]
+                node_prompt_2_str = None # type: ignore[assignment]
+                node_negative_prompt_str = None # type: ignore[assignment]
+                node_negative_prompt_2_str = None # type: ignore[assignment]
+            else:
+                name = "Text to Image"
+
+            step = DiffusionStep(
+                name=f"{name} Node {i+1}",
+                image=node_image,
+                mask=node_inpaint_mask,
+                prompt=node_prompt_str,
+                prompt_2=node_prompt_2_str,
+                negative_prompt=node_negative_prompt_str,
+                negative_prompt_2=node_negative_prompt_2_str,
+                crop_inpaint=node_crop_inpaint,
+                inpaint_feather=node_inpaint_feather,
+                strength=node_strength,
+                guidance_scale=guidance_scale,
+                num_inference_steps=node_inference_steps if node_inference_steps else num_inference_steps,
+                ip_adapter_image=node_ip_adapter_image,
+                ip_adapter_scale=node_ip_adapter_scale,
+                control_images=node_control_images,
+                refiner_start=refiner_start,
+                refiner_strength=refiner_strength,
+                refiner_guidance_scale=refiner_guidance_scale,
+                refiner_aesthetic_score=refiner_aesthetic_score,
+                refiner_negative_aesthetic_score=refiner_negative_aesthetic_score,
+                refiner_prompt=refiner_prompt,
+                refiner_prompt_2=refiner_prompt_2,
+                refiner_negative_prompt=refiner_negative_prompt,
+                refiner_negative_prompt_2=refiner_negative_prompt_2,
+                remove_background=remove_background,
+                scale_to_model_size=scale_to_model_size
+            )
+
             # Add step to plan
             plan.nodes.append(DiffusionNode(node_bounds, step))
 

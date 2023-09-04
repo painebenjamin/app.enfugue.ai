@@ -21,6 +21,7 @@ __all__ = [
     "CONTROLNET_DEPTH_XL",
     "CONTROLNET_NORMAL",
     "CONTROLNET_POSE",
+    "CONTROLNET_POSE_XL",
     "CONTROLNET_PIDI",
     "CONTROLNET_LINE",
     "CONTROLNET_ANIME",
@@ -61,6 +62,7 @@ CONTROLNET_ANIME = "lllyasviel/control_v11p_sd15s2_lineart_anime"
 
 CONTROLNET_CANNY_XL = "diffusers/controlnet-canny-sdxl-1.0"
 CONTROLNET_DEPTH_XL = "diffusers/controlnet-depth-sdxl-1.0"
+CONTROLNET_POSE_XL = "thibaud/controlnet-openpose-sdxl-1.0"
 
 CONTROLNET_LITERAL = Literal[
     "canny", "mlsd", "hed", "scribble", "tile", "inpaint", "depth", "normal", "pose", "pidi", "line", "anime"

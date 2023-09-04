@@ -23,8 +23,10 @@ def main() -> None:
                 engine(
                     seed=54321,
                     prompt="A suburban home frontage",
-                    controlnet=controlnet,
-                    control_image=base_image
+                    control_images=[{
+                        "controlnet": controlnet,
+                        "image": base_image
+                    }],
                 )["images"][0].save(output_path)
                 logger.info(f"Wrote {output_path}")
 

@@ -87,8 +87,9 @@ class FormView extends View {
      *
      * @param object $newValues A key-value map of new values.
      */
-    async setValues(newValues) {
+    async setValues(newValues, performAutoSubmit = true) {
         await this.getNode(); // Wait for build
+        this.disableAutoSubmit = true;
         this.values = Object.getOwnPropertyNames(newValues).reduce((accumulator, key) => {
             if (this.inputViews.map((inputView) => inputView.fieldName).indexOf(key) !== -1) {
                 accumulator[key] = newValues[key];
@@ -103,6 +104,10 @@ class FormView extends View {
         await this.evaluateConditions();
         for (let inputView of this.inputViews) {
             this.values[inputView.fieldName] = inputView.getValue();
+        }
+        this.disableAutoSubmit = false;
+        if (this.constructor.autoSubmit && performAutoSubmit) {
+            this.submit();
         }
         return this;
     }
@@ -469,7 +474,7 @@ class FormView extends View {
             await callback(fieldName, this.values);
         }
 
-        if (this.constructor.autoSubmit) {
+        if (this.constructor.autoSubmit && this.disableAutoSubmit !== true) {
             await this.submit();
         }
     }

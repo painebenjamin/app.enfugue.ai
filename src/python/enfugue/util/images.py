@@ -4,6 +4,7 @@ import math
 import io
 import PIL
 import PIL.Image
+import PIL.ImageChops
 
 from typing import Optional, Literal
 
@@ -14,6 +15,7 @@ __all__ = [
     "feather_mask",
     "remove_background",
     "image_from_uri",
+    "images_are_equal",
     "IMAGE_FIT_LITERAL",
     "IMAGE_ANCHOR_LITERAL",
 ]
@@ -173,3 +175,18 @@ def image_from_uri(uri: str) -> PIL.Image.Image:
     Loads an image using the pibble reteiever; works with http, file, ftp, ftps, sftp, and s3
     """
     return PIL.Image.open(io.BytesIO(Retriever.get(uri).all()))
+
+def images_are_equal(image_1: PIL.Image.Image, image_2: PIL.Image.Image) -> bool:
+    """
+    Determines if two images are equal.
+    """
+    if image_1.height != image_2.height or image_1.width != image_2.width:
+        return False
+    if image_1.mode == image_2.mode == "RGBA":
+        image_1_alpha = [p[3] for p in image_1.getdata()]
+        image_2_alpha = [p[3] for p in image_2.getdata()]
+        if image_1_alpha != image_2_alpha:
+            return False
+    return not PIL.ImageChops.difference(
+        image_1.convert("RGB"), image_2.convert("RGB")
+    ).getbbox()

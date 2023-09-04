@@ -301,21 +301,25 @@ export let filterEmpty = (obj) => {
 
 /**
  * Merges any number of objects together recursively.
+ * Maintains order, unlike the spread syntax.
  *
  * @param object Any number of objects to merge together.
  * @return object The merged object.
  */
 export let merge = function () {
     let allObjects = Array.from(arguments),
-        merged = { ...allObjects[0] };
-    for (let i = 1; i < allObjects.length; i++) {
-        let otherObject = allObjects[i];
-        for (let key in otherObject) {
+        merged = {};
+
+    for (let i = 0; i < allObjects.length; i++) {
+        let otherObject = allObjects[i],
+            objectKeys = Object.getOwnPropertyNames(otherObject);
+
+        for (let key of objectKeys) {
             if (merged[key] === undefined) {
                 merged[key] = otherObject[key];
             } else if (
-                typeof merged[key] == 'object' &&
-                typeof otherObject[key] == 'object'
+                merged[key].constructor == Object &&
+                otherObject[key].constructor == Object
             ) {
                 merged[key] = merge(merged[key], otherObject[key]);
             } else {

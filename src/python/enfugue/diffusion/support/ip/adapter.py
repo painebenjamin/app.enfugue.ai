@@ -275,7 +275,7 @@ class IPAdapter(SupportModel):
         """
         if not hasattr(self, "_projector"):
             from enfugue.diffusion.support.ip.projection import ImageProjectionModel
-            logger.debug(f"Initializing ImageProjectModel with cross-attention dimensions of {self.cross_attention_dim}")
+            logger.debug(f"Initializing ImageProjectionModel with cross-attention dimensions of {self.cross_attention_dim}")
             self._projector = ImageProjectionModel(
                 clip_embeddings_dim=self.encoder.config.projection_dim,
                 cross_attention_dim=self.cross_attention_dim,

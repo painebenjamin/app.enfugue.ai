@@ -131,6 +131,13 @@ class ImageEditorImageNodeOptionsFormView extends FormView {
                     "tooltip": "When checked, use this image as input for ControlNet. Inpainting will be performed first, filling any painted sections as well as gaps in the frame and transparency in the image.<br />Unless otherwise specified, your image will be processed using the appropriate algorithm for the chosen ControlNet."
                 }
             },
+            "imagePrompt": {
+                "label": "Use for Prompt",
+                "class": CheckboxInputView,
+                "config": {
+                    "tooltip": "When checked, use this image for Image Prompting. This uses a technique whereby your image is analzyed for descriptors automatically and the 'image prompt' is merged with your real prompt. This can help produce variations of an image without adhering too closely to the original image, and without you having to describe the image yourself."
+                }
+            }
         },
         "Other": {
             "scaleToModelSize": {
@@ -145,6 +152,19 @@ class ImageEditorImageNodeOptionsFormView extends FormView {
                 "class": CheckboxInputView,
                 "config": {
                     "tooltip": "Before processing, run this image through an AI background removal process. If you are additionally inpainting, inferencing or using this image for ControlNet, that background will then be filled in within this frame. If you are not, that background will be filled when the overall canvas image is finally painted in."
+                }
+            }
+        },
+        "Image Prompt": {
+            "imagePromptScale": {
+                "label": "Image Prompt Scale",
+                "class": SliderPreciseInputView,
+                "config": {
+                    "tooltip": "How closely to follow the image prompt, as opposed to your text prompt. A value of 1.0 represents full control given to the image prompt. The recommended value for general use is high but not complete; around 0.9 or 90% scale.",
+                    "min": 0,
+                    "max": 1,
+                    "step": 0.01,
+                    "value": 0.9
                 }
             }
         },
@@ -191,7 +211,7 @@ class ImageEditorImageNodeOptionsFormView extends FormView {
         "Inference": {
             "strength": {
                 "label": "Denoising Strength",
-                "class": FloatInputView,
+                "class": SliderPreciseInputView,
                 "config": {
                     "min": 0.0,
                     "max": 1.0,
@@ -229,7 +249,7 @@ class ImageEditorImageNodeOptionsFormView extends FormView {
             },
             "conditioningScale": {
                 "label": "Conditioning Scale",
-                "class": FloatInputView,
+                "class": SliderPreciseInputView,
                 "config": {
                     "min": 0.0,
                     "max": 1.0,
@@ -264,8 +284,9 @@ class ImageEditorImageNodeOptionsFormView extends FormView {
         "Inpainting": (values) => values.inpaint,
         "Inference": (values) => values.infer,
         "Control": (values) => values.control,
+        "Image Prompt": (values) => values.imagePrompt,
         "Color Space": (values) => values.control && 
-            ["mlsd", "hed", "pidi", "scribble", "line", "anime"].indexOf(values.controlnet) !== -1 &&
+            ["canny", "mlsd", "hed", "pidi", "scribble", "line", "anime"].indexOf(values.controlnet) !== -1 &&
             values.processControlImage === false
     };
 

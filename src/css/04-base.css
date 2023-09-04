@@ -745,13 +745,13 @@ input[type=range]:focus::-ms-fill-upper {
     background: var(--theme-color-secondary);
 }
 
-form ul.list-input-view {
+ul.list-input-view {
     display: flex;
     flex-flow: row wrap;
     gap: 6px;
 }
 
-form ul.list-input-view li {
+ul.list-input-view li {
     border-radius: 5px;
     overflow: hidden;
     padding: 8px 14px;
@@ -764,7 +764,7 @@ form ul.list-input-view li {
     transition: color 0.25s ease-in-out, background-color 0.25s ease-in-out;
 }
 
-form ul.list-input-view li.selected {
+ul.list-input-view li.selected {
     background-color: var(--theme-color-primary);
     color: var(--lightest-color);
 }

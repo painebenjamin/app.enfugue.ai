@@ -42,7 +42,7 @@ def main() -> None:
                     {
                         "image": image,
                         "mask": mask,
-                        "inpaint": True,
+                        "strength": 1.0
                     }
                 ]
             )

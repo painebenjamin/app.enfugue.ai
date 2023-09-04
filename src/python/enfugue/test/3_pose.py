@@ -22,8 +22,10 @@ def main() -> None:
             engine(
                 seed=12345,
                 prompt="A schoolteacher waving hello",
-                controlnet="pose",
-                control_image=base_image
+                control_images=[{
+                    "controlnet": "pose",
+                    "image": base_image
+                }]
             )["images"][0].save(output_path)
             logger.info(f"Wrote {output_path}")
 

@@ -1,8 +1,8 @@
 /** @module nodes/base */
-import { isEmpty, deepClone, camelCase, sleep } from '../base/helpers.mjs';
+import { isEmpty, camelCase, merge, sleep } from '../base/helpers.mjs';
 import { View } from '../view/base.mjs';
 import { FormView } from '../forms/base.mjs';
-import { InputView } from '../forms/input.mjs';
+import { InputView, ListInputView } from '../forms/input.mjs';
 import { ElementBuilder } from '../base/builder.mjs';
 import { Point, Drawable } from '../graphics/geometry.mjs';
 
@@ -168,6 +168,11 @@ class NodeView extends View {
      */
     static headerTopIcon = "fa-solid fa-arrow-turn-up";
 
+    /**
+     * Whether or not this node can be merged with other nodes of the same class
+     */
+    static canMerge = false;
+
     constructor(editor, name, content, left, top, width, height) {
         super(editor.config);
 
@@ -186,9 +191,11 @@ class NodeView extends View {
         this.height = isEmpty(height) ? this.constructor.minHeight : height;
         this.height += this.constructor.padding * 2;
 
-        this.setDimension(this.left, this.top, this.width, this.height, true);
+        this.setDimension(this.left, this.top, this.width, this.height, true, false);
 
         this.removed = false;
+        this.fixed = false;
+        this.canMerge = this.constructor.canMerge;
         this.closeCallbacks = [];
         this.resizeCallbacks = [];
     }
@@ -328,7 +335,14 @@ class NodeView extends View {
      */
     async setState(newState) {
         this.name = newState.name;
-        this.setDimension(newState.x, newState.y, newState.w, newState.h, true);
+        this.setDimension(
+            newState.x - this.constructor.padding,
+            newState.y - this.constructor.padding,
+            newState.w + this.constructor.padding * 2,
+            newState.h + this.constructor.padding * 2,
+            true,
+            false
+        );
 
         if (this.node !== undefined) {
             this.node.find(E.getCustomTag('nodeName')).content(this.name);
@@ -363,8 +377,8 @@ class NodeView extends View {
      * Removes this node from the editor.
      */
     remove() {
-        this.editor.removeNode(this);
         this.removed = true;
+        this.editor.removeNode(this);
         this.closed();
     }
 
@@ -460,8 +474,9 @@ class NodeView extends View {
      * @param int $width The width of the node
      * @param int $height The height of the node
      * @param bool $save Whether or not to save tese dimensions as the new configured dimensions.
+     * @param bool $triggerMerge whether or not to trigger merges if there is a mergeable node.
      */
-    setDimension(left, top, width, height, save) {
+    setDimension(left, top, width, height, save, triggerMerge = true) {
         left = this.constructor.getNearestSnap(left);
         top = this.constructor.getNearestSnap(top);
         width = this.getWidthSnap(width, left);
@@ -507,6 +522,14 @@ class NodeView extends View {
         this.visibleWidth = width;
         this.visibleHeight = height;
 
+        if (triggerMerge) {
+            if (save) {
+                this.editor.nodePlaced(this);
+            } else {
+                this.editor.nodeMoved(this);
+            }
+        }
+
         return [left, top, width, height];
     }
 
@@ -514,18 +537,72 @@ class NodeView extends View {
      * Flips the header between top and bottom.
      */
     flipHeader() {
-        let button = this.node.find(".node-button-flip"),
-            icon = button.find("i");
         if (this.flipped === true) {
             this.flipped = false;
             this.removeClass("flipped");
-            button.data("tooltip", this.constructor.headerBottomText);
-            icon.class(this.constructor.headerBottomIcon);
+            this.buttons.flip.tooltip = this.constructor.headerBottomText;
+            this.buttons.flip.icon = this.constructor.headerBottomIcon;
         } else {
             this.flipped = true;
             this.addClass("flipped");
-            button.data("tooltip", this.constructor.headerTopText);
-            icon.class(this.constructor.headerTopIcon);
+            this.buttons.flip.tooltip = this.constructor.headerTopText;
+            this.buttons.flip.icon = this.constructor.headerTopIcon;
+        }
+
+        this.rebuildHeaderButtons();
+    }
+
+    /**
+     * Builds buttons into a header.
+     */
+    buildHeaderButtons(nodeHeader, buttons) {
+        for (let buttonName in buttons) {
+            // Add in the constructor buttons, for extending classes.
+            let buttonConfiguration = buttons[buttonName];
+
+            if (buttonConfiguration.disabled === true) {
+                continue;
+            }
+            let button = E.nodeButton()
+                .class(`node-button-${camelCase(buttonName)}`)
+                .content(E.i().class(buttonConfiguration.icon))
+                .on('click', (e) => {
+                    buttonConfiguration.callback.call(buttonConfiguration.context || this, e);
+                });
+
+            if (buttonConfiguration.tooltip) {
+                button.data('tooltip', buttonConfiguration.tooltip);
+            }
+
+            nodeHeader.append(button);
+        }
+    }
+
+    /**
+     * Gets the current button set
+     */
+    getButtons() {
+        return isEmpty(this.buttons) ? this.constructor.buttons : this.buttons;
+    }
+
+    /**
+     * Rebuilds current options into the header.
+     */
+    rebuildHeaderButtons() {
+        if (this.node !== undefined) {
+            let nodeHeader = this.node.find(E.getCustomTag("nodeHeader"));
+
+            for (let currentButton of nodeHeader.children()) {
+                if (currentButton.tagName == E.getCustomTag("nodeButton")) {
+                    try {
+                        nodeHeader.remove(currentButton);
+                    } catch(e) {
+                        // Might have been removed already, continue
+                    }
+                }
+            }
+
+            this.buildHeaderButtons(nodeHeader, this.buttons);
         }
     }
 
@@ -561,12 +638,17 @@ class NodeView extends View {
             nodeHeader.css('height', 0);
         }
 
-        let buttons = { ...this.constructor.nodeButtons };
+        let buttons = {};
+        for (let buttonName in this.constructor.nodeButtons) {
+            buttons[buttonName] = {...this.constructor.nodeButtons[buttonName]};
+            buttons[buttonName].context = this;
+        }
         if (this.constructor.canCopy) {
             buttons.copy = {
                 icon: 'fa-solid fa-copy',
                 tooltip: this.constructor.copyText,
                 shortcut: "p",
+                context: this,
                 callback: () => {
                     this.editor.copyNode(this);
                 }
@@ -577,6 +659,7 @@ class NodeView extends View {
                 shortcut: "b",
                 icon: this.constructor.headerBottomIcon,
                 tooltip: this.constructor.headerBottomText,
+                context: this,
                 callback: () => {
                     this.flipHeader();
                 }
@@ -587,29 +670,15 @@ class NodeView extends View {
                 shortcut: "v",
                 icon: 'fa-solid fa-window-close',
                 tooltip: this.constructor.closeText,
+                context: this,
                 callback: () => {
                     this.closed();
                     this.editor.removeNode(this);
                 }
             };
         }
+        this.buildHeaderButtons(nodeHeader, buttons);
         this.buttons = buttons;
-        for (let buttonName in buttons) {
-            // Add in the constructor buttons, for extending classes.
-            let buttonConfiguration = buttons[buttonName],
-                button = E.nodeButton()
-                    .class(`node-button-${camelCase(buttonName)}`)
-                    .content(E.i().class(buttonConfiguration.icon))
-                    .on('click', (e) => {
-                        buttonConfiguration.callback.call(this, e);
-                    });
-
-            if (buttonConfiguration.tooltip) {
-                button.data('tooltip', buttonConfiguration.tooltip);
-            }
-
-            nodeHeader.append(button);
-        }
 
         let setNodeDimension = (e, saveChanges) => {
             /* Depending on the cursor mode, calculate what dimensions
@@ -704,6 +773,7 @@ class NodeView extends View {
                 padding: `${this.constructor.padding}px`
             })
             .on('mouseenter', (e) => {
+                if (this.fixed) return;
                 if (this.constructor.hideHeader) {
                     nodeHeader.css(
                         'height',
@@ -712,19 +782,21 @@ class NodeView extends View {
                 }
             })
             .on('mouseleave', (e) => {
+                if (this.fixed) return;
                 if (this.constructor.hideHeader) {
                     nodeHeader.css('height', '0');
                 }
             })
             .on('mousemove', (e) => {
+                if (this.fixed) return;
                 if (cursorMode == NodeCursorMode.NONE) {
-                    /* If there is no cursor mode assigned,
-                     * evalaute what the next mode would be
-                     * if it were to be changed.
-                     */
+                    // If there is no cursor mode assigned,
+                    // evalaute what the next mode would be
+                    // if it were to be changed.
                     let targetNode = e.target;
-                    while (targetNode.tagName !== 'ENFUGUE-NODE') {
+                    while (targetNode !== node.element) {
                         targetNode = targetNode.parentElement;
+                        if (isEmpty(targetNode)) break;
                     }
                     if (targetNode !== node.element) return; // Ignore events for child nodes
                     let nodeBounds = node.element.getBoundingClientRect(),
@@ -814,6 +886,7 @@ class NodeView extends View {
             })
             .on('mousedown', (e) => {
                 if (
+                    this.fixed ||
                     e.which !== 1 ||
                     nextMode === NodeCursorMode.NONE ||
                     cursorMode !== NodeCursorMode.NONE
@@ -828,7 +901,6 @@ class NodeView extends View {
                  */
                 e.preventDefault();
                 e.stopPropagation();
-
                 this.editor.focusNode(this);
 
                 switch (nextMode) {
@@ -926,6 +998,7 @@ class NodeView extends View {
         }
 
         contentContainer.on('mousedown', (e) => {
+            if (this.fixed) return;
             this.editor.focusNode(this);
         });
 
@@ -945,6 +1018,52 @@ class NodeView extends View {
 
         nodeContainer.append(contentContainer);
         return node;
+    }
+
+    /**
+     * Determines if a node can be merged with another.
+     * @return bool True if these nodes can be merged.
+     */
+    canMergeWith(node) {
+        return (
+            this instanceof node.constructor ||
+            (node instanceof CompoundNodeView && node.canMergeWith(this))
+        ) && node.canMerge && this.canMerge && !node.removed && !this.removed;
+    }
+
+    /**
+     * Merges with a target node.
+     */
+    mergeWith(node) {
+        if (!this.canMergeWith(node)) {
+            if (!this.canMerge) {
+                console.warn("This node is tagged as unmergeable.", this);
+            }
+            if (!node.canMerge) {
+                console.warn("The target node is tagged as unmergeable.", node);
+            }
+            throw "Nodes cannot be merged.";
+        }
+        if (node instanceof CompoundNodeView) {
+            this.fixed = true;
+            this.canMerge = false;
+            return node.mergeWith(this);
+        } else {
+            this.fixed = true;
+            node.fixed = true;
+            this.canMerge = false;
+            node.canMerge = false;
+            let compoundNodeClass = this.constructor.compoundNodeClass || CompoundNodeView;
+            return new compoundNodeClass(
+                this.editor,
+                "Merged Node",
+                new CompoundNodeContentView(this.config, [this, node]),
+                this.left,
+                this.top,
+                this.width,
+                this.height
+            );
+        }
     }
 }
 
@@ -1043,4 +1162,325 @@ class OptionsNodeView extends NodeView {
     }
 }
 
-export { NodeView, OptionsNodeView };
+/**
+ * Provides a view to select the current visible node in a compound node
+ */
+class CompoundNodeContentView extends View {
+    /**
+     * @var string Custom tag name
+     */
+    static tagName = "enfugue-node-compound-contents";
+
+    /**
+     * On construct, pass children
+     */
+    constructor(config, children) {
+        super(config);
+        this.children = children;
+        this.activeIndex = 0;
+        this.chooser = new ListInputView(config, "activeNode", {"options": this.options, "value": "node-0"});
+        this.chooser.onChange(() => {
+            this.setActiveIndex(parseInt(this.chooser.value.split("-")[1]), false);
+        });
+    }
+
+    /**
+     * Sets the index of the active node
+     */
+    async setActiveIndex(newIndex, updateChooser = true){
+        this.activeIndex = newIndex;
+        if (updateChooser) {
+            this.chooser.setValue(`node-${newIndex}`, false);
+        }
+        if (this.node !== undefined) {
+            this.node.content(
+                await this.chooser.getNode(),
+                await this.selectedNode.getNode()
+            );
+        }
+    }
+
+    /**
+     * Get the selected node
+     */
+    get selectedNode() {
+        return this.children[this.activeIndex];
+    }
+
+    /**
+     * Get options for the chooser
+     */
+    get options() {
+       return this.children.reduce((carry, item, index) => {
+           carry[`node-${index}`] = `${index+1}. ${item.name}`;
+           return carry;
+       }, {});
+    }
+
+    /**
+     * When adding a node, re-build selector if needed but don't select
+     */
+    addNode(newNode){
+        this.children.push(newNode);
+        this.chooser.setOptions(this.options);
+    }
+
+    /**
+     * When removing a node, it gets popped out back onto the editor
+     */
+    removeNode(newNode){
+        let childIndex = this.children.indexOf(newNode);
+        if (childIndex !== -1) {
+            this.children = this.children.slice(0, childIndex).concat(this.children.slice(childIndex+1));
+        }
+        this.chooser.setOptions(this.options);
+        if (this.activeIndex >= this.children.length) {
+            this.setActiveIndex(this.children.length - 1);
+        } else if(this.activeIndex == childIndex) {
+            this.setActiveIndex(this.activeIndex); // Reset to build again
+        }
+    }
+
+    /**
+     * Add a setDimension similar to NodeView.setDimension that calls child functions
+     */
+    setDimension(width, height, save) {
+        for (let child of this.children) {
+            child.setDimension(
+                -child.constructor.padding,
+                -child.constructor.padding,
+                width,
+                height,
+                save,
+                false
+            );
+            child.resized();
+        }
+    }
+
+    /**
+     * On build, get selector + current node header + current node contents
+     */
+    async build() {
+        let node = await super.build();
+        node.content(
+            await this.chooser.getNode(),
+            await this.selectedNode.getNode()
+        );
+        return node;
+    }
+}
+
+/**
+ * Extend the node view to allow nodes to be compounded into tabs
+ */
+class CompoundNodeView extends NodeView {
+    /**
+     * @var bool Disable copying compound nodes
+     */
+    static canCopy = false;
+
+    /**
+     * @var bool enable merging on already merged nodes
+     */
+    static canMerge = true;
+
+    /**
+     * On construct, bind content events and hijack button build
+     */
+    constructor(editor, name, content, left, top, width, height) {
+        super(editor, name, content, left, top, width, height);
+        if (!isEmpty(content)) {
+            for (let node of content.children) {
+                node.rebuildHeaderButtons = () => this.rebuildHeaderButtons();
+            }
+            this.content.chooser.onChange(() => {
+                this.rebuildHeaderButtons();
+            });
+        }
+    }
+
+    /**
+     * Determines if a node can be merged with another.
+     * @return bool True if these nodes can be merged.
+     */
+    canMergeWith(node) {
+        return this.content.children[0] instanceof node.constructor;
+    }
+
+    /**
+     * Merges this node with another.
+     */
+    mergeWith(node) {
+        // Hijack button build
+        node.rebuildHeaderButtons = () => this.rebuildHeaderButtons();
+        this.content.addNode(node);
+        node.setDimension(
+            -node.constructor.padding,
+            -node.constructor.padding,
+            this.width,
+            this.height,
+            true,
+            false
+        );
+        return this;
+    }
+
+    /**
+     * Rebuilds a node and re-adds it to the canvas.
+     */
+    async rebuildMergedNode(node, offset) {
+        if (offset === undefined) offset = this.constructor.snapSize;
+        let nodeState = node.getState();
+        nodeState.x = this.left + offset;
+        nodeState.y = this.top + offset;
+        nodeState.w = this.width;
+        nodeState.h = this.height;
+        let newNode = new node.constructor(this.editor);
+        await newNode.setState(nodeState);
+        this.editor.addNode(newNode);
+        return newNode;
+    }
+
+
+    /**
+     * Unmerges the currently active node.
+     */
+    async unmergeNode() {
+        let nodeToRemove = this.content.selectedNode;
+        this.content.removeNode(nodeToRemove);
+        this.rebuildMergedNode(nodeToRemove);
+        if (this.content.children.length <= 1) {
+            nodeToRemove = this.content.children[0];
+            this.rebuildMergedNode(nodeToRemove, 0);
+            this.editor.removeNode(this);
+        }
+    }
+
+    /**
+     * When setting dimensions for a compound node, similarly trigger on children
+     */
+    setDimension(left, top, width, height, save, triggerMerge) {
+        super.setDimension(left, top, width, height, save, false);
+        if (!isEmpty(this.content)) {
+            this.content.setDimension(this.visibleWidth, this.visibleHeight, save, triggerMerge);
+        }
+    }
+
+    /**
+     * Gets the buttons for the current selected node
+     */
+    get selectedButtons() {
+        let selectedNodeButtons = isEmpty(this.content) || isEmpty(this.content.selectedNode)
+            ? {}
+            : this.content.selectedNode.getButtons();
+        if (isEmpty(selectedNodeButtons)) {
+            selectedNodeButtons = {};
+        } else {
+            delete selectedNodeButtons.copy;
+            delete selectedNodeButtons.flip;
+            delete selectedNodeButtons.close;
+        }
+        return selectedNodeButtons;
+    }
+
+    /**
+     * Gets the current button set plus current node buttons plus popout button
+     */
+    getButtons() {
+        let x = merge(
+            this.selectedButtons,
+            {
+                unmerge: {
+                    icon: "fa-solid fa-up-right-from-square",
+                    tooltip: "Unmerge Image",
+                    shorcut: "g",
+                    context: this,
+                    disabled: false,
+                    callback: () => {
+                        this.unmergeNode();
+                    }
+                }
+            },
+            super.getButtons()
+        );
+        return x;
+    }
+
+    /**
+     * Intercept buildHeaderButtons to add our current nodes buttons
+     */
+    buildHeaderButtons(nodeHeader, buttons) {
+        return super.buildHeaderButtons(
+            nodeHeader,
+            merge(
+                this.selectedButtons,
+                {
+                    unmerge: {
+                        icon: "fa-solid fa-up-right-from-square",
+                        tooltip: "Unmerge Image",
+                        shorcut: "g",
+                        context: this,
+                        disabled: false,
+                        callback: () => {
+                            this.unmergeNode();
+                        }
+                    }
+                },
+                buttons
+            )
+        );
+    }
+
+    /**
+     * On getState, return the child node state.
+     */
+    getState() {
+        let baseState = super.getState();
+        baseState.children = this.content.children.map((child) => {
+            let childState = child.getState.apply(child, Array.from(arguments));
+            delete childState.x;
+            delete childState.y;
+            delete childState.w;
+            delete childState.h;
+            return childState;
+        });
+        baseState.active = this.content.activeIndex;
+        return baseState;
+    }
+
+    /**
+     * On setState, set this nodes state then trigger child nodes */
+    async setState(newState) {
+        await super.setState(newState);
+        let childNodes = [];
+        if (!isEmpty(newState.children)) {
+            for (let childState of newState.children) {
+                let nodeClass = this.editor.getNodeClass(childState.classname),
+                    newNode = new nodeClass(this.editor);
+                childState.x = 0;
+                childState.y = 0;
+                childState.w = newState.w;
+                childState.h = newState.h;
+                await newNode.setState(childState);
+                newNode.rebuildHeaderButtons = () => this.rebuildHeaderButtons();
+                childNodes.push(newNode);
+            }
+        }
+
+        await this.setContent(new CompoundNodeContentView(this.editor.config, childNodes));
+        this.content.chooser.onChange(() => {
+            setTimeout(() => this.rebuildHeaderButtons(), 150);
+        });
+        if (newState.active !== undefined) {
+            this.content.setActiveIndex(newState.active);
+        }
+        setTimeout(() => this.rebuildHeaderButtons(), 250);
+    }
+}
+
+export {
+    NodeView,
+    CompoundNodeView,
+    OptionsNodeView
+};

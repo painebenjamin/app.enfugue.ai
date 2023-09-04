@@ -3,10 +3,14 @@ import { isEmpty, filterEmpty } from "../base/helpers.mjs";
 import { ElementBuilder } from "../base/builder.mjs";
 import { NodeEditorView } from "./editor.mjs";
 import { ImageView } from "../view/image.mjs";
+import { CompoundNodeView } from "./base.mjs";
 import { ImageEditorNodeView } from "./image-editor/base.mjs";
 import { ImageEditorScribbleNodeView } from "./image-editor/scribble.mjs";
 import { ImageEditorPromptNodeView } from "./image-editor/prompt.mjs";
-import { ImageEditorImageNodeView } from "./image-editor/image.mjs";
+import {
+    ImageEditorImageNodeView,
+    ImageEditorCompoundImageNodeView
+} from "./image-editor/image.mjs";
 import { CurrentInvocationImageView } from "./image-editor/invocation.mjs";
 
 const E = new ElementBuilder();
@@ -55,9 +59,11 @@ class ImageEditorView extends NodeEditorView {
      * @var array<class> The node classes for state set/get
      */
     static nodeClasses = [
+        CompoundNodeView,
         ImageEditorScribbleNodeView,
         ImageEditorImageNodeView,
-        ImageEditorPromptNodeView
+        ImageEditorPromptNodeView,
+        ImageEditorCompoundImageNodeView
     ];
 
     /**
@@ -67,11 +73,16 @@ class ImageEditorView extends NodeEditorView {
         super.focusNode(node);
         this.focusedNode = node;
         this.application.menu.removeCategory("Node");
-        if (!isEmpty(node.buttons)) {
+        let nodeButtons = node.getButtons();
+        if (!isEmpty(nodeButtons)) {
             let menuCategory = await this.application.menu.addCategory("Node", "n");
-            for (let buttonName in node.buttons) {
-                let buttonConfiguration = node.buttons[buttonName];
-                let menuItem = await menuCategory.addItem(buttonConfiguration.tooltip, buttonConfiguration.icon, buttonConfiguration.shortcut);
+            for (let buttonName in nodeButtons) {
+                let buttonConfiguration = nodeButtons[buttonName];
+                let menuItem = await menuCategory.addItem(
+                    buttonConfiguration.tooltip,
+                    buttonConfiguration.icon,
+                    buttonConfiguration.shortcut
+                );
                 menuItem.onClick(() => buttonConfiguration.callback.call(node));
             }
         }

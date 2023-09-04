@@ -178,9 +178,8 @@ class DiffusionEngineProcess(Process):
         inpainter: Optional[str] = None,
         lora: Optional[Union[str, Tuple[str, float], List[Union[str, Tuple[str, float]]]]] = None,
         inversion: Optional[Union[str, List[str]]] = None,
-        controlnet: Optional[str] = None,
         vae: Optional[str] = None,
-        control_image: Optional[Union[str, PIL.Image.Image]] = None,
+        control_images: Optional[List[Dict[str, Any]]] = None,
         seed: Optional[int] = None,
         image_callback_steps: Optional[int] = None,
         build_tensorrt: Optional[bool] = None,
@@ -193,7 +192,6 @@ class DiffusionEngineProcess(Process):
         size: Optional[int] = None,
         refiner_size: Optional[int] = None,
         inpainter_size: Optional[int] = None,
-        process_control_image: bool = True,
         **kwargs: Any,
     ) -> dict:
         """
@@ -234,34 +232,6 @@ class DiffusionEngineProcess(Process):
         if build_tensorrt is not None:
             self.pipemanager.build_tensorrt = build_tensorrt
 
-        if controlnet is not None:
-            self.pipemanager.controlnet = controlnet  # type: ignore
-            if control_image is not None:
-                if isinstance(control_image, str):
-                    control_image = PIL.Image.open(control_image)
-                if process_control_image:
-                    if controlnet == "canny":
-                        control_image = self.pipemanager.edge_detector.canny(control_image)
-                    elif controlnet == "hed":
-                        control_image = self.pipemanager.edge_detector.hed(control_image)
-                    elif controlnet == "scribble":
-                        control_image = self.pipemanager.edge_detector.hed(control_image, scribble=True)
-                    elif controlnet == "pidi":
-                        control_image = self.pipemanager.edge_detector.pidi(control_image)
-                    elif controlnet == "depth":
-                        control_image = self.pipemanager.depth_detector.midas(control_image)
-                    elif controlnet == "normal":
-                        control_image = self.pipemanager.depth_detector.normal(control_image)
-                    elif controlnet == "pose":
-                        control_image = self.pipemanager.pose_detector.detect(control_image)
-                    elif controlnet == "line":
-                        control_image = self.pipemanager.line_detector.detect(control_image)
-                    elif controlnet == "anime":
-                        control_image = self.pipemanager.line_detector.detect(control_image, anime=True)
-                    elif controlnet == "mlsd":
-                        control_image = self.pipemanager.line_detector.mlsd(control_image)
-                kwargs["control_image"] = control_image
-
         if size is not None:
             self.pipemanager.size = size
 
@@ -285,6 +255,44 @@ class DiffusionEngineProcess(Process):
 
         if num_inference_steps is not None:
             kwargs["num_inference_steps"] = int(num_inference_steps)
+
+        if control_images is not None:
+            control_images_dict: Dict[str, List[Tuple[PIL.Image.Image, float]]] = {}
+            for control_image_dict in control_images:
+                controlnet = control_image_dict["controlnet"]
+                control_image = control_image_dict["image"]
+                scale = control_image_dict.get("scale", 1.0)
+                if control_image_dict.get("process", True):
+                    if controlnet == "canny":
+                        control_image = self.pipemanager.edge_detector.canny(control_image)
+                    elif controlnet == "hed":
+                        control_image = self.pipemanager.edge_detector.hed(control_image)
+                    elif controlnet == "scribble":
+                        control_image = self.pipemanager.edge_detector.hed(control_image, scribble=True)
+                    elif controlnet == "pidi":
+                        control_image = self.pipemanager.edge_detector.pidi(control_image)
+                    elif controlnet == "depth":
+                        control_image = self.pipemanager.depth_detector.midas(control_image)
+                    elif controlnet == "normal":
+                        control_image = self.pipemanager.depth_detector.normal(control_image)
+                    elif controlnet == "pose":
+                        control_image = self.pipemanager.pose_detector.detect(control_image)
+                    elif controlnet == "line":
+                        control_image = self.pipemanager.line_detector.detect(control_image)
+                    elif controlnet == "anime":
+                        control_image = self.pipemanager.line_detector.detect(control_image, anime=True)
+                    elif controlnet == "mlsd":
+                        control_image = self.pipemanager.line_detector.mlsd(control_image)
+                elif control_image.get("invert", False):
+                    control_image = PIL.ImageOps.invert(control_image)
+                if controlnet not in control_images_dict:
+                    control_images_dict[controlnet] = []
+                control_images_dict[controlnet].append((control_image, scale))
+            if kwargs.get("mask", None) is not None:
+                self.pipemanager.inpainter_controlnets = list(control_images_dict.keys()) # type: ignore[assignment]
+            else:
+                self.pipemanager.controlnets = list(control_images_dict.keys()) # type: ignore[assignment]
+            kwargs["control_images"] = control_images_dict
 
         return kwargs
 

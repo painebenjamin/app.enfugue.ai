@@ -10,7 +10,7 @@ import datetime
 import traceback
 import threading
 
-from typing import Type, Union, Any, Optional, List, Tuple, Dict, Callable, Literal, TYPE_CHECKING
+from typing import Type, Union, Any, Optional, List, Tuple, Dict, Callable, Literal, Set, TYPE_CHECKING
 from hashlib import md5
 
 from pibble.api.configuration import APIConfiguration
@@ -45,12 +45,18 @@ def redact(kwargs: Dict[str, Any]) -> Dict[str, Any]:
     """
     redacted = {}
     for key, value in kwargs.items():
-        if type(value) not in [str, float, int, bool, type(None)]:
-            redacted[key] = type(value).__name__
+        if isinstance(value, dict):
+            redacted[key] = redact(value)
+        elif isinstance(value, tuple):
+            redacted[key] = "(" + ", ".join([str(redact({"v": v})["v"]) for v in value]) + ")" # type: ignore[assignment]
+        elif isinstance(value, list):
+            redacted[key] = "[" + ", ".join([str(redact({"v": v})["v"]) for v in value]) + "]" # type: ignore[assignment]
+        elif type(value) not in [str, float, int, bool, type(None)]:
+            redacted[key] = type(value).__name__ # type: ignore[assignment]
         elif "prompt" in key and value is not None:
-            redacted[key] = "***"
+            redacted[key] = "***" # type: ignore[assignment]
         else:
-            redacted[key] = value
+            redacted[key] = str(value) # type: ignore[assignment]
     
     return redacted
 
@@ -1279,6 +1285,44 @@ class DiffusionPipelineManager:
             self.write_model_metadata(metadata_path)
         return path
 
+    @property
+    def inpainter_controlled_unet_key(self) -> str:
+        """
+        Gets the UNET key for the current configuration.
+        """
+        return DiffusionPipelineManager.get_controlled_unet_key(
+            size=self.inpainter_size,
+            lora=[],
+            lycoris=[],
+            inversion=[]
+        )
+
+    @property
+    def inpainter_tensorrt_controlled_unet_dir(self) -> str:
+        """
+        Gets where the tensorrt Controlled UNet engine will be stored for the inpainter.
+        TODO: determine if this should exist.
+        """
+        path = os.path.join(self.inpainter_tensorrt_dir, "controlledunet", self.inpainter_controlled_unet_key)
+        check_make_directory(path)
+        metadata_path = os.path.join(path, "metadata.json")
+        if not os.path.exists(metadata_path):
+            self.write_model_metadata(metadata_path)
+        return path
+
+    @property
+    def inpainter_onnx_controlled_unet_dir(self) -> str:
+        """
+        Gets where the onnx Controlled UNet engine will be stored for the inpainter.
+        TODO: determine if this should exist.
+        """
+        path = os.path.join(self.inpainter_onnx_dir, "controlledunet", self.inpainter_controlled_unet_key)
+        check_make_directory(path)
+        metadata_path = os.path.join(path, "metadata.json")
+        if not os.path.exists(metadata_path):
+            self.write_model_metadata(metadata_path)
+        return path
+
     @staticmethod
     def get_vae_key(size: int, **kwargs: Any) -> str:
         """
@@ -1435,7 +1479,7 @@ class DiffusionPipelineManager:
             trt_ready = trt_ready and os.path.exists(Engine.get_engine_path(self.model_tensorrt_vae_dir))
         if "clip" in self.TENSORRT_STAGES:
             trt_ready = trt_ready and os.path.exists(Engine.get_engine_path(self.model_tensorrt_clip_dir))
-        if self.controlnet is not None or self.TENSORRT_ALWAYS_USE_CONTROLLED_UNET:
+        if self.controlnets or self.TENSORRT_ALWAYS_USE_CONTROLLED_UNET:
             if "unet" in self.TENSORRT_STAGES:
                 trt_ready = trt_ready and os.path.exists(
                     Engine.get_engine_path(self.model_tensorrt_controlled_unet_dir)
@@ -1460,7 +1504,7 @@ class DiffusionPipelineManager:
             trt_ready = trt_ready and os.path.exists(Engine.get_engine_path(self.refiner_tensorrt_vae_dir))
         if "clip" in self.TENSORRT_STAGES:
             trt_ready = trt_ready and os.path.exists(Engine.get_engine_path(self.refiner_tensorrt_clip_dir))
-        if self.controlnet is not None or self.TENSORRT_ALWAYS_USE_CONTROLLED_UNET:
+        if self.controlnets or self.TENSORRT_ALWAYS_USE_CONTROLLED_UNET:
             if "unet" in self.TENSORRT_STAGES:
                 trt_ready = trt_ready and os.path.exists(
                     Engine.get_engine_path(self.refiner_tensorrt_controlled_unet_dir)
@@ -1485,7 +1529,12 @@ class DiffusionPipelineManager:
             trt_ready = trt_ready and os.path.exists(Engine.get_engine_path(self.inpainter_tensorrt_vae_dir))
         if "clip" in self.TENSORRT_STAGES:
             trt_ready = trt_ready and os.path.exists(Engine.get_engine_path(self.inpainter_tensorrt_clip_dir))
-        if "unet" in self.TENSORRT_STAGES:
+        if self.controlnets or self.TENSORRT_ALWAYS_USE_CONTROLLED_UNET:
+            if "unet" in self.TENSORRT_STAGES:
+                trt_ready = trt_ready and os.path.exists(
+                    Engine.get_engine_path(self.inpainter_tensorrt_controlled_unet_dir)
+                )
+        elif "unet" in self.TENSORRT_STAGES:
             trt_ready = trt_ready and os.path.exists(Engine.get_engine_path(self.inpainter_tensorrt_unet_dir))
         return trt_ready
 
@@ -2253,7 +2302,7 @@ class DiffusionPipelineManager:
                 "torch_dtype": self.dtype,
                 "cache_dir": self.engine_cache_dir,
                 "force_full_precision_vae": self.is_sdxl and self.vae_name not in ["xl16", VAE_XL16],
-                "controlnet": self.controlnet,
+                "controlnets": self.controlnets,
                 "ip_adapter": self.ip_adapter
             }
             
@@ -2263,7 +2312,7 @@ class DiffusionPipelineManager:
                 if self.is_sdxl:
                     raise ValueError(f"Sorry, TensorRT is not yet supported for SDXL.")
                 if "unet" in self.TENSORRT_STAGES:
-                    if self.controlnet is None and not self.TENSORRT_ALWAYS_USE_CONTROLLED_UNET:
+                    if not self.controlnets is None and not self.TENSORRT_ALWAYS_USE_CONTROLLED_UNET:
                         kwargs["unet_engine_dir"] = self.model_tensorrt_unet_dir
                     else:
                         kwargs["controlled_unet_engine_dir"] = self.model_tensorrt_controlled_unet_dir
@@ -2357,23 +2406,20 @@ class DiffusionPipelineManager:
                 "torch_dtype": self.dtype,
                 "requires_safety_checker": False,
                 "force_full_precision_vae": self.refiner_is_sdxl and self.refiner_vae_name not in ["xl16", VAE_XL16],
-                "controlnet": None,
+                "controlnets": self.refiner_controlnets,
                 "ip_adapter": self.ip_adapter
             }
             
             vae = self.refiner_vae
 
             if self.refiner_use_tensorrt:
+                if self.refiner_is_sdxl:
+                    raise ValueError("Sorry, TensorRT is not yet supported for SDXL.")
                 if "unet" in self.TENSORRT_STAGES:
-                    if self.controlnet is None and not self.TENSORRT_ALWAYS_USE_CONTROLLED_UNET:
+                    if not self.controlnets and not self.TENSORRT_ALWAYS_USE_CONTROLLED_UNET:
                         kwargs["unet_engine_dir"] = self.refiner_tensorrt_unet_dir
                     else:
                         kwargs["controlled_unet_engine_dir"] = self.refiner_tensorrt_controlled_unet_dir
-
-                """
-                if "controlnet" in self.TENSORRT_STAGES and self.controlnet is not None:
-                    kwargs["controlnet_engine_dir"] = self.refiner_tensorrt_controlnet_dir
-                """
 
                 if "vae" in self.TENSORRT_STAGES:
                     kwargs["vae_engine_dir"] = self.refiner_tensorrt_vae_dir
@@ -2384,11 +2430,10 @@ class DiffusionPipelineManager:
                     kwargs["clip_engine_dir"] = self.refiner_tensorrt_clip_dir
 
                 self.check_create_refiner_engine_cache()
-                if self.refiner_is_sdxl:
-                    if self.refiner_requires_aesthetic_score:
-                        kwargs["text_encoder"] = None
-                        kwargs["tokenizer"] = None
-                        kwargs["requires_aesthetic_score"] = True
+                if self.refiner_is_sdxl and self.refiner_requires_aesthetic_score: # type: ignore[unreachable]
+                    kwargs["text_encoder"] = None # type: ignore[unreachable]
+                    kwargs["tokenizer"] = None
+                    kwargs["requires_aesthetic_score"] = True
                 else:
                     kwargs["text_encoder_2"] = None
                     kwargs["tokenizer_2"] = None
@@ -2496,7 +2541,7 @@ class DiffusionPipelineManager:
                 "torch_dtype": self.dtype,
                 "requires_safety_checker": self.safe,
                 "requires_aesthetic_score": False,
-                "controlnet": None,
+                "controlnets": self.inpainter_controlnets,
                 "force_full_precision_vae": self.inpainter_is_sdxl and self.inpainter_vae_name not in ["xl16", VAE_XL16],
                 "ip_adapter": self.ip_adapter
             }
@@ -2819,6 +2864,8 @@ class DiffusionPipelineManager:
                 return CONTROLNET_CANNY_XL
             elif name == "depth":
                 return CONTROLNET_DEPTH_XL
+            elif name == "pose":
+                return CONTROLNET_POSE_XL
             else:
                 raise ValueError(f"Sorry, ControlNet “{name}” is not yet supported by SDXL. Check back soon!")
         else:
@@ -2862,51 +2909,220 @@ class DiffusionPipelineManager:
         return configured_path
 
     @property
-    def controlnet(self) -> Optional[ControlNetModel]:
+    def controlnets(self) -> Dict[str, ControlNetModel]:
         """
-        Gets the configured controlnet (or none.)
+        Gets the configured controlnets for the main pipeline
         """
-        if not hasattr(self, "_controlnet"):
-            self._controlnet = self.get_controlnet(self.controlnet_name)
-        return self._controlnet
+        if not hasattr(self, "_controlnets"):
+            self._controlnets = {}
 
-    @controlnet.setter
-    def controlnet(
+            for controlnet_name in self.controlnet_names:
+                self._controlnets[controlnet_name] = self.get_controlnet(
+                    self.get_controlnet_path_by_name(controlnet_name, self.is_sdxl)
+                )
+        return self._controlnets # type: ignore[return-value]
+
+    @controlnets.deleter
+    def controlnets(self) -> None:
+        """
+        Removes current controlnets and clears memory
+        """
+        if hasattr(self, "_controlnets"):
+            del self._controlnets
+            self.clear_memory()
+
+    @controlnets.setter
+    def controlnets(
         self,
-        new_controlnet: Optional[CONTROLNET_LITERAL],
+        *new_controlnets: Optional[Union[CONTROLNET_LITERAL, List[CONTROLNET_LITERAL], Set[CONTROLNET_LITERAL]]],
     ) -> None:
         """
-        Sets a new controlnet.
+        Sets a new list of controlnets (optional)
         """
-        existing_controlnet = getattr(self, "_controlnet", None)
+        controlnet_names: Set[CONTROLNET_LITERAL] = set()
 
-        if (
-            (existing_controlnet is None and new_controlnet is not None)
-            or (existing_controlnet is not None and new_controlnet is None)
-            or (existing_controlnet is not None and self.controlnet_name != new_controlnet)
-        ):
-            self.unload_pipeline("ControlNet changing")
-            if new_controlnet is not None:
-                logger.debug(f"Setting ControlNet to {new_controlnet}")
-                self._controlnet_name = new_controlnet
-                try:
-                    pretrained_path = self.get_controlnet_path_by_name(new_controlnet, self.is_sdxl)
-                    self._controlnet = self.get_controlnet(pretrained_path)
-                    self._controlnet_name = new_controlnet
-                except:
-                    self.stop_keepalive()
-                    raise
-            else:
-                logger.debug(f"Disabling ControlNet")
-                self._controlnet_name = None  # type: ignore
-                self._controlnet = None
+        for arg in new_controlnets:
+            if arg is None:
+                break
+            controlnet_names = controlnet_names.union(arg) # type: ignore[arg-type]
+
+        existing_controlnet_names = self.controlnet_names
+        logger.debug(f"Setting main pipeline ControlNet(s) to {controlnet_names} from {existing_controlnet_names}")
+        if controlnet_names == existing_controlnet_names:
+            return # No changes
+
+        self._controlnet_names = controlnet_names
+
+        if (not controlnet_names and existing_controlnet_names):
+            self.unload_pipeline("Disabling ControlNet")
+            del self.controlnets
+        elif (controlnet_names and not existing_controlnet_names):
+            self.unload_pipeline("Enabling ControlNet")
+            del self.controlnets
+        elif controlnet_names and existing_controlnet_names:
+            logger.debug("Altering existing ControlNets")
+            if hasattr(self, "_controlnets"):
+                for controlnet_name in controlnet_names.union(existing_controlnet_names):
+                    if controlnet_name not in controlnet_names:
+                        self._controlnets.pop(controlnet_name, None)
+                    elif controlnet_name not in self._controlnets:
+                        self._controlnets[controlnet_name] = self.get_controlnet(
+                            self.get_controlnet_path_by_name(controlnet_name, self.is_sdxl)
+                        )
+            if getattr(self, "_pipeline", None) is not None:
+                self._pipeline.controlnets = self.controlnets
+
 
     @property
-    def controlnet_name(self) -> Optional[str]:
+    def inpainter_controlnets(self) -> Dict[str, ControlNetModel]:
+        """
+        Gets the configured controlnets for the inpainter
+        """
+        if not hasattr(self, "_inpainter_controlnets"):
+            self._inpainter_controlnets = {}
+
+            for controlnet_name in self.inpainter_controlnet_names:
+                self._inpainter_controlnets[controlnet_name] = self.get_controlnet(
+                    self.get_controlnet_path_by_name(controlnet_name, self.is_sdxl)
+                )
+        return self._inpainter_controlnets # type: ignore[return-value]
+
+    @inpainter_controlnets.deleter
+    def inpainter_controlnets(self) -> None:
+        """
+        Removes current inpainter controlnets and clears memory
+        """
+        if hasattr(self, "_inpainter_controlnets"):
+            del self._inpainter_controlnets
+            self.clear_memory()
+
+    @inpainter_controlnets.setter
+    def inpainter_controlnets(
+        self,
+        *new_inpainter_controlnets: Optional[Union[CONTROLNET_LITERAL, List[CONTROLNET_LITERAL], Set[CONTROLNET_LITERAL]]],
+    ) -> None:
+        """
+        Sets a new list of inpainter controlnets (optional)
+        """
+        controlnet_names: Set[CONTROLNET_LITERAL] = set()
+
+        for arg in new_inpainter_controlnets:
+            if arg is None:
+                break
+            controlnet_names = controlnet_names.union(arg) # type: ignore[arg-type]
+
+        existing_controlnet_names = self.inpainter_controlnet_names
+
+        logger.debug(f"Setting inpainter pipeline ControlNet(s) to {controlnet_names} from {existing_controlnet_names}")
+        if controlnet_names == existing_controlnet_names:
+            return # No changes
+
+        self._inpainter_controlnet_names = controlnet_names
+
+        if (not controlnet_names and existing_controlnet_names):
+            self.unload_inpainter("Disabling ControlNet")
+            del self.inpainter_controlnets
+        elif (controlnet_names and not existing_controlnet_names):
+            self.unload_inpainter("Enabling ControlNet")
+            del self.inpainter_controlnets
+        elif controlnet_names and existing_controlnet_names:
+            logger.debug("Altering existing inpainter controlnets")
+            if hasattr(self, "_inpainter_controlnets"):
+                for controlnet_name in controlnet_names.union(existing_controlnet_names):
+                    if controlnet_name not in controlnet_names:
+                        self._inpainter_controlnets.pop(controlnet_name, None)
+                    elif controlnet_name not in self._inpainter_controlnets:
+                        self._inpainter_controlnets[controlnet_name] = self.get_controlnet(
+                            self.get_controlnet_path_by_name(controlnet_name, self.is_sdxl)
+                        )
+            if getattr(self, "_inpainter_pipeline", None) is not None:
+                self._inpainter_pipeline.controlnets = self.inpainter_controlnets
+
+    @property
+    def refiner_controlnets(self) -> Dict[str, ControlNetModel]:
+        """
+        Gets the configured controlnets for the refiner
+        """
+        if not hasattr(self, "_refiner_controlnets"):
+            self._refiner_controlnets = {}
+
+            for controlnet_name in self.refiner_controlnet_names:
+                self._refiner_controlnets[controlnet_name] = self.get_controlnet(
+                    self.get_controlnet_path_by_name(controlnet_name, self.is_sdxl)
+                )
+        return self._refiner_controlnets # type: ignore[return-value]
+
+    @refiner_controlnets.deleter
+    def refiner_controlnets(self) -> None:
+        """
+        Removes current refiner controlnets and clears memory
+        """
+        if hasattr(self, "_refiner_controlnets"):
+            del self._refiner_controlnets
+            self.clear_memory()
+
+    @refiner_controlnets.setter
+    def refiner_controlnets(
+        self,
+        *new_refiner_controlnets: Optional[Union[CONTROLNET_LITERAL, List[CONTROLNET_LITERAL], Set[CONTROLNET_LITERAL]]],
+    ) -> None:
+        """
+        Sets a new list of refiner controlnets (optional)
+        """
+        controlnet_names: Set[CONTROLNET_LITERAL] = set()
+
+        for arg in new_refiner_controlnets:
+            if arg is None:
+                break
+            controlnet_names = controlnet_names.union(arg) # type: ignore[arg-type]
+
+        existing_controlnet_names = self.refiner_controlnet_names
+
+        logger.debug(f"Setting refuber pipeline ControlNet(s) to {controlnet_names} from {existing_controlnet_names}")
+        if controlnet_names == existing_controlnet_names:
+            return # No changes
+
+        self._refiner_controlnet_names = controlnet_names
+
+        if (not controlnet_names and existing_controlnet_names):
+            self.unload_refiner("Disabling ControlNet")
+            del self.refiner_controlnets
+        elif (controlnet_names and not existing_controlnet_names):
+            self.unload_refiner("Enabling ControlNet")
+            del self.refiner_controlnets
+        elif controlnet_names and existing_controlnet_names:
+            logger.debug("Altering existing refiner controlnets")
+            if hasattr(self, "_refiner_controlnets"):
+                for controlnet_name in controlnet_names.union(existing_controlnet_names):
+                    if controlnet_name not in controlnet_names:
+                        self._refiner_controlnets.pop(controlnet_name, None)
+                    elif controlnet_name not in self._refiner_controlnets:
+                        self._refiner_controlnets[controlnet_name] = self.get_controlnet(
+                            self.get_controlnet_path_by_name(controlnet_name, self.is_sdxl)
+                        )
+            if getattr(self, "_refiner_pipeline", None) is not None:
+                self._refiner_pipeline.controlnets = self.refiner_controlnets
+
+    @property
+    def controlnet_names(self) -> Set[CONTROLNET_LITERAL]:
         """
         Gets the name of the control net, if one was set.
         """
-        return getattr(self, "_controlnet_name", None)
+        return getattr(self, "_controlnet_names", set())
+
+    @property
+    def inpainter_controlnet_names(self) -> Set[CONTROLNET_LITERAL]:
+        """
+        Gets the name of the control net, if one was set.
+        """
+        return getattr(self, "_inpainter_controlnet_names", set())
+
+    @property
+    def refiner_controlnet_names(self) -> Set[CONTROLNET_LITERAL]:
+        """
+        Gets the name of the control net, if one was set.
+        """
+        return getattr(self, "_refiner_controlnet_names", set())
 
     def check_download_checkpoint(self, remote_url: str) -> str:
         """
@@ -3126,7 +3342,7 @@ class DiffusionPipelineManager:
         Writes metadata for TensorRT to a json file
         """
         if "controlnet" in path:
-            dump_json(path, {"size": self.size, "controlnet": self.controlnet_name})
+            dump_json(path, {"size": self.size, "controlnets": self.controlnet_names})
         else:
             dump_json(
                 path,

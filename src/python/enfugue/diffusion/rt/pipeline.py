@@ -25,7 +25,7 @@ from enfugue.util import logger, TokenMerger
 from enfugue.diffusion.pipeline import EnfugueStableDiffusionPipeline
 from enfugue.diffusion.util import DTypeConverter
 from enfugue.diffusion.rt.engine import Engine
-from enfugue.diffusion.rt.model import BaseModel, UNet, VAE, CLIP, ControlledUNet, ControlNet
+from enfugue.diffusion.rt.model import BaseModel, UNet, VAE, CLIP, ControlledUNet
 
 if TYPE_CHECKING:
     from enfugue.diffusers.support.ip import IPAdapter
@@ -42,7 +42,6 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         tokenizer: Optional[CLIPTokenizer],
         tokenizer_2: Optional[CLIPTokenizer],
         unet: UNet2DConditionModel,
-        controlnet: Optional[ControlNetModel],
         scheduler: KarrasDiffusionSchedulers,
         safety_checker: StableDiffusionSafetyChecker,
         feature_extractor: CLIPImageProcessor,
@@ -50,6 +49,7 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         force_zeros_for_empty_prompt: bool = True,
         requires_aesthetic_score: bool = False,
         force_full_precision_vae: bool = False,
+        controlnets: Optional[Dict[str, ControlNetModel]] = None,
         ip_adapter: Optional[IPAdapter] = None,
         engine_size: int = 512,  # Recommended even for machines that can handle more
         chunking_size: int = 32,
@@ -61,7 +61,6 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         clip_engine_dir: Optional[str] = None,
         unet_engine_dir: Optional[str] = None,
         controlled_unet_engine_dir: Optional[str] = None,
-        controlnet_engine_dir: Optional[str] = None,
         build_static_batch: bool = False,
         build_dynamic_shape: bool = False,
         build_preview_features: bool = False,
@@ -74,7 +73,6 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
             tokenizer=tokenizer,
             tokenizer_2=tokenizer_2,
             unet=unet,
-            controlnet=controlnet,
             scheduler=scheduler,
             safety_checker=safety_checker,
             feature_extractor=feature_extractor,
@@ -82,13 +80,14 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
             force_zeros_for_empty_prompt=force_zeros_for_empty_prompt,
             force_full_precision_vae=force_full_precision_vae,
             requires_aesthetic_score=requires_aesthetic_score,
+            controlnets=controlnets,
             ip_adapter=ip_adapter,
             engine_size=engine_size,
             chunking_size=chunking_size,
             chunking_blur=chunking_blur,
         )
 
-        if self.controlnet is not None:
+        if self.controlnets:
             # Hijack forward
             self.unet.forward = self.controlled_unet_forward
         self.vae.forward = self.vae.decode
@@ -98,7 +97,6 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         self.clip_engine_dir = clip_engine_dir
         self.unet_engine_dir = unet_engine_dir
         self.controlled_unet_engine_dir = controlled_unet_engine_dir
-        self.controlnet_engine_dir = controlnet_engine_dir
         self.build_static_batch = build_static_batch
         self.build_dynamic_shape = build_dynamic_shape
         self.build_preview_features = build_preview_features
@@ -159,10 +157,6 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
             self.models["controlledunet"] = ControlledUNet(
                 self.unet, unet_dim=self.unet.config.in_channels, **models_args
             )
-        if self.controlnet_engine_dir is not None and self.controlnet is not None:
-            self.models["controlnet"] = ControlNet(
-                self.controlnet, unet_dim=self.unet.config.in_channels, **models_args
-            )
         if self.vae_engine_dir is not None:
             self.models["vae"] = VAE(self.vae, **models_args)
 
@@ -197,8 +191,6 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         ):
             if self.vae is not None and self.vae_engine_dir is None:
                 self.vae.to(device)
-            if self.controlnet is not None and self.controlnet_engine_dir is None:
-                self.controlnet.to(device)
             if self.text_encoder is not None and self.clip_engine_dir is None:
                 self.text_encoder.to(device)
             if self.unet_engine_dir is not None or self.controlled_unet_engine_dir is not None:
@@ -240,8 +232,6 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
             engines_to_build[self.unet_engine_dir] = self.models["unet"]
         if self.controlled_unet_engine_dir is not None:
             engines_to_build[self.controlled_unet_engine_dir] = self.models["controlledunet"]
-        if self.controlnet_engine_dir is not None:
-            engines_to_build[self.controlnet_engine_dir] = self.models["controlnet"]
         if self.vae_engine_dir is not None:
             engines_to_build[self.vae_engine_dir] = self.models["vae"]
 
@@ -369,45 +359,6 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         text_embeddings = torch.cat([uncond_embeddings, text_embeddings]).to(dtype=torch.float16)
 
         return text_embeddings
-
-    def get_controlnet_conditioning_blocks(
-        self,
-        device: Union[str, torch.device],
-        latents: torch.Tensor,
-        timestep: torch.Tensor,
-        encoder_hidden_states: torch.Tensor,
-        controlnet_cond: Optional[torch.Tensor],
-        conditioning_scale: float,
-        added_cond_kwargs: Optional[Dict[str, Any]]
-    ) -> Tuple[Optional[List[torch.Tensor]], Optional[torch.Tensor]]:
-        """
-        Executes the controlnet inference
-        """
-        if "controlnet" not in self.engine:
-            return super(EnfugueTensorRTStableDiffusionPipeline, self).get_controlnet_conditioning_blocks(
-                device=device,
-                latents=latents,
-                timestep=timestep,
-                encoder_hidden_states=encoder_hidden_states,
-                controlnet_cond=controlnet_cond,
-                conditioning_scale=conditioning_scale,
-                added_cond_kwargs=added_cond_kwargs,
-            )
-        if controlnet_cond is None:
-            return None, None
-
-        timestep_float = timestep.float() if timestep.dtype != torch.float32 else timestep
-        conditioning_scale_tensor = torch.Tensor([conditioning_scale]).to(dtype=torch.float32, device=device)
-        inference_kwargs = {
-            "sample": self.device_view(latents),
-            "timestep": self.device_view(timestep_float),
-            "encoder_hidden_states": self.device_view(encoder_hidden_states),
-            "controlnet_cond": self.device_view(controlnet_cond),
-            "conditioning_scale": self.device_view(conditioning_scale_tensor),
-        }
-
-        inferred = self.engine["controlnet"].infer(inference_kwargs, self.stream)
-        return [inferred[f"down_block_{i}"] for i in range(12)], inferred["mid_block"]
 
     def predict_noise_residual(
         self,

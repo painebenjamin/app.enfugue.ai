@@ -343,8 +343,15 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
             step.image = PIL.Image.new("RGB", (plan.size, plan.size))
             step.mask = PIL.Image.new("RGB", (plan.size, plan.size))
         elif network_name == "controlled_unet":
-            step.control_image = PIL.Image.new("RGB", (plan.size, plan.size))
-            step.controlnet = "canny"  # Have to pick one, go with the first choice
+            step.control_images = [{
+                "controlnet": "canny",
+                "image": PIL.Image.new("RGB", (plan.size, plan.size)),
+                "fit": None,
+                "anchor": None,
+                "scale": 1.0,
+                "process": True,
+                "invert": False,
+            }]
         elif network_name != "unet":
             raise BadRequestError(f"Unknown or unsupported network {network_name}")
 

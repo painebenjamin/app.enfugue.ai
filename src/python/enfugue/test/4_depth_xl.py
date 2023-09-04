@@ -32,9 +32,11 @@ def main() -> None:
                     seed=54321,
                     model=DEFAULT_SDXL_MODEL,
                     prompt=PROMPT,
-                    controlnet=controlnet,
-                    control_image=base_image,
-                    conditioning_scale=0.5
+                    control_images=[{
+                        "controlnet": controlnet,
+                        "image": base_image,
+                        "scale": 0.5
+                    }]
                 )["images"][0].save(output_path)
                 logger.info(f"Wrote {output_path}")
 

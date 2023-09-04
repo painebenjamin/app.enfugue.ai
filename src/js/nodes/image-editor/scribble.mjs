@@ -79,7 +79,7 @@ class ImageEditorScribbleNodeView extends ImageEditorNodeView {
                 "tooltip": "Clear the entire canvas",
                 "shortcut": "l",
                 "callback": function() {
-                    this.scribbleView.clearMemory();
+                    this.clearMemory();
                 }
             },
             "increase": {
@@ -87,7 +87,7 @@ class ImageEditorScribbleNodeView extends ImageEditorNodeView {
                 "tooltip": "Increase Pencil Size",
                 "shortcut": "i",
                 "callback": function() {
-                    this.scribbleView.increaseSize();
+                    this.increaseSize();
                 }
             },
             "decrease": {
@@ -95,48 +95,9 @@ class ImageEditorScribbleNodeView extends ImageEditorNodeView {
                 "tooltip": "Decrease Pencil Size",
                 "shortcut": "d",
                 "callback": function() {
-                    this.scribbleView.decreaseSize();
+                    this.decreaseSize();
                 }
             }
-        }
-    };
-
-    /**
-     * Toggle the shape of the scribble pencil
-     */
-    togglePencilShape() {
-        let currentShape = this.scribbleView.shape,
-            button = this.node.find(".node-button-shape"),
-            icon = button.find("i");
-
-        if (currentShape === "circle") {
-            this.scribbleView.shape = "square";
-            button.data("tooltip", this.constructor.pencilCircleTooltip);
-            icon.class(this.constructor.pencilCircleIcon);
-        } else {
-            this.scribbleView.shape = "circle";
-            button.data("tooltip", this.constructor.pencilSquareTooltip);
-            icon.class(this.constructor.pencilSquareIcon);
-        }
-    };
-    
-    /**
-     * Toggles erase mode
-     */
-    toggleEraser() {
-        let currentEraser = this.scribbleView.isEraser === true,
-            button = this.node.find(".node-button-erase"),
-            icon = button.find("i");
-
-        if (currentEraser) {
-            this.scribbleView.isEraser = false;
-            button.data("tooltip", this.constructor.eraserTooltip);
-            icon.class(this.constructor.eraserIcon);
-        } else {
-            this.scribbleView.isEraser = true;
-            this.scribbleView.shape = "circle";
-            button.data("tooltip", this.constructor.pencilTooltip);
-            icon.class(this.constructor.pencilIcon);
         }
     };
 
@@ -144,17 +105,82 @@ class ImageEditorScribbleNodeView extends ImageEditorNodeView {
      * Intercept the constructor and add ScribbleView
      */
     constructor(editor, name, content, left, top, width, height) {
-        let scribbleView = new ScribbleView(editor.config, width, height);
-        super(editor, name, scribbleView, left, top, width, height);
-        this.scribbleView = this.content; // Set this so the ScribbleView code can be shared with ImageView
+        super(
+            editor,
+            name,
+            new ScribbleView(editor.config, width, height),
+            left,
+            top,
+            width,
+            height
+        );
     }
+
+    /**
+     * Calls clear memory on content
+     */
+    clearMemory() {
+        this.content.clearMemory();
+    }
+
+    /**
+     * Calls increase size on content
+     */
+    increaseSize() {
+        this.content.increaseSize();
+    }
+
+    /**
+     * Calls decrease size on content
+     */
+    decreaseSize() {
+        this.content.decreaseSize();
+    }
+
+    /**
+     * Toggle the shape of the scribble pencil
+     */
+    togglePencilShape() {
+        let currentShape = this.content.shape;
+
+        if (currentShape === "circle") {
+            this.content.shape = "square";
+            this.buttons.shape.tooltip = this.constructor.pencilCircleTooltip;
+            this.buttons.shape.icon = this.constructor.pencilCircleIcon;
+        } else {
+            this.content.shape = "circle";
+            this.buttons.shape.tooltip = this.constructor.pencilSquareTooltip;
+            this.buttons.shape.icon = this.constructor.pencilSquareIcon;
+        }
+
+        this.rebuildHeaderButtons();
+    };
+    
+    /**
+     * Toggles erase mode
+     */
+    toggleEraser() {
+        let currentEraser = this.content.isEraser === true;
+
+        if (currentEraser) {
+            this.content.isEraser = false;
+            this.buttons.erase.icon = this.constructor.eraserIcon;
+            this.buttons.erase.tooltip = this.constructor.eraserTooltip;
+        } else {
+            this.content.isEraser = true;
+            this.buttons.erase.icon = this.constructor.pencilIcon;
+            this.buttons.erase.tooltip = this.constructor.pencilTooltip;
+        }
+
+        this.rebuildHeaderButtons();
+    };
 
     /**
      * When resized, pass to the scribble node to resize itself too
      */
     async resized() {
         super.resized();
-        this.scribbleView.resizeCanvas(
+        this.content.resizeCanvas(
             this.visibleWidth - this.constructor.padding * 2,
             this.visibleHeight - this.constructor.padding * 2
         );
@@ -165,7 +191,7 @@ class ImageEditorScribbleNodeView extends ImageEditorNodeView {
      */
     getState(includeImages = true) {
         let state = super.getState(includeImages);
-        state.src = includeImages ? this.scribbleView.src : null;
+        state.src = includeImages ? this.content.src : null;
         return state;
     }
 
@@ -176,10 +202,10 @@ class ImageEditorScribbleNodeView extends ImageEditorNodeView {
         super.setState(newState);
         if (!isEmpty(newState.src)) {
             let imageInstance = new Image();
-            imageInstance.onload = () => this.scribbleView.setMemory(imageInstance);
+            imageInstance.onload = () => this.content.setMemory(imageInstance);
             imageInstance.src = newState.src;
         } else {
-            this.scribbleView.clearMemory();
+            this.content.clearMemory();
         }
     }
 };

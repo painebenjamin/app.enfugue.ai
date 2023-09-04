@@ -899,10 +899,28 @@ form.model-picker enfugue-search-list {
     margin: 0;
 }
 
+ul.model-picker-list-input-view,
+ul.enfugue-search-list-items {
+    gap: 0;
+}
+
+ul.model-picker-list-input-view > li,
+ul.enfugue-search-list-items > li {
+    border: none;
+    border-radius: 0 !important;
+    width: 100%;
+    height: 100%;
+    flex-grow: 1;
+    padding: 8px;
+    color: var(--light-color);
+}
+
 ul.model-picker-list-input-view > li > span {
+    color: var(--light-color);
     display: flex;
     width: 100%;
     height: 100%;
+    flex-grow: 1;
     flex-flow: row nowrap;
     align-items: center;
     justify-content: space-between;
