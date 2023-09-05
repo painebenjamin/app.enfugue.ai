@@ -45,7 +45,11 @@ def main() -> None:
             client = {
                 "host": "app.enfugue.ai",
                 "port": 45554,
-                "secure": True
+                "secure": True,
+            },
+            enfugue = {
+                "username": "enfugue",
+                "password": "enfugue"
             }
         )
 
@@ -161,7 +165,7 @@ def main() -> None:
         invoke(
             "ip-adapter",
             image=inpaint_image,
-            ip_adapter_scale=0.9
+            ip_adapter_scale=0.5
         )
         
         # Sizing, fitting and outpaint
@@ -178,7 +182,8 @@ def main() -> None:
                     "h": 256,
                     "fit": "cover"
                 }
-            ]
+            ],
+            strength=1.0
         )
 
         # Regions + multi-diffusion
@@ -296,11 +301,13 @@ def main() -> None:
                 prompt="A bride and groom on their wedding day",
                 guidance_scale=6
             )
+
             control = invoke(
                 "sdxl-refined",
                 model=DEFAULT_SDXL_MODEL,
                 refiner=DEFAULT_SDXL_REFINER,
                 prompt="A bride and groom on their wedding day",
+                refiner_start=0.85,
                 guidance_scale=6
             )[0]
             
@@ -309,9 +316,11 @@ def main() -> None:
                 invoke(
                     f"sdxl-{controlnet}-txt2img",
                     model=DEFAULT_SDXL_MODEL,
-                    controlnet=controlnet,
-                    control_image=control,
-                    conditioning_scale=0.5,
+                    control_images=[{
+                        "controlnet": controlnet,
+                        "image": control,
+                        "scale": 0.5
+                    }],
                     prompt="A bride and groom on their wedding day",
                     guidance_scale=6
                 )[0]
@@ -320,21 +329,19 @@ def main() -> None:
                     f"sdxl-{controlnet}-txt2img-refined",
                     model=DEFAULT_SDXL_MODEL,
                     refiner=DEFAULT_SDXL_REFINER,
-                    control_images=[
-                        {
-                            "controlnet": controlnet,
-                            "image": control,
-                            "scale": 0.5
-                        }
-                    ],
+                    control_images=[{
+                        "controlnet": controlnet,
+                        "image": control,
+                        "scale": 0.5
+                    }],
                     prompt="A bride and groom on their wedding day",
+                    refiner_start=0.85,
                     guidance_scale=6
                 )[0]
                 
                 invoke(
                     f"sdxl-{controlnet}-img2img",
                     model=DEFAULT_SDXL_MODEL,
-                    refiner=DEFAULT_SDXL_REFINER,
                     image=control,
                     strength=0.8,
                     control_images=[
@@ -344,7 +351,6 @@ def main() -> None:
                             "scale": 0.5
                         }
                     ],
-                    conditioning_scale=0.5,
                     prompt="A bride and groom on their wedding day",
                     guidance_scale=6
                 )[0]
@@ -362,6 +368,7 @@ def main() -> None:
                     ],
                     image=control,
                     strength=0.8,
+                    refiner_start=0.85,
                     prompt="A bride and groom on their wedding day",
                     guidance_scale=6
                 )[0]
@@ -381,6 +388,7 @@ def main() -> None:
                     strength=0.8,
                     ip_adapter_scale=0.5,
                     prompt="A bride and groom on their wedding day",
+                    refiner_start=0.85,
                     guidance_scale=6
                 )[0]
 

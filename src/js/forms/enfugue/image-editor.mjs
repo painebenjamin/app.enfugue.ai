@@ -304,6 +304,22 @@ class ImageEditorImageNodeOptionsFormView extends FormView {
      * @var array Field sets to collapse
      */
     static collapseFieldSets = ["Tweaks"];
+
+    /**
+     * On input change, enable/disable flags
+     */
+    async inputChanged(fieldName, inputView) {
+        if (fieldName === "inpaint") {
+            let inference = await this.getInputView("infer");
+            if (inputView.getValue()) {
+                inference.setValue(true, false);
+                inference.disable();
+            } else {
+                inference.enable();
+            }
+        }
+        return super.inputChanged.call(this, fieldName, inputView);
+    }
 };
 
 /**

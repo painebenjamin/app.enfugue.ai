@@ -303,6 +303,7 @@ class NodeEditorView extends View {
             node.removeClass("merge-source");
             node.removeClass("merge-target");
 
+            // Check if nodes have zero intersection
             if (node == movedNode ||
                 !node.canMergeWith(movedNode) ||
                 movedNode.visibleLeft >= node.visibleRight ||
@@ -313,6 +314,12 @@ class NodeEditorView extends View {
                 continue;
             }
 
+            // Check if dragged header is near target header
+            if (Math.abs(movedNode.visibleTop - node.visibleTop) > movedNode.constructor.headerHeight) {
+                continue;
+            }
+
+            // Check if dragged node is sufficiently intersected by canvas node
             let intersectLeft = Math.max(movedNode.visibleLeft, node.visibleLeft),
                 intersectTop = Math.max(movedNode.visibleTop, node.visibleTop),
                 intersectRight = Math.min(movedNode.visibleLeft + movedNode.visibleWidth, node.visibleLeft + node.visibleWidth),
@@ -320,7 +327,8 @@ class NodeEditorView extends View {
                 intersectArea = (intersectRight - intersectLeft) * (intersectBottom - intersectTop),
                 intersectRatio = intersectArea / (node.visibleWidth * node.visibleHeight);
 
-            if (intersectRatio >= 0.666) {
+            if (intersectRatio >= 0.3333) {
+                // Set node merge targets
                 mergeNode = node;
             }
         }

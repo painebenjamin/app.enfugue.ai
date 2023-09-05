@@ -51,8 +51,11 @@ class EnfugueClient(UserExtensionClientBase, JSONWebServiceAPIClient):
             client["port"] = 45554
         if "secure" not in client:
             client["secure"] = True
+        if "path" not in client:
+            client["path"] = "/api"
         configuration["client"] = client
         super(EnfugueClient, self).configure(**configuration)
+
 
     def on_configure(self) -> None:
         """
@@ -67,25 +70,25 @@ class EnfugueClient(UserExtensionClientBase, JSONWebServiceAPIClient):
         """
         Gets a list of installed checkpoints.
         """
-        return self.get("/api/checkpoints").json()["data"]
+        return self.get("/checkpoints").json()["data"]
 
     def lora(self) -> List[str]:
         """
         Gets a list of installed lora.
         """
-        return self.get("/api/lora").json()["data"]
+        return self.get("/lora").json()["data"]
 
     def lycoris(self) -> List[str]:
         """
         Gets a list of installed lycoris.
         """
-        return self.get("/api/lycoris").json()["data"]
+        return self.get("/lycoris").json()["data"]
 
     def inversion(self) -> List[str]:
         """
         Gets a list of installed inversion.
         """
-        return self.get("/api/inversion").json()["data"]
+        return self.get("/inversion").json()["data"]
 
     def download(
         self,
@@ -101,10 +104,10 @@ class EnfugueClient(UserExtensionClientBase, JSONWebServiceAPIClient):
         if filename is None:
             filename = os.path.basename(urlparse(url).path)
         data = {"type": download_type, "url": url, "filename": filename, "overwrite": overwrite}
-        status = self.post("/api/download", data=data).json()["data"]
+        status = self.post("/download", data=data).json()["data"]
         while status["status"] != "complete":
             time.sleep(polling_interval)
-            statuses = self.get("/api/download").json()["data"]
+            statuses = self.get("/download").json()["data"]
             for download_status in statuses:
                 if download_status["filename"] == filename:
                     status = download_status
@@ -114,13 +117,13 @@ class EnfugueClient(UserExtensionClientBase, JSONWebServiceAPIClient):
         """
         Gets the status from the API.
         """
-        return self.get("/api").json()["data"]
+        return self.get("").json()["data"]
 
     def settings(self) -> Dict[str, Any]:
         """
         Gets settings from the remote server.
         """
-        return self.get("/api/settings").json()["data"]
+        return self.get("/settings").json()["data"]
 
     def invoke(
         self,
@@ -142,6 +145,7 @@ class EnfugueClient(UserExtensionClientBase, JSONWebServiceAPIClient):
         num_inference_steps: Optional[int] = None,
         guidance_scale: Optional[float] = None,
         refiner_strength: Optional[float] = None,
+        refiner_start: Optional[float] = None,
         refiner_guidance_scale: Optional[float] = None,
         refiner_aesthetic_score: Optional[float] = None,
         refiner_negative_aesthetic_score: Optional[float] = None,
@@ -167,17 +171,18 @@ class EnfugueClient(UserExtensionClientBase, JSONWebServiceAPIClient):
         seed: Optional[int] = None,
         image: Optional[Union[str, Image]] = None,
         mask: Optional[Union[str, Image]] = None,
-        control_image: Optional[Union[str, Image]] = None,
-        controlnet: Optional[CONTROLNET_LITERAL] = None,
+        ip_adapter_image: Optional[Union[str, Image]] = None,
+        ip_adapter_scale: Optional[float] = None,
+        ip_adapter_image_fit: Optional[IMAGE_FIT_LITERAL] = None,
+        ip_adapter_image_anchor: Optional[IMAGE_ANCHOR_LITERAL] = None,
+        control_images: Optional[List[Dict[str, Any]]] = None,
         strength: Optional[float] = None,
         fit: Optional[IMAGE_FIT_LITERAL] = None,
         anchor: Optional[IMAGE_ANCHOR_LITERAL] = None,
         remove_background: Optional[bool] = None,
         fill_background: Optional[bool] = None,
         scale_to_model_size: Optional[bool] = None,
-        invert_control_image: Optional[bool] = None,
         invert_mask: Optional[bool] = None,
-        process_control_image: Optional[bool] = True,
         conditioning_scale: Optional[float] = None,
         crop_inpaint: Optional[bool] = None,
         inpaint_feather: Optional[int] = None,
@@ -244,6 +249,8 @@ class EnfugueClient(UserExtensionClientBase, JSONWebServiceAPIClient):
             kwargs["guidance_scale"] = guidance_scale
         if refiner_strength is not None:
             kwargs["refiner_strength"] = refiner_strength
+        if refiner_start is not None:
+            kwargs["refiner_start"] = refiner_start
         if refiner_guidance_scale is not None:
             kwargs["refiner_guidance_scale"] = refiner_guidance_scale
         if refiner_aesthetic_score is not None:
@@ -284,10 +291,8 @@ class EnfugueClient(UserExtensionClientBase, JSONWebServiceAPIClient):
             kwargs["image"] = image
         if mask is not None:
             kwargs["mask"] = mask
-        if control_image is not None:
-            kwargs["control_image"] = control_image
-        if controlnet is not None:
-            kwargs["controlnet"] = controlnet
+        if control_images is not None:
+            kwargs["control_images"] = control_images
         if strength is not None:
             kwargs["strength"] = strength
         if fit is not None:
@@ -300,18 +305,20 @@ class EnfugueClient(UserExtensionClientBase, JSONWebServiceAPIClient):
             kwargs["fill_background"] = fill_background
         if scale_to_model_size is not None:
             kwargs["scale_to_model_size"] = scale_to_model_size
-        if invert_control_image is not None:
-            kwargs["invert_control_image"] = invert_control_image
         if invert_mask is not None:
             kwargs["invert_mask"] = invert_mask
-        if process_control_image is not None:
-            kwargs["process_control_image"] = process_control_image
-        if conditioning_scale is not None:
-            kwargs["conditioning_scale"] = conditioning_scale
         if crop_inpaint is not None:
             kwargs["crop_inpaint"] = crop_inpaint
         if inpaint_feather is not None:
             kwargs["inpaint_feather"] = inpaint_feather
+        if ip_adapter_scale is not None:
+            kwargs["ip_adapter_scale"] = ip_adapter_scale
+        if ip_adapter_image is not None:
+            kwargs["ip_adapter_image"] = ip_adapter_image
+        if ip_adapter_image_fit is not None:
+            kwargs["ip_adapter_image_fit"] = ip_adapter_image_fit
+        if ip_adapter_image_anchor is not None:
+            kwargs["ip_adapter_image_anchor"] = ip_adapter_image_anchor
         if outscale is not None:
             kwargs["outscale"] = outscale
         if upscale is not None:
@@ -350,11 +357,11 @@ class EnfugueClient(UserExtensionClientBase, JSONWebServiceAPIClient):
         logger.info(f"Invoking with keyword arguments {kwargs}")
         
         try:
-            response = self.post("/api/invoke", data=kwargs).json()
+            response = self.post("/invoke", data=kwargs).json()
         except Exception as ex:
             if "responsive" in str(ex).lower():
                 logger.warning("Engine process died before becoming responsive, trying one more time.")
-                response = self.post("/api/invoke", data=kwargs).json()
+                response = self.post("/invoke", data=kwargs).json()
             else:
                 raise
         return RemoteInvocation.from_response(self, response.get("data", {}))

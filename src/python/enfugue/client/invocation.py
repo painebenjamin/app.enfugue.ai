@@ -43,13 +43,13 @@ class RemoteInvocation:
         """
         Gets the current status of the invocation
         """
-        return self.client.get(f"/api/invocation/{self.uuid}").json().get("data", {})
+        return self.client.get(f"/invocation/{self.uuid}").json().get("data", {})
 
     def delete(self) -> None:
         """
         Deletes the invocation and results.
         """
-        self.client.delete(f"/api/invocation/{self.uuid}")
+        self.client.delete(f"/invocation/{self.uuid}")
 
     def results(self, polling_interval: int = 5) -> List[PIL.Image.Image]:
         """
@@ -69,7 +69,7 @@ class RemoteInvocation:
             response_images = status.get("images", [])
             if response_images:
                 for image in response_images:
-                    image_bytes = self.client.get(f"/api/invocation/{image}", stream=True).content
+                    image_bytes = self.client.get(f"/invocation/{image}", stream=True).content
                     images.append(PIL.Image.open(io.BytesIO(image_bytes)))
             return images
         except KeyError:

@@ -1637,7 +1637,6 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     [latent_model_input, mask, mask_image],
                     dim=1,
                 )
-
             # predict the noise residual
             noise_pred = self.predict_noise_residual(
                 latent_model_input,
@@ -1653,7 +1652,6 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             if do_classifier_free_guidance:
                 noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
                 noise_pred = noise_pred_uncond + guidance_scale * (noise_pred_text - noise_pred_uncond)
-
             # Compute previous noisy sample
             latents = self.scheduler.step(
                 noise_pred,

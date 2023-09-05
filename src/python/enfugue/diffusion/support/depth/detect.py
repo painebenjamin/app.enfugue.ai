@@ -66,6 +66,7 @@ class DepthDetector(SupportModel):
         """
         Executes normal estimation via midas depth detection
         """
+        size = image.size
         image = self.execute(image)[0][0].numpy()
         image_depth = image.copy()
         image_depth -= np.min(image_depth)
@@ -84,4 +85,4 @@ class DepthDetector(SupportModel):
         image = np.stack([x, y, z], axis=2)
         image /= np.sum(image**2.0, axis=2, keepdims=True) ** 0.5
         image = (image * 127.5 + 127.5).clip(0, 255).astype(np.uint8)
-        return PIL.Image.fromarray(image)
+        return PIL.Image.fromarray(image).resize(size)

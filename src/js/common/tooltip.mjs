@@ -129,7 +129,7 @@ class TooltipHelper extends DOMWatcher {
                 self.tooltipContainer.content(node.getAttribute('data-tooltip'));
                 positionElement(e.clientX, e.clientY);
                 enableTimer = setTimeout(activate, activationDelay);
-                node.addEventListener('mousemove', mouseMove);
+                node.addEventListener('mousemove', mouseMove, true);
             },
             mouseLeave = function (e) {
                 clearTimeout(enableTimer);
@@ -148,12 +148,12 @@ class TooltipHelper extends DOMWatcher {
                 self.tooltipContainer.content(node.getAttribute('data-tooltip'));
                 positionElement(e.touches[0].clientX, e.touches[0].clientY);
                 enableTimer = setTimeout(activate, activationDelay);
-                window.addEventListener('touchstart', touchElsewhere);
+                window.addEventListener('touchstart', touchElsewhere, true);
             };
         
-        node.addEventListener('mouseenter', mouseEnter);
-        node.addEventListener('mouseleave', mouseLeave);
-        node.addEventListener('touchstart', touch);
+        node.addEventListener('mouseenter', mouseEnter, true);
+        node.addEventListener('mouseleave', mouseLeave), true;
+        node.addEventListener('touchstart', touch, true);
         node.setAttribute('data-tooltip-initialized', new Date().getTime());
     }
 }

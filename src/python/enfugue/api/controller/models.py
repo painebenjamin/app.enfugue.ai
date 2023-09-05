@@ -333,7 +333,7 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         """
         Issues a job to create an engine.
         """
-        plan = DiffusionPlan(**self.get_plan_kwargs_from_model(model_name, include_prompts=False))
+        plan = DiffusionPlan.assemble(**self.get_plan_kwargs_from_model(model_name, include_prompts=False))
         plan.build_tensorrt = True
 
         step = DiffusionStep(prompt="a green field, blue sky, outside", width=plan.size, height=plan.size)

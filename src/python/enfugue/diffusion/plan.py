@@ -444,7 +444,7 @@ class DiffusionStep:
         else:
             control_images = None # type: ignore[assignment]
 
-        if not self.prompt and not mask and not control_images and not ip_adapter_image:
+        if not self.prompt and not mask and not control_images and not ip_adapter_image and not self.ip_adapter_scale:
             if image:
                 if self.remove_background:
                     image = execute_remove_background(image)
@@ -975,13 +975,24 @@ class DiffusionPlan:
                             logger.debug(f"Enabling {upscale_controlnet} for upscale diffusion")
                             if use_refiner:
                                 pipeline.refiner_controlnets = upscale_controlnet
+                                pipeline.reload_refiner()
+                                upscale_pipline = pipeline.refiner_pipeline
+                                is_sdxl = pipeline.refiner_is_sdxl
                             else:
                                 pipeline.controlnets = upscale_controlnet
-                            kwargs["control_images"] = [{
-                                upscale_controlnet: DiffusionStep.process_control_image(
-                                    pipeline, upscale_controlnet, image
-                                )
-                            }]
+                                pipeline.reload_pipeline()
+                                upscale_pipeline = pipeline.pipeline
+                                is_sdxl = pipeline.is_sdxl
+                            kwargs["control_images"] = {
+                                upscale_controlnet: [
+                                    (
+                                        DiffusionStep.process_control_image(
+                                            pipeline, upscale_controlnet, image
+                                        ),
+                                        0.5 if is_sdxl else 1.0
+                                    )
+                                ]
+                            }
                         elif use_refiner:
                             pipeline.refiner_controlnets = None
                             upscale_pipeline = pipeline.refiner_pipeline
@@ -1561,7 +1572,7 @@ class DiffusionPlan:
         control_images: Optional[List[ControlImageDict]] = None,
         remove_background: bool = False,
         fill_background: bool = False,
-        scale_to_model_size: bool = True,
+        scale_to_model_size: bool = False,
         invert_mask: bool = False,
         crop_inpaint: bool = True,
         inpaint_feather: int = 32,
@@ -1958,7 +1969,7 @@ class DiffusionPlan:
             node_crop_inpaint = node_dict.get("crop_inpaint", crop_inpaint)
             node_inpaint_feather = node_dict.get("inpaint_feather", inpaint_feather)
             node_invert_mask = node_dict.get("invert_mask", False)
-            node_scale_to_model_size = node_dict.get("scale_to_model_size", True)
+            node_scale_to_model_size = bool(node_dict.get("scale_to_model_size", False))
             node_remove_background = bool(node_dict.get("remove_background", False))
             node_ip_adapter_scale: Optional[float] = node_dict.get("ip_adapter_scale", None) # type: ignore[assignment]
             node_ip_adapter_image: Optional[float] = node_dict.get("ip_adapter_image", None) # type: ignore[assignment]
@@ -2205,7 +2216,8 @@ class DiffusionPlan:
                 name = "Image to Image"
             elif node_image:
                 name = "Image Pass-Through"
-                plan.outpaint = False
+                if node_width == width and node_height == height:
+                    plan.outpaint = False
                 node_prompt_str = None # type: ignore[assignment]
                 node_prompt_2_str = None # type: ignore[assignment]
                 node_negative_prompt_str = None # type: ignore[assignment]
@@ -2238,8 +2250,8 @@ class DiffusionPlan:
                 refiner_prompt_2=refiner_prompt_2,
                 refiner_negative_prompt=refiner_negative_prompt,
                 refiner_negative_prompt_2=refiner_negative_prompt_2,
-                remove_background=remove_background,
-                scale_to_model_size=scale_to_model_size
+                remove_background=node_remove_background,
+                scale_to_model_size=node_scale_to_model_size
             )
 
             # Add step to plan

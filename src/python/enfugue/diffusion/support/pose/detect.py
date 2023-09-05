@@ -21,6 +21,11 @@ class PoseDetector(SupportModel):
         with self.context():
             detector = OpenposeDetector.from_pretrained("lllyasviel/ControlNet", cache_dir=self.model_dir)
             detector.to(self.device)
-            result = detector(image, hand_and_face=True)
+            result = detector(
+                image,
+                include_body=True,
+                include_hand=True,
+                include_face=True
+            )
             del detector
             return result.resize(image.size)

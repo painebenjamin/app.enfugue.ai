@@ -171,6 +171,8 @@ class Application {
             console.error(`Couldn't find application configuration using selector ${this.config.view.applicationContainer}, abandoning initialization.`);
             return;
         }
+        this.container.classList.add("loader");
+        this.container.classList.add("loading");
         this.session = Session.getScope("enfugue", 60 * 60 * 1000 * 24 * 30); // 1 month session
         this.model = new Model(this.config);
         this.menu = new MenuView(this.config);
@@ -210,6 +212,7 @@ class Application {
         document.addEventListener("keypress", (e) => this.onKeyPress(e));
         document.addEventListener("keyup", (e) => this.onKeyUp(e));
         document.addEventListener("keydown", (e) => this.onKeyDown(e));
+        this.container.classList.remove("loading");
     }
 
     /**

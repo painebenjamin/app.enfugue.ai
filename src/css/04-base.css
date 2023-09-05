@@ -774,10 +774,11 @@ ul.list-input-view li.selected {
 }
 
 .loader::after {
+    background-image: url("../img/loading.svg");
     background-position: center center;
     background-repeat: no-repeat;
     background-size: 250px auto;
-    backdrop-filter: blur(2px);
+    backdrop-filter: blur(4px);
     content: '\A';
     position: absolute;
     left: 0;
@@ -787,7 +788,7 @@ ul.list-input-view li.selected {
     z-index: 100;
     pointer-events: none;
     opacity: 0;
-    transition: opacity 0.4s ease-out;
+    transition: opacity 0.2s ease-out;
 }
 
 .loader.loader-cover::after {

@@ -103,7 +103,7 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         self.max_batch_size = max_batch_size
 
         if self.build_dynamic_shape or self.engine_size > 512:
-            self.max_batch_size = 4
+            self.max_batch_size = 8
 
         # Set default to DDIM - The PNDM default that some models have does not work with TRT
         if not isinstance(self.scheduler, DDIMScheduler):
@@ -407,4 +407,5 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
                 inference_kwargs["mid_block"] = self.device_view(mid_block_additional_residual)
                 for i, block in enumerate(down_block_additional_residuals):
                     inference_kwargs[f"down_block_{i}"] = self.device_view(block)
+
         return self.engine[engine_name].infer(inference_kwargs, self.stream)["latent"]

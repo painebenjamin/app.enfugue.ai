@@ -138,11 +138,34 @@ enfugue-node.focused {
     z-index: 2;
 }
 
-enfugue-node.merge-source {
-    background: var(--theme-color-primary);
+enfugue-node.merge-source::after,
+enfugue-node.merge-target::after {
+    content: "Release to Merge";
+    width: 100%;
+    height: 100%;
+    left: 0;
+    top: 0;
+    position: absolute;
+    font-family: "Noto Sans", sans-serif;
+    font-weight: bold;
+    font-size: 28px;
+    vertical-align: middle;
+    display: flex;
+    flex-flow: row nowrap;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    opacity: 0.5;
+    backdrop-blend-mode: hue;
+    color: white;
+    z-index: 2;
 }
 
-enfugue-node.merge-target {
+enfugue-node.merge-source::after {
+    background-color: var(--theme-color-primary);
+}
+
+enfugue-node.merge-target::after {
     background-color: var(--theme-color-secondary);
 }
 

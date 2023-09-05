@@ -1504,7 +1504,7 @@ class DiffusionPipelineManager:
             trt_ready = trt_ready and os.path.exists(Engine.get_engine_path(self.refiner_tensorrt_vae_dir))
         if "clip" in self.TENSORRT_STAGES:
             trt_ready = trt_ready and os.path.exists(Engine.get_engine_path(self.refiner_tensorrt_clip_dir))
-        if self.controlnets or self.TENSORRT_ALWAYS_USE_CONTROLLED_UNET:
+        if self.refiner_controlnets or self.TENSORRT_ALWAYS_USE_CONTROLLED_UNET:
             if "unet" in self.TENSORRT_STAGES:
                 trt_ready = trt_ready and os.path.exists(
                     Engine.get_engine_path(self.refiner_tensorrt_controlled_unet_dir)
@@ -1529,7 +1529,7 @@ class DiffusionPipelineManager:
             trt_ready = trt_ready and os.path.exists(Engine.get_engine_path(self.inpainter_tensorrt_vae_dir))
         if "clip" in self.TENSORRT_STAGES:
             trt_ready = trt_ready and os.path.exists(Engine.get_engine_path(self.inpainter_tensorrt_clip_dir))
-        if self.controlnets or self.TENSORRT_ALWAYS_USE_CONTROLLED_UNET:
+        if self.inpainter_controlnets or self.TENSORRT_ALWAYS_USE_CONTROLLED_UNET:
             if "unet" in self.TENSORRT_STAGES:
                 trt_ready = trt_ready and os.path.exists(
                     Engine.get_engine_path(self.inpainter_tensorrt_controlled_unet_dir)
@@ -2312,7 +2312,7 @@ class DiffusionPipelineManager:
                 if self.is_sdxl:
                     raise ValueError(f"Sorry, TensorRT is not yet supported for SDXL.")
                 if "unet" in self.TENSORRT_STAGES:
-                    if not self.controlnets is None and not self.TENSORRT_ALWAYS_USE_CONTROLLED_UNET:
+                    if not self.controlnets and not self.TENSORRT_ALWAYS_USE_CONTROLLED_UNET:
                         kwargs["unet_engine_dir"] = self.model_tensorrt_unet_dir
                     else:
                         kwargs["controlled_unet_engine_dir"] = self.model_tensorrt_controlled_unet_dir
@@ -2417,7 +2417,7 @@ class DiffusionPipelineManager:
                 if self.refiner_is_sdxl:
                     raise ValueError("Sorry, TensorRT is not yet supported for SDXL.")
                 if "unet" in self.TENSORRT_STAGES:
-                    if not self.controlnets and not self.TENSORRT_ALWAYS_USE_CONTROLLED_UNET:
+                    if not self.refiner_controlnets and not self.TENSORRT_ALWAYS_USE_CONTROLLED_UNET:
                         kwargs["unet_engine_dir"] = self.refiner_tensorrt_unet_dir
                     else:
                         kwargs["controlled_unet_engine_dir"] = self.refiner_tensorrt_controlled_unet_dir
@@ -2553,8 +2553,12 @@ class DiffusionPipelineManager:
             if self.inpainter_use_tensorrt:
                 if self.inpainter_is_sdxl: # Not possible yet
                     raise ValueError(f"Sorry, TensorRT is not yet supported for SDXL.")
+
                 if "unet" in self.TENSORRT_STAGES:
-                    kwargs["unet_engine_dir"] = self.inpainter_tensorrt_unet_dir
+                    if not self.inpainter_controlnets and not self.TENSORRT_ALWAYS_USE_CONTROLLED_UNET:
+                        kwargs["unet_engine_dir"] = self.inpainter_tensorrt_unet_dir
+                    else:
+                        kwargs["controlled_unet_engine_dir"] = self.inpainter_tensorrt_controlled_unet_dir
 
                 if "vae" in self.TENSORRT_STAGES:
                     kwargs["vae_engine_dir"] = self.inpainter_tensorrt_vae_dir
@@ -2947,7 +2951,10 @@ class DiffusionPipelineManager:
         for arg in new_controlnets:
             if arg is None:
                 break
-            controlnet_names = controlnet_names.union(arg) # type: ignore[arg-type]
+            if isinstance(arg, str):
+                controlnet_names.add(arg)
+            else:
+                controlnet_names = controlnet_names.union(arg) # type: ignore[arg-type]
 
         existing_controlnet_names = self.controlnet_names
         logger.debug(f"Setting main pipeline ControlNet(s) to {controlnet_names} from {existing_controlnet_names}")
@@ -3012,7 +3019,10 @@ class DiffusionPipelineManager:
         for arg in new_inpainter_controlnets:
             if arg is None:
                 break
-            controlnet_names = controlnet_names.union(arg) # type: ignore[arg-type]
+            if isinstance(arg, str):
+                controlnet_names.add(arg)
+            else:
+                controlnet_names = controlnet_names.union(arg) # type: ignore[arg-type]
 
         existing_controlnet_names = self.inpainter_controlnet_names
 
@@ -3077,7 +3087,10 @@ class DiffusionPipelineManager:
         for arg in new_refiner_controlnets:
             if arg is None:
                 break
-            controlnet_names = controlnet_names.union(arg) # type: ignore[arg-type]
+            if isinstance(arg, str):
+                controlnet_names.add(arg)
+            else:
+                controlnet_names = controlnet_names.union(arg) # type: ignore[arg-type]
 
         existing_controlnet_names = self.refiner_controlnet_names
 
@@ -3220,8 +3233,8 @@ class DiffusionPipelineManager:
                     self.tensorrt_is_enabled = False
                     logger.info(f"Width ({called_width}) less than configured width ({size}), disabling TensorRT")
                 elif called_height < size:
-                    logger.info(f"Height ({called_height}) less than configured height ({size}), disabling TensorRT")
                     self.tensorrt_is_enabled = False
+                    logger.info(f"height ({called_height}) less than configured height ({size}), disabling TensorRT")
                 elif (called_width != size or called_height != size) and not chunk_size:
                     logger.info(f"Dimensions do not match size of engine and chunking is disabled, disabling TensorRT")
                     self.tensorrt_is_enabled = False
