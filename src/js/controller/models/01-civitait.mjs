@@ -131,10 +131,10 @@ class CivitAIItemView extends View {
             flags.append(E.span().content("Commercial Use Disallowed"));
         } else if (this.item.allowCommercialUse === "Image") {
             flags.append(E.span().content("Commercial Use Allowed (Images Only)"));
-        } else if (this.item.allowCommercialUse === "Rent" || this.item.allowCommercialUse === "Sell") {
+        } else if (this.item.allowCommercialUse === "Rent" || this.item.allowCommercialUse === "Sell" || this.item.allowCommercialUse === "RentCivit") {
             flags.append(E.span().content("Commercial Use Allowed"));
         } else {
-            console.warning(`Unknown commercial use state '${this.item.allowCommercialUse}'`);
+            console.warn(`Unknown commercial use state '${this.item.allowCommercialUse}' for ${this.item.name}`);
         }
 
         if (this.item.allowNoCredit) {

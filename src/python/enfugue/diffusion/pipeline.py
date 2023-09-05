@@ -947,6 +947,36 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             else:
                 curr_layer.weight.data += multiplier * alpha * torch.mm(weight_up, weight_down)
 
+    def load_textual_inversion(self, inversion_path: str, **kwargs: Any) -> None:
+        """
+        Loads textual inversion
+        Temporary implementation from https://github.com/huggingface/diffusers/issues/4405
+        """
+        if not self.is_sdxl:
+            return super(EnfugueStableDiffusionPipeline, self).load_textual_inversion(inversion_path, **kwargs)
+
+        logger.debug(f"Using SDXL adaptation for textual inversion - Loading {inversion_path}")
+        if inversion_path.endswith("safetensors"):
+            from safetensors import safe_open
+
+            inversion = {}
+            with safe_open(inversion_path, framework="pt", device="cpu") as f:
+                for key in f.keys():
+                    inversion[key] = f.get_tensor(key)
+        else:
+            inversion = torch.load(inversion_path, map_location="cpu")
+
+        for i, (embedding_1, embedding_2) in enumerate(zip(inversion["clip_l"], inversion["clip_g"])):
+            token = f"sksd{chr(i+65)}"
+            self.tokenizer.add_tokens(token)
+            token_id = self.tokenizer.convert_tokens_to_ids(token)
+            if self.text_encoder is not None:
+                self.text_encoder.resize_token_embeddings(len(self.tokenizer))
+                self.text_encoder.get_input_embeddings().weight.data[token_id] = embedding_1
+            if self.text_encoder_2 is not None:
+                self.text_encoder_2.resize_token_embeddings(len(self.tokenizer))
+                self.text_encoder_2.get_input_embeddings().weight.data[token_id] = embedding_2
+
     def denormalize_latents(self, latents: torch.Tensor) -> torch.Tensor:
         """
         Denomalizes image data from [-1, 1] to [0, 1]
