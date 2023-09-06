@@ -387,6 +387,7 @@ class ModelPickerController extends Controller {
                     }
                 } else {
                     this.abridgedModelFormView.show();
+                    this.abridgedModelFormView.submit();
                     this.modelPickerFormView.setTensorRTStatus({supported: false});
                 }
             } else {

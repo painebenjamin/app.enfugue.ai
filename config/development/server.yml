@@ -30,7 +30,9 @@ configuration:
             - object_name: Download
               group: admin
               scope_type: explicit
-              action: create
+              action:
+                - create
+                - delete
             - object_name: DiffusionInvocation
               global: true
               scope_type: explicit

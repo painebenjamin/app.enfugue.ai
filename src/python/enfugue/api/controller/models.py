@@ -342,6 +342,7 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         if network_name == "inpaint_unet":
             step.image = PIL.Image.new("RGB", (plan.size, plan.size))
             step.mask = PIL.Image.new("RGB", (plan.size, plan.size))
+            step.strength = 1.0
         elif network_name == "controlled_unet":
             step.control_images = [{
                 "controlnet": "canny",

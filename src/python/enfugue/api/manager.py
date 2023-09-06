@@ -314,7 +314,7 @@ class SystemManager:
         Gets a list of active downloads
         """
         return [
-            download for download_list in self.downloads.values() for download in download_list if not download.complete
+            download for download_list in self.downloads.values() for download in download_list if not download.complete and download.started
         ]
 
     @property
