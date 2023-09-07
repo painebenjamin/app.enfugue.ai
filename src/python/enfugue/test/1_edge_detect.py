@@ -2,7 +2,10 @@ import io
 import os
 import PIL
 import requests
+
 from enfugue.diffusion.manager import DiffusionPipelineManager
+from enfugue.util import image_from_uri
+
 from pibble.util.log import DebugUnifiedLoggingContext
 
 BASE_IMAGE = "https://github.com/pytorch/hub/raw/master/images/ssd.png"
@@ -13,12 +16,13 @@ def main() -> None:
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
 
-        image = PIL.Image.open(io.BytesIO(requests.get(BASE_IMAGE, stream=True).content))
+        image = image_from_uri(BASE_IMAGE)
         manager = DiffusionPipelineManager()
-        manager.edge_detector.canny(image).save(os.path.join(save_dir, "detect-canny.png"))
-        manager.edge_detector.hed(image).save(os.path.join(save_dir, "detect-hed.png"))
-        manager.edge_detector.hed(image, scribble=True).save(os.path.join(save_dir, "detect-scribble.png"))
-        manager.edge_detector.pidi(image).save(os.path.join(save_dir, "detect-pidi.png"))
+        controlnets = ["canny", "pidi", "hed", "scribble"]
+        image.save(os.path.join(save_dir, "base.png"))
+        with manager.control_image_processor.processors(*controlnets) as processors:
+            for controlnet, processor in zip(controlnets, processors):
+                processor(image).save(os.path.join(save_dir, f"detect-{controlnet}.png"))
 
 if __name__ == "__main__":
     main()

@@ -5,7 +5,7 @@ import PIL
 from typing import Union, TYPE_CHECKING
 
 from enfugue.util import check_download_to_dir
-from enfugue.diffusion.support.vision import ComputerVision
+from enfugue.diffusion.util import ComputerVision
 from enfugue.diffusion.support.model import SupportModel
 
 if TYPE_CHECKING:

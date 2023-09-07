@@ -263,26 +263,7 @@ class DiffusionEngineProcess(Process):
                 control_image = control_image_dict["image"]
                 scale = control_image_dict.get("scale", 1.0)
                 if control_image_dict.get("process", True):
-                    if controlnet == "canny":
-                        control_image = self.pipemanager.edge_detector.canny(control_image)
-                    elif controlnet == "hed":
-                        control_image = self.pipemanager.edge_detector.hed(control_image)
-                    elif controlnet == "scribble":
-                        control_image = self.pipemanager.edge_detector.hed(control_image, scribble=True)
-                    elif controlnet == "pidi":
-                        control_image = self.pipemanager.edge_detector.pidi(control_image)
-                    elif controlnet == "depth":
-                        control_image = self.pipemanager.depth_detector.midas(control_image)
-                    elif controlnet == "normal":
-                        control_image = self.pipemanager.depth_detector.normal(control_image)
-                    elif controlnet == "pose":
-                        control_image = self.pipemanager.pose_detector.detect(control_image)
-                    elif controlnet == "line":
-                        control_image = self.pipemanager.line_detector.detect(control_image)
-                    elif controlnet == "anime":
-                        control_image = self.pipemanager.line_detector.detect(control_image, anime=True)
-                    elif controlnet == "mlsd":
-                        control_image = self.pipemanager.line_detector.mlsd(control_image)
+                    control_image = self.pipemanager.control_image_processor(controlnet, control_image)
                 elif control_image.get("invert", False):
                     control_image = PIL.ImageOps.invert(control_image)
                 if controlnet not in control_images_dict:

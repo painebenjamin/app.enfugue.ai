@@ -32,7 +32,7 @@ if TYPE_CHECKING:
     from diffusers.models import ControlNetModel, AutoencoderKL
     from diffusers.schedulers.scheduling_utils import KarrasDiffusionSchedulers
     from enfugue.diffusion.pipeline import EnfugueStableDiffusionPipeline
-    from enfugue.diffusion.support import EdgeDetector, DepthDetector, PoseDetector, LineDetector, Upscaler, IPAdapter
+    from enfugue.diffusion.support import ControlImageProcessor, Upscaler, IPAdapter
 
 def noop(*args: Any) -> None:
     """
@@ -2227,7 +2227,7 @@ class DiffusionPipelineManager:
 
             _, ext = os.path.splitext(self.model)
             pipe = download_from_original_stable_diffusion_ckpt(
-                checkpoint_path=self.model,
+                self.model,
                 from_safetensors=ext == ".safetensors",
             ).to(torch_dtype=self.dtype)
             pipe.save_pretrained(self.model_diffusers_dir)
@@ -2245,7 +2245,7 @@ class DiffusionPipelineManager:
 
             _, ext = os.path.splitext(self.refiner)
             pipe = download_from_original_stable_diffusion_ckpt(
-                checkpoint_path=self.refiner,
+                self.refiner,
                 from_safetensors=ext == ".safetensors",
             ).to(torch_dtype=self.dtype)
             pipe.save_pretrained(self.refiner_diffusers_dir)
@@ -2263,7 +2263,8 @@ class DiffusionPipelineManager:
 
             _, ext = os.path.splitext(self.inpainter)
             pipe = download_from_original_stable_diffusion_ckpt(
-                checkpoint_path=self.inpainter,
+                self.inpainter,
+                num_in_channels=9 if "inpaint" in self.inpainter.lower() else 4,
                 from_safetensors=ext == ".safetensors"
             ).to(torch_dtype=self.dtype)
             pipe.save_pretrained(self.inpainter_diffusers_dir)
@@ -2770,48 +2771,14 @@ class DiffusionPipelineManager:
         return self._upscaler
 
     @property
-    def edge_detector(self) -> EdgeDetector:
+    def control_image_processor(self) -> ControlImageProcessor:
         """
-        Gets the edge detector.
+        Gets the processor for control images
         """
-        if not hasattr(self, "_edge_detector"):
-            from enfugue.diffusion.support.edge import EdgeDetector
-
-            self._edge_detector = EdgeDetector(self.engine_other_dir, self.device, self.dtype)
-        return self._edge_detector
-
-    @property
-    def line_detector(self) -> LineDetector:
-        """
-        Gets the line detector.
-        """
-        if not hasattr(self, "_line_detector"):
-            from enfugue.diffusion.support.line import LineDetector
-
-            self._line_detector = LineDetector(self.engine_other_dir, self.device, self.dtype)
-        return self._line_detector
-
-    @property
-    def depth_detector(self) -> DepthDetector:
-        """
-        Gets the depth detector.
-        """
-        if not hasattr(self, "_depth_detector"):
-            from enfugue.diffusion.support.depth import DepthDetector
-
-            self._depth_detector = DepthDetector(self.engine_other_dir, self.device, self.dtype)
-        return self._depth_detector
-
-    @property
-    def pose_detector(self) -> PoseDetector:
-        """
-        Gets the pose detector.
-        """
-        if not hasattr(self, "_pose_detector"):
-            from enfugue.diffusion.support.pose import PoseDetector
-
-            self._pose_detector = PoseDetector(self.engine_other_dir, self.device, self.dtype)
-        return self._pose_detector
+        if not hasattr(self, "_control_image_processor"):
+            from enfugue.diffusion.support import ControlImageProcessor
+            self._control_image_processor = ControlImageProcessor(self.engine_other_dir, self.device, self.dtype)
+        return self._control_image_processor
 
     @property
     def ip_adapter(self) -> IPAdapter:

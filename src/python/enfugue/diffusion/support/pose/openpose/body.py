@@ -7,10 +7,10 @@ import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-import enfugue.diffusion.support.pose.util as util
+import enfugue.diffusion.support.pose.openpose.util as util
 
 from scipy.ndimage.filters import gaussian_filter
-from enfugue.diffusion.support.pose.model import bodypose_model
+from enfugue.diffusion.support.pose.openpose.model import bodypose_model
 
 
 class Keypoint(NamedTuple):

@@ -5,13 +5,8 @@ import math
 import numpy as np
 import matplotlib
 import cv2
-from typing import List, Tuple, Union, TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from enfugue.diffusion.support.pose.body import BodyResult, Keypoint
 
 eps = 0.01
-
 
 def smart_resize(x, s):
     Ht, Wt = s

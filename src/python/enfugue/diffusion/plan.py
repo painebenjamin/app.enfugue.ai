@@ -354,37 +354,6 @@ class DiffusionStep:
         image.paste(foreground, position, mask=mask)
         return image
 
-    @staticmethod
-    def process_control_image(
-        pipeline: DiffusionPipelineManager,
-        controlnet: str,
-        control_image: PIL.Image.Image
-    ) -> PIL.Image.Image:
-        """
-        Gets the control image for the pipeline based on the requested controlnet
-        """
-        if controlnet == "canny":
-            return pipeline.edge_detector.canny(control_image)
-        if controlnet == "hed":
-            return pipeline.edge_detector.hed(control_image)
-        if controlnet == "scribble":
-            return pipeline.edge_detector.hed(control_image, scribble=True)
-        if controlnet == "pidi":
-            return pipeline.edge_detector.pidi(control_image)
-        if controlnet == "depth":
-            return pipeline.depth_detector.midas(control_image)
-        if controlnet == "normal":
-            return pipeline.depth_detector.normal(control_image)
-        if controlnet == "pose":
-            return pipeline.pose_detector.detect(control_image)
-        if controlnet == "line":
-            return pipeline.line_detector.detect(control_image)
-        if controlnet == "anime":
-            return pipeline.line_detector.detect(control_image, anime=True)
-        if controlnet == "mlsd":
-            return pipeline.line_detector.mlsd(control_image)
-        return control_image
-
     def execute(
         self,
         pipeline: DiffusionPipelineManager,
@@ -433,7 +402,7 @@ class DiffusionStep:
 
                 conditioning_scale = control_image_dict.get("scale", 1.0)
                 if control_image_dict.get("process", True):
-                    control_image = self.process_control_image(pipeline, controlnet, control_image)
+                    control_image = pipeline.control_image_processor(controlnet, control_image)
                 elif control_image_dict.get("invert", False):
                     control_image = PIL.ImageOps.invert(control_image)
 
@@ -986,9 +955,7 @@ class DiffusionPlan:
                             kwargs["control_images"] = {
                                 upscale_controlnet: [
                                     (
-                                        DiffusionStep.process_control_image(
-                                            pipeline, upscale_controlnet, image
-                                        ),
+                                        pipeline.control_image_processor(upscale_controlnet, image),
                                         0.5 if is_sdxl else 1.0
                                     )
                                 ]

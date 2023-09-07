@@ -102,12 +102,7 @@ class ImageEditorCompoundImageNodeView extends CompoundNodeView {
      * Hides the chooser if the child node has options visible, otherwise shows it
      */
     checkShowChooser() {
-        let optionsIsVisible = !isEmpty(this.content) &&
-            !isEmpty(this.content.selectedNode) &&
-            !isEmpty(this.content.selectedNode.optionsForm) &&
-            !this.content.selectedNode.optionsForm.hidden;
-
-        if (optionsIsVisible) {
+        if (this.optionsIsVisible) {
             this.content.chooser.addClass("hide-hover");
         } else {
             this.content.chooser.removeClass("hide-hover");
@@ -115,11 +110,34 @@ class ImageEditorCompoundImageNodeView extends CompoundNodeView {
     }
 
     /**
+     * Returns true if the options are currently visible.
+     */
+    get optionsIsVisible() {
+        return !isEmpty(this.content) &&
+            !isEmpty(this.content.selectedNode) &&
+            !isEmpty(this.content.selectedNode.optionsForm) &&
+            !this.content.selectedNode.optionsForm.hidden;
+    }
+
+
+    /**
      * Override setActiveIndex to check if we have to hide the chooser on hover
      */
     async setActiveIndex(newIndex) {
+        if (this.optionsIsVisible) {
+            this.toggleOptions();
+        }
         await super.setActiveIndex(newIndex);
         this.checkShowChooser();
+    }
+
+    /**
+     * Override mergeWith to also call checkShowChooser
+     */
+    mergeWith(node) {
+        super.mergeWith(node);
+        this.checkShowChooser();
+        return this;
     }
 }
 

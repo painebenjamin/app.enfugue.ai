@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 
 from typing import List, Union, Dict, Any, Iterator, Optional, Tuple, Callable, TYPE_CHECKING
+from typing_extensions import Self
 from contextlib import contextmanager
 
 from transformers import (
@@ -306,7 +307,7 @@ class IPAdapter(SupportModel):
         return self._processor
 
     @contextmanager
-    def context(self) -> Iterator[None]:
+    def context(self) -> Iterator[Self]:
         """
         Override parent context to send models to device
         """
@@ -315,7 +316,7 @@ class IPAdapter(SupportModel):
             self.encoder.to(device=self.device, dtype=self.dtype)
             self.projector.to(device=self.device, dtype=self.dtype)
             with torch.inference_mode():
-                yield
+                yield self
         self.to("cpu")
 
     def to(

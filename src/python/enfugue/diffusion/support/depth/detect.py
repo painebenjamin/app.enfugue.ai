@@ -1,73 +1,84 @@
 from __future__ import annotations
 
 import cv2
-import PIL
 import numpy as np
 
-from typing import Tuple
+from typing import Iterator, Callable, Any, TYPE_CHECKING
 
-from enfugue.diffusion.support.model import SupportModel
-from enfugue.diffusion.support.vision import ComputerVision
+from contextlib import contextmanager
+from PIL import Image
+
+from enfugue.diffusion.util import ComputerVision
+from enfugue.diffusion.support.model import SupportModel, SupportModelImageProcessor
+
+if TYPE_CHECKING:
+    import torch
 
 __all__ = ["DepthDetector"]
 
-
-class DepthDetector(SupportModel):
+class MidasImageProcessor(SupportModelImageProcessor):
     """
-    Uses MiDaS v2 to predict depth.
-    Uses depth prediction to generate normal maps.
+    Stores the depth model and transform function
     """
+    def __init__(
+        self,
+        device: torch.device,
+        model: torch.nn.Module,
+        transform: Callable[[np.ndarray], torch.Tensor],
+        **kwargs: Any
+    ) -> None:
+        super(MidasImageProcessor, self).__init__(**kwargs)
+        self.device = device
+        self.model = model
+        self.transform = transform
 
-    MIDAS_MODEL_TYPE = "DPT_Hybrid"
-    MIDAS_TRANSFORM_TYPE = "transforms"
-    MIDAS_PATH = "intel-isl/MiDaS"
-
-    def execute(self, image: PIL.Image.Image) -> Tuple[np.ndarray, PIL.Image.Image]:
+    def depth(self, image: Image.Image) -> torch.Tensor:
+        """
+        Runs the depth prediction
+        """
         import torch
-
-        with self.context():
-            torch.hub.set_dir(self.model_dir)
-            model = torch.hub.load(self.MIDAS_PATH, self.MIDAS_MODEL_TYPE)
-            model.to(self.device)
-            model.eval()
-
-            transforms = torch.hub.load(self.MIDAS_PATH, self.MIDAS_TRANSFORM_TYPE)
-            if "dpt" in self.MIDAS_MODEL_TYPE.lower():
-                transform = transforms.dpt_transform
-            else:
-                transform = transforms.small_transform
+        with torch.no_grad():
             image = ComputerVision.convert_image(image)
-            input_batch = transform(image).to(self.device)
+            batch = self.transform(image).to(self.device)
+            return self.model(batch)
 
-            with torch.no_grad():
-                depth = model(input_batch)
-                pred = torch.nn.functional.interpolate(
-                    depth.unsqueeze(1),
-                    size=image.shape[:2],
-                    mode="bicubic",
-                    align_corners=False,
-                ).squeeze()
-
-            output = pred.cpu().numpy()
-            formatted = (output * 255 / np.max(output)).astype(np.uint8)
-            image = PIL.Image.fromarray(formatted)
-            return_tuple = (depth.cpu(), image)
-            del model
-            del transforms
-            return return_tuple
-
-    def midas(self, image: PIL.Image.Image) -> PIL.Image.Image:
+    def __call__(self, image: Image.Image) -> Image.Image:
         """
-        Executes midas depth detection
+        Gets the depth prediction then returns to an image
         """
-        return self.execute(image)[1]
+        import torch
+        output = self.depth(image)
+        output = torch.nn.functional.interpolate(
+            output.unsqueeze(1),
+            size=tuple(reversed(image.size)),
+            mode="bicubic",
+            align_corners=False,
+        ).squeeze()
+        output = output.cpu().numpy()
+        output = (output * 255 / np.max(output)).astype(np.uint8)
+        return Image.fromarray(output)
 
-    def normal(self, image: PIL.Image.Image) -> PIL.Image.Image:
+class NormalImageProcessor(MidasImageProcessor):
+    """
+    Extends the depth processor to perform normal estimation
+    """
+    @staticmethod
+    def from_midas(midas_processor: MidasImageProcessor) -> NormalImageProcessor:
         """
-        Executes normal estimation via midas depth detection
+        Create this from a midas processor
+        """
+        return NormalImageProcessor(
+            device=midas_processor.device,
+            model=midas_processor.model,
+            transform=midas_processor.transform
+        )
+
+    def __call__(self, image: Image.Image) -> Image.Image:
+        """
+        Gets the depth prediction then transforms into a normal
         """
         size = image.size
-        image = self.execute(image)[0][0].numpy()
+        image = self.depth(image).cpu()[0].numpy()
         image_depth = image.copy()
         image_depth -= np.min(image_depth)
         image_depth /= np.max(image_depth)
@@ -85,4 +96,53 @@ class DepthDetector(SupportModel):
         image = np.stack([x, y, z], axis=2)
         image /= np.sum(image**2.0, axis=2, keepdims=True) ** 0.5
         image = (image * 127.5 + 127.5).clip(0, 255).astype(np.uint8)
-        return PIL.Image.fromarray(image).resize(size)
+        return Image.fromarray(image).resize(size)
+
+class DepthDetector(SupportModel):
+    """
+    Uses MiDaS v2 to predict depth.
+    Uses depth prediction to generate normal maps.
+    """
+
+    MIDAS_MODEL_TYPE = "DPT_Hybrid"
+    MIDAS_TRANSFORM_TYPE = "transforms"
+    MIDAS_PATH = "intel-isl/MiDaS"
+
+    @contextmanager
+    def midas(self) -> Iterator[MidasImageProcessor]:
+        """
+        Executes MiDaS depth estimation
+        """
+        import torch
+
+        with self.context():
+            torch.hub.set_dir(self.model_dir)
+            model = torch.hub.load(self.MIDAS_PATH, self.MIDAS_MODEL_TYPE)
+            model.to(self.device)
+            model.eval()
+
+            transforms = torch.hub.load(self.MIDAS_PATH, self.MIDAS_TRANSFORM_TYPE)
+            if "dpt" in self.MIDAS_MODEL_TYPE.lower():
+                transform = transforms.dpt_transform
+            else:
+                transform = transforms.small_transform
+
+            processor = MidasImageProcessor(
+                model=model,
+                transform=transform,
+                device=self.device
+            )
+            yield processor
+            del model
+            del transforms
+            del processor
+
+    @contextmanager
+    def normal(self) -> Iterator[NormalImageProcessor]:
+        """
+        Executes normal estimation via midas depth detection
+        """
+        with self.midas() as midas:
+            processor = NormalImageProcessor.from_midas(midas)
+            yield processor
+            del processor

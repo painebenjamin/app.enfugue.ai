@@ -23,11 +23,11 @@ import torch
 from huggingface_hub import hf_hub_download
 from PIL import Image
 
-import enfugue.diffusion.support.pose.util as util
+import enfugue.diffusion.support.pose.openpose.util as util
 from enfugue.diffusion.support.util import HWC3, resize_image
-from enfugue.diffusion.support.pose.body import Body, BodyResult, Keypoint
-from enfugue.diffusion.support.pose.face import Face
-from enfugue.diffusion.support.pose.hand import Hand
+from enfugue.diffusion.support.pose.openpose.body import Body, BodyResult, Keypoint
+from enfugue.diffusion.support.pose.openpose.face import Face
+from enfugue.diffusion.support.pose.openpose.hand import Hand
 
 HandResult = List[Keypoint]
 FaceResult = List[Keypoint]
