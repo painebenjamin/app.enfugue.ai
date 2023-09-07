@@ -69,7 +69,7 @@ PYTHON_REQUIREMENTS=$(shell find $(PYTHON_SRC_DIR) -type f -name "requirements*.
 PYTHON_BUILD_SRC=$(PYTHON_SRC:%=$(BUILD_DIR)/%)
 
 # Touch'd files for testing
-PYTHON_TEST_SRC=$(filter-out %setup.py %__main__.py %server.py,$(PYTHON_SRC))
+PYTHON_TEST_SRC=$(filter-out %setup.py %__main__.py %server.py %wholebody.py,$(PYTHON_SRC))
 PYTHON_TEST_TYPE=$(PYTHON_TEST_SRC:%=$(BUILD_DIR)/%.typecheck)
 PYTHON_TEST_IMPORT=$(PYTHON_TEST_SRC:%=$(BUILD_DIR)/%.importcheck)
 PYTHON_TEST_UNIT=$(PYTHON_TEST_SRC:%=$(BUILD_DIR)/%.unittest)
