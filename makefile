@@ -113,7 +113,7 @@ BUILD_TENSORRT=0
 endif
 
 ifneq ($(BUILD_TENSORRT),1)
-PYTHON_TEST_SRC=$(filter-out %setup.py %__main__.py %server.py $(SRC_DIR)/python/enfugue/diffusion/rt/%,$(PYTHON_SRC))
+PYTHON_TEST_SRC=$(filter-out %setup.py %__main__.py %server.py %wholebody.py $(SRC_DIR)/python/enfugue/diffusion/rt/%,$(PYTHON_SRC))
 PYTHON_TEST_UNIT=$(PYTHON_TEST_SRC:%=$(BUILD_DIR)/%.unittest)
 endif
 
