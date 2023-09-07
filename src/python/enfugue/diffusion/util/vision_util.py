@@ -10,6 +10,11 @@ from enfugue.util import logger
 
 __all__ = ["ComputerVision"]
 
+def latent_friendly(number: int) -> int:
+    """
+    Returns a latent-friendly image size (divisible by 8)
+    """
+    return (number // 8) * 8
 
 class ComputerVision:
     """
@@ -168,13 +173,17 @@ class ComputerVision:
             """
             Processes an image frame if requested.
             """
+            width, height = image.size
             if resolution is not None:
-                width, height = image.size
                 ratio = float(resolution) / float(min(width, height))
                 height = round(height * ratio)
                 width = round(width * ratio)
-                image = image.resize((width, height))
-            
+
+            image = image.resize((
+                latent_friendly(width),
+                latent_friendly(height)
+            ))
+
             if process_frame is not None:
                 image = process_frame(image)
 
