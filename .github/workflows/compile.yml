@@ -57,7 +57,7 @@ jobs:
         pip install onnx==1.12 onnxruntime-gpu==1.12.1 onnx-graphsurgeon==0.3.26 tensorrt==8.6.1 --no-deps
     - name: Install MMLab Dependencies
       run: |
-        pip install -U openmim xtcocotools==1.14
+        pip install -U openmim
         mim install mmengine
         mim install "mmcv>=2.0.1"
         mim install "mmdet>=3.1.0"
