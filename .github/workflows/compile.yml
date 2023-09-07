@@ -55,6 +55,12 @@ jobs:
       if: ${{ contains(inputs.os, 'ubuntu') && contains(inputs.api, 'tensorrt') }}
       run: |
         pip install onnx==1.12 onnxruntime-gpu==1.12.1 onnx-graphsurgeon==0.3.26 tensorrt==8.6.1 --no-deps
+    - name: Build XTCocoTools from Source
+      if: ${{ contains(inputs.os, 'mac') }}
+      run: |
+        git clone https://github.com/jin-s13/xtcocoapi
+        cd xtcocoapi
+        make install
     - name: Install MMLab Dependencies
       run: |
         pip install -U openmim
