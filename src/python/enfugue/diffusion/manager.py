@@ -2910,10 +2910,10 @@ class DiffusionPipelineManager:
                 controlnet_names = controlnet_names.union(arg) # type: ignore[arg-type]
 
         existing_controlnet_names = self.controlnet_names
-        logger.debug(f"Setting main pipeline ControlNet(s) to {controlnet_names} from {existing_controlnet_names}")
         if controlnet_names == existing_controlnet_names:
             return # No changes
 
+        logger.debug(f"Setting main pipeline ControlNet(s) to {controlnet_names} from {existing_controlnet_names}")
         self._controlnet_names = controlnet_names
 
         if (not controlnet_names and existing_controlnet_names):
@@ -2979,10 +2979,10 @@ class DiffusionPipelineManager:
 
         existing_controlnet_names = self.inpainter_controlnet_names
 
-        logger.debug(f"Setting inpainter pipeline ControlNet(s) to {controlnet_names} from {existing_controlnet_names}")
         if controlnet_names == existing_controlnet_names:
             return # No changes
 
+        logger.debug(f"Setting inpainter pipeline ControlNet(s) to {controlnet_names} from {existing_controlnet_names}")
         self._inpainter_controlnet_names = controlnet_names
 
         if (not controlnet_names and existing_controlnet_names):
@@ -3047,10 +3047,10 @@ class DiffusionPipelineManager:
 
         existing_controlnet_names = self.refiner_controlnet_names
 
-        logger.debug(f"Setting refiner pipeline ControlNet(s) to {controlnet_names} from {existing_controlnet_names}")
         if controlnet_names == existing_controlnet_names:
             return # No changes
 
+        logger.debug(f"Setting refiner pipeline ControlNet(s) to {controlnet_names} from {existing_controlnet_names}")
         self._refiner_controlnet_names = controlnet_names
 
         if (not controlnet_names and existing_controlnet_names):
