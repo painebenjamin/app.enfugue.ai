@@ -542,7 +542,13 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 self.ip_adapter.load(self.unet, self.is_sdxl, scale) # type: ignore[union-attr]
         else:
             logger.debug("Loading IP adapter")
-            self.ip_adapter.load(self.unet, self.is_sdxl, scale, keepalive_callback) # type: ignore[union-attr]
+            self.ip_adapter.load( # type: ignore[union-attr]
+                self.unet,
+                is_sdxl=self.is_sdxl,
+                scale=scale,
+                keepalive_callback=keepalive_callback,
+                controlnets=self.controlnets
+            )
             self.ip_adapter_loaded = True
 
     def unload_ip_adapter(self) -> None:
@@ -553,7 +559,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             raise RuntimeError("Pipeline does not have an IP adapter")
         if self.ip_adapter_loaded:
             logger.debug("Unloading IP adapter")
-            self.ip_adapter.unload(self.unet) # type: ignore[union-attr]
+            self.ip_adapter.unload(self.unet, self.controlnets) # type: ignore[union-attr]
             self.ip_adapter_loaded = False
 
     def get_image_embeds(

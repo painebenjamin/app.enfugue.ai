@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Callable, Iterator, TYPE_CHECKING
 
+from enfugue.util import logger
 from contextlib import contextmanager
 
 if TYPE_CHECKING:
@@ -87,7 +88,9 @@ class PoseDetector(SupportModel):
         try:
             from enfugue.diffusion.support.pose.dwpose import DWposeDetector  # type: ignore
             context = self.dwpose
+            logger.debug("Using DWPose for pose detection.")
         except ImportError:
             context = self.openpose
+            logger.debug("Using OpenPose for pose detection.")
         with context() as processor:
             yield processor

@@ -776,15 +776,7 @@ class Application {
             }
         }
         this.images.hideCurrentInvocation();
-        this.images.addNode(
-            ImageEditorImageNodeView,
-            name,
-            imageView,
-            0,
-            0,
-            imageView.width,
-            imageView.height
-        );
+        this.images.addImageNode(imageView, name);
     }
 
     /**

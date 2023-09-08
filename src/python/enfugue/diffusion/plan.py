@@ -989,7 +989,10 @@ class DiffusionPlan:
                     pipeline.safe = True
                 if refiner:
                     logger.debug("Offloading refiner for next inference.")
+                    pipeline.refiner_controlnets = None
                     pipeline.offload_refiner()
+                else:
+                    pipeline.controlnets = None # Make sure we reset controlnets
         pipeline.stop_keepalive() # Make sure this is stopped
         return self.format_output(images, nsfw)
 
@@ -1117,7 +1120,7 @@ class DiffusionPlan:
             if i < len(self.nodes) - 2:
                 next_node = self.nodes[i+1]
                 next_intention = "inpainting" if next_node.step.mask is not None else "inference"
-            elif self.upscale_steps is not None:
+            elif self.upscale_steps is not None and not (isinstance(self.upscale_steps, list) and len(self.upscale_steps) == 0):
                 upscale_step = self.upscale_steps
                 if isinstance(upscale_step, list):
                     upscale_step = upscale_step[0]
@@ -1678,7 +1681,7 @@ class DiffusionPlan:
                         "image": control_image,
                         "controlnet": control_image_dict["controlnet"],
                         "process": control_image_dict.get("process", True),
-                        "scale": control_image_dict.get("scale", 1.0),
+                        "scale": control_image_dict.get("scale", 0.5),
                         "invert": control_image_dict.get("invert", False)
                     }
 

@@ -221,34 +221,65 @@ enfugue-node enfugue-node-compound-contents enfugue-node enfugue-node-header {
     display: none;
 }
 
+enfugue-node enfugue-node-compound-contents enfugue-node enfugue-node-contents form {
+    padding-left: 40px;
+}
+
 enfugue-node enfugue-node-compound-contents ul.list-input-view {
+    writing-mode: vertical-lr;
     position: absolute;
     left: 0;
-    bottom: 35px;
-    justify-content: center;
-    width: 100%;
-    height: 30px;
+    bottom: 0;
+    top: 0;
+    padding: 30px 0;
+    justify-content: flex-start;
+    align-items: flex-start;
     z-index: 2;
     pointer-events: none;
     transition: opacity 0.25s ease-in-out;
+    gap: 0;
+    border-left: 2px solid var(--theme-color-primary);
+    flex-flow: row nowrap;
+    overflow-y: scroll;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
 }
 
-enfugue-node.flipped enfugue-node-compound-contents ul.list-input-view {
-    bottom: auto;
-    top: 35px;
+enfugue-node enfugue-node-compound-contents ul.list-input-view::-webkit-scrollbar {
+    background: transparent !important;
+    width: 0px !important;
 }
 
 enfugue-node enfugue-node-compound-contents ul.list-input-view li {
     font-size: 11px;
     pointer-events: auto;
+    padding: 10px 5px;
+    border-radius: 0;
+    border: none;
+    background-color: var(--dark-color);
+    color: var(--lightest-color);
+    font-weight: 100;
+    flex-shrink: 0;
 }
 
-enfugue-node enfugue-node-compound-contents:hover ul.list-input-view.hide-hover {
-    opacity: 0;
+enfugue-node enfugue-node-compound-contents ul.list-input-view li:not(.selected) ~ li:not(.selected) {
+    border-top: 1px solid var(--darkest-color);
 }
 
-enfugue-node enfugue-node-compound-contents:hover ul.list-input-view.hide-hover li {
-    pointer-events: none;
+enfugue-node enfugue-node-compound-contents ul.list-input-view li.selected {
+    font-weight: 900;
+    padding: 10px 10px;
+    background-color: var(--theme-color-primary);
+    border-bottom-right-radius: 5px;
+    border-top-right-radius: 5px;
+}
+
+enfugue-node enfugue-node-compound-contents ul.list-input-view > li:first-child {
+    border-top-right-radius: 5px;
+}
+
+enfugue-node enfugue-node-compound-contents ul.list-input-view > li:last-child {
+    border-bottom-right-radius: 5px;
 }
 
 enfugue-windows-toolbar-item {

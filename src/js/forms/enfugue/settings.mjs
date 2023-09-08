@@ -191,11 +191,11 @@ class SystemSettingsFormView extends FormView {
                 "class": ControlNetPathInputView
             },
             "pose": {
-                "label": "Pose Detection (OpenPose)",
+                "label": "Pose Detection (DWPose/OpenPose)",
                 "class": ControlNetPathInputView
             },
             "pose_xl": {
-                "label": "Pose Detection (OpenPose) XL",
+                "label": "Pose Detection (DWPose/OpenPose) XL",
                 "class": ControlNetPathInputView
             },
             "tile": {

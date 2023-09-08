@@ -3156,17 +3156,10 @@ class DiffusionPipelineManager:
             task_callback(f"Preparing {intention.title()} Pipeline")
             if inpainting and (self.has_inpainter or self.create_inpainter):
                 size = self.inpainter_size
-                self.offload_pipeline(intention) # type: ignore
-                self.offload_refiner(intention) # type: ignore
-                self.reload_inpainter()
             elif refining:
-                self.offload_pipeline(intention) # type: ignore
-                self.offload_inpainter(intention) # type: ignore
+                size = self.refiner_size
             else:
                 size = self.size
-                self.offload_refiner(intention) # type: ignore
-                self.offload_inpainter(intention) # type: ignore
-                self.reload_pipeline()
 
             if refining:
                 # Set result here to passed image
@@ -3176,6 +3169,8 @@ class DiffusionPipelineManager:
                     images=[kwargs["image"]] * samples,
                     nsfw_content_detected=[False] * samples
                 )
+                self.offload_pipeline(intention) # type: ignore
+                self.offload_inpainter(intention) # type: ignore
             else:
                 called_width = kwargs.get("width", size)
                 called_height = kwargs.get("height", size)
@@ -3200,8 +3195,14 @@ class DiffusionPipelineManager:
                     self.tensorrt_is_enabled = False
 
                 if inpainting and (self.has_inpainter or self.create_inpainter):
+                    self.offload_pipeline(intention) # type: ignore
+                    self.offload_refiner(intention) # type: ignore
+                    self.reload_inpainter()
                     pipe = self.inpainter_pipeline
                 else:
+                    self.offload_refiner(intention) # type: ignore
+                    self.offload_inpainter(intention) # type: ignore
+                    self.reload_pipeline()
                     pipe = self.pipeline
 
                 # Check refining settings

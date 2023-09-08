@@ -63,7 +63,8 @@ class ImageEditorCompoundImageNodeView extends CompoundNodeView {
     static passThroughMethods = [
         "clearMemory", "increaseSize", "decreaseSize",
         "togglePencilShape", "toggleEraser", "rotateClockwise",
-        "rotateCounterClockwise", "mirrorHorizontally", "mirrorVertically"
+        "rotateCounterClockwise", "mirrorHorizontally", "mirrorVertically",
+        "toggleOptions"
     ];
 
     /**
@@ -79,65 +80,6 @@ class ImageEditorCompoundImageNodeView extends CompoundNodeView {
                 );
             }
         }
-    }
-
-    /**
-     * When getting buttons, change context of nodeOptions to this
-     */
-    getButtons() {
-        let nodeButtons = super.getButtons();
-        nodeButtons.options.context = this;
-        return nodeButtons;
-    }
-
-    /**
-     * Since we changed toggleOptions context, it gets called on this
-     */
-    toggleOptions() {
-        this.content.selectedNode.toggleOptions();
-        this.checkShowChooser();
-    }
-
-    /**
-     * Hides the chooser if the child node has options visible, otherwise shows it
-     */
-    checkShowChooser() {
-        if (this.optionsIsVisible) {
-            this.content.chooser.addClass("hide-hover");
-        } else {
-            this.content.chooser.removeClass("hide-hover");
-        }
-    }
-
-    /**
-     * Returns true if the options are currently visible.
-     */
-    get optionsIsVisible() {
-        return !isEmpty(this.content) &&
-            !isEmpty(this.content.selectedNode) &&
-            !isEmpty(this.content.selectedNode.optionsForm) &&
-            !this.content.selectedNode.optionsForm.hidden;
-    }
-
-
-    /**
-     * Override setActiveIndex to check if we have to hide the chooser on hover
-     */
-    async setActiveIndex(newIndex) {
-        if (this.optionsIsVisible) {
-            this.toggleOptions();
-        }
-        await super.setActiveIndex(newIndex);
-        this.checkShowChooser();
-    }
-
-    /**
-     * Override mergeWith to also call checkShowChooser
-     */
-    mergeWith(node) {
-        super.mergeWith(node);
-        this.checkShowChooser();
-        return this;
     }
 }
 

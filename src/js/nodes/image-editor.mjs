@@ -165,11 +165,17 @@ class ImageEditorView extends NodeEditorView {
      * @return NodeView The added view.
      */
     async addImageNode(imageSource, imageName = "Image") {
-        let imageView = new ImageView(this.config, imageSource),
+        let imageView = null,
             [x, y] = this.getNextNodePoint();
 
+        if (imageSource instanceof ImageView) {
+            imageView = imageSource;
+        } else {
+            imageView = new ImageView(this.config, imageSource);
+        }
+
         await imageView.waitForLoad();
-        return await this.addNode(
+        let newNode = await this.addNode(
             ImageEditorImageNodeView,
             imageName,
             imageView,
@@ -178,6 +184,8 @@ class ImageEditorView extends NodeEditorView {
             imageView.width,
             imageView.height
         );
+        setTimeout(() => newNode.toggleOptions(), 250);
+        return newNode;
     }
 
     /**

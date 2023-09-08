@@ -17,7 +17,7 @@ if TYPE_CHECKING:
     import torch
     from PIL import Image
     from enfugue.diffusion.support.ip.projection import ImageProjectionModel
-    from diffusers.models import UNet2DConditionModel
+    from diffusers.models import UNet2DConditionModel, ControlNetModel
 
 class IPAdapter(SupportModel):
     """
@@ -46,6 +46,7 @@ class IPAdapter(SupportModel):
         is_sdxl: bool = False,
         scale: float = 1.0,
         keepalive_callback: Optional[Callable[[],None]] = None,
+        controlnets: Optional[Dict[str, ControlNetModel]] = None,
     ) -> None:
         """
         Loads the IP adapter.
@@ -58,10 +59,12 @@ class IPAdapter(SupportModel):
             LoRAAttnProcessor2_0
         )
         from enfugue.diffusion.support.ip.attention import ( # type: ignore[attr-defined]
-            IPAttnProcessor,
-            IPAttnProcessor2_0,
-            ModuleAttnProcessor,
-            ModuleAttnProcessor2_0,
+            CNAttentionProcessor,
+            CNAttentionProcessor2_0,
+            IPAttentionProcessor,
+            IPAttentionProcessor2_0,
+            AttentionProcessor,
+            AttentionProcessor2_0,
         )
         if self.cross_attention_dim != unet.config.cross_attention_dim or self.is_sdxl != is_sdxl:
             del self.projector
@@ -69,9 +72,12 @@ class IPAdapter(SupportModel):
 
         self.is_sdxl = is_sdxl
         self.cross_attention_dim = unet.config.cross_attention_dim
+
         self._default_unet_attention_processors: Dict[str, Any] = {}
+        self._default_controlnet_attention_processors: Dict[str, Dict[str, Any]] = {}
+
         new_attention_processors: Dict[str, Any] = {}
-        
+
         for name in unet.attn_processors.keys():
             current_processor = unet.attn_processors[name]
             cross_attention_dim = None if name.endswith("attn1.processor") else self.cross_attention_dim
@@ -88,53 +94,80 @@ class IPAdapter(SupportModel):
 
             if cross_attention_dim is None:
                 if type(current_processor) in [AttnProcessor2_0, LoRAAttnProcessor2_0]:
-                    attn_class = ModuleAttnProcessor2_0
+                    attn_class = AttentionProcessor2_0
                 else:
-                    attn_class = ModuleAttnProcessor
+                    attn_class = AttentionProcessor
                 new_attention_processors[name] = attn_class()
             else:
                 if type(current_processor) in [AttnProcessor2_0, LoRAAttnProcessor2_0]:
-                    ip_attn_class = IPAttnProcessor2_0
+                    ip_attn_class = IPAttentionProcessor2_0
                 else:
-                    ip_attn_class = IPAttnProcessor
+                    ip_attn_class = IPAttentionProcessor
                 new_attention_processors[name] = ip_attn_class(
                     hidden_size=hidden_size,
                     cross_attention_dim=cross_attention_dim,
                     scale=scale
                 ).to(self.device, dtype=self.dtype)
+
         keepalive_callback()
         unet.set_attn_processor(new_attention_processors)
         layers = torch.nn.ModuleList(unet.attn_processors.values())
         state_dict = self.xl_state_dict if is_sdxl else self.default_state_dict
+
         keepalive_callback()
         layers.load_state_dict(state_dict["ip_adapter"])
+
         keepalive_callback()
         self.projector.load_state_dict(state_dict["image_proj"])
+
+        if controlnets is not None:
+            keepalive_callback()
+            for controlnet in controlnets:
+                new_processors = {}
+                current_processors = controlnets[controlnet].attn_processors
+                self._default_controlnet_attention_processors[controlnet] = {}
+                for key in current_processors:
+                    self._default_controlnet_attention_processors[controlnet][key] = current_processors[key]
+                    if isinstance(current_processors[key], AttnProcessor2_0):
+                        new_processors[key] = CNAttentionProcessor2_0()
+                    else:
+                        new_processors[key] = CNAttentionProcessor()
+                controlnets[controlnet].set_attn_processor(new_processors)
 
     def set_scale(self, unet: UNet2DConditionModel, new_scale: float) -> int:
         """
         Sets the scale on attention processors.
         """
         from enfugue.diffusion.support.ip.attention import ( # type: ignore[attr-defined]
-            IPAttnProcessor,
-            IPAttnProcessor2_0,
+            IPAttentionProcessor,
+            IPAttentionProcessor2_0,
         )
         processors_altered = 0
         for name in unet.attn_processors.keys():
             processor = unet.attn_processors[name]
-            if isinstance(processor, IPAttnProcessor) or isinstance(processor, IPAttnProcessor2_0):
+            if isinstance(processor, IPAttentionProcessor) or isinstance(processor, IPAttentionProcessor2_0):
                 processor.scale = new_scale
                 processors_altered += 1
         return processors_altered
 
-    def unload(self, unet: UNet2DConditionModel) -> None:
+    def unload(self, unet: UNet2DConditionModel, controlnets: Optional[Dict[str, ControlNetModel]] = None) -> None:
         """
         Unloads the IP adapter by resetting attention processors to previous values
         """
         if not hasattr(self, "_default_unet_attention_processors"):
             raise RuntimeError("IP adapter was not loaded, cannot unload")
+
         unet.set_attn_processor({**self._default_unet_attention_processors})
+
+        if controlnets is not None:
+            for controlnet in controlnets:
+                if controlnet in self._default_controlnet_attention_processors:
+                    controlnets[controlnet].set_attn_processor(
+                        {**self._default_controlnet_attention_processors[controlnet]}
+                    )
+
         del self._default_unet_attention_processors
+        del self._default_controlnet_attention_processors
 
     @property
     def adapter_directory(self) -> str:

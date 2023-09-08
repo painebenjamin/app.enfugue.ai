@@ -10,12 +10,12 @@ class UpscaleAmountInputView extends FloatInputView {
     /**
      * @var float The minimum value.
      */
-    static min = 1.0;
+    static min = 0.5;
 
     /**
      * @var float The default value.
      */
-    static defaultValue = 1.0;
+    static defaultValue = 2.0;
 
     /**
      * @var float The step value

@@ -51,7 +51,7 @@ class ControlNetInputView extends SelectInputView {
         "scribble": "Scribble",
         "depth": "Depth Detection (MiDaS)",
         "normal": "Normal Detection (Estimate)",
-        "pose": "Pose Detection (OpenPose)"
+        "pose": "Pose Detection (DWPose/OpenPose)"
     };
 
     /**
@@ -67,7 +67,7 @@ class ControlNetInputView extends SelectInputView {
         "<strong>Scribble</strong>: This ControlNet was trained on a variant of the HED edge-detection algorithm, and is good for hand-drawn scribbles with thick, variable lines.<br />" +
         "<strong>Depth</strong>: This uses Intel's MiDaS model to estimate monocular depth from a single image. This uses a greyscale image showing the distance from the camera to any given object.<br />" +
         "<strong>Normal</strong>: Normal maps are similar to depth maps, but instead of using a greyscale depth, three sets of distance data is encoded into red, green and blue channels.<br />" +
-        "<strong>OpenPose</strong>: This AI model from the Carnegie Mellon University's Perceptual Computing Lab detects human limb, face and digit poses from an image. Using this data, you can generate different people in the same pose.";
+        "<strong>DWPose/OpenPose</strong>: OpenPose is an AI model from the Carnegie Mellon University's Perceptual Computing Lab detects human limb, face and digit poses from an image, and DWPose is a faster and more accurate model built on top of OpenPose. Using this data, you can generate different people in the same pose.";
 };
 
 

@@ -6,7 +6,6 @@ import re
 
 from pibble.util.log import DebugUnifiedLoggingContext
 
-from enfugue.diffusion.support.vision import ComputerVision
 from enfugue.diffusion.constants import DEFAULT_SDXL_MODEL, DEFAULT_SDXL_REFINER
 from enfugue.client import EnfugueClient
 from enfugue.util import logger, fit_image, image_from_uri
@@ -165,7 +164,7 @@ def main() -> None:
         invoke(
             "ip-adapter",
             image=inpaint_image,
-            ip_adapter_scale=0.5
+            ip_adapter_scale=0.3
         )
         
         # Sizing, fitting and outpaint
@@ -191,7 +190,6 @@ def main() -> None:
             "regions", 
             prompt="Roses in a bouquet",
             chunking_size=128,
-            chunking_blur=128,
             nodes=[
                 {
                     "x": 0,
@@ -263,7 +261,6 @@ def main() -> None:
                 height=768,
                 width=786,
                 chunking_size=256,
-                chunking_blur=256
             )
 
         # Upscalers
@@ -290,16 +287,18 @@ def main() -> None:
                 {
                     "amount": 2,
                     "method": "esrgan",
-                    "strength": 0.2,
+                    "strength": 0.15,
                     "controlnets": "tile",
-                    "chunking_size": 256
+                    "chunking_size": 128,
+                    "guidance_scale": 8
                 },
                 {
                     "amount": 2,
                     "method": "esrgan",
-                    "strength": 0.2,
+                    "strength": 0.1,
                     "controlnets": "tile",
-                    "chunking_size": 256
+                    "chunking_size": 256,
+                    "guidance_scale": 8
                 }
             ],
         )

@@ -28,9 +28,13 @@ class UpscaleController extends Controller {
      */
     setState(newState) {
         if (!isEmpty(newState.upscale)) {
-            console.log(newState.upscale)
             let upscaleState = deepClone(newState.upscale);
-            this.upscaleForm.setValues({steps: upscaleState}).then(() => this.upscaleForm.submit());
+            this.upscaleForm.setValues({steps: upscaleState}).then(() => {
+                setTimeout(
+                    () => this.upscaleForm.submit(),
+                    250
+                );
+            });
         }
     }
 

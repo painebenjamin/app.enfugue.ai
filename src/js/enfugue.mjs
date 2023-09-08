@@ -45,6 +45,10 @@ import { getQueryParameters, isEmpty } from './base/helpers.mjs';
         configuration.keys = globalParameters.keys;
     }
 
+    if (parameters.debug) {
+        configuration.debug = true;
+    }
+
     const app = new Application(configuration);
 
     Loader.done(function(){

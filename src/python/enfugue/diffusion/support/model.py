@@ -16,6 +16,18 @@ class SupportModelImageProcessor:
         """
         self.kwargs = kwargs
 
+    def __enter__(self) -> Self:
+        """
+        Compatibility with contexts
+        """
+        return self
+
+    def __exit__(self, *args: Any) -> None:
+        """
+        Compatibility with contexts
+        """
+        return
+
     def __call__(self, image: Image) -> Image:
         """
         Implemented by the image processor.

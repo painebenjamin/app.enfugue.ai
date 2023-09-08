@@ -29,12 +29,21 @@ def main() -> None:
         plan.execute(manager)["images"][0].save(os.path.join(save_dir, "./puppy-plan-xl.png"))
 
         # Upscale
-        plan.outscale = 2
-        plan.upscale = "esrgan"
+        plan.upscale_steps = [{
+            "amount": 2,
+            "method": "esrgan"
+        }]
         manager.seed = 123456
         plan.execute(manager)["images"][0].save(os.path.join(save_dir, "./puppy-plan-xl-upscale.png"))
 
         # Upscale diffusion at 2x
+        plan.upscale_steps = [{
+            "amount": 2,
+            "method": "esrgan",
+            "strength": 0.2,
+            "num_inference_steps": 50,
+            "guidance_scale": 10.0
+        }]
         plan.upscale_diffusion = True
         manager.seed = 123456
         result = plan.execute(manager)["images"][0]
@@ -43,10 +52,15 @@ def main() -> None:
         # Upscale again alone
         plan = DiffusionPlan.upscale_image(
             result,
-            outscale=2,
-            upscale="esrgan",
-            upscale_diffusion=True,
-            upscale_diffusion_chunking_size=512,
+            upscale_steps=[{
+                "amount": 2,
+                "method": "esrgan",
+                "strength": 0.2,
+                "chunking_size": 512,
+                "strength": 0.2,
+                "num_inference_steps": 50,
+                "guidance_scale": 10.0
+            }],
             **kwargs
         )
         plan.execute(manager)["images"][0].save(os.path.join(save_dir, "./puppy-plan-xl-upscale-solo.png"))

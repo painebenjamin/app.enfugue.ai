@@ -22,6 +22,7 @@ if __name__ == "__main__":
     system = platform.system()
     configuration = get_local_configuration()
     open_browser_thread: Optional[OpenBrowserWhenResponsiveThread] = None
+    server = None
     if configuration.get("open", True):
         open_browser_thread = OpenBrowserWhenResponsiveThread(configuration)
     try:
@@ -37,3 +38,8 @@ if __name__ == "__main__":
         if open_browser_thread is not None:
             open_browser_thread.stop()
             open_browser_thread.join()
+        if server is not None:
+            try:
+                server.on_destroy()
+            except:
+                pass

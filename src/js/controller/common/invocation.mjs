@@ -719,13 +719,16 @@ class InvocationController extends Controller {
      */
     async invoke(payload, detached = false) {
         payload = isEmpty(payload) ? {} : payload;
-        let invocationPayload = {...this.kwargs, ...payload},
-            result = await this.application.model.post(
-                "invoke",
-                null,
-                null,
-                invocationPayload
-            );
+        let invocationPayload = {...this.kwargs, ...payload};
+        if (this.config.debug) {
+            console.log("Invoking with payload", invocationPayload);
+        }
+        let result = await this.application.model.post(
+            "invoke",
+            null,
+            null,
+            invocationPayload
+        );
         this.enableStop();
         if (!isEmpty(result.uuid)) {
             if (detached) {
