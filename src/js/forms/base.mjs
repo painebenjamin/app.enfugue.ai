@@ -358,16 +358,9 @@ class FormView extends View {
 
             try {
                 let enforceRequired = true;
-                if (
-                    !isEmpty(
-                        this.constructor.fieldSetConditions[inputView.fieldSet]
-                    )
-                ) {
+                if (!isEmpty(this.constructor.fieldSetConditions[inputView.fieldSet])) {
                     if (isEmpty(conditions[inputView.fieldSet])) {
-                        conditions[inputView.fieldSet] =
-                            this.constructor.fieldSetConditions[
-                                inputView.fieldSet
-                            ](this.values);
+                        conditions[inputView.fieldSet] = this.constructor.fieldSetConditions[inputView.fieldSet](this.values);
                     }
                     enforceRequired = conditions[inputView.fieldSet];
                 }
@@ -425,9 +418,7 @@ class FormView extends View {
         if (this.node !== undefined) {
             for (let fieldSet in this.constructor.fieldSetConditions) {
                 let fieldSetNode = this.node.find(`fieldset.field-set-${kebabCase(fieldSet)}`);
-                if (
-                    this.constructor.fieldSetConditions[fieldSet](this.values)
-                ) {
+                if (this.constructor.fieldSetConditions[fieldSet](this.values)) {
                     if (!isEmpty(fieldSetNode)) {
                         fieldSetNode.show();
                     }

@@ -269,28 +269,39 @@ def main() -> None:
         # Upscalers
         invoke(
             f"upscale-standalone-esrgan",
-            outscale=2,
-            upscale="esrgan", 
+            upscale_steps=[{
+                "amount": 2,
+                "method": "esrgan"
+            }],
             image=base
         )
         invoke(
             f"upscale-standalone-gfpgan",
-            outscale=2,
-            upscale="gfpgan",
+            upscale_steps=[{
+                "amount": 2,
+                "method": "gfpgan"
+            }],
             image=base
         )
         invoke(
             f"upscale-iterative-diffusion",
             prompt="A green tree frog",
-            outscale=4,
-            upscale="esrgan",
-            upscale_iterative=True,
-            upscale_diffusion=True,
-            upscale_diffusion_steps=10,
-            upscale_diffusion_strength=0.2,
-            upscale_diffusion_controlnet="tile",
-            upscale_diffusion_chunking_size=256,
-            upscale_diffusion_chunking_blur=256
+            upscale_steps=[
+                {
+                    "amount": 2,
+                    "method": "esrgan",
+                    "strength": 0.2,
+                    "controlnets": "tile",
+                    "chunking_size": 256
+                },
+                {
+                    "amount": 2,
+                    "method": "esrgan",
+                    "strength": 0.2,
+                    "controlnets": "tile",
+                    "chunking_size": 256
+                }
+            ],
         )
 
         # SDXL

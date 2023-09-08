@@ -33,7 +33,8 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         "width",
         "height",
         "chunking_size",
-        "chunking_blur",
+        "chunking_mask_type",
+        "chunking_mask_kwargs",
         "num_inference_steps",
         "guidance_scale",
         "refiner_start",
@@ -47,23 +48,7 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         "refiner_negative_prompt_2",
         "prompt_2",
         "negative_prompt_2",
-        "upscale",
-        "outscale",
-        "upscale_iterative",
-        "upscale_pipeline",
-        "upscale_method",
-        "upscale_diffusion",
-        "upscale_diffusion_prompt",
-        "upscale_diffusion_prompt_2",
-        "upscale_diffusion_negative_prompt",
-        "upscale_diffusion_negative_prompt_2",
-        "upscale_diffusion_controlnet",
-        "upscale_diffusion_steps",
-        "upscale_diffusion_strength",
-        "upscale_diffusion_guidance_scale",
-        "upscale_diffusion_chunking_size",
-        "upscale_diffusion_scale_chunking_size",
-        "upscale_diffusion_scale_chunking_blur"
+        "upscale_steps",
     ]
 
     DEFAULT_CHECKPOINTS = [
@@ -347,8 +332,6 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
             step.control_images = [{
                 "controlnet": "canny",
                 "image": PIL.Image.new("RGB", (plan.size, plan.size)),
-                "fit": None,
-                "anchor": None,
                 "scale": 1.0,
                 "process": True,
                 "invert": False,

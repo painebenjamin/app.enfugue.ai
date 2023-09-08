@@ -47,7 +47,6 @@ def main() -> None:
             upscale="esrgan",
             upscale_diffusion=True,
             upscale_diffusion_chunking_size=512,
-            upscale_diffusion_chunking_blur=512,
             **kwargs
         )
         plan.execute(manager)["images"][0].save(os.path.join(save_dir, "./puppy-plan-xl-upscale-solo.png"))

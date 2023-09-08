@@ -1,4 +1,6 @@
-from typing import Dict, Union, Iterator, Tuple
+from __future__ import annotations
+
+from typing import Dict, Union, Iterator, Tuple, Optional
 
 __all__ = ["TokenMerger"]
 
@@ -36,6 +38,18 @@ class TokenMerger:
             if token not in self.tokens:
                 self.tokens[token] = weight
             self.tokens[token] += weight
+
+    def clone(self, add_phrase: Optional[str] = None, add_weight: Union[int, float] = 1) -> TokenMerger:
+        """
+        Returns another token merger, cloned.
+        Optionally adds one phrase/weight.
+        """
+        new_merger = TokenMerger()
+        for phrase in self.tokens:
+            new_merger.tokens[phrase] = self.tokens[phrase]
+        if add_phrase is not None:
+            new_merger.add(add_phrase, add_weight)
+        return new_merger
 
     def __iter__(self) -> Iterator[Tuple[str, Union[int, float]]]:
         """

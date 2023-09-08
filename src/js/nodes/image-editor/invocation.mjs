@@ -4,8 +4,8 @@ import { isEmpty } from "../../base/helpers.mjs";
 import { ImageView } from "../../view/image.mjs";
 import { ToolbarView } from "../../view/menu.mjs";
 import {
-    QuickUpscaleFormView,
-    QuickDownscaleFormView
+    UpscaleFormView,
+    DownscaleFormView
 } from "../../forms/enfugue/upscale.mjs";
 import {
     ImageAdjustmentView,
@@ -245,7 +245,7 @@ class CurrentInvocationImageView extends ImageView {
             },
             saveResults = false;
 
-        this.imageDownscaleForm = new QuickDownscaleFormView(this.config);
+        this.imageDownscaleForm = new DownscaleFormView(this.config);
         this.imageDownscaleWindow = await this.editor.application.windows.spawnWindow(
             "Downscale Image",
             this.imageDownscaleForm,
@@ -277,7 +277,7 @@ class CurrentInvocationImageView extends ImageView {
     async startImageUpscale() {
         if (this.checkActiveTool("upscale")) return;
 
-        this.imageUpscaleForm = new QuickUpscaleFormView(this.config);
+        this.imageUpscaleForm = new UpscaleFormView(this.config);
         this.imageUpscaleWindow = await this.editor.application.windows.spawnWindow(
             "Upscale Image",
             this.imageUpscaleForm,
@@ -295,7 +295,7 @@ class CurrentInvocationImageView extends ImageView {
                 true, // Save history
                 true, // Keep current state, except for...
                 {
-                    "upscale": values,
+                    "upscale": [values],
                     "generation": {"samples": 1},
                     "samples": null
                 } // ...these state overrides

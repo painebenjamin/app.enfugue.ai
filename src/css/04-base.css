@@ -220,11 +220,11 @@ fieldset.collapsed .field-container {
     display: none;
 }
 
-fieldset.collapsible legend {
+fieldset.collapsible > legend {
     cursor: pointer;
 }
 
-fieldset.collapsible legend::after {
+fieldset.collapsible > legend::after {
     content: "\A";
     display: inline-block;
     width: 0;
@@ -774,12 +774,22 @@ ul.list-input-view li.selected {
 }
 
 .loader::after {
-    background-image: url("../img/loading.svg");
+    background-image: url("../img/cloud-320.png");
     background-position: center center;
     background-repeat: no-repeat;
-    background-size: 250px auto;
+    background-size: 320px auto;
     backdrop-filter: blur(4px);
-    content: '\A';
+    content: 'LOADING';
+    padding-top: 75px;
+    font-size: 12px;
+    letter-spacing: 4px;
+    font-weight: 900;
+    text-shadow: 0px 0px 3px rgba(0,0,0,0.25);
+    color: rgba(255,255,255,0.75);
+    display: flex;
+    flex-flow: row nowrap;
+    align-items: center;
+    justify-content: center;
     position: absolute;
     left: 0;
     right: 0;

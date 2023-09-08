@@ -11,7 +11,7 @@ from urllib.parse import urlparse
 from pibble.api.client.webservice.jsonapi import JSONWebServiceAPIClient
 from pibble.ext.user.client.base import UserExtensionClientBase
 
-from enfugue.diffusion.plan import NodeDict
+from enfugue.diffusion.plan import NodeDict, UpscaleStepDict
 from enfugue.diffusion.constants import *
 from enfugue.util import (
     logger,
@@ -55,7 +55,6 @@ class EnfugueClient(UserExtensionClientBase, JSONWebServiceAPIClient):
             client["path"] = "/api"
         configuration["client"] = client
         super(EnfugueClient, self).configure(**configuration)
-
 
     def on_configure(self) -> None:
         """
@@ -139,7 +138,8 @@ class EnfugueClient(UserExtensionClientBase, JSONWebServiceAPIClient):
         width: Optional[int] = None,
         height: Optional[int] = None,
         chunking_size: Optional[int] = None,
-        chunking_blur: Optional[int] = None,
+        chunking_mask_type: Optional[MASK_TYPE_LITERAL] = None,
+        chunking_mask_kwargs: Optional[Dict[str, Any]] = None,
         samples: Optional[int] = None,
         iterations: Optional[int] = None,
         num_inference_steps: Optional[int] = None,
@@ -186,23 +186,7 @@ class EnfugueClient(UserExtensionClientBase, JSONWebServiceAPIClient):
         conditioning_scale: Optional[float] = None,
         crop_inpaint: Optional[bool] = None,
         inpaint_feather: Optional[int] = None,
-        outscale: Optional[int] = 1,
-        upscale: Optional[Union[UPSCALE_LITERAL, List[UPSCALE_LITERAL]]] = None,
-        upscale_pipeline: Optional[UPSCALE_PIPELINE_LITERAL] = None,
-        upscale_diffusion: bool = False,
-        upscale_iterative: bool = False,
-        upscale_diffusion_steps: Optional[Union[int, List[int]]] = None,
-        upscale_diffusion_guidance_scale: Optional[Union[Union[int, float], List[Union[int, float]]]] = None,
-        upscale_diffusion_strength: Optional[Union[float, List[float]]] = None,
-        upscale_diffusion_prompt: Optional[Union[str, List[str]]] = None,
-        upscale_diffusion_prompt_2: Optional[Union[str, List[str]]] = None,
-        upscale_diffusion_negative_prompt: Optional[Union[str, List[str]]] = None,
-        upscale_diffusion_negative_prompt_2: Optional[Union[str, List[str]]] = None,
-        upscale_diffusion_controlnet: Optional[Union[CONTROLNET_LITERAL, List[CONTROLNET_LITERAL]]] = None,
-        upscale_diffusion_chunking_size: Optional[int] = None,
-        upscale_diffusion_chunking_blur: Optional[int] = None,
-        upscale_diffusion_scale_chunking_size: Optional[bool] = None,
-        upscale_diffusion_scale_chunking_blur: Optional[bool] = None,
+        upscale_steps: Optional[Union[UpscaleStepDict, List[UpscaleStepDict]]] = None,
     ) -> RemoteInvocation:
         """
         Invokes the engine.
@@ -237,8 +221,10 @@ class EnfugueClient(UserExtensionClientBase, JSONWebServiceAPIClient):
             kwargs["height"] = height
         if chunking_size is not None:
             kwargs["chunking_size"] = chunking_size
-        if chunking_blur is not None:
-            kwargs["chunking_blur"] = chunking_blur
+        if chunking_mask_type is not None:
+            kwargs["chunking_mask_type"] = chunking_mask_type
+        if chunking_mask_kwargs is not None:
+            kwargs["chunking_mask_kwargs"] = chunking_mask_kwargs
         if samples is not None:
             kwargs["samples"] = samples
         if iterations is not None:
@@ -319,43 +305,11 @@ class EnfugueClient(UserExtensionClientBase, JSONWebServiceAPIClient):
             kwargs["ip_adapter_image_fit"] = ip_adapter_image_fit
         if ip_adapter_image_anchor is not None:
             kwargs["ip_adapter_image_anchor"] = ip_adapter_image_anchor
-        if outscale is not None:
-            kwargs["outscale"] = outscale
-        if upscale is not None:
-            kwargs["upscale"] = upscale
-        if upscale_diffusion is not None:
-            kwargs["upscale_diffusion"] = upscale_diffusion
-        if upscale_iterative is not None:
-            kwargs["upscale_iterative"] = upscale_iterative
-        if upscale_pipeline is not None:
-            kwargs["upscale_pipeline"] = upscale_pipeline
-        if upscale_diffusion_steps is not None:
-            kwargs["upscale_diffusion_steps"] = upscale_diffusion_steps
-        if upscale_diffusion_guidance_scale is not None:
-            kwargs["upscale_diffusion_guidance_scale"] = upscale_diffusion_guidance_scale
-        if upscale_diffusion_strength is not None:
-            kwargs["upscale_diffusion_strength"] = upscale_diffusion_strength
-        if upscale_diffusion_prompt is not None:
-            kwargs["upscale_diffusion_prompt"] = upscale_diffusion_prompt
-        if upscale_diffusion_prompt_2 is not None:
-            kwargs["upscale_diffusion_prompt_2"] = upscale_diffusion_prompt_2
-        if upscale_diffusion_negative_prompt is not None:
-            kwargs["upscale_diffusion_negative_prompt"] = upscale_diffusion_negative_prompt
-        if upscale_diffusion_negative_prompt_2 is not None:
-            kwargs["upscale_diffusion_negative_prompt_2"] = upscale_diffusion_negative_prompt_2
-        if upscale_diffusion_controlnet is not None:
-            kwargs["upscale_diffusion_controlnet"] = upscale_diffusion_controlnet
-        if upscale_diffusion_chunking_size is not None:
-            kwargs["upscale_diffusion_chunking_size"] = upscale_diffusion_chunking_size
-        if upscale_diffusion_chunking_blur is not None:
-            kwargs["upscale_diffusion_chunking_blur"] = upscale_diffusion_chunking_blur
-        if upscale_diffusion_scale_chunking_size is not None:
-            kwargs["upscale_diffusion_scale_chunking_size"] = upscale_diffusion_scale_chunking_size
-        if upscale_diffusion_scale_chunking_blur is not None:
-            kwargs["upscale_diffusion_scale_chunking_blur"] = upscale_diffusion_scale_chunking_blur
-        
+        if upscale_steps is not None:
+            kwargs["upscale_steps"] = upscale_steps
+
         logger.info(f"Invoking with keyword arguments {kwargs}")
-        
+
         try:
             response = self.post("/invoke", data=kwargs).json()
         except Exception as ex:

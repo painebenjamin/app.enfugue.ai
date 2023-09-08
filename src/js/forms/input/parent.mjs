@@ -28,6 +28,11 @@ class RepeatableInputView extends InputView {
     static removeItemLabel = "×";
 
     /**
+     * @var string Text to show when no items are present
+     */
+    static noItemsLabel = "Press `+` to add an item";
+
+    /**
      * @var class The class of the member items
      */
     static memberClass = InputView;
@@ -85,13 +90,11 @@ class RepeatableInputView extends InputView {
             newValueLength = newValueArray.length;
 
         for (let i = 0; i < newValueLength; i++) {
-            let inputView;
             if (i >= currentValueLength) {
-                inputView = this.addInput();
+                this.addInput({"value": newValueArray[i]});
             } else {
-                inputView = this.inputViews[i];
+                this.inputViews[i].setValue(newValueArray[i]);
             }
-            inputView.setValue(newValueArray[i]);
         }
 
         if (newValueLength < currentValueLength) {
@@ -206,6 +209,11 @@ class RepeatableInputView extends InputView {
                     ) {
                         this.disableRemove();
                     }
+                    if (
+                        this.inputViews.length == 0
+                    ) {
+                        this.addClass("no-children");
+                    }
                     addItem.removeClass("disabled");
                     this.changed();
                 });
@@ -218,10 +226,13 @@ class RepeatableInputView extends InputView {
                 } else {
                     this.enableRemove();
                 }
+
                 this.node.insertBefore(
                     addItem,
                     inputContainer.append(removeInput)
                 );
+
+                this.removeClass("no-children");
             });
         }
         return newInputView;
@@ -233,10 +244,16 @@ class RepeatableInputView extends InputView {
      */
     async build() {
         let node = await super.build(),
+            noItems = E.div().class("empty-placeholder").content(this.constructor.noItemsLabel),
             addItem = E.input()
                 .type("button")
                 .class("add-item")
                 .value(this.constructor.addItemLabel);
+
+        node.append(noItems);
+        if (isEmpty(this.inputViews)) {
+            node.addClass("no-children");
+        }
 
         for (let inputView of this.inputViews) {
             let inputContainer = E.repeatableItem().content(
@@ -257,6 +274,11 @@ class RepeatableInputView extends InputView {
                 }
                 if (this.inputViews.length <= this.constructor.minimumItems) {
                     this.disableRemove();
+                }
+                if (
+                    this.inputViews.length == 0
+                ) {
+                    this.addClass("no-children");
                 }
                 addItem.removeClass("disabled");
                 this.changed();

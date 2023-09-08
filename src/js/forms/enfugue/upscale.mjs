@@ -4,10 +4,13 @@ import { FormView } from "../base.mjs";
 import { 
     CheckboxInputView,
     NumberInputView,
-    OutputScaleInputView,
+    MaskTypeInputView,
+    SchedulerInputView,
+    FormInputView,
+    RepeatableInputView,
     UpscaleAmountInputView,
-    UpscaleMethodsInputView,
-    UpscaleDiffusionIterativeControlnetInputView,
+    UpscaleMethodInputView,
+    UpscaleDiffusionControlnetInputView,
     UpscaleDiffusionPromptInputView,
     UpscaleDiffusionNegativePromptInputView,
     UpscaleDiffusionStepsInputView,
@@ -21,76 +24,52 @@ import {
  */
 class UpscaleFormView extends FormView {
     /**
-     * @var bool autosubmit when changes are made
-     */
-    static autoSubmit = true;
-
-    /**
-     * @var bool This set is collapsed by default
-     */
-    static collapseFieldSets = true;
-    
-    /**
      * @var object All field sets and their config
      */
     static fieldSets = {
-        "Upscaling": {
-            "outscale": {
-                "label": "Output Scale",
-                "class": OutputScaleInputView
-            }
-        },
-        "Upscale Methods": {
-            "upscale": {
-                "label": "Upscale Methods",
-                "class": UpscaleMethodsInputView
+        "Upscaling Step": {
+            "amount": {
+                "label": "Upscale Amount",
+                "class": UpscaleAmountInputView
             },
-            "upscaleIterative": {
-                "label": "Use Iterative Upscaling",
-                "class": CheckboxInputView,
-                "config": {
-                    "tooltip": "Instead of directly upscaling to the target amount, double in size repeatedly until the image reaches the target size. For example, when this is checked and the upscale amount is 4×, there will be two upscale steps, 8× will be three, and 16× will be four."
-                }
+            "method": {
+                "label": "Upscale Method",
+                "class": UpscaleMethodInputView
             },
-            "upscaleDiffusion": {
-                "label": "Diffuse Upscaled Samples",
-                "class": CheckboxInputView,
-                "config": {
-                    "tooltip": "After upscaling the image use the the algorithm chosen above, use the image as input to another invocation of Stable Diffusion."
-                }
-            }
-        },
-        "Upscale Diffusion": {
-            "upscalePipeline": {
-                "label": "Pipeline",
-                "class": UpscaleDiffusionPipelineInputView
-            },
-            "upscaleDiffusionControlnet": {
-                "label": "ControlNet",
-                "class": UpscaleDiffusionIterativeControlnetInputView
-            },
-            "upscaleDiffusionPrompt": {
-                "label": "Detail Prompt",
-                "class": UpscaleDiffusionPromptInputView
-            },
-            "upscaleDiffusionNegativePrompt": {
-                "label": "Detail Negative Prompt",
-                "class": UpscaleDiffusionNegativePromptInputView
-            },
-            "upscaleDiffusionSteps": {
-                "label": "Inference Steps",
-                "class": UpscaleDiffusionStepsInputView
-            },
-            "upscaleDiffusionStrength": {
+            "strength": {
                 "label": "Denoising Strength",
                 "class": UpscaleDiffusionStrengthInputView
             },
-            "upscaleDiffusionGuidanceScale": {
+            "pipeline": {
+                "label": "Pipeline",
+                "class": UpscaleDiffusionPipelineInputView
+            },
+            "controlnet": {
+                "label": "ControlNet",
+                "class": UpscaleDiffusionControlnetInputView
+            },
+            "prompt": {
+                "label": "Detail Prompt",
+                "class": UpscaleDiffusionPromptInputView
+            },
+            "negativePrompt": {
+                "label": "Detail Negative Prompt",
+                "class": UpscaleDiffusionNegativePromptInputView
+            },
+            "scheduler": {
+                "label": "Scheduler",
+                "class": SchedulerInputView
+            },
+            "inferenceSteps": {
+                "label": "Inference Steps",
+                "class": UpscaleDiffusionStepsInputView
+            },
+            "guidanceScale": {
                 "label": "Guidance Scale",
                 "class": UpscaleDiffusionGuidanceScaleInputView
             },
-            "upscaleDiffusionChunkingSize": {
-                "label": "Chunk Size",
+            "chunkingSize": {
+                "label": "Chunking Size",
                 "class": NumberInputView,
                 "config": {
                     "minimum": 32,
@@ -100,32 +79,9 @@ class UpscaleFormView extends FormView {
                     "tooltip": "The number of pixels to move the frame by during diffusion. Smaller values produce better results, but take longer."
                 }
             },
-            "upscaleDiffusionChunkingBlur": {
-                "label": "Chunk Blur",
-                "class": NumberInputView,
-                "config": {
-                    "minimum": 32,
-                    "maximum": 512,
-                    "step": 8,
-                    "value": 128,
-                    "tooltip": "The number of pixels to feather the edges of the frame by during diffusion. Smaller values result in more pronounced lines, and large values result in a smoother overall image."
-                }
-            },
-            "upscaleDiffusionScaleChunkingSize": {
-                "label": "Scale Chunk Size with Iteration",
-                "class": CheckboxInputView,
-                "config": {
-                    "value": true,
-                    "tooltip": "Scale the chunking size ×2 with each iteration of upscaling, with a maximum size of ½ the size of the model."
-                }
-            },
-            "upscaleDiffusionScaleChunkingBlur": {
-                "label": "Scale Chunk Blur with Iteration",
-                "class": CheckboxInputView,
-                "config": {
-                    "value": true,
-                    "tooltip": "Scale the chunking blur ×2 with each iteration of upscaling, with a maximum size of ½ the size of the model."
-                }
+            "chunkingMaskType": {
+                "label": "Chunking Mask",
+                "class": MaskTypeInputView,
             }
         }
     };
@@ -134,53 +90,75 @@ class UpscaleFormView extends FormView {
      * @var object The conditions to display some inputs
      */
     static fieldSetConditions = {
-        "Upscale Methods": (values) => parseInt(values.outscale) > 1,
-        "Upscale Diffusion": (values) => parseInt(values.outscale) > 1 && values.upscaleDiffusion
+        "Upscale Diffusion": (values) => values.diffusion
     };
 }
 
 /**
- * The quick upscale form is used when a user directly selects 'Upscale' from an image,
+ * Extend the class to enable auto submission
  */
-class QuickUpscaleFormView extends FormView {
+class AutoSubmitUpscaleFormView extends UpscaleFormView {
     /**
-     * @var bool Show the cancel button
+     * @var bool Enable autosubmit
      */
-    static showCancel = true;
+    static autoSubmit = true;
+}
+
+/**
+ * Extend the form input view class to hold the whole upscale form
+ */
+class UpscaleFormInputView extends FormInputView {
+    /**
+     * @var class The form view
+     */
+    static formClass = AutoSubmitUpscaleFormView;
+}
+
+/**
+ * Extend the repetable input view to allow multiple upscale forms
+ */
+class UpscaleStepsInputView extends RepeatableInputView {
+    /**
+     * @var string The no item label
+     */
+    static noItemsLabel = "Press `+` to add an upscaling step";
 
     /**
-     * @var object modify amount to always be >= 2
+     * @var class The form input view
+     */
+    static memberClass = UpscaleFormInputView;
+}
+
+/**
+ * Create a form view for the sidebar that adds multiple upscale steps
+ */
+class UpscaleStepsFormView extends FormView {
+    /**
+     * @var bool Autosubmit
+     */
+    static autoSubmit = true;
+
+    /**
+     * @var bool Hide fieldsets
+     */
+    static collapseFieldSets = true;
+
+    /**
+     * @var object The upscale steps
      */
     static fieldSets = {
-        "Upscale Amount": {
-            "outscale": {
-                "class": UpscaleAmountInputView
+        "Upscaling": {
+            "steps": {
+                "class": UpscaleStepsInputView
             }
-        },
-        "Upscale Methods": UpscaleFormView.fieldSets["Upscale Methods"],
-        "Upscale Diffusion": UpscaleFormView.fieldSets["Upscale Diffusion"],
+        }
     };
-
-    /**
-     * @var array Don't hide all field sets
-     */
-    static collapseFieldSets = [
-        "Upscale Methods",
-        "Upscale Diffusion"
-    ];
-
-    /**
-     * @var object The conditions to display some inputs
-     */
-    static fieldSetConditions = {
-        "Upscale Diffusion": (values) => values.upscaleDiffusion
-    };
-};
+}
 
 /**
  * The quick downscale form is used when a user directly selects 'Downscale' from an image
  */
-class QuickDownscaleFormView extends FormView {
+class DownscaleFormView extends FormView {
     /**
      * @var bool Show the cancel button
      */
@@ -203,6 +181,6 @@ class QuickDownscaleFormView extends FormView {
 
 export {
     UpscaleFormView,
-    QuickUpscaleFormView,
-    QuickDownscaleFormView
+    UpscaleStepsFormView,
+    DownscaleFormView
 };

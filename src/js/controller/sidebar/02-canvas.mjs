@@ -24,7 +24,7 @@ class CanvasController extends Controller {
                 "height": this.config.model.invocation.height,
                 "useChunking": true,
                 "chunkingSize": this.config.model.invocation.chunkingSize,
-                "chunkingBlur": this.config.model.invocation.chunkingBlur
+                "chunkingMaskType": this.config.model.invocation.chunkingMaskType
             }
         };
     }
@@ -50,7 +50,7 @@ class CanvasController extends Controller {
             this.engine.height = values.height;
             if (values.useChunking) {
                 this.engine.chunkingSize = values.chunkingSize
-                this.engine.chunkingBlur = values.chunkingBlur;
+                this.engine.chunkingMaskType = values.chunkingMaskType;
             } else {
                 this.engine.chunkingSize = 0;
             }
@@ -77,8 +77,8 @@ class CanvasController extends Controller {
                         canvasConfig.useChunking = false;
                     }
                 }
-                if (!isEmpty(defaultConfig.chunking_blur)) {
-                    canvasConfig.chunkingBlur = defaultConfig.chunking_blur;
+                if (!isEmpty(defaultConfig.chunking_mask_type)) {
+                    canvasConfig.chunkingMaskType = defaultConfig.chunking_mask_type;
                 }
 
                 if (!isEmpty(canvasConfig)) {

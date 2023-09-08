@@ -51,7 +51,8 @@ import {
     SchedulerInputView,
     ModelPickerStringInputView,
     ModelPickerListInputView,
-    ModelPickerInputView
+    ModelPickerInputView,
+    MaskTypeInputView
 } from "./input/enfugue/models.mjs";
 import {
     PipelineInpaintingModeInputView,
@@ -67,10 +68,9 @@ import {
     FilterSelectInputView
 } from "./input/enfugue/image-editor.mjs";
 import {
-    OutputScaleInputView,
     UpscaleAmountInputView,
-    UpscaleMethodsInputView,
-    UpscaleDiffusionIterativeControlnetInputView,
+    UpscaleMethodInputView,
+    UpscaleDiffusionControlnetInputView,
     UpscaleDiffusionPromptInputView,
     UpscaleDiffusionNegativePromptInputView,
     UpscaleDiffusionStepsInputView,
@@ -129,14 +129,14 @@ export {
     ModelPickerStringInputView,
     ModelPickerListInputView,
     ModelPickerInputView,
+    MaskTypeInputView,
     PipelineSwitchModeInputView,
     PipelineCacheModeInputView,
     PipelinePrecisionModeInputView,
     PipelineInpaintingModeInputView,
-    OutputScaleInputView,
     UpscaleAmountInputView,
-    UpscaleMethodsInputView,
-    UpscaleDiffusionIterativeControlnetInputView,
+    UpscaleMethodInputView,
+    UpscaleDiffusionControlnetInputView,
     UpscaleDiffusionPromptInputView,
     UpscaleDiffusionNegativePromptInputView,
     UpscaleDiffusionStepsInputView,

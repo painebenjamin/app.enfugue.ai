@@ -73,12 +73,14 @@ from diffusers.utils import randn_tensor, PIL_INTERPOLATION
 from diffusers.image_processor import VaeImageProcessor
 
 from enfugue.util import logger, check_download_to_dir, TokenMerger
+from enfugue.diffusion.util import MaskWeightBuilder
 
 # This is ~64k×64k. Absurd, but I don't judge
 PIL.Image.MAX_IMAGE_PIXELS = 2**32
 
 if TYPE_CHECKING:
     from enfugue.diffusers.support.ip import IPAdapter
+    from enfugue.diffusion.constants import MASK_TYPE_LITERAL
 
 class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
     """
@@ -115,7 +117,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         ip_adapter: Optional[IPAdapter] = None,
         engine_size: int = 512,
         chunking_size: int = 64,
-        chunking_blur: int = 64,
+        chunking_mask_type: MASK_TYPE_LITERAL = "bilinear",
+        chunking_mask_kwargs: Dict[str, Any] = {}
     ) -> None:
         super(EnfugueStableDiffusionPipeline, self).__init__(
             vae,
@@ -134,7 +137,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         # Enfugue engine settings
         self.engine_size = engine_size
         self.chunking_size = chunking_size
-        self.chunking_blur = chunking_blur
+        self.chunking_mask_type = chunking_mask_type
+        self.chunking_mask_kwargs = chunking_mask_kwargs
 
         # Hide tqdm
         self.set_progress_bar_config(disable=True)
@@ -1142,46 +1146,45 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         count = torch.zeros((1, num_channels, latent_height, latent_width)).to(device=device)
         value = torch.zeros_like(count)
 
+        weight_builder = MaskWeightBuilder(device=device, dtype=image.dtype)
         if self.config.force_full_precision_vae:
             self.vae.to(dtype=torch.float32)
+            weight_builder.dtype = torch.float32
             image = image.float()
         else:
             self.vae.to(dtype=image.dtype)
-        for i, (top, bottom, left, right) in enumerate(chunks):
-            top_px = top * self.vae_scale_factor
-            bottom_px = bottom * self.vae_scale_factor
-            left_px = left * self.vae_scale_factor
-            right_px = right * self.vae_scale_factor
 
-            image_view = image[:, :, top_px:bottom_px, left_px:right_px]
+        with weight_builder:
+            for i, (top, bottom, left, right) in enumerate(chunks):
+                top_px = top * self.vae_scale_factor
+                bottom_px = bottom * self.vae_scale_factor
+                left_px = left * self.vae_scale_factor
+                right_px = right * self.vae_scale_factor
 
-            encoded_image = self.vae.encode(image_view).latent_dist.sample(generator).to(device)
+                image_view = image[:, :, top_px:bottom_px, left_px:right_px]
 
-            # Blur edges as needed
-            multiplier = torch.ones_like(encoded_image)
-            if self.chunking_blur > 0:
-                chunking_blur_latent_size = self.chunking_blur // self.vae_scale_factor
-                blur_left = left > 0
-                blur_top = top > 0
-                blur_right = right < latent_width
-                blur_bottom = bottom < latent_height
+                encoded_image = self.vae.encode(image_view).latent_dist.sample(generator).to(device)
 
-                for j in range(chunking_blur_latent_size):
-                    mult = (j + 1) / (chunking_blur_latent_size + 1)
-                    if blur_left:
-                        multiplier[:, :, :, j] *= mult
-                    if blur_top:
-                        multiplier[:, :, j, :] *= mult
-                    if blur_right:
-                        multiplier[:, :, :, engine_latent_size - j - 1] *= mult
-                    if blur_bottom:
-                        multiplier[:, :, engine_latent_size - j - 1, :] *= mult
+                # Build weights
+                multiplier = weight_builder(
+                    mask_type=self.chunking_mask_type,
+                    batch=1,
+                    dim=num_channels,
+                    width=engine_latent_size,
+                    height=engine_latent_size,
+                    unfeather_left=left==0,
+                    unfeather_top=top==0,
+                    unfeather_right=right==latent_width,
+                    unfeather_bottom=bottom==latent_height,
+                    **self.chunking_mask_kwargs
+                )
 
-            value[:, :, top:bottom, left:right] += encoded_image * multiplier
-            count[:, :, top:bottom, left:right] += multiplier
+                value[:, :, top:bottom, left:right] += encoded_image * multiplier
+                count[:, :, top:bottom, left:right] += multiplier
 
-            if progress_callback is not None:
-                progress_callback(True)
+                if progress_callback is not None:
+                    progress_callback(True)
+
         if self.config.force_full_precision_vae:
             self.vae.to(dtype=dtype)
         return (torch.where(count > 0, value / count, value) * self.vae.config.scaling_factor).to(dtype=dtype)
@@ -1693,7 +1696,9 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
                 if latent_callback_type != "latent":
                     latent_callback_value = self.decode_latents(
-                        latent_callback_value, device=device, progress_callback=progress_callback
+                        latent_callback_value,
+                        device=device,
+                        progress_callback=progress_callback,
                     )
                     latent_callback_value = self.denormalize_latents(latent_callback_value)
                     if latent_callback_type != "pt":
@@ -1787,6 +1792,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         count = torch.zeros_like(latents)
         value = torch.zeros_like(latents)
 
+        samples, num_channels, _, _ = latents.shape
+
         total_num_steps = num_steps * num_chunks
         logger.debug(
             f"Denoising image in {total_num_steps} steps on {device} ({num_inference_steps} inference steps * {num_chunks} chunks)"
@@ -1798,165 +1805,162 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             noise = noise.to(device=device)
 
         steps_since_last_callback = 0
-        for i, t in enumerate(timesteps):
-            # zero view latents
-            count.zero_()
-            value.zero_()
+        with MaskWeightBuilder(device=device, dtype=latents.dtype) as weight_builder:
+            for i, t in enumerate(timesteps):
+                # zero view latents
+                count.zero_()
+                value.zero_()
 
-            # iterate over chunks
-            for j, (top, bottom, left, right) in enumerate(chunks):
-                # Wrap IndexError to give a nice error about MultiDiff w/ some schedulers
-                try:
-                    # Get pixel indices
-                    top_px = top * self.vae_scale_factor
-                    bottom_px = bottom * self.vae_scale_factor
-                    left_px = left * self.vae_scale_factor
-                    right_px = right * self.vae_scale_factor
+                # iterate over chunks
+                for j, (top, bottom, left, right) in enumerate(chunks):
+                    # Wrap IndexError to give a nice error about MultiDiff w/ some schedulers
+                    try:
+                        # Get pixel indices
+                        top_px = top * self.vae_scale_factor
+                        bottom_px = bottom * self.vae_scale_factor
+                        left_px = left * self.vae_scale_factor
+                        right_px = right * self.vae_scale_factor
 
-                    # Slice latents
-                    latents_for_view = latents[:, :, top:bottom, left:right]
+                        # Slice latents
+                        latents_for_view = latents[:, :, top:bottom, left:right]
 
-                    # expand the latents if we are doing classifier free guidance
-                    latent_model_input = (
-                        torch.cat([latents_for_view] * 2) if do_classifier_free_guidance else latents_for_view
-                    )
+                        # expand the latents if we are doing classifier free guidance
+                        latent_model_input = (
+                            torch.cat([latents_for_view] * 2) if do_classifier_free_guidance else latents_for_view
+                        )
 
-                    # Re-match chunk scheduler status
-                    self.scheduler.__dict__.update(chunk_scheduler_status[j])
+                        # Re-match chunk scheduler status
+                        self.scheduler.__dict__.update(chunk_scheduler_status[j])
 
-                    # Scale model input
-                    latent_model_input = self.scheduler.scale_model_input(latent_model_input, t)
+                        # Scale model input
+                        latent_model_input = self.scheduler.scale_model_input(latent_model_input, t)
 
-                    # Get controlnet input(s) if configured
-                    if control_images is not None:
-                        down_block, mid_block = self.get_controlnet_conditioning_blocks(
-                            device=device,
+                        # Get controlnet input(s) if configured
+                        if control_images is not None:
+                            down_block, mid_block = self.get_controlnet_conditioning_blocks(
+                                device=device,
+                                latents=latent_model_input,
+                                timestep=t,
+                                encoder_hidden_states=prompt_embeds,
+                                controlnet_conds=dict([
+                                    (
+                                        name,
+                                        [
+                                            (control_image[:, :, top_px:bottom_px, left_px:right_px], conditioning_scale)
+                                            for control_image, conditioning_scale in control_images[name]
+                                        ]
+                                    )
+                                    for name in control_images
+                                ]),
+                                added_cond_kwargs=added_cond_kwargs,
+                            )
+                        else:
+                            down_block, mid_block = None, None
+
+                        # add other dimensions to unet input if set
+                        if mask is not None and mask_image is not None and is_inpainting_unet:
+                            latent_model_input = torch.cat(
+                                [
+                                    latent_model_input,
+                                    mask[:, :, top:bottom, left:right],
+                                    mask_image[:, :, top:bottom, left:right],
+                                ],
+                                dim=1,
+                            )
+
+                        # predict the noise residual
+                        noise_pred = self.predict_noise_residual(
                             latents=latent_model_input,
                             timestep=t,
-                            encoder_hidden_states=prompt_embeds,
-                            controlnet_conds=dict([
-                                (
-                                    name,
-                                    [
-                                        (control_image[:, :, top_px:bottom_px, left_px:right_px], conditioning_scale)
-                                        for control_image, conditioning_scale in control_images[name]
-                                    ]
-                                )
-                                for name in control_images
-                            ]),
+                            embeddings=prompt_embeds,
+                            cross_attention_kwargs=cross_attention_kwargs,
                             added_cond_kwargs=added_cond_kwargs,
-                        )
-                    else:
-                        down_block, mid_block = None, None
-
-                    # add other dimensions to unet input if set
-                    if mask is not None and mask_image is not None and is_inpainting_unet:
-                        latent_model_input = torch.cat(
-                            [
-                                latent_model_input,
-                                mask[:, :, top:bottom, left:right],
-                                mask_image[:, :, top:bottom, left:right],
-                            ],
-                            dim=1,
+                            down_block_additional_residuals=down_block,
+                            mid_block_additional_residual=mid_block,
                         )
 
-                    # predict the noise residual
-                    noise_pred = self.predict_noise_residual(
-                        latents=latent_model_input,
-                        timestep=t,
-                        embeddings=prompt_embeds,
-                        cross_attention_kwargs=cross_attention_kwargs,
-                        added_cond_kwargs=added_cond_kwargs,
-                        down_block_additional_residuals=down_block,
-                        mid_block_additional_residual=mid_block,
+                        # perform guidance
+                        if do_classifier_free_guidance:
+                            noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
+                            noise_pred = noise_pred_uncond + guidance_scale * (noise_pred_text - noise_pred_uncond)
+
+                        # compute the previous noisy sample x_t -> x_t-1
+                        denoised_latents = self.scheduler.step(
+                            noise_pred,
+                            t,
+                            latents_for_view,
+                            **extra_step_kwargs,
+                        ).prev_sample
+                    except IndexError:
+                        raise RuntimeError(f"Received IndexError during denoising. It is likely that the scheduler you are using ({type(self.scheduler).__name__}) does not work with Multi-Diffusion, and you should avoid using this when chunking is enabled.")
+
+                    # Save chunk scheduler status after sample
+                    chunk_scheduler_status[j] = self.get_scheduler_state()
+
+                    # If using mask and not using fine-tuned inpainting, then we calculate
+                    # the same denoising on the image without unet and cross with the
+                    # calculated unet input * mask
+                    if mask is not None and image is not None and noise is not None and not is_inpainting_unet:
+                        init_latents = (image[:, :, top:bottom, left:right])[:1]
+                        init_mask = (mask[:, :, top:bottom, left:right])[:1]
+
+                        if i < len(timesteps) - 1:
+                            noise_timestep = timesteps[i + 1]
+                            init_latents = self.scheduler.add_noise(
+                                init_latents,
+                                noise[:, :, top:bottom, left:right],
+                                torch.tensor([noise_timestep])
+                            )
+
+                        denoised_latents = (1 - init_mask) * init_latents + init_mask * denoised_latents
+
+                    # Build weights
+                    multiplier = weight_builder(
+                        mask_type=self.chunking_mask_type,
+                        batch=samples,
+                        dim=num_channels,
+                        width=engine_latent_size,
+                        height=engine_latent_size,
+                        unfeather_left=left==0,
+                        unfeather_top=top==0,
+                        unfeather_right=right==latent_width,
+                        unfeather_bottom=bottom==latent_height,
+                        **self.chunking_mask_kwargs
                     )
 
-                    # perform guidance
-                    if do_classifier_free_guidance:
-                        noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
-                        noise_pred = noise_pred_uncond + guidance_scale * (noise_pred_text - noise_pred_uncond)
+                    value[:, :, top:bottom, left:right] += denoised_latents * multiplier
+                    count[:, :, top:bottom, left:right] += multiplier
 
-                    # compute the previous noisy sample x_t -> x_t-1
-                    denoised_latents = self.scheduler.step(
-                        noise_pred,
-                        t,
-                        latents_for_view,
-                        **extra_step_kwargs,
-                    ).prev_sample
-                except IndexError:
-                    raise RuntimeError(f"Received IndexError during denoising. It is likely that the scheduler you are using ({type(self.scheduler).__name__}) does not work with Multi-Diffusion, and you should avoid using this when chunking is enabled.")
+                    # Call the progress callback
+                    if progress_callback is not None:
+                        progress_callback(True)
 
-                # Save chunk scheduler status after sample
-                chunk_scheduler_status[j] = self.get_scheduler_state()
+                # multidiffusion
+                latents = torch.where(count > 0, value / count, value)
 
-                # If using mask and not using fine-tuned inpainting, then we calculate
-                # the same denoising on the image without unet and cross with the
-                # calculated unet input * mask
-                if mask is not None and image is not None and noise is not None and not is_inpainting_unet:
-                    init_latents = (image[:, :, top:bottom, left:right])[:1]
-                    init_mask = (mask[:, :, top:bottom, left:right])[:1]
+                # call the latent_callback, if provided
+                steps_since_last_callback += 1
+                if (
+                    latent_callback is not None
+                    and latent_callback_steps is not None
+                    and steps_since_last_callback >= latent_callback_steps
+                    and (i == num_steps - 1 or ((i + 1) > num_warmup_steps and (i + 1) % self.scheduler.order == 0))
+                ):
+                    steps_since_last_callback = 0
+                    latent_callback_value = latents
 
-                    if i < len(timesteps) - 1:
-                        noise_timestep = timesteps[i + 1]
-                        init_latents = self.scheduler.add_noise(
-                            init_latents,
-                            noise[:, :, top:bottom, left:right],
-                            torch.tensor([noise_timestep])
+                    if latent_callback_type != "latent":
+                        latent_callback_value = self.decode_latents(
+                            latent_callback_value,
+                            device=device,
+                            progress_callback=progress_callback
                         )
-
-                    denoised_latents = (1 - init_mask) * init_latents + init_mask * denoised_latents
-
-                # Blur edges as needed
-                multiplier = torch.ones_like(denoised_latents)
-                if self.chunking_blur > 0:
-                    chunking_blur_latent_size = self.chunking_blur // self.vae_scale_factor
-                    blur_left = left > 0
-                    blur_top = top > 0
-                    blur_right = right < latent_width
-                    blur_bottom = bottom < latent_height
-
-                    for j in range(chunking_blur_latent_size):
-                        mult = (j + 1) / (chunking_blur_latent_size + 1)
-                        if blur_left:
-                            multiplier[:, :, :, j] *= mult
-                        if blur_top:
-                            multiplier[:, :, j, :] *= mult
-                        if blur_right:
-                            multiplier[:, :, :, engine_latent_size - j - 1] *= mult
-                        if blur_bottom:
-                            multiplier[:, :, engine_latent_size - j - 1, :] *= mult
-
-                value[:, :, top:bottom, left:right] += denoised_latents * multiplier
-                count[:, :, top:bottom, left:right] += multiplier
-
-                # Call the progress callback
-                if progress_callback is not None:
-                    progress_callback(True)
-
-            # multidiffusion
-            latents = torch.where(count > 0, value / count, value)
-
-            # call the latent_callback, if provided
-            steps_since_last_callback += 1
-            if (
-                latent_callback is not None
-                and latent_callback_steps is not None
-                and steps_since_last_callback >= latent_callback_steps
-                and (i == num_steps - 1 or ((i + 1) > num_warmup_steps and (i + 1) % self.scheduler.order == 0))
-            ):
-                steps_since_last_callback = 0
-                latent_callback_value = latents
-
-                if latent_callback_type != "latent":
-                    latent_callback_value = self.decode_latents(
-                        latent_callback_value, device=device, progress_callback=progress_callback
-                    )
-                    latent_callback_value = self.denormalize_latents(latent_callback_value)
-                    if latent_callback_type != "pt":
-                        latent_callback_value = self.image_processor.pt_to_numpy(latent_callback_value)
-                        if latent_callback_type == "pil":
-                            latent_callback_value = self.image_processor.numpy_to_pil(latent_callback_value)
-                latent_callback(latent_callback_value)
+                        latent_callback_value = self.denormalize_latents(latent_callback_value)
+                        if latent_callback_type != "pt":
+                            latent_callback_value = self.image_processor.pt_to_numpy(latent_callback_value)
+                            if latent_callback_type == "pil":
+                                latent_callback_value = self.image_processor.numpy_to_pil(latent_callback_value)
+                    latent_callback(latent_callback_value)
 
         return latents
 
@@ -1981,7 +1985,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         """
         Decodes the latents in chunks as necessary.
         """
-        samples, _, height, width = latents.shape
+        samples, num_channels, height, width = latents.shape
         height *= self.vae_scale_factor
         width *= self.vae_scale_factor
 
@@ -1992,11 +1996,13 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
         revert_dtype = None
 
+        weight_builder = MaskWeightBuilder(device=device, dtype=latents.dtype)
         if self.config.force_full_precision_vae:
             # Resist overflow
             revert_dtype = latents.dtype
             self.vae.to(dtype=torch.float32)
             latents = latents.to(dtype=torch.float32)
+            weight_builder.dtype = torch.float32
 
         if total_steps <= 1:
             result = self.decode_latents_unchunked(latents, device)
@@ -2008,51 +2014,47 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
         latent_width = width // self.vae_scale_factor
         latent_height = height // self.vae_scale_factor
+        engine_latent_size = self.engine_size // self.vae_scale_factor
 
         count = torch.zeros((samples, 3, height, width)).to(device=device, dtype=latents.dtype)
         value = torch.zeros_like(count)
 
         logger.debug(f"Decoding latents in {total_steps} steps")
 
-        # iterate over chunks
-        for i, (top, bottom, left, right) in enumerate(chunks):
-            # Slice latents
-            latents_for_view = latents[:, :, top:bottom, left:right]
+        with weight_builder:
+            # iterate over chunks
+            for i, (top, bottom, left, right) in enumerate(chunks):
+                # Slice latents
+                latents_for_view = latents[:, :, top:bottom, left:right]
 
-            # Get pixel indices
-            top_px = top * self.vae_scale_factor
-            bottom_px = bottom * self.vae_scale_factor
-            left_px = left * self.vae_scale_factor
-            right_px = right * self.vae_scale_factor
+                # Get pixel indices
+                top_px = top * self.vae_scale_factor
+                bottom_px = bottom * self.vae_scale_factor
+                left_px = left * self.vae_scale_factor
+                right_px = right * self.vae_scale_factor
 
-            # Decode latents
-            decoded_latents = self.decode_latent_view(latents_for_view).to(device=device)
+                # Decode latents
+                decoded_latents = self.decode_latent_view(latents_for_view).to(device=device)
 
-            # Blur edges as needed
-            multiplier = torch.ones_like(decoded_latents)
-            if self.chunking_blur > 0:
-                chunking_blur_size = self.chunking_blur
-                blur_left = left > 0
-                blur_top = top > 0
-                blur_right = right < latent_width
-                blur_bottom = bottom < latent_height
+                # Build weights
+                multiplier = weight_builder(
+                    mask_type=self.chunking_mask_type,
+                    batch=samples,
+                    dim=3,
+                    width=self.engine_size,
+                    height=self.engine_size,
+                    unfeather_left=left==0,
+                    unfeather_top=top==0,
+                    unfeather_right=right==latent_width,
+                    unfeather_bottom=bottom==latent_height,
+                    **self.chunking_mask_kwargs
+                )
 
-                for j in range(chunking_blur_size):
-                    mult = (j + 1) / (chunking_blur_size + 1)
-                    if blur_left:
-                        multiplier[:, :, :, j] *= mult
-                    if blur_top:
-                        multiplier[:, :, j, :] *= mult
-                    if blur_right:
-                        multiplier[:, :, :, self.engine_size - j - 1] *= mult
-                    if blur_bottom:
-                        multiplier[:, :, self.engine_size - j - 1, :] *= mult
+                value[:, :, top_px:bottom_px, left_px:right_px] += decoded_latents * multiplier
+                count[:, :, top_px:bottom_px, left_px:right_px] += multiplier
 
-            value[:, :, top_px:bottom_px, left_px:right_px] += decoded_latents * multiplier
-            count[:, :, top_px:bottom_px, left_px:right_px] += multiplier
-
-            if progress_callback is not None:
-                progress_callback(True)
+                if progress_callback is not None:
+                    progress_callback(True)
 
         # re-average pixels
         latents = torch.where(count > 0, value / count, value)
@@ -2129,7 +2131,6 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         height: Optional[int] = None,
         width: Optional[int] = None,
         chunking_size: Optional[int] = None,
-        chunking_blur: Optional[int] = None,
         denoising_start: Optional[float] = None,
         denoising_end: Optional[float] = None,
         ip_adapter_scale: Optional[float] = None,
@@ -2156,6 +2157,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         target_size: Optional[Tuple[int, int]] = None,
         aesthetic_score: float = 6.0,
         negative_aesthetic_score: float = 2.5,
+        chunking_mask_type: Optional[MASK_TYPE_LITERAL] = None,
+        chunking_mask_kwargs: Optional[Dict[str, Any]] = None,
     ) -> Union[
         StableDiffusionPipelineOutput,
         Tuple[Union[torch.Tensor, np.ndarray, List[PIL.Image.Image]], Optional[List[bool]]],
@@ -2171,11 +2174,13 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         original_size = original_size or (height, width)
         target_size = target_size or (height, width)
 
-        # Allow overridding 'chunk'
+        # Allow overridding chunking variables
         if chunking_size is not None:
             self.chunking_size = chunking_size
-        if chunking_blur is not None:
-            self.chunking_blur = chunking_blur
+        if chunking_mask_type is not None:
+            self.chunking_mask_type = chunking_mask_type
+        if chunking_mask_kwargs is not None:
+            self.chunking_mask_kwargs = chunking_mask_kwargs
         
         # Check latent callback steps, disable if 0
         if latent_callback_steps == 0:
@@ -2409,7 +2414,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                         init_image,
                         device=device,
                         dtype=prompt_embeds.dtype,
-                        generator=generator
+                        generator=generator,
                     )
 
                 # prepared_latents = noise or init latents + noise
@@ -2617,7 +2622,11 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     else:
                         prepared_latents = prepared_latents.float()
 
-                prepared_latents = self.decode_latents(prepared_latents, device=device, progress_callback=step_complete)
+                prepared_latents = self.decode_latents(
+                    prepared_latents,
+                    device=device,
+                    progress_callback=step_complete,
+                )
 
                 if self.config.force_full_precision_vae:
                     self.vae.to(dtype=prepared_latents.dtype)

@@ -29,6 +29,7 @@ from enfugue.diffusion.rt.model import BaseModel, UNet, VAE, CLIP, ControlledUNe
 
 if TYPE_CHECKING:
     from enfugue.diffusers.support.ip import IPAdapter
+    from enfugue.diffusion.constants import MASK_TYPE_LITERAL
 
 class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
     models: Dict[str, BaseModel]
@@ -53,7 +54,8 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         ip_adapter: Optional[IPAdapter] = None,
         engine_size: int = 512,  # Recommended even for machines that can handle more
         chunking_size: int = 32,
-        chunking_blur: int = 64,
+        chunking_mask_type: MASK_TYPE_LITERAL = "bilinear",
+        chunking_mask_kwargs: Dict[str, Any] = {},
         max_batch_size: int = 16,
         # ONNX export parameters
         force_engine_rebuild: bool = False,
@@ -84,7 +86,8 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
             ip_adapter=ip_adapter,
             engine_size=engine_size,
             chunking_size=chunking_size,
-            chunking_blur=chunking_blur,
+            chunking_mask_type=chunking_mask_type,
+            chunking_mask_kwargs=chunking_mask_kwargs,
         )
 
         if self.controlnets:

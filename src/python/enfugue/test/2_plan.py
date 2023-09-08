@@ -12,10 +12,10 @@ def main() -> None:
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
         manager = DiffusionPipelineManager()
-        
         # Base plan
         manager.seed = 123456
-        plan = DiffusionPlan.assemble(prompt="A happy looking puppy", upscale_diffusion_guidance_scale=10.0)
+        plan = DiffusionPlan.assemble(prompt="A happy looking puppy")
+        """
         plan.execute(manager)["images"][0].save(os.path.join(save_dir, "./puppy-plan.png"))
 
         # Inpainting + region prompt + background removal
@@ -41,15 +41,21 @@ def main() -> None:
             ]
         )
         plan.execute(manager)["images"][0].save(os.path.join(save_dir, "./puppy-kitty-inpaint.png"))
-
+        """
         # Upscale
-        plan.outscale = 2
-        plan.upscale = "esrgan"
+        plan.upscale_steps = {
+            "amount": 2,
+            "method": "esrgan"
+        }
         manager.seed = 12345
         plan.execute(manager)["images"][0].save(os.path.join(save_dir, "./puppy-plan-upscale.png"))
 
         # Upscale diffusion
-        plan.upscale_diffusion = True
+        plan.upscale_steps = {
+            "amount": 2,
+            "method": "esrgan",
+            "strength": 0.2
+        }
         manager.seed = 12345
         result = plan.execute(manager)["images"][0]
         result.save(os.path.join(save_dir, "./puppy-plan-upscale-diffusion.png"))
@@ -57,14 +63,12 @@ def main() -> None:
         # Upscale again just from the image
         plan = DiffusionPlan.upscale_image(
             result,
-            outscale=2,
-            upscale="esrgan",
-            upscale_diffusion=True,
-            upscale_diffusion_guidance_scale=10.0,
-            upscale_diffusion_strength=0.2,
-            upscale_diffusion_steps=40,
-            upscale_diffusion_chunking_size=256,
-            upscale_diffusion_chunking_blur=256,
+            {
+                "method": "esrgan",
+                "amount": 2,
+                "strength": 0.2,
+                "chunking_size": 256,
+            }
         )
         plan.execute(manager)["images"][0].save(os.path.join(save_dir, "./puppy-plan-upscale-solo.png"))
 

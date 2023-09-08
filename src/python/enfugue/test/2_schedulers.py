@@ -41,7 +41,6 @@ def main() -> None:
         multi_kwargs = {
             "width": 768,
             "chunking_size": 128,
-            "chunking_blur": 128
         }
         def run_and_save(filename: str, **other_kwargs: Any) -> None:
             steps = kwargs["num_inference_steps"]

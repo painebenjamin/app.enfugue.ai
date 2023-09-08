@@ -26,11 +26,12 @@ __all__ = [
     "CONTROLNET_LINE",
     "CONTROLNET_ANIME",
     "CONTROLNET_LITERAL",
+    "CONTROLNET_TEMPORAL",
     "SCHEDULER_LITERAL",
     "DEVICE_LITERAL",
     "PIPELINE_SWITCH_MODE_LITERAL",
     "UPSCALE_LITERAL",
-    "UPSCALE_PIPELINE_LITERAL"
+    "MASK_TYPE_LITERAL"
 ]
 
 DEFAULT_MODEL = "https://huggingface.co/runwayml/stable-diffusion-v1-5/resolve/main/v1-5-pruned.ckpt"
@@ -59,19 +60,25 @@ CONTROLNET_POSE = "lllyasviel/control_v11p_sd15_openpose"
 CONTROLNET_PIDI = "lllyasviel/control_v11p_sd15_softedge"
 CONTROLNET_LINE = "ControlNet-1-1-preview/control_v11p_sd15_lineart"
 CONTROLNET_ANIME = "lllyasviel/control_v11p_sd15s2_lineart_anime"
+CONTROLNET_TEMPORAL = "CiaraRowles/TemporalNet"
 
 CONTROLNET_CANNY_XL = "diffusers/controlnet-canny-sdxl-1.0"
 CONTROLNET_DEPTH_XL = "diffusers/controlnet-depth-sdxl-1.0"
 CONTROLNET_POSE_XL = "thibaud/controlnet-openpose-sdxl-1.0"
 
 CONTROLNET_LITERAL = Literal[
-    "canny", "mlsd", "hed", "scribble", "tile", "inpaint", "depth", "normal", "pose", "pidi", "line", "anime"
+    "canny", "mlsd", "hed", "scribble", "tile", "inpaint", "depth", "normal", "pose", "pidi", "line", "anime", "temporal"
 ]
 
 SCHEDULER_LITERAL = Literal[
     "ddim", "ddpm", "deis", "dpmsm", "dpmss", "heun", "dpmd", "adpmd", "dpmsde", "unipc", "lmsd", "pndm", "eds", "eads"
 ]
+
 DEVICE_LITERAL = Literal["cpu", "cuda", "dml", "mps"]
+
 PIPELINE_SWITCH_MODE_LITERAL = Literal["offload", "unload"]
+
 UPSCALE_LITERAL = Literal["esrgan", "esrganime", "gfpgan", "lanczos", "bilinear", "bicubic", "nearest"]
-UPSCALE_PIPELINE_LITERAL = Literal["base"]
+
+MASK_TYPE_LITERAL = Literal["constant", "bilinear", "gaussian"]
+

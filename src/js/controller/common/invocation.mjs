@@ -102,20 +102,20 @@ class InvocationController extends Controller {
     }
     
     /**
-     * @return The chunking blur; i.e. how many pixels the rendering window feathers by during multidiffusion.
+     * @return The chunking mask type.
      */
-    get chunkingBlur() {
-        return this.kwargs.chunking_blur || this.application.config.model.invocation.chunkingBlur;
+    get chunkingMaskType() {
+        return this.kwargs.chunking_mask_type || null;
     }
 
     /**
      * @param int Sets the new chunking blur. 0 disables multidiffusion.
      */
-    set chunkingBlur(newBlur) {
-        if (this.chunkingBlur !== newBlur){
-            this.publish("engineChunkingBlurChange", newBlur);
+    set chunkingMaskType(newMaskType) {
+        if (this.chunkingMaskType !== newMaskType){
+            this.publish("engineChunkingMaskTypeChange", newMaskType);
         }
-        this.kwargs.chunking_blur = newBlur
+        this.kwargs.chunking_mask_type = newMaskType
     }
 
     /**
@@ -308,304 +308,20 @@ class InvocationController extends Controller {
     }
 
     /**
-     * @return int The output scale (1 by default.)
+     * @return ?array The upscale steps (none by default)
      */
-    get outscale() {
-        return this.kwargs.outscale || 1;
+    get upscaleSteps() {
+        return this.kwargs.upscale_steps || null;
     }
 
     /**
-     * @param int newOutscale The new outscale value.
+     * @param ?array<dict> The new upscale steps
      */
-    set outscale(newOutscale) {
-        if (this.outscale !== newOutscale) {
-            this.publish("engineOutscaleChange", newOutscale);
+    set upscaleSteps(newSteps) {
+        if (!isEquivalent(this.upscaleSteps, newSteps)) {
+            this.publish("engineUpscaleStepsChange", newSteps);
         }
-        this.kwargs.outscale = parseInt(newOutscale);
-    }
-
-    /**
-     * @return ?str|array<str> The upscale method(s), null by default
-     */
-    get upscale() {
-        return this.kwargs.upscale;
-    }
-
-    /**
-     * @param str|array<str> The new upscale method(s)
-     */
-    set upscale(newUpscale) {
-        if (!isEquivalent(this.upscale, newUpscale)) {
-            this.publish("engineUpscaleChange", newUpscale);
-        }
-        this.kwargs.upscale = newUpscale;
-    }
-
-    /**
-     * @return ?str The pipeline to use. Defaults to refiner when available (null)
-     */
-    get upscalePipeline() {
-        return this.kwargs.upscale_pipeline;
-    }
-
-    /**
-     * @param ?str The pipeline to use. Use 'base' to force base pipeline. Defaults to null.
-     */
-    set upscalePipeline(newPipeline) {
-        if (this.upscalePipeline !== newPipeline) {
-            this.publish("engineUpscalePipelineChange", newPipeline);
-        }
-        this.kwargs.upscale_pipeline = newPipeline;
-    }
-
-    /**
-     * @return bool Whether or not iterative upscaling is enabled. Default false.
-     */
-    get upscaleIterative() {
-        return this.kwargs.upscale_iterative === true;
-    }
-
-    /**
-     * @param bool The new value for iterative upscaling.
-     */
-    set upscaleIterative(newUpscaleIterative) {
-        if (this.upscaleIterative !== newUpscaleIterative) {
-            this.publish("engineUpscaleIterativeChange", newUpscaleIterative);
-        }
-        this.kwargs.upscale_iterative = newUpscaleIterative;
-    }
-    
-    /**
-     * @return bool Whether or not diffusion upscaling is enabled. Default false.
-     */
-    get upscaleDiffusion() {
-        return this.kwargs.upscale_diffusion === true;
-    }
-
-    /**
-     * @param bool The new value for diffusion upscaling.
-     */
-    set upscaleDiffusion(newUpscaleDiffusion) {
-        if (this.upscaleDiffusion !== newUpscaleDiffusion) {
-            this.publish("engineUpscaleDiffusionChange", newUpscaleDiffusion);
-        }
-        this.kwargs.upscale_diffusion = newUpscaleDiffusion;
-    }
-
-    /**
-     * @return ?array<str> The prompt(s) to use during upscale diffusion. Default null.
-     */
-    get upscaleDiffusionPrompt() {
-        return this.kwargs.upscale_diffusion_prompt;
-    }
-
-    /**
-     * @return ?array<str> The secondary prompt(s) to use during upscale diffusion. Default null.
-     */
-    get upscaleDiffusionPrompt2() {
-        return this.kwargs.upscale_diffusion_prompt_2;
-    }
-
-    /**
-     * @param ?array<str> The new prompt(s) to use during upscale diffusion.
-     */
-    set upscaleDiffusionPrompt(newPromptArray) {
-        let prompt1Array = [], 
-            prompt2Array = [];
-        for (let newPrompt of newPromptArray) {
-            let prompt1, prompt2;
-            if (Array.isArray(newPrompt)) {
-                [prompt1, prompt2] = newPrompt;
-            } else {
-                prompt1 = newPrompt;
-            }
-            prompt1Array.push(prompt1);
-            prompt2Array.push(prompt2);
-        }
-        if (!isEquivalent(this.upscaleDiffusionPrompt, prompt1Array)) {
-            this.publish("engineUpscaleDiffusionPromptChange", prompt1Array);
-        }
-        if (!isEquivalent(this.upscaleDiffusionPrompt, prompt2Array)) {
-            this.publish("engineUpscaleDiffusionPrompt2Change", prompt2Array);
-        }
-        this.kwargs.upscale_diffusion_prompt = prompt1Array;
-        this.kwargs.upscale_diffusion_prompt_2 = prompt2Array;
-    }
-   
-    /**
-     * @return ?array<str> The prompt(s) to use during upscale diffusion. Default null.
-     */
-    get upscaleDiffusionNegativePrompt() {
-        return this.kwargs.upscale_diffusion_negative_prompt;
-    }
-
-    /**
-     * @return ?str|array<str> The secondary prompt(s) to use during upscale diffusion. Default null.
-     */
-    get upscaleDiffusionNegativePrompt2() {
-        return this.kwargs.upscale_diffusion_negative_prompt_2;
-    }
-
-    /**
-     * @param array<str> The new prompt(s) to use during upscale diffusion.
-     */
-    set upscaleDiffusionNegativePrompt(newPromptArray) {
-        let prompt1Array = [], 
-            prompt2Array = [];
-        for (let newPrompt of newPromptArray) {
-            let prompt1, prompt2;
-            if (Array.isArray(newPrompt)) {
-                [prompt1, prompt2] = newPrompt;
-            } else {
-                prompt1 = newPrompt;
-            }
-            prompt1Array.push(prompt1);
-            prompt2Array.push(prompt2);
-        }
-        if (!isEquivalent(this.upscaleDiffusionNegativePrompt, prompt1Array)) {
-            this.publish("engineUpscaleDiffusionNegativePromptChange", prompt1Array);
-        }
-        if (!isEquivalent(this.upscaleDiffusionNegativePrompt2, prompt2Array)) {
-            this.publish("engineUpscaleDiffusionNegativePrompt2Change", prompt2Array);
-        }
-        this.kwargs.upscale_diffusion_negative_prompt = prompt1Array;
-        this.kwargs.upscale_diffusion_negative_prompt_2 = prompt2Array;
-    }
-   
-    /**
-     * @return ?int|array<int> The steps to use during upscale diffusion. Default 100.
-     */
-    get upscaleDiffusionSteps() {
-        return this.kwargs.upscale_diffusion_steps || this.application.config.model.invocation.upscaleDiffusionSteps;
-    }
-
-    /**
-     * @param int|array<int> The new steps to use during upscale diffusion.
-     */
-    set upscaleDiffusionSteps(newSteps) {
-        if (!isEquivalent(this.upscaleDiffusionSteps, newSteps)) {
-            this.publish("engineUpscaleDiffusionStepsChange", newSteps);
-        }
-        this.kwargs.upscale_diffusion_steps = newSteps;
-    }
-    
-    /**
-     * @return ?int|array<int> The strength(s) to use during upscale diffusion.
-     */
-    get upscaleDiffusionStrength() {
-        return this.kwargs.upscale_diffusion_strength || this.application.config.model.invocation.upscaleDiffusionStrength;
-    }
-
-    /**
-     * @param float|array<float> The new strength(s) to use during upscale diffusion.
-     */
-    set upscaleDiffusionStrength(newStrength) {
-        if (!isEquivalent(this.upscaleDiffusionStrength, newStrength)) {
-            this.publish("engineUpscaleDiffusionStrengthChange", newStrength);
-        }
-        this.kwargs.upscale_diffusion_strength = newStrength;
-    }
-    
-    /**
-     * @return ?float|array<float> The guidance scale(s) to use during upscale diffusion.
-     */
-    get upscaleDiffusionGuidanceScale() {
-        return this.kwargs.upscale_diffusion_guidance_scale || this.application.config.model.invocation.upscaleDiffusionGuidanceScale;
-    }
-
-    /**
-     * @param float|array<float> The new guidance scale(s) to use during upscale diffusion.
-     */
-    set upscaleDiffusionGuidanceScale(newGuidanceScale) {
-        if (!isEquivalent(this.upscaleDiffusionGuidanceScale, newGuidanceScale)) {
-            this.publish("engineUpscaleDiffusionGuidanceScaleChange", newGuidanceScale);
-        }
-        this.kwargs.upscale_diffusion_guidance_scale = newGuidanceScale;
-    }
-    
-    /**
-     * @return int The chunking size to use during upscale diffusion
-     */
-    get upscaleDiffusionChunkingSize() {
-        return this.kwargs.upscale_diffusion_chunking_size || this.application.config.model.invocation.upscaleDiffusionChunkingSize;
-    }
-
-    /**i
-     * @param int The new chunking size to use during upscale diffusion.
-     */
-    set upscaleDiffusionChunkingSize(newChunkingSize) {
-        if (this.upscaleDiffusionChunkingSize !== newChunkingSize) {
-            this.publish("engineUpscaleDiffusionChunkingSizeChange", newChunkingSize);
-        }
-        this.kwargs.upscale_diffusion_chunking_size = newChunkingSize;
-    }
-    
-    /**
-     * @return int The chunking blur to use during upscale diffusion
-     */
-    get upscaleDiffusionChunkingBlur() {
-        return this.kwargs.upscale_diffusion_chunking_blur || this.application.config.model.invocation.upscaleDiffusionChunkingBlur;
-    }
-
-    /**
-     * @param int The new chunking blur to use during upscale diffusion.
-     */
-    set upscaleDiffusionChunkingBlur(newChunkingBlur) {
-        if (this.upscaleDiffusionChunkingBlur !== newChunkingBlur) {
-            this.publish("engineUpscaleDiffusionChunkingBlurChange", newChunkingBlur);
-        }
-        this.kwargs.upscale_diffusion_chunking_blur = newChunkingBlur;
-    }
-    
-    /**
-     * @return bool Whether or not to scale the size of the chunk with each upscale iteration. Default true.
-     */
-    get upscaleDiffusionScaleChunkingSize() {
-        return this.kwargs.upscale_diffusion_scale_chunking_size !== false;
-    }
-
-    /**
-     * @param bool The new value of the flag.
-     */
-    set upscaleDiffusionScaleChunkingSize(newScaleChunkingSize) {
-        if (this.upscaleDiffusionScaleChunkingSize !== newScaleChunkingSize) {
-            this.publish("engineUpscaleDiffusionScaleChunkingSizeChange", newScaleChunkingSize);
-        }
-        this.kwargs.upscale_diffusion_scale_chunking_size = newScaleChunkingSize;
-    }
-    
-    /**
-     * @return bool Whether or not to scale the size of the chunk with each upscale iteration. Default true.
-     */
-    get upscaleDiffusionScaleChunkingBlur() {
-        return this.kwargs.upscale_diffusion_scale_chunking_blur !== false;
-    }
-
-    /**
-     * @param bool The new value of the flag.
-     */
-    set upscaleDiffusionScaleChunkingBlur(newScaleChunkingBlur) {
-        if (this.upscaleDiffusionScaleChunkingBlur !== newScaleChunkingBlur) {
-            this.publish("engineUpscaleDiffusionScaleChunkingBlurChange", newScaleChunkingBlur);
-        }
-        this.kwargs.upscale_diffusion_scale_chunking_blur = newScaleChunkingBlur;
-    }
-   
-    /**
-     * @return array<string> Any number of controlnets to use during upscaling. Default null (none)
-     */
-    get upscaleDiffusionControlnet() {
-        return this.kwargs.upscale_diffusion_controlnet || null;
-    }
-
-    /**
-     * @param bool The new value of the flag.
-     */
-    set upscaleDiffusionControlnet(newControlnet) {
-        if (!isEquivalent(this.upscaleDiffusionControlnet, newControlnet)) {
-            this.publish("engineUpscaleDiffusionControlnetChange", newControlnet);
-        }
-        this.kwargs.upscale_diffusion_controlnet = newControlnet;
+        this.kwargs.upscale_steps = newSteps;
     }
 
     /**

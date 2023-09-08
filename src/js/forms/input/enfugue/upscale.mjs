@@ -1,55 +1,31 @@
 /** @module forms/input/enfugue/upscale */
 import { SelectInputView } from "../enumerable.mjs";
-import { RepeatableInputView } from "../parent.mjs";
-import { NumberInputView, FloatInputView } from "../numeric.mjs";
+import { NumberInputView, FloatInputView, SliderPreciseInputView } from "../numeric.mjs";
 import { PromptInputView } from "./prompts.mjs";
 
 /**
- * The select box for outscale
- * 16x at 512 is 8k, if we allow much bigger it'll really bog down a browser,
- * even on the best of systems.
+ * The input box for outscale. Allows any number between 1.0 and 16.
  */
-class OutputScaleInputView extends SelectInputView {
+class UpscaleAmountInputView extends FloatInputView {
     /**
-     * @var object The option values and label
+     * @var float The minimum value.
      */
-    static defaultOptions = {
-        "1": "1× (no upscale)",
-        "2": "2×",
-        "4": "4×",
-        "8": "8×",
-        "16": "16×"
-    };
+    static min = 1.0;
 
     /**
-     * @var string The tooltip to display to the user
+     * @var float The default value.
      */
-    static tooltip = "The output scale will multiply the height and width of the generated image by this amount after the image has been generated. For example, an image generated at 512×512 with an output scale of 2× will result in a final image at 1024×1024.<br /><strong>Caution!</strong> Large values, especially coupled with larger input sizes, can result in an image that will be too large for your browser to display, and it will crash. The resulting images are still saved.";
+    static defaultValue = 1.0;
 
     /**
-     * @var string The value, keep as string for compat
+     * @var float The step value
      */
-    static defaultValue = "1";
-}
-
-/**
- * The select box for dedicated upscaling form
- */
-class UpscaleAmountInputView extends SelectInputView {
-    /**
-     * @var object The option values and label
-     */
-    static defaultOptions = {
-        "2": "2×",
-        "4": "4×",
-        "8": "8×",
-        "16": "16×"
-    };
+    static step = 0.25;
 
     /**
-     * @var string The value, keep as string for compat
+     * @var float The maximum scale
      */
-    static defaultValue = "2";
+    static max = 16.0;
 }
 
 /**
@@ -74,6 +50,11 @@ class UpscaleMethodInputView extends SelectInputView {
      * @var string The default value
      */
     static defaultValue = "esrgan";
+
+    /**
+     * @var string The tooltip
+     */
+    static tooltip = "The upscaling method has a significant effect on the output image. The best general-purpose upscaling method is selected by default.<br />When selecting multiple methods, the first is used for the first upscale, the second for the second (when using iterative upscaling), etc.<br /><strong>ESRGAN</strong>: Short for Enhanced Super-Resolution Generative Adversarial Network, this is an AI upscaling method that tries to maintain sharp edges where they should be sharp, and soft where they should be soft, filling in details along the way.<br /><strong>ESRGANime</strong>: Similar to the above, but with sharper lines for cartoon or anime style.<br /><strong>GFPGAN</strong>: Short for Generative Facial Prior Generative Adversarial Network, this is an AI Upscaling method with face restoration. This results in photorealistic faces more often than not, but can erase desired features; it is best paired with upscale diffusion.<br /><strong>Lanczos</strong>: An algorithm with blurry but consistent results.<br /><strong>Bicubic</strong>: An algorithm that can result in slightly sharper edges than Lanczos, but can have jagged edges on curves and diagonal lines.<br /><strong>Bilinear</strong>: A very fast algorithm with overall the blurriest results.<br /><strong>Nearest</strong>: Maintain sharp pixel boundaries, resulting in a pixelated or retro look.";
 }
 
 /**
@@ -89,201 +70,125 @@ class UpscaleDiffusionControlnetInputView extends SelectInputView {
         "tile": "Tile",
         "canny": "Canny Edge Detection",
         "hed": "HED (Holistically-Nested Edge Detection)",
-        "mlsd": "MLSD (Mobile Line Segment Detection)"
+        "pidi": "Soft Edge Detection (PIDI)",
+        "depth": "Depth (MiDaS)",
     };
     
     /**
-     * @var string The default value
+     * @var bool always allow empty
      */
-    static defaultValue = "tile";
-}
-
-/**
- * The repeatable input view for method
- * We let them choose different methods for different iterations
- */
-class UpscaleMethodsInputView extends RepeatableInputView {
-    /**
-     * @var int Always have one value when this is visible
-     */
-    static minimumItems = 1;
+    static allowEmpty = true;
 
     /**
-     * @var int max upscale is 2^5
+     * @var string placeholder text
      */
-    static maximumItems = 5;
-    
-    /**
-     * @var class The repeatable item class
-     */
-    static memberClass = UpscaleMethodInputView;
-
-    /**
-     * @var string The tooltip to display
-     */
-    static tooltip = "The upscaling method has a significant effect on the output image. The best general-purpose upscaling method is selected by default.<br />When selecting multiple methods, the first is used for the first upscale, the second for the second (when using iterative upscaling), etc.<br /><strong>ESRGAN</strong>: Short for Enhanced Super-Resolution Generative Adversarial Network, this is an AI upscaling method that tries to maintain sharp edges where they should be sharp, and soft where they should be soft, filling in details along the way.<br /><strong>ESRGANime</strong>: Similar to the above, but with sharper lines for cartoon or anime style.<br /><strong>GFPGAN</strong>: Short for Generative Facial Prior Generative Adversarial Network, this is an AI Upscaling method with face restoration. This results in photorealistic faces more often than not, but can erase desired features; it is best paired with upscale diffusion.<br /><strong>Lanczos</strong>: An algorithm with blurry but consistent results.<br /><strong>Bicubic</strong>: An algorithm that can result in slightly sharper edges than Lanczos, but can have jagged edges on curves and diagonal lines.<br /><strong>Bilinear</strong>: A very fast algorithm with overall the blurriest results.<br /><strong>Nearest</strong>: Maintain sharp pixel boundaries, resulting in a pixelated or retro look.";
-
-}
-
-/**
- * The repeatable input view for controlnet
- * None are required, default is none for speed
- */
-class UpscaleDiffusionIterativeControlnetInputView extends RepeatableInputView {
-    /**
-     * @var int max upscale is 2^5
-     */
-    static maximumItems = 5;
-
-    /**
-     * @var int No minimum
-     */
-    static minimumItems = 0;
-    
-    /**
-     * @var class The repeatable item class
-     */
-    static memberClass = UpscaleDiffusionControlnetInputView;
+    static placeholder = "None";
     
     /**
      * @var string The tooltip to display
      */
-    static tooltip = "The controlnet to use during upscaling. None are required, and using one will result in significant slowdowns during upscaling, but can result in a more consistent upscaled image. When using multiple methods, the first is used for the first upscale, the second is used for the second (when using iterative upscaling), etc.<br /><strong>Tile</strong>: This network is trained on large images and slices of their images.<br /><strong>Canny Edge</strong>: This network is trained on images and the edges of that image after having run through Canny Edge detection. The output image will be processed with this algorithm.<br /><strong>HED</strong>: Short for Holistically-Nested Edge Detection, this edge-detection algorithm is best used when the input image is too blurry or too noisy for Canny Edge detection.<br /><strong>MLSD</strong>: Short for Mobile Line Segment Detection, this edge-detection algorithm searches only for straight lines, and is best used for geometric or architectural images.";
+    static tooltip = "The controlnet to use during upscaling. None are required, and using one will result in significant slowdowns during upscaling, but can result in a more consistent upscaled image. When using multiple methods, the first is used for the first upscale, the second is used for the second (when using iterative upscaling), etc.<br /><strong>Tile</strong>: This network is trained on large images and slices of their images.<br /><strong>Canny Edge</strong>: This network is trained on images and the edges of that image after having run through Canny Edge detection. The output image will be processed with this algorithm.<br /><strong>HED</strong>: Short for Holistically-Nested Edge Detection, this edge-detection algorithm is best used when the input image is too blurry or too noisy for Canny Edge detection.<br /><strong>PIDI</strong>: This is an AI edge detection algorithm that can quickly detect edges in a variety of lighting and contrast conditions.<br /><strong>MiDaS</strong>: This algorithm analyzes the image for an approximation of distance from the camera, and can help maintain distance from the camera.";
 }
 
 /**
- * The repetable input view for prompt
- * None are required, we'll use a generic detail prompt
+ * The input view for prompt
  */
-class UpscaleDiffusionPromptInputView extends RepeatableInputView {
+class UpscaleDiffusionPromptInputView extends PromptInputView {
     /**
-     * @var int max upscale is 2^5
+     * @var string The tooltip to show
      */
-    static maximumItems = 5;
-    
+    static tooltip = "The prompt to use when upscaling, it is generally best to use generic detail-oriented prompts, unless there are specific things or people you want to ensure have details.";
+}
+
+/**
+ * The input view for negative prompt
+ */
+class UpscaleDiffusionNegativePromptInputView extends PromptInputView {
     /**
-     * @var class The repeatable item class
+     * @var string The tooltip to show
      */
-    static memberClass = PromptInputView;
+    static tooltip = "The negative prompt to use when upscaling, it is generally best to use generic negative prompts, unless there are specific things you don't want.";
+}
+
+/**
+ * The input view for strength
+ */
+class UpscaleDiffusionStrengthInputView extends SliderPreciseInputView {
+    /**
+     * @var float Min value
+     */
+    static min = 0.0;
+
+    /**
+     * @var float step value
+     */
+    static step = 0.01;
+
+    /**
+     * @var float Max value
+     */
+    static max = 1.0;
+
+    /**
+     * @var float The default value
+     */
+    static defaultValue = 0.0;
 
     /**
      * @var string The tooltip to show
      */
-    static tooltip = "The prompt to use when upscaling, it is generally best to use generic detail-oriented prompts, unless there are specific things or people you want to ensure have details.<br />When using multiple prompts, the first is used for the first upscale, the second is used for the second (when using iterative upscaling), etc.";
+    static tooltip = "The amount to change the image when upscaling, from 0 to 1. Keep this low to improve consistency in the upscaled image, or increase it to add many details for a tableau or panorama style. Setting this to zero will skip re-diffusing the upscaled sample.";
 }
 
 /**
- * The repetable input view for negative prompt
- * None are required, we'll use a generic detail prompt
+ * The steps for upscaling
  */
-class UpscaleDiffusionNegativePromptInputView extends UpscaleDiffusionPromptInputView {
+class UpscaleDiffusionStepsInputView extends NumberInputView {
     /**
-     * @var string The tooltip to show
+     * @var int the minimum value
      */
-    static tooltip = "The negative prompt to use when upscaling, it is generally best to use generic negative prompts, unless there are specific things you don't want.<br />When using multiple prompts, the first is used for the first upscale, the second is used for the second (when using iterative upscaling), etc.";
-}
-
-/**
- * The repeatable input view for strength
- * At least one is required
- */
-class UpscaleDiffusionStrengthInputView extends RepeatableInputView {
-    /**
-     * @var class The repeatable item class
-     */
-    static memberClass = FloatInputView;
+    static min = 0;
 
     /**
-     * @var object The config to pass to the member class
+     * @var int The max value
      */
-    static memberConfig = {
-        "min": 0.0,
-        "value": 0.2,
-        "max": 1.0,
-        "step": 0.01
-    };
-    
+    static max = 200;
+
     /**
-     * @var int One strength always required
+     * @var int The default value
      */
-    static minimumItems = 1;
-    
-    /**
-     * @var int max upscale is 2^5
-     */
-    static maximumItems = 5;
+    static defaultValue = 100;
     
     /**
      * @var string The tooltip to show
      */
-    static tooltip = "The amount to change the image when upscaling, from 0 to 1. Keep this low to improve consistency in the upscaled image, or increase it to add many details for a tableau or panorama style.<br />When using multiple strengths, the first is used for the first upscale, the second is used for the second (when using iterative upscaling), etc.";
+    static tooltip = "The number of inference steps to make during the denoising loop of the upscaled image. Higher values can result in more details but can also take significantly longer, especially with high denoising strengths.";
 }
 
 /**
- * The repeatable input view for steps
- * At least one is required
+ * The input view for guidance scale
  */
-class UpscaleDiffusionStepsInputView extends RepeatableInputView {
+class UpscaleDiffusionGuidanceScaleInputView extends FloatInputView {
     /**
-     * @var class The repeatable item class
+     * @var float the minimum value
      */
-    static memberClass = NumberInputView;
+    static min = 0.0;
 
     /**
-     * @var object The config to pass to the member class
+     * @var float The max value
      */
-    static memberConfig = {
-        "min": 0,
-        "max": 1000,
-        "value": 100
-    };
-    
-    /**
-     * @var int at least one is required
-     */
-    static minimumItems = 1;
-    
-    /**
-     * @var int max upscale is 2^5
-     */
-    static maximumItems = 5;
-    
-    /**
-     * @var string The tooltip to show
-     */
-    static tooltip = "The number of inference steps to make during the denoising loop of the upscaled image. Higher values can result in more details but can also take significantly longer, especially with high denoising strengths.<br />When using multiple step amounts, the first is used for the first upscale, the second is used for the second (when using iterative upscaling), etc.";
-}
-
-/**
- * The repeatable input view for guidance scale
- * At least one is required
- */
-class UpscaleDiffusionGuidanceScaleInputView extends RepeatableInputView {
-    /**
-     * @var class The repetable item class
-     */
-    static memberClass = FloatInputView;
+    static max = 100.0;
 
     /**
-     * @var object The config to pass to the class
+     * @var float The step value
      */
-    static memberConfig = {
-        "min": 0.0,
-        "max": 100.0,
-        "value": 12.0,
-        "step": 0.1
-    };
+    static step = 0.1;
 
     /**
-     * @var int at least one is required
+     * @var float The default value
      */
-    static minimumItems = 1;
-    
-    /**
-     * @var int max upscale is 2^5
-     */
-    static maximumItems = 5;
-    
+    static defaultValue = 12.0;
+
     /**
      * @var string The tooltip to show
      */
@@ -318,10 +223,9 @@ class UpscaleDiffusionPipelineInputView extends SelectInputView {
 }
 
 export {
-    OutputScaleInputView,
     UpscaleAmountInputView,
-    UpscaleMethodsInputView,
-    UpscaleDiffusionIterativeControlnetInputView,
+    UpscaleMethodInputView,
+    UpscaleDiffusionControlnetInputView,
     UpscaleDiffusionPromptInputView,
     UpscaleDiffusionNegativePromptInputView,
     UpscaleDiffusionStepsInputView,

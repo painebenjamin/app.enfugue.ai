@@ -761,6 +761,10 @@ enfugue-sidebar .field-container.slider-precise-input-view
     flex-basis: 100%;
 }
 
+enfugue-sidebar fieldset.field-set-prompts {
+    margin-bottom: 0.5em;
+}
+
 fieldset.field-set-engine .refiner-engine-size-input-view,
 fieldset.field-set-engine .inpainter-engine-size-input-view,
 fieldset.field-set-additional-models .vae-input-view-refiner-vae,

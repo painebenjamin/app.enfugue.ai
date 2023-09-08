@@ -532,6 +532,19 @@ enfugue-color-input > .inline-color-preview {
     border: 1px solid black;
 }
 
+enfugue-repeatable-input .empty-placeholder {
+    display: none;
+    width: 100%;
+    text-align: center;
+    font-size: 11px;
+    opacity: 0.75;
+    font-style: italic;
+}
+
+enfugue-repeatable-input.no-children .empty-placeholder {
+    display: block;
+}
+
 ul.enfugue-search-list-items,
 enfugue-color-input-helper-view {
     border: 1px solid var(--darkest-color);
@@ -711,7 +724,7 @@ enfugue-repeatable-input
 enfugue-repeatable-input enfugue-repeatable-input-item > form {
     margin: 0;
     padding: 5px;
-    gap: 0;
+    gap: 5px;
 }
 
 enfugue-repeatable-input.columns input.add-item {

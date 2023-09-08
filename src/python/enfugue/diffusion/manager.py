@@ -667,24 +667,6 @@ class DiffusionPipelineManager:
         self._chunking_size = new_chunking_size
 
     @property
-    def chunking_blur(self) -> int:
-        """
-        Gets the chunking blur in pixels.
-        """
-        if not hasattr(self, "_chunking_blur"):
-            self._chunking_blur = int(
-                self.configuration.get("enfugue.chunk.blur", DiffusionPipelineManager.DEFAULT_CHUNK)
-            )
-        return self._chunking_blur
-
-    @chunking_blur.setter
-    def chunking_blur(self, new_chunking_blur: int) -> None:
-        """
-        Sets the new chunking blur. This doesn't require a restart.
-        """
-        self._chunking_blur = new_chunking_blur
-
-    @property
     def engine_root(self) -> str:
         """
         Gets the root of the engine.
@@ -1775,18 +1757,20 @@ class DiffusionPipelineManager:
         Sets a new model. Destroys the pipeline.
         """
         if new_model is None:
-            new_model = self.configuration.get("enfugue.model", DEFAULT_MODEL)
-        new_model = self.check_get_default_model(new_model)
-        if new_model.startswith("http"):
-            new_model = self.check_download_checkpoint(new_model)
-        elif not os.path.isabs(new_model):
-            new_model = find_file_in_directory(self.engine_checkpoints_dir, new_model)
-        if not new_model:
+            model = self.configuration.get("enfugue.model", DEFAULT_MODEL)
+        else:
+            model = new_model
+        model = self.check_get_default_model(model)
+        if model.startswith("http"):
+            model = self.check_download_checkpoint(model)
+        elif not os.path.isabs(model):
+            model = find_file_in_directory(self.engine_checkpoints_dir, model)
+        if not model:
             raise ValueError(f"Cannot find model {new_model}")
-        new_model_name, _ = os.path.splitext(os.path.basename(new_model))
-        if self.model_name != new_model_name:
+        model_name, _ = os.path.splitext(os.path.basename(model))
+        if self.model_name != model_name:
             self.unload_pipeline("model changing")
-        self._model = new_model
+        self._model = model
 
     @property
     def model_name(self) -> str:
@@ -1819,17 +1803,17 @@ class DiffusionPipelineManager:
         if new_refiner is None:
             self._refiner = None
             return
-        new_refiner = self.check_get_default_model(new_refiner)
-        if new_refiner.startswith("http"):
-            new_refiner = self.check_download_checkpoint(new_refiner)
-        elif not os.path.isabs(new_refiner):
-            new_refiner = find_file_in_directory(self.engine_checkpoints_dir, new_refiner)
-        if not new_refiner:
+        refiner = self.check_get_default_model(new_refiner)
+        if refiner.startswith("http"):
+            refiner = self.check_download_checkpoint(refiner)
+        elif not os.path.isabs(refiner):
+            refiner = find_file_in_directory(self.engine_checkpoints_dir, refiner) # type: ignore[assignment]
+        if not refiner:
             raise ValueError(f"Cannot find refiner {new_refiner}")
-        new_refiner_name, _ = os.path.splitext(os.path.basename(new_refiner))
-        if self.refiner_name != new_refiner_name:
+        refiner_name, _ = os.path.splitext(os.path.basename(refiner))
+        if self.refiner_name != refiner_name:
             self.unload_refiner("model changing")
-        self._refiner = new_refiner
+        self._refiner = refiner
 
     @property
     def refiner_name(self) -> Optional[str]:
@@ -1864,17 +1848,17 @@ class DiffusionPipelineManager:
         if new_inpainter is None:
             self._inpainter = None
             return
-        new_inpainter = self.check_get_default_model(new_inpainter)
-        if new_inpainter.startswith("http"):
-            new_inpainter = self.check_download_checkpoint(new_inpainter)
-        elif not os.path.isabs(new_inpainter):
-            new_inpainter = find_file_in_directory(self.engine_checkpoints_dir, new_inpainter)
-        if not new_inpainter:
+        inpainter = self.check_get_default_model(new_inpainter)
+        if inpainter.startswith("http"):
+            inpainter = self.check_download_checkpoint(inpainter)
+        elif not os.path.isabs(inpainter):
+            inpainter = find_file_in_directory(self.engine_checkpoints_dir, inpainter) # type: ignore[assignment]
+        if not inpainter:
             raise ValueError(f"Cannot find inpainter {new_inpainter}")
-        new_inpainter_name, _ = os.path.splitext(os.path.basename(new_inpainter))
-        if self.inpainter_name != new_inpainter_name:
+        inpainter_name, _ = os.path.splitext(os.path.basename(inpainter))
+        if self.inpainter_name != inpainter_name:
             self.unload_inpainter("model changing")
-        self._inpainter = new_inpainter
+        self._inpainter = inpainter
 
     @property
     def inpainter_name(self) -> Optional[str]:
@@ -2867,6 +2851,8 @@ class DiffusionPipelineManager:
                 return CONTROLNET_ANIME
             elif name == "pidi":
                 return CONTROLNET_PIDI
+            elif name == "temporal":
+                return CONTROLNET_TEMPORAL
         raise ValueError(f"Unknown or unsupported ControlNet {name}")
 
     def get_controlnet_path_by_name(self, name: CONTROLNET_LITERAL, is_sdxl: bool) -> str:

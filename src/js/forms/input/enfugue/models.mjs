@@ -175,6 +175,30 @@ class VaeInputView extends InputView {
 };
 
 /**
+ * Mask Type Input View
+ */
+class MaskTypeInputView extends SelectInputView {
+    /**
+     * @var object Option values and labels
+     */
+    static defaultOptions = {
+        "constant": "Constant",
+        "bilinear": "Bilinear",
+        "gaussian": "Gaussian"
+    };
+
+    /**
+     * @var string The tooltip
+     */
+    static tooltip = "During multi-diffusion, only a square of the size of the engine is rendereda at any given time. This can cause hard edges between the frames, especially when using a large chunking size. Using a mask allows for blending along the edges - this can remove seams, but also reduce precision.";
+
+    /**
+     * @var string Default value
+     */
+    static defaultValue = "bilinear";
+}
+
+/**
  * Scheduler Input View
  */
 class SchedulerInputView extends SelectInputView {
@@ -361,6 +385,11 @@ class LycorisFormInputView extends FormInputView {
  */
 class MultiLoraInputView extends RepeatableInputView {
     /**
+     * @var string Text to display when no items are added
+     */
+    static noItemsLabel = "Click `+` to add a LoRA model";
+
+    /**
      * @var class The repeatable input element.
      */
     static memberClass = LoraFormInputView;
@@ -371,6 +400,11 @@ class MultiLoraInputView extends RepeatableInputView {
  */
 class MultiLycorisInputView extends RepeatableInputView {
     /**
+     * @var string Text to display when no items are added
+     */
+    static noItemsLabel = "Click `+` to add a LyCORIS model";
+
+    /**
      * @var class The repeatable input element.
      */
     static memberClass = LycorisFormInputView;
@@ -380,6 +414,11 @@ class MultiLycorisInputView extends RepeatableInputView {
  * The overall multi-input that allows any number of inversions
  */
 class MultiInversionInputView extends RepeatableInputView {
+    /**
+     * @var string Text to display when no items are added
+     */
+    static noItemsLabel = "Click `+` to add a Textual Inversion";
+
     /**
      * @var class The repeatable input element.
      */
@@ -451,5 +490,6 @@ export {
     SchedulerInputView,
     ModelPickerStringInputView,
     ModelPickerListInputView,
-    ModelPickerInputView
+    ModelPickerInputView,
+    MaskTypeInputView
 };

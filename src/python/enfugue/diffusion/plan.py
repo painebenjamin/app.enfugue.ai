@@ -21,8 +21,12 @@ from typing import (
     Tuple,
     List,
     Callable,
-    TypedDict,
+    Iterator,
     TYPE_CHECKING,
+)
+from typing_extensions import (
+    TypedDict,
+    NotRequired
 )
 
 from pibble.util.strings import get_uuid, Serializer
@@ -45,6 +49,7 @@ if TYPE_CHECKING:
         SCHEDULER_LITERAL,
         CONTROLNET_LITERAL,
         UPSCALE_LITERAL,
+        MASK_TYPE_LITERAL,
     )
 
 DEFAULT_SIZE = 512
@@ -54,10 +59,9 @@ DEFAULT_IMG2IMG_STRENGTH = 0.8
 DEFAULT_INFERENCE_STEPS = 40
 DEFAULT_GUIDANCE_SCALE = 7.5
 DEFAULT_UPSCALE_PROMPT = "highly detailed, ultra-detailed, intricate detail, high definition, HD, 4k, 8k UHD"
-DEFAULT_UPSCALE_NEGATIVE_PROMPT = ""
-DEFAULT_UPSCALE_DIFFUSION_STEPS = 100
-DEFAULT_UPSCALE_DIFFUSION_GUIDANCE_SCALE = 12
-DEFAULT_UPSCALE_DIFFUSION_STRENGTH = 0.2
+DEFAULT_UPSCALE_INFERENCE_STEPS = 100
+DEFAULT_UPSCALE_GUIDANCE_SCALE = 12
+DEFAULT_UPSCALE_CHUNKING_SIZE = 128
 
 DEFAULT_REFINER_START = 0.85
 DEFAULT_REFINER_STRENGTH = 0.3
@@ -73,38 +77,53 @@ MAX_IMAGE_SCALE = 3.0
 
 __all__ = ["NodeDict", "DiffusionStep", "DiffusionPlan"]
 
+class UpscaleStepDict(TypedDict):
+    method: UPSCALE_LITERAL
+    amount: Union[int, float]
+    strength: NotRequired[float]
+    num_inference_steps: NotRequired[int]
+    scheduler: NotRequired[SCHEDULER_LITERAL]
+    guidance_scale: NotRequired[float]
+    controlnets: NotRequired[List[Union[CONTROLNET_LITERAL, Tuple[CONTROLNET_LITERAL, float]]]]
+    prompt: NotRequired[str]
+    prompt_2: NotRequired[str]
+    negative_prompt: NotRequired[str]
+    negative_prompt_2: NotRequired[str]
+    chunking_size: NotRequired[int]
+    chunking_mask_type: NotRequired[MASK_TYPE_LITERAL]
+    chunking_mask_kwargs: NotRequired[Dict[str, Any]]
 
 class ControlImageDict(TypedDict):
     controlnet: CONTROLNET_LITERAL
     image: PIL.Image.Image
-    fit: Optional[IMAGE_FIT_LITERAL]
-    anchor: Optional[IMAGE_ANCHOR_LITERAL]
-    scale: Optional[float]
-    process: Optional[bool]
-    invert: Optional[bool]
+    fit: NotRequired[IMAGE_FIT_LITERAL]
+    anchor: NotRequired[IMAGE_ANCHOR_LITERAL]
+    scale: NotRequired[float]
+    process: NotRequired[bool]
+    invert: NotRequired[bool]
+    refiner: NotRequired[bool]
 
 class NodeDict(TypedDict):
     w: int
     h: int
     x: int
     y: int
-    control_images: Optional[List[ControlImageDict]]
-    image: Optional[PIL.Image.Image]
-    mask: Optional[PIL.Image.Image]
-    fit: Optional[IMAGE_FIT_LITERAL]
-    anchor: Optional[IMAGE_ANCHOR_LITERAL]
-    prompt: Optional[str]
-    prompt_2: Optional[str]
-    negative_prompt: Optional[str]
-    negative_prompt_2: Optional[str]
-    strength: Optional[float]
-    ip_adapter_image: Optional[PIL.Image.Image]
-    ip_adapter_scale: Optional[float]
-    remove_background: Optional[bool]
-    invert_mask: Optional[bool]
-    crop_inpaint: Optional[bool]
-    inpaint_feather: Optional[int]
-
+    control_images: NotRequired[List[ControlImageDict]]
+    image: NotRequired[PIL.Image.Image]
+    mask: NotRequired[PIL.Image.Image]
+    fit: NotRequired[IMAGE_FIT_LITERAL]
+    anchor: NotRequired[IMAGE_ANCHOR_LITERAL]
+    prompt: NotRequired[str]
+    prompt_2: NotRequired[str]
+    negative_prompt: NotRequired[str]
+    negative_prompt_2: NotRequired[str]
+    strength: NotRequired[float]
+    ip_adapter_image: NotRequired[PIL.Image.Image]
+    ip_adapter_scale: NotRequired[float]
+    remove_background: NotRequired[bool]
+    invert_mask: NotRequired[bool]
+    crop_inpaint: NotRequired[bool]
+    inpaint_feather: NotRequired[int]
 
 class DiffusionStep:
     """
@@ -718,31 +737,14 @@ class DiffusionPlan:
         nodes: List[DiffusionNode] = [],
         image: Optional[Union[str, PIL.Image.Image]] = None,
         chunking_size: Optional[int] = None,
-        chunking_blur: Optional[int] = None,
+        chunking_mask_type: Optional[MASK_TYPE_LITERAL] = None,
+        chunking_mask_kwargs: Optional[Dict[str, Any]] = None,
         samples: Optional[int] = 1,
         iterations: Optional[int] = 1,
         seed: Optional[int] = None,
         build_tensorrt: bool = False,
         outpaint: bool = True,
-        outscale: Optional[int] = 1,
-        upscale: Optional[Union[UPSCALE_LITERAL, List[UPSCALE_LITERAL]]] = None,
-        upscale_diffusion: bool = False,
-        upscale_iterative: bool = False,
-        upscale_pipeline: Optional[str] = None,
-        upscale_diffusion_steps: Optional[Union[int, List[int]]] = DEFAULT_UPSCALE_DIFFUSION_STEPS,
-        upscale_diffusion_guidance_scale: Optional[
-            Union[float, int, List[Union[float, int]]]
-        ] = DEFAULT_UPSCALE_DIFFUSION_GUIDANCE_SCALE,
-        upscale_diffusion_strength: Optional[Union[float, List[float]]] = DEFAULT_UPSCALE_DIFFUSION_STRENGTH,
-        upscale_diffusion_prompt: Optional[Union[str, List[str]]] = DEFAULT_UPSCALE_PROMPT,
-        upscale_diffusion_prompt_2: Optional[Union[str, List[str]]] = None,
-        upscale_diffusion_negative_prompt: Optional[Union[str, List[str]]] = DEFAULT_UPSCALE_NEGATIVE_PROMPT,
-        upscale_diffusion_negative_prompt_2: Optional[Union[str, List[str]]] = None,
-        upscale_diffusion_controlnet: Optional[Union[CONTROLNET_LITERAL, List[CONTROLNET_LITERAL]]] = None,
-        upscale_diffusion_chunking_size: Optional[int] = None,
-        upscale_diffusion_chunking_blur: Optional[int] = None,
-        upscale_diffusion_scale_chunking_size: bool = True,
-        upscale_diffusion_scale_chunking_blur: bool = True,
+        upscale_steps: Optional[Union[UpscaleStepDict, List[UpscaleStepDict]]] = None,
     ) -> None:
         self.size = size if size is not None else (1024 if model is not None and "xl" in model.lower() else 512)
         self.inpainter_size = inpainter_size
@@ -765,7 +767,8 @@ class DiffusionPlan:
         self.height = height if height is not None else self.size
         self.image = image
         self.chunking_size = chunking_size if chunking_size is not None else self.size // 8  # Pass 0 to disable
-        self.chunking_blur = chunking_blur if chunking_blur is not None else self.size // 8  # Pass 0 to disable
+        self.chunking_mask_type = chunking_mask_type
+        self.chunking_mask_kwargs = chunking_mask_kwargs
         self.samples = samples if samples is not None else 1
         self.iterations = iterations if iterations is not None else 1
         self.seed = seed if seed is not None else randint(1, sys.maxsize)
@@ -773,41 +776,7 @@ class DiffusionPlan:
         self.outpaint = outpaint
         self.build_tensorrt = build_tensorrt
         self.nodes = nodes
-        self.outscale = outscale if outscale is not None else 1
-        self.upscale = upscale
-        self.upscale_iterative = bool(upscale_iterative)
-        self.upscale_diffusion = bool(upscale_diffusion)
-        self.upscale_pipeline = upscale_pipeline
-        self.upscale_diffusion_chunking_size = (
-            upscale_diffusion_chunking_size if upscale_diffusion_chunking_size is not None else self.size // 4
-        )
-        self.upscale_diffusion_chunking_blur = (
-            upscale_diffusion_chunking_blur if upscale_diffusion_chunking_blur is not None else self.size // 4
-        )
-        self.upscale_diffusion_guidance_scale = (
-            upscale_diffusion_guidance_scale
-            if upscale_diffusion_guidance_scale is not None
-            else DEFAULT_UPSCALE_DIFFUSION_GUIDANCE_SCALE
-        )
-        self.upscale_diffusion_steps = (
-            upscale_diffusion_steps if upscale_diffusion_steps is not None else DEFAULT_UPSCALE_DIFFUSION_STEPS
-        )
-        self.upscale_diffusion_strength = (
-            upscale_diffusion_strength if upscale_diffusion_strength is not None else DEFAULT_UPSCALE_DIFFUSION_STRENGTH
-        )
-        self.upscale_diffusion_prompt = (
-            upscale_diffusion_prompt if upscale_diffusion_prompt is not None else DEFAULT_UPSCALE_PROMPT
-        )
-        self.upscale_diffusion_prompt_2 = upscale_diffusion_prompt_2
-        self.upscale_diffusion_negative_prompt = (
-            upscale_diffusion_negative_prompt
-            if upscale_diffusion_negative_prompt is not None
-            else DEFAULT_UPSCALE_NEGATIVE_PROMPT
-        )
-        self.upscale_diffusion_negative_prompt_2 = upscale_diffusion_negative_prompt_2
-        self.upscale_diffusion_controlnet = upscale_diffusion_controlnet
-        self.upscale_diffusion_scale_chunking_size = bool(upscale_diffusion_scale_chunking_size)
-        self.upscale_diffusion_scale_chunking_blur = bool(upscale_diffusion_scale_chunking_blur)
+        self.upscale_steps = upscale_steps
 
     @property
     def kwargs(self) -> Dict[str, Any]:
@@ -818,9 +787,22 @@ class DiffusionPlan:
             "width": self.width,
             "height": self.height,
             "chunking_size": self.chunking_size,
-            "chunking_blur": self.chunking_blur,
+            "chunking_mask_type": self.chunking_mask_type,
+            "chunking_mask_kwargs": self.chunking_mask_kwargs,
             "num_images_per_prompt": self.samples,
         }
+
+    @property
+    def upscale(self) -> Iterator[UpscaleStepDict]:
+        """
+        Iterates over upscale steps.
+        """
+        if self.upscale_steps is not None:
+            if isinstance(self.upscale_steps, list):
+                for step in self.upscale_steps:
+                    yield step
+            else:
+                yield self.upscale_steps
 
     def execute(
         self,
@@ -851,146 +833,163 @@ class DiffusionPlan:
             image_callback_steps
         )
 
-        if self.upscale is not None and self.outscale > 1:
-            if self.upscale_iterative:
-                scales = [2] * int(math.log(self.outscale, 2))
-            else:
-                scales = [self.outscale]
-            for j, scale in enumerate(scales):
+        for upscale_step in self.upscale:
+            method = upscale_step["method"]
+            amount = upscale_step["amount"]
+            num_inference_steps = upscale_step.get("num_inference_steps", DEFAULT_UPSCALE_INFERENCE_STEPS)
+            guidance_scale = upscale_step.get("guidance_scale", DEFAULT_UPSCALE_GUIDANCE_SCALE)
+            prompt = upscale_step.get("prompt", DEFAULT_UPSCALE_PROMPT)
+            prompt_2 = upscale_step.get("prompt_2", None)
+            negative_prompt = upscale_step.get("negative_prompt", None)
+            negative_prompt_2 = upscale_step.get("negative_prompt_2", None)
+            strength = upscale_step.get("strength", None)
+            controlnets = upscale_step.get("controlnets", None)
+            chunking_size = upscale_step.get("chunking_size", DEFAULT_UPSCALE_CHUNKING_SIZE)
+            scheduler = upscale_step.get("scheduler", self.scheduler)
+            chunking_mask_type = upscale_step.get("chunking_mask_type", None)
+            chunking_mask_kwargs = upscale_step.get("chunking_mask_kwargs", None)
+            refiner = self.refiner is not None and upscale_step.get("refiner", True)
 
-                def get_item_for_scale(item: Any) -> Any:
-                    if not isinstance(item, list):
-                        return item
-                    elif len(item) < j + 1:
-                        if len(item) == 0:
-                            return None
-                        return item[-1]
+            for i, image in enumerate(images):
+                if nsfw is not None and nsfw[i]:
+                    logger.debug(f"Image {i} had NSFW content, not upscaling.")
+                    continue
+
+                logger.debug(f"Upscaling sample {i} by {amount} using {method}")
+                task_callback(f"Upscaling sample {i+1}")
+
+                if method in ["esrgan", "esrganime", "gfpgan"]:
+                    if refiner:
+                        pipeline.unload_pipeline("clearing memory for upscaler")
+                        pipeline.offload_refiner()
                     else:
-                        return item[j]
+                        pipeline.offload_pipeline()
+                        pipeline.unload_refiner("clearing memory for upscaler")
+
+                if method == "esrgan":
+                    image = pipeline.upscaler.esrgan(image, tile=pipeline.size, outscale=amount)
+                elif method == "esrganime":
+                    image = pipeline.upscaler.esrgan(image, tile=pipeline.size, outscale=amount, anime=True)
+                elif method == "gfpgan":
+                    image = pipeline.upscaler.gfpgan(image, tile=pipeline.size, outscale=amount)
+                elif method in PIL_INTERPOLATION:
+                    width, height = image.size
+                    image = image.resize(
+                        (int(width * amount), int(height * amount)),
+                        resample=PIL_INTERPOLATION[method]
+                    )
+                else:
+                    logger.error(f"Unknown upscaler {method}")
+                    return images
+
+                images[i] = image
+                if image_callback is not None:
+                    image_callback(images)
+
+            if strength is not None and strength > 0:
+                task_callback("Preparing upscale pipeline")
+
+                if refiner:
+                    # Refiners have safety disabled from the jump
+                    logger.debug("Using refiner for upscaling.")
+                    re_enable_safety = False
+                    chunking_size = min(chunking_size, pipeline.refiner_size // 2)
+                    pipeline.reload_refiner()
+                else:
+                    # Disable pipeline safety here, it gives many false positives when upscaling.
+                    # We'll re-enable it after.
+                    logger.debug("Using base pipeline for upscaling.")
+                    re_enable_safety = pipeline.safe
+                    chunking_size = min(chunking_size, pipeline.size // 2)
+                    pipeline.safe = False
+
+                if scheduler is not None:
+                    pipeline.scheduler = scheduler
 
                 for i, image in enumerate(images):
                     if nsfw is not None and nsfw[i]:
                         logger.debug(f"Image {i} had NSFW content, not upscaling.")
                         continue
 
-                    upscale = get_item_for_scale(self.upscale).lower()
-                    logger.debug(f"Upscaling sample {i} by {scale} using {upscale}")
-                    task_callback(f"Upscaling sample {i+1}")
+                    width, height = image.size
+                    kwargs = {
+                        "width": width,
+                        "height": height,
+                        "image": image,
+                        "num_images_per_prompt": 1,
+                        "prompt": prompt,
+                        "prompt_2": prompt_2,
+                        "negative_prompt": negative_prompt,
+                        "negative_prompt_2": negative_prompt_2,
+                        "strength": strength,
+                        "num_inference_steps": num_inference_steps,
+                        "guidance_scale": guidance_scale,
+                        "chunking_size": chunking_size,
+                        "chunking_mask_type": chunking_mask_type,
+                        "chunking_mask_kwargs": chunking_mask_kwargs,
+                        "progress_callback": progress_callback,
+                    }
 
-                    if upscale in ["esrgan", "esrganime", "gfpgan"]:
-                        if self.refiner:
-                            pipeline.unload_pipeline("clearing memory for upscaler")
-                            pipeline.offload_refiner()
+                    if controlnets is not None:
+                        if not isinstance(controlnets, list):
+                            controlnets = [controlnets] # type: ignore[unreachable]
+
+                        controlnet_names = []
+                        controlnet_weights = []
+
+                        for controlnet in controlnets:
+                            if isinstance(controlnet, tuple):
+                                controlnet, weight = controlnet
+                            else:
+                                weight = 1.0
+                            if controlnet not in controlnet_names:
+                                controlnet_names.append(controlnet)
+                                controlnet_weights.append(weight)
+
+                        logger.debug(f"Enabling controlnet(s) {controlnet_names} for upscaling")
+
+                        if refiner:
+                            pipeline.refiner_controlnets = controlnet_names
+                            pipeline.reload_refiner()
+                            upscale_pipline = pipeline.refiner_pipeline
+                            is_sdxl = pipeline.refiner_is_sdxl
                         else:
-                            pipeline.offload_pipeline()
-                            pipeline.unload_refiner("clearing memory for upscaler")
+                            pipeline.controlnets = controlnet_names
+                            pipeline.reload_pipeline()
+                            upscale_pipeline = pipeline.pipeline
+                            is_sdxl = pipeline.is_sdxl
 
-                    if upscale == "esrgan":
-                        image = pipeline.upscaler.esrgan(image, tile=pipeline.size, outscale=scale)
-                    elif upscale == "esrganime":
-                        image = pipeline.upscaler.esrgan(image, tile=pipeline.size, outscale=scale, anime=True)
-                    elif upscale == "gfpgan":
-                        image = pipeline.upscaler.gfpgan(image, tile=pipeline.size, outscale=scale)
-                    elif upscale in PIL_INTERPOLATION:
-                        width, height = image.size
-                        image = image.resize((width * scale, height * scale), resample=PIL_INTERPOLATION[upscale])
+                        kwargs["control_images"] = dict([
+                            (
+                                controlnet_name,
+                                [(
+                                    pipeline.control_image_processor(controlnet_name, image),
+                                    controlnet_weight
+                                )]
+                            )
+                            for controlnet_name, controlnet_weight in zip(controlnet_names, controlnet_weights)
+                        ])
+                    elif refiner:
+                        pipeline.refiner_controlnets = None
+                        upscale_pipeline = pipeline.refiner_pipeline
                     else:
-                        logger.error(f"Unknown upscaler {upscale}")
-                        return images
+                        pipeline.controlnets = None
+                        pipeline.reload_pipeline()  # If we didn't change controlnet, then pipeline is still on CPU
+                        upscale_pipeline = pipeline.pipeline
 
+                    logger.debug(f"Upscaling sample {i} with arguments {kwargs}")
+                    pipeline.stop_keepalive() # Stop here to kill during upscale diffusion
+                    task_callback(f"Re-diffusing Upscaled Sample {i+1}")
+                    image = upscale_pipeline(**kwargs).images[0]
+                    pipeline.start_keepalive() # Return keepalive between iterations
                     images[i] = image
                     if image_callback is not None:
                         image_callback(images)
-
-                if self.upscale_diffusion:
-                    task_callback("Preparing upscale pipeline")
-                    if self.refiner and self.upscale_pipeline != "base":
-                        # Refiners have safety disabled from the jump
-                        logger.debug("Using refiner for upscaling.")
-                        re_enable_safety = False
-                        pipeline.reload_refiner()
-                    else:
-                        # Disable pipeline safety here, it gives many false positives when upscaling.
-                        # We'll re-enable it after.
-                        logger.debug("Using base pipeline for upscaling.")
-                        re_enable_safety = pipeline.safe
-                        pipeline.safe = False
-                    for i, image in enumerate(images):
-                        if nsfw is not None and nsfw[i]:
-                            logger.debug(f"Image {i} had NSFW content, not upscaling.")
-                            continue
-
-                        width, height = image.size
-                        kwargs = {
-                            "width": width,
-                            "height": height,
-                            "image": image,
-                            "num_images_per_prompt": 1,
-                            "prompt": get_item_for_scale(self.upscale_diffusion_prompt),
-                            "prompt_2": get_item_for_scale(self.upscale_diffusion_prompt_2),
-                            "negative_prompt": get_item_for_scale(self.upscale_diffusion_negative_prompt),
-                            "negative_prompt_2": get_item_for_scale(self.upscale_diffusion_negative_prompt_2),
-                            "strength": get_item_for_scale(self.upscale_diffusion_strength),
-                            "num_inference_steps": get_item_for_scale(self.upscale_diffusion_steps),
-                            "guidance_scale": get_item_for_scale(self.upscale_diffusion_guidance_scale),
-                            "chunking_size": self.upscale_diffusion_chunking_size,
-                            "chunking_blur": self.upscale_diffusion_chunking_blur,
-                            "progress_callback": progress_callback,
-                        }
-
-                        use_refiner = self.refiner and self.upscale_pipeline != "base"
-                        upscale_controlnet = get_item_for_scale(self.upscale_diffusion_controlnet)
-                        if upscale_controlnet is not None:
-                            logger.debug(f"Enabling {upscale_controlnet} for upscale diffusion")
-                            if use_refiner:
-                                pipeline.refiner_controlnets = upscale_controlnet
-                                pipeline.reload_refiner()
-                                upscale_pipline = pipeline.refiner_pipeline
-                                is_sdxl = pipeline.refiner_is_sdxl
-                            else:
-                                pipeline.controlnets = upscale_controlnet
-                                pipeline.reload_pipeline()
-                                upscale_pipeline = pipeline.pipeline
-                                is_sdxl = pipeline.is_sdxl
-                            kwargs["control_images"] = {
-                                upscale_controlnet: [
-                                    (
-                                        pipeline.control_image_processor(upscale_controlnet, image),
-                                        0.5 if is_sdxl else 1.0
-                                    )
-                                ]
-                            }
-                        elif use_refiner:
-                            pipeline.refiner_controlnets = None
-                            upscale_pipeline = pipeline.refiner_pipeline
-                        else:
-                            pipeline.controlnets = None
-                            pipeline.reload_pipeline()  # If we didn't change controlnet, then pipeline is still on CPU
-                            upscale_pipeline = pipeline.pipeline
-
-                        if self.upscale_diffusion_scale_chunking_size:
-                            # Max out at half of the frame size or we get discontinuities
-                            kwargs["chunking_size"] = min(
-                                self.upscale_diffusion_chunking_size * (j + 1), pipeline.size // 2
-                            )
-                        if self.upscale_diffusion_scale_chunking_blur:
-                            kwargs["chunking_blur"] = min(
-                                self.upscale_diffusion_chunking_blur * (j + 1), pipeline.size // 2
-                            )
-
-                        logger.debug(f"Upscaling sample {i} with arguments {kwargs}")
-                        pipeline.stop_keepalive() # Stop here to kill during upscale diffusion
-                        task_callback(f"Re-diffusing Upscaled Sample {i+1}")
-                        image = upscale_pipeline(**kwargs).images[0]
-                        pipeline.start_keepalive() # Return keepalive between iterations
-                        images[i] = image
-                        if image_callback is not None:
-                            image_callback(images)
-                    if re_enable_safety:
-                        pipeline.safe = True
-                    if self.refiner and self.upscale_pipeline != "base":
-                        logger.debug("Offloading refiner for next inference.")
-                        pipeline.offload_refiner()
+                if re_enable_safety:
+                    pipeline.safe = True
+                if refiner:
+                    logger.debug("Offloading refiner for next inference.")
+                    pipeline.offload_refiner()
         pipeline.stop_keepalive() # Make sure this is stopped
         return self.format_output(images, nsfw)
 
@@ -1118,15 +1117,23 @@ class DiffusionPlan:
             if i < len(self.nodes) - 2:
                 next_node = self.nodes[i+1]
                 next_intention = "inpainting" if next_node.step.mask is not None else "inference"
-            elif self.outscale > 1:
-                upscale_check = self.upscale
-                if isinstance(upscale_check, list):
-                    upscale_check = upscale_check[0]
-                if isinstance(upscale_check, str) and "gan" in upscale_check:
+            elif self.upscale_steps is not None:
+                upscale_step = self.upscale_steps
+                if isinstance(upscale_step, list):
+                    upscale_step = upscale_step[0]
+
+                upscale_strength = upscale_step.get("strength", None)
+                use_ai_upscaler = "gan" in upscale_step["method"]
+                use_sd_upscaler = upscale_strength is not None and upscale_strength > 0
+
+                if use_ai_upscaler:
                     next_intention = "upscaling"
-                elif self.upscale_diffusion:
-                    next_intention = "refining"
-            
+                elif use_sd_upscaler:
+                    if self.refiner is not None and upscale_step.get("refiner", True):
+                        next_intention = "refining"
+                    else:
+                        next_intention = "inference"
+
             for it in range(self.iterations):
                 if image_callback is not None:
                     def node_image_callback(callback_images: List[PIL.Image.Image]) -> None:
@@ -1245,32 +1252,6 @@ class DiffusionPlan:
         """
         Serializes the whole plan for storage or passing between processes.
         """
-        upscale_dict: Optional[Dict[str, Any]] = None
-        if self.upscale:
-            upscale_diffusion_dict: Union[bool, Dict[str, Any]] = self.upscale_diffusion
-            if self.upscale_diffusion:
-                upscale_diffusion_dict = {
-                    "steps": self.upscale_diffusion_steps,
-                    "guidance_scale": self.upscale_diffusion_guidance_scale,
-                    "chunking_size": self.upscale_diffusion_chunking_size,
-                    "chunking_blur": self.upscale_diffusion_chunking_blur,
-                    "strength": self.upscale_diffusion_strength,
-                    "prompt": self.upscale_diffusion_prompt,
-                    "prompt_2": self.upscale_diffusion_prompt_2,
-                    "negative_prompt": self.upscale_diffusion_negative_prompt,
-                    "negative_prompt_2": self.upscale_diffusion_negative_prompt_2,
-                    "controlnet": self.upscale_diffusion_controlnet,
-                    "scale_chunking_size": self.upscale_diffusion_scale_chunking_size,
-                    "scale_chunking_blur": self.upscale_diffusion_scale_chunking_blur,
-                }
-            upscale_dict = {
-                "method": self.upscale,
-                "amount": self.outscale,
-                "iterative": self.upscale_iterative,
-                "diffusion": upscale_diffusion_dict,
-                "pipeline": self.upscale_pipeline
-            }
-
         serialized_image = self.image
         if image_directory is not None and isinstance(self.image, PIL.Image.Image):
             serialized_image = os.path.join(image_directory, f"{get_uuid()}.png")
@@ -1301,9 +1282,10 @@ class DiffusionPlan:
             "nodes": [node.get_serialization_dict(image_directory) for node in self.nodes],
             "samples": self.samples,
             "iterations": self.iterations,
-            "upscale": upscale_dict,
+            "upscale_steps": self.upscale_steps,
             "chunking_size": self.chunking_size,
-            "chunking_blur": self.chunking_blur,
+            "chunking_mask_type": self.chunking_mask_type,
+            "chunking_mask_kwargs": self.chunking_mask_kwargs,
             "build_tensorrt": self.build_tensorrt,
             "outpaint": self.outpaint,
         }
@@ -1334,7 +1316,8 @@ class DiffusionPlan:
             "width",
             "height",
             "chunking_size",
-            "chunking_blur",
+            "chunking_mask_type",
+            "chunking_mask_kwargs",
             "samples",
             "iterations",
             "seed",
@@ -1344,6 +1327,7 @@ class DiffusionPlan:
             "negative_prompt_2",
             "build_tensorrt",
             "outpaint",
+            "upscale_steps"
         ]:
             if arg in plan_dict:
                 kwargs[arg] = plan_dict[arg]
@@ -1354,31 +1338,6 @@ class DiffusionPlan:
             else:
                 kwargs["image"] = plan_dict["image"]
 
-        upscale = plan_dict.get("upscale", None)
-        if isinstance(upscale, dict):
-            kwargs["upscale"] = upscale["method"]
-            kwargs["outscale"] = upscale["amount"]
-            kwargs["upscale_iterative"] = upscale.get("iterative", False)
-            kwargs["upscale_pipeline"] = upscale.get("pipeline", None)
-            upscale_diffusion = upscale.get("diffusion", None)
-            if isinstance(upscale_diffusion, dict):
-                kwargs["upscale_diffusion"] = True
-                for arg in [
-                    "steps",
-                    "controlnet",
-                    "guidance_scale",
-                    "strength",
-                    "chunking_size",
-                    "chunking_blur",
-                    "prompt",
-                    "prompt_2",
-                    "negative_prompt",
-                    "negative_prompt_2",
-                    "scale_chunking_size",
-                    "scale_chunking_blur",
-                ]:
-                    if arg in upscale_diffusion:
-                        kwargs[f"upscale_diffusion_{arg}"] = upscale_diffusion[arg]
         result = DiffusionPlan(**kwargs)
         return result
 
@@ -1395,6 +1354,7 @@ class DiffusionPlan:
     @staticmethod
     def upscale_image(
         image: PIL.Image,
+        upscale_steps: Union[UpscaleStepDict, List[UpscaleStepDict]],
         size: Optional[int] = None,
         refiner_size: Optional[int] = None,
         inpainter_size: Optional[int] = None,
@@ -1409,32 +1369,11 @@ class DiffusionPlan:
         refiner_vae: Optional[str] = None,
         inpainter_vae: Optional[str] = None,
         seed: Optional[int] = None,
-        outscale: Optional[int] = 1,
-        upscale: Optional[Union[UPSCALE_LITERAL, List[UPSCALE_LITERAL]]] = None,
-        upscale_diffusion: bool = False,
-        upscale_iterative: bool = False,
-        upscale_pipeline: Optional[str] = None,
-        upscale_diffusion_steps: Optional[Union[int, List[int]]] = DEFAULT_UPSCALE_DIFFUSION_STEPS,
-        upscale_diffusion_guidance_scale: Optional[
-            Union[float, int, List[Union[float, int]]]
-        ] = DEFAULT_UPSCALE_DIFFUSION_GUIDANCE_SCALE,
-        upscale_diffusion_strength: Optional[Union[float, List[float]]] = DEFAULT_UPSCALE_DIFFUSION_STRENGTH,
-        upscale_diffusion_prompt: Optional[Union[str, List[str]]] = DEFAULT_UPSCALE_PROMPT,
-        upscale_diffusion_prompt_2: Optional[Union[str, List[str]]] = None,
-        upscale_diffusion_negative_prompt: Optional[Union[str, List[str]]] = DEFAULT_UPSCALE_NEGATIVE_PROMPT,
-        upscale_diffusion_negative_prompt_2: Optional[Union[str, List[str]]] = None,
-        upscale_diffusion_controlnet: Optional[Union[CONTROLNET_LITERAL, List[CONTROLNET_LITERAL]]] = None,
-        upscale_diffusion_chunking_size: Optional[int] = None,
-        upscale_diffusion_chunking_blur: Optional[int] = None,
-        upscale_diffusion_scale_chunking_size: bool = True,
-        upscale_diffusion_scale_chunking_blur: bool = True,
         **kwargs: Any,
     ) -> DiffusionPlan:
         """
         Generates a plan to upscale a single image
         """
-        if not outscale or outscale < 1 or not upscale:
-            raise ValueError("Upscaling requires at least the outscale and upscale method.")
         if kwargs:
             logger.warning(f"Plan `upscale_image` keyword arguments ignored: {kwargs}")
         width, height = image.size
@@ -1445,21 +1384,6 @@ class DiffusionPlan:
                 "h": height,
                 "x": 0,
                 "y": 0,
-                "fit": None,
-                "anchor": None,
-                "control_images": None,
-                "prompt": None,
-                "prompt_2": None,
-                "negative_prompt": None,
-                "negative_prompt_2": None,
-                "strength": None,
-                "mask": None,
-                "remove_background": None,
-                "invert_mask": None,
-                "crop_inpaint": None,
-                "inpaint_feather": None,
-                "ip_adapter_image": None,
-                "ip_adapter_scale": None
             }
         ]
         return DiffusionPlan.assemble(
@@ -1479,20 +1403,8 @@ class DiffusionPlan:
             seed=seed,
             width=width,
             height=height,
-            upscale=upscale,
-            outscale=outscale,
-            upscale_iterative=upscale_iterative,
-            upscale_diffusion=upscale_diffusion,
-            upscale_pipeline=upscale_pipeline,
-            upscale_diffusion_steps=upscale_diffusion_steps,
-            upscale_diffusion_guidance_scale=upscale_diffusion_guidance_scale,
-            upscale_diffusion_strength=upscale_diffusion_strength,
-            upscale_diffusion_controlnet=upscale_diffusion_controlnet,
-            upscale_diffusion_chunking_size=upscale_diffusion_chunking_size,
-            upscale_diffusion_chunking_blur=upscale_diffusion_chunking_blur,
-            upscale_diffusion_scale_chunking_size=upscale_diffusion_scale_chunking_size,
-            upscale_diffusion_scale_chunking_blur=upscale_diffusion_scale_chunking_blur,
-            nodes=nodes,
+            upscale_steps=upscale_steps,
+            nodes=nodes
         )
 
     @staticmethod
@@ -1521,7 +1433,8 @@ class DiffusionPlan:
         height: Optional[int] = None,
         nodes: List[NodeDict] = [],
         chunking_size: Optional[int] = None,
-        chunking_blur: Optional[int] = None,
+        chunking_mask_type: Optional[MASK_TYPE_LITERAL] = None,
+        chunking_mask_kwargs: Optional[Dict[str, Any]] = None,
         prompt: Optional[str] = None,
         prompt_2: Optional[str] = None,
         negative_prompt: Optional[str] = None,
@@ -1553,23 +1466,7 @@ class DiffusionPlan:
         refiner_prompt_2: Optional[str] = None,
         refiner_negative_prompt: Optional[str] = None,
         refiner_negative_prompt_2: Optional[str] = None,
-        outscale: Optional[int] = 1,
-        upscale: Optional[Union[UPSCALE_LITERAL, List[UPSCALE_LITERAL]]] = None,
-        upscale_diffusion: bool = False,
-        upscale_iterative: bool = False,
-        upscale_pipeline: Optional[str] = None,
-        upscale_diffusion_steps: Optional[Union[int, List[int]]] = DEFAULT_UPSCALE_DIFFUSION_STEPS,
-        upscale_diffusion_guidance_scale: Optional[Union[float, int, List[Union[float, int]]]] = DEFAULT_UPSCALE_DIFFUSION_GUIDANCE_SCALE,
-        upscale_diffusion_strength: Optional[Union[float, List[float]]] = DEFAULT_UPSCALE_DIFFUSION_STRENGTH,
-        upscale_diffusion_prompt: Optional[Union[str, List[str]]] = DEFAULT_UPSCALE_PROMPT,
-        upscale_diffusion_prompt_2: Optional[Union[str, List[str]]] = None,
-        upscale_diffusion_negative_prompt: Optional[Union[str, List[str]]] = DEFAULT_UPSCALE_NEGATIVE_PROMPT,
-        upscale_diffusion_negative_prompt_2: Optional[Union[str, List[str]]] = None,
-        upscale_diffusion_controlnet: Optional[Union[CONTROLNET_LITERAL, List[CONTROLNET_LITERAL]]] = None,
-        upscale_diffusion_chunking_size: Optional[int] = None,
-        upscale_diffusion_chunking_blur: Optional[int] = None,
-        upscale_diffusion_scale_chunking_size: bool = True,
-        upscale_diffusion_scale_chunking_blur: bool = True,
+        upscale_steps: Optional[Union[UpscaleStepDict, List[UpscaleStepDict]]] = None,
         **kwargs: Any,
     ) -> DiffusionPlan:
         """
@@ -1598,119 +1495,93 @@ class DiffusionPlan:
             seed=seed,
             width=width,
             height=height,
-            upscale=upscale,
-            outscale=outscale,
             prompt=prompt,
             prompt_2=prompt_2,
             negative_prompt=negative_prompt,
             negative_prompt_2=negative_prompt_2,
             chunking_size=chunking_size,
-            chunking_blur=chunking_blur,
-            upscale_iterative=upscale_iterative,
-            upscale_diffusion=upscale_diffusion,
-            upscale_pipeline=upscale_pipeline,
-            upscale_diffusion_steps=upscale_diffusion_steps,
-            upscale_diffusion_guidance_scale=upscale_diffusion_guidance_scale,
-            upscale_diffusion_strength=upscale_diffusion_strength,
-            upscale_diffusion_controlnet=upscale_diffusion_controlnet,
-            upscale_diffusion_chunking_size=upscale_diffusion_chunking_size,
-            upscale_diffusion_chunking_blur=upscale_diffusion_chunking_blur,
-            upscale_diffusion_scale_chunking_size=upscale_diffusion_scale_chunking_size,
-            upscale_diffusion_scale_chunking_blur=upscale_diffusion_scale_chunking_blur,
+            chunking_mask_type=chunking_mask_type,
+            chunking_mask_kwargs=chunking_mask_kwargs,
             nodes=[],
         )
 
         # We'll assemble multiple token sets for overall diffusion
-        upscale_diffusion_prompt_tokens = [TokenMerger()]
-        upscale_diffusion_prompt_2_tokens = [TokenMerger()]
-        upscale_diffusion_negative_prompt_tokens = [TokenMerger()]
-        upscale_diffusion_negative_prompt_2_tokens = [TokenMerger()]
+        upscale_prompt_tokens = TokenMerger()
+        upscale_prompt_2_tokens = TokenMerger()
+        upscale_negative_prompt_tokens = TokenMerger()
+        upscale_negative_prompt_2_tokens = TokenMerger()
+
+        # Helper method for getting the upscale list with merged prompts
+        def get_upscale_steps() -> Optional[Union[UpscaleStepDict, List[UpscaleStepDict]]]:
+            if upscale_steps is None:
+                return None
+            elif isinstance(upscale_steps, list):
+                return [
+                    {
+                        **step, # type: ignore[misc]
+                        **{
+                            "prompt": str(
+                                upscale_prompt_tokens.clone(step.get("prompt", None))
+                            ),
+                            "prompt_2": str(
+                                upscale_prompt_2_tokens.clone(step.get("prompt_2", None))
+                            ),
+                            "negative_prompt": str(
+                                upscale_negative_prompt_tokens.clone(step.get("negative_prompt", None))
+                            ),
+                            "negative_prompt_2": str(
+                                upscale_negative_prompt_2_tokens.clone(step.get("negative_prompt_2", None))
+                            ),
+                        }
+                    }
+                    for step in upscale_steps
+                ]
+            else:
+                return { # type: ignore[return-value]
+                    **upscale_steps, # type: ignore[misc]
+                    **{
+                        "prompt": str(
+                            upscale_prompt_tokens.clone(upscale_steps.get("prompt", None))
+                        ),
+                        "prompt_2": str(
+                            upscale_prompt_2_tokens.clone(upscale_steps.get("prompt_2", None))
+                        ),
+                        "negative_prompt": str(
+                            upscale_negative_prompt_tokens.clone(upscale_steps.get("negative_prompt", None))
+                        ),
+                        "negative_prompt_2": str(
+                            upscale_negative_prompt_2_tokens.clone(upscale_steps.get("negative_prompt_2", None))
+                        ),
+                    }
+                }
+
         refiner_prompt_tokens = TokenMerger()
         refiner_prompt_2_tokens = TokenMerger()
         refiner_negative_prompt_tokens = TokenMerger()
         refiner_negative_prompt_2_tokens = TokenMerger()
 
-        if upscale_diffusion_prompt:
-            if isinstance(upscale_diffusion_prompt, list):
-                upscale_diffusion_prompt = [
-                    upscale_prompt for upscale_prompt in upscale_diffusion_prompt if upscale_prompt
-                ]
-                for i, upscale_prompt in enumerate(upscale_diffusion_prompt):
-                    if len(upscale_diffusion_prompt_tokens) < i + 1:
-                        upscale_diffusion_prompt_tokens.append(TokenMerger())
-                    upscale_diffusion_prompt_tokens[i].add(upscale_prompt)
-            else:
-                upscale_diffusion_prompt_tokens[0].add(upscale_diffusion_prompt)
-        if upscale_diffusion_prompt_2:
-            if isinstance(upscale_diffusion_prompt_2, list):
-                upscale_diffusion_prompt_2 = [
-                    upscale_prompt for upscale_prompt in upscale_diffusion_prompt_2 if upscale_prompt
-                ]
-                for i, upscale_prompt in enumerate(upscale_diffusion_prompt_2):
-                    if len(upscale_diffusion_prompt_2_tokens) < i + 1:
-                        upscale_diffusion_prompt_2_tokens.append(TokenMerger())
-                    upscale_diffusion_prompt_2_tokens[i].add(upscale_prompt)
-            else:
-                upscale_diffusion_prompt_2_tokens[0].add(upscale_diffusion_prompt_2)
-        
         if prompt:
-            for token_merger in upscale_diffusion_prompt_tokens:
-                token_merger.add(prompt, GLOBAL_PROMPT_UPSCALE_WEIGHT)
+            upscale_prompt_tokens.add(prompt, GLOBAL_PROMPT_UPSCALE_WEIGHT)
         if prompt_2:
-            for token_merger in upscale_diffusion_prompt_tokens:
-                token_merger.add(prompt_2, GLOBAL_PROMPT_UPSCALE_WEIGHT)
+            upscale_prompt_2_tokens.add(prompt_2, GLOBAL_PROMPT_UPSCALE_WEIGHT)
+        if negative_prompt:
+            upscale_negative_prompt_tokens.add(negative_prompt, GLOBAL_PROMPT_UPSCALE_WEIGHT)
+        if negative_prompt_2:
+            upscale_negative_prompt_2_tokens.add(negative_prompt_2, GLOBAL_PROMPT_UPSCALE_WEIGHT)
 
         if model_prompt:
             refiner_prompt_tokens.add(model_prompt, MODEL_PROMPT_WEIGHT)
-            for token_merger in upscale_diffusion_prompt_tokens:
-                token_merger.add(model_prompt, MODEL_PROMPT_WEIGHT)
+            upscale_prompt_tokens.add(model_prompt, MODEL_PROMPT_WEIGHT)
         if model_prompt_2:
             refiner_prompt_2_tokens.add(model_prompt_2, MODEL_PROMPT_WEIGHT)
-            for token_merger in upscale_diffusion_prompt_2_tokens:
-                token_merger.add(model_prompt_2, MODEL_PROMPT_WEIGHT)
-
-        if upscale_diffusion_negative_prompt:
-            if isinstance(upscale_diffusion_negative_prompt, list):
-                upscale_diffusion_negative_prompt = [
-                    upscale_negative_prompt
-                    for upscale_negative_prompt in upscale_diffusion_negative_prompt
-                    if upscale_negative_prompt
-                ]
-                for i, negative_prompt in enumerate(upscale_diffusion_negative_prompt):
-                    if len(upscale_diffusion_negative_prompt_tokens) < i + 1:
-                        upscale_diffusion_negative_prompt_tokens.append(TokenMerger())
-                    upscale_diffusion_negative_prompt_tokens[i].add(negative_prompt)
-            else:
-                upscale_diffusion_negative_prompt_tokens[0].add(upscale_diffusion_negative_prompt)
-        if upscale_diffusion_negative_prompt_2:
-            if isinstance(upscale_diffusion_negative_prompt_2, list):
-                upscale_diffusion_negative_prompt_2 = [
-                    upscale_negative_prompt
-                    for upscale_negative_prompt in upscale_diffusion_negative_prompt_2
-                    if upscale_negative_prompt
-                ]
-                for i, negative_prompt in enumerate(upscale_diffusion_negative_prompt_2):
-                    if len(upscale_diffusion_negative_prompt_2_tokens) < i + 1:
-                        upscale_diffusion_negative_prompt_2_tokens.append(TokenMerger())
-                    upscale_diffusion_negative_prompt_2_tokens[i].add(negative_prompt)
-            else:
-                upscale_diffusion_negative_prompt_2_tokens[0].add(upscale_diffusion_negative_prompt_2)
-
-        if negative_prompt:
-            for token_merger in upscale_diffusion_negative_prompt_tokens:
-                token_merger.add(negative_prompt, GLOBAL_PROMPT_UPSCALE_WEIGHT)
-        if negative_prompt_2:
-            for token_merger in upscale_diffusion_negative_prompt_2_tokens:
-                token_merger.add(negative_prompt_2, GLOBAL_PROMPT_UPSCALE_WEIGHT)
+            upscale_prompt_2_tokens.add(model_prompt_2, MODEL_PROMPT_WEIGHT)
 
         if model_negative_prompt:
             refiner_negative_prompt_tokens.add(model_negative_prompt, MODEL_PROMPT_WEIGHT)
-            for token_merger in upscale_diffusion_negative_prompt_tokens:
-                token_merger.add(model_negative_prompt, MODEL_PROMPT_WEIGHT)
+            upscale_negative_prompt_tokens.add(model_negative_prompt, MODEL_PROMPT_WEIGHT)
         if model_negative_prompt_2:
             refiner_negative_prompt_2_tokens.add(model_negative_prompt_2, MODEL_PROMPT_WEIGHT)
-            for token_merger in upscale_diffusion_negative_prompt_2_tokens:
-                token_merger.add(model_negative_prompt_2, MODEL_PROMPT_WEIGHT)
+            upscale_negative_prompt_2_tokens.add(model_negative_prompt_2, MODEL_PROMPT_WEIGHT)
 
         if refiner_prompt:
             refiner_prompt_tokens.add(refiner_prompt)
@@ -1738,6 +1609,7 @@ class DiffusionPlan:
 
         # Now assemble the diffusion steps
         node_count = len(nodes)
+
         if node_count == 0:
             # No nodes/canvas, create a plan from one given step
             name = "Text to Image"
@@ -1891,18 +1763,7 @@ class DiffusionPlan:
             
             # Assemble node
             plan.nodes = [DiffusionNode([(0, 0), (width, height)], step)]
-            plan.upscale_diffusion_prompt = [
-                str(merger) for merger in upscale_diffusion_prompt_tokens
-            ]
-            plan.upscale_diffusion_prompt_2 = [
-                str(merger) for merger in upscale_diffusion_prompt_2_tokens
-            ]
-            plan.upscale_diffusion_negative_prompt = [
-                str(merger) for merger in upscale_diffusion_negative_prompt_tokens
-            ]
-            plan.upscale_diffusion_negative_prompt_2 = [
-                str(merger) for merger in upscale_diffusion_negative_prompt_2_tokens
-            ]
+            plan.upscale_steps = get_upscale_steps()
             return plan
 
         # Using the diffusion canvas, assemble a multi-step plan
@@ -1989,8 +1850,7 @@ class DiffusionPlan:
 
             if node_prompt:
                 node_prompt_tokens.add(node_prompt)
-                for merger in upscale_diffusion_prompt_tokens:
-                    merger.add(node_prompt, UPSCALE_PROMPT_STEP_WEIGHT / node_count)
+                upscale_prompt_tokens.add(node_prompt, UPSCALE_PROMPT_STEP_WEIGHT / node_count)
             if prompt and (node_image or node_ip_adapter_image or node_control_images):
                 # Only add global prompt to image nodes, it overrides too much on region nodes
                 node_prompt_tokens.add(prompt, GLOBAL_PROMPT_STEP_WEIGHT)
@@ -1999,8 +1859,7 @@ class DiffusionPlan:
 
             if node_prompt_2:
                 node_prompt_2_tokens.add(node_prompt_2)
-                for merger in upscale_diffusion_prompt_2_tokens:
-                    merger.add(node_prompt_2, UPSCALE_PROMPT_STEP_WEIGHT / node_count)
+                upscale_prompt_2_tokens.add(node_prompt_2, UPSCALE_PROMPT_STEP_WEIGHT / node_count)
             if prompt_2 and (node_image or node_ip_adapter_image or node_control_images):
                 # Only add global prompt to image nodes, it overrides too much on region nodes
                 node_prompt_2_tokens.add(prompt_2, GLOBAL_PROMPT_STEP_WEIGHT)
@@ -2009,8 +1868,7 @@ class DiffusionPlan:
 
             if node_negative_prompt:
                 node_negative_prompt_tokens.add(node_negative_prompt)
-                for merger in upscale_diffusion_negative_prompt_tokens:
-                    merger.add(node_negative_prompt, UPSCALE_PROMPT_STEP_WEIGHT / node_count)
+                upscale_negative_prompt_tokens.add(node_negative_prompt, UPSCALE_PROMPT_STEP_WEIGHT / node_count)
             if negative_prompt and (node_image or node_ip_adapter_image or node_control_images):
                 # Only add global prompt to image nodes, it overrides too much on region nodes
                 node_negative_prompt_tokens.add(negative_prompt, GLOBAL_PROMPT_STEP_WEIGHT)
@@ -2019,8 +1877,7 @@ class DiffusionPlan:
             
             if node_negative_prompt_2:
                 node_negative_prompt_tokens.add(node_negative_prompt_2)
-                for merger in upscale_diffusion_negative_prompt_2_tokens:
-                    merger.add(node_negative_prompt_2, UPSCALE_PROMPT_STEP_WEIGHT / node_count)
+                upscale_negative_prompt_2_tokens.add(node_negative_prompt_2, UPSCALE_PROMPT_STEP_WEIGHT / node_count)
             if negative_prompt_2 and (node_image or node_ip_adapter_image or node_control_images):
                 # Only add global prompt to image nodes, it overrides too much on region nodes
                 node_negative_prompt_2_tokens.add(negative_prompt_2, GLOBAL_PROMPT_STEP_WEIGHT)
@@ -2139,8 +1996,6 @@ class DiffusionPlan:
                         "scale": control_image.get("scale", 1.0),
                         "process": control_image.get("process", True),
                         "invert": control_image.get("invert", False),
-                        "fit": None,
-                        "anchor": None
                     }
                     for control_image in node_control_images
                 ]
@@ -2223,18 +2078,5 @@ class DiffusionPlan:
 
             # Add step to plan
             plan.nodes.append(DiffusionNode(node_bounds, step))
-
-        plan.upscale_diffusion_prompt = [
-            str(prompt) for prompt in upscale_diffusion_prompt_tokens
-        ]
-        plan.upscale_diffusion_prompt_2 = [
-            str(prompt) for prompt in upscale_diffusion_prompt_2_tokens
-        ]
-        plan.upscale_diffusion_negative_prompt = [
-            str(negative_prompt) for negative_prompt in upscale_diffusion_negative_prompt_tokens
-        ]
-        plan.upscale_diffusion_negative_prompt_2 = [
-            str(negative_prompt) for negative_prompt in upscale_diffusion_negative_prompt_2_tokens
-        ]
-
+        plan.upscale_steps = get_upscale_steps()
         return plan

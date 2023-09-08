@@ -18,17 +18,8 @@ import {
     RefinerEngineSizeInputView,
     SchedulerInputView,
     PromptInputView,
-    OutputScaleInputView,
-    UpscaleMethodsInputView,
     SliderPreciseInputView,
     FloatInputView,
-    UpscaleDiffusionStepsInputView,
-    UpscaleDiffusionPromptInputView,
-    UpscaleDiffusionNegativePromptInputView,
-    UpscaleDiffusionPipelineInputView,
-    UpscaleDiffusionIterativeControlnetInputView,
-    UpscaleDiffusionStrengthInputView,
-    UpscaleDiffusionGuidanceScaleInputView
 } from "../input.mjs";
 
 let defaultEngineSize = 512;
@@ -287,96 +278,6 @@ class ModelFormView extends FormView {
                     "tooltip": "The negative prompt to use during refining. By default, the global prompt is used."
                 }
             },
-        },
-        "Upscaling Defaults": {
-            "outscale": {
-                "label": "Output Scale",
-                "class": OutputScaleInputView
-            },
-            "upscale": {
-                "label": "Upscale Methods",
-                "class": UpscaleMethodsInputView
-            },
-            "upscale_iterative": {
-                "label": "Use Iterative Upscaling",
-                "class": CheckboxInputView,
-                "config": {
-                    "tooltip": "Instead of directly upscaling to the target amount, double in size repeatedly until the image reaches the target size. For example, when this is checked and the upscale amount is 4×, there will be two upscale steps, 8× will be three, and 16× will be four."
-                }
-            },
-            "upscale_diffusion": {
-                "label": "Diffuse Upscaled Samples",
-                "class": CheckboxInputView,
-                "config": {
-                    "tooltip": "After upscaling the image use the the algorithm chosen above, use the image as input to another invocation of Stable Diffusion."
-                }
-            },
-            "upcsale_diffusion_pipeline": {
-                "label": "Pipeline",
-                "class": UpscaleDiffusionPipelineInputView
-            },
-            "upscale_diffusion_controlnet": {
-                "label": "ControlNet",
-                "class": UpscaleDiffusionIterativeControlnetInputView
-            },
-            "upscale_diffusion_prompt": {
-                "label": "Detail Prompt",
-                "class": UpscaleDiffusionPromptInputView
-            },
-            "upscale_diffusion_negative_prompt": {
-                "label": "Detail Negative Prompt",
-                "class": UpscaleDiffusionNegativePromptInputView
-            },
-            "upscale_diffusion_steps": {
-                "label": "Inference Steps",
-                "class": UpscaleDiffusionStepsInputView
-            },
-            "upscale_diffusion_strength": {
-                "label": "Denoising Strength",
-                "class": UpscaleDiffusionStrengthInputView
-            },
-            "upscale_diffusion_guidance_scale": {
-                "label": "Guidance Scale",
-                "class": UpscaleDiffusionGuidanceScaleInputView
-            },
-            "upscale_diffusion_chunking_size": {
-                "label": "Chunk Size",
-                "class": NumberInputView,
-                "config": {
-                    "minimum": 32,
-                    "maximum": 512,
-                    "step": 8,
-                    "value": 128,
-                    "tooltip": "The number of pixels to move the frame by during diffusion. Smaller values produce better results, but take longer."
-                }
-            },
-            "upscale_diffusion_chunking_blur": {
-                "label": "Chunk Blur",
-                "class": NumberInputView,
-                "config": {
-                    "minimum": 32,
-                    "maximum": 512,
-                    "step": 8,
-                    "value": 128,
-                    "tooltip": "The number of pixels to feather the edges of the frame by during diffusion. Smaller values result in more pronounced lines, and large values result in a smoother overall image."
-                }
-            },
-            "upscale_diffusion_scale_chunking_size": {
-                "label": "Scale Chunk Size with Iteration",
-                "class": CheckboxInputView,
-                "config": {
-                    "value": true,
-                    "tooltip": "Scale the chunking size ×2 with each iteration of upscaling, with a maximum size of ½ the size of the model."
-                }
-            },
-            "upscale_diffusion_scale_chunking_blur": {
-                "label": "Scale Chunk Blur with Iteration",
-                "class": CheckboxInputView,
-                "config": {
-                    "value": true,
-                    "tooltip": "Scale the chunking blur ×2 with each iteration of upscaling, with a maximum size of ½ the size of the model."
-                }
-            }
         }
     };
 
@@ -387,8 +288,7 @@ class ModelFormView extends FormView {
         "Adaptations and Modifications",
         "Additional Models",
         "Defaults",
-        "Refining Defaults",
-        "Upscaling Defaults"
+        "Refining Defaults"
     ];
 
     static fieldSetConditions = {
