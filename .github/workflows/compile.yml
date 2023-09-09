@@ -61,6 +61,10 @@ jobs:
         git clone https://github.com/jin-s13/xtcocoapi
         cd xtcocoapi
         make install
+    - name: Install MMLab Build Dependencies
+      if: ${{ contains(inputs.os, 'ubuntu') }}
+      run: |
+        sudo apt install gcc-10 gcc-10-base g++-10
     - name: Install MMLab Dependencies
       run: |
         pip install -U openmim
