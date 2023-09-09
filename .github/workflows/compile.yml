@@ -73,7 +73,7 @@ jobs:
         mim install "mmdet>=3.1.0"
         mim install "mmpose>=1.1.0"
     - name: Install MMLab Dependencies (Linux/MacOS)
-      if: ${{ contains(inputs.os, 'windows') }}
+      if: ${{ !contains(inputs.os, 'windows') }}
       run: |
         pip install -U openmim
         mim install mmengine
