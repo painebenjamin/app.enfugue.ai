@@ -19,8 +19,6 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       MINIMAL_BUILD: 1
       RUN_INTEGRATION_TEST: 0
-      FORCE_CUDA: 1
-      MMCV_WITH_OPTS: 1
     steps:
     - uses: actions/checkout@v3
     - name: Setup Miniconda (MacOS)
@@ -70,6 +68,9 @@ jobs:
         mim install "mmpose>=1.1.0"
     - name: Install MMLab Dependencies (Windows)
       if: ${{ contains(inputs.os, 'windows') }}
+      env:
+        FORCE_CUDA: 1
+        MMCV_WITH_OPTS: 1
       shell: bash
       run: |
         . /c/Miniconda/etc/profile.d/conda.sh
@@ -81,6 +82,9 @@ jobs:
         mim install "mmpose>=1.1.0"
     - name: Install MMLab Dependencies (Linux)
       if: ${{ contains(inputs.os, 'ubuntu') }}
+      env:
+        FORCE_CUDA: 1
+        MMCV_WITH_OPTS: 1
       run: |
         pip install -U openmim
         mim install mmengine
