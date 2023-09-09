@@ -570,6 +570,9 @@ class Application {
         try {
             let existingAutosave = await this.history.getCurrentState();
             if (!isEmpty(existingAutosave)) {
+                if (this.config.debug) {
+                    console.log("Loading autosaved state", existingAutosave);
+                }
                 this.setState(existingAutosave);
                 this.notifications.push("info", "Session Restored", "Your last autosaved session was successfully loaded.");
             }

@@ -6,6 +6,10 @@ on:
         description: Upload to a tagged release?
         required: true
         type: boolean
+      dwpose:
+        description: Build DWPose?
+        required: true
+        type: boolean
 jobs:
   compile-all:
     strategy:
@@ -20,9 +24,10 @@ jobs:
           - os: windows-latest
             api: cuda
           - os: macos-13
-            api: mps            
+            api: mps
     uses: painebenjamin/app.enfugue.ai/.github/workflows/compile.yml@main
     with:
       os: ${{ matrix.os }}
       api: ${{ matrix.api }}
       release: ${{ inputs.release }}
+      dwpose: ${{ inputs.dwpose }}

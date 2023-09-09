@@ -6,6 +6,10 @@ on:
         description: Upload to a tagged release?
         required: true
         type: boolean
+      dwpose:
+        description: Build DWPose?
+        required: true
+        type: boolean
 jobs:
   compile-ubuntu-tensorrt:
     uses: painebenjamin/app.enfugue.ai/.github/workflows/compile.yml@main
@@ -13,3 +17,4 @@ jobs:
       os: ubuntu-latest
       api: tensorrt
       release: ${{ inputs.release }}
+      dwpose: ${{ inputs.dwpose }}

@@ -6,6 +6,10 @@ on:
         description: Upload to a tagged release?
         required: true
         type: boolean
+      dwpose:
+        description: Build DWPose?
+        required: true
+        type: boolean
 jobs:
   compile-macos-mps:
     uses: painebenjamin/app.enfugue.ai/.github/workflows/compile.yml@main
@@ -13,3 +17,4 @@ jobs:
       os: macos-13
       api: mps
       release: ${{ inputs.release }}
+      dwpose: ${{ inputs.dwpose }}

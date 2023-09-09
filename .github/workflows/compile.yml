@@ -11,6 +11,9 @@ on:
       release:
         required: true
         type: boolean
+      dwpose:
+        required: true
+        type: boolean
 jobs:
   compile-distribution:
     runs-on: ${{ inputs.os }}
@@ -56,7 +59,7 @@ jobs:
       run: |
         pip install onnx==1.12 onnxruntime-gpu==1.12.1 onnx-graphsurgeon==0.3.26 tensorrt==8.6.1 --no-deps
     - name: Install MMLab Dependencies (MacOS)
-      if: ${{ contains(inputs.os, 'mac') }}
+      if: ${{ contains(inputs.os, 'mac') && inputs.dwpose }}
       run: |
         git clone https://github.com/jin-s13/xtcocoapi
         cd xtcocoapi
@@ -67,30 +70,22 @@ jobs:
         mim install "mmdet>=3.1.0"
         mim install "mmpose>=1.1.0"
     - name: Install MMLab Dependencies (Windows)
-      if: ${{ contains(inputs.os, 'windows') }}
-      env:
-        FORCE_CUDA: 1
-        MMCV_WITH_OPTS: 1
+      if: ${{ contains(inputs.os, 'windows') && inputs.dwpose }}
       shell: bash
       run: |
         . /c/Miniconda/etc/profile.d/conda.sh
         conda activate base
-        export CUDA_HOME=$CONDA
         pip install -U openmim
         mim install mmengine
-        mim install "git+https://github.com/open-mmlab/mmcv.git@main#egg=mmcv"
+        mim install "mmcv>=2.0.1"
         mim install "mmdet>=3.1.0"
         mim install "mmpose>=1.1.0"
     - name: Install MMLab Dependencies (Linux)
-      if: ${{ contains(inputs.os, 'ubuntu') }}
-      env:
-        FORCE_CUDA: 1
-        MMCV_WITH_OPTS: 1
+      if: ${{ contains(inputs.os, 'ubuntu') && inputs.dwpose }}
       run: |
-        export CUDA_HOME=$CONDA
         pip install -U openmim
         mim install mmengine
-        mim install "git+https://github.com/open-mmlab/mmcv.git@main#egg=mmcv"
+        mim install "mmcv>=2.0.1"
         mim install "mmdet>=3.1.0"
         mim install "mmpose>=1.1.0"
     - name: Output Environment Information for Debugging
