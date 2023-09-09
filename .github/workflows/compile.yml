@@ -63,6 +63,7 @@ jobs:
         make install
     - name: Install MMLab Dependencies (Windows)
       if: ${{ contains(inputs.os, 'windows') }}
+      shell: bash
       run: |
         . /c/Miniconda/etc/profile.d/conda.sh
         conda activate base
