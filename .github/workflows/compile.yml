@@ -61,15 +61,11 @@ jobs:
         git clone https://github.com/jin-s13/xtcocoapi
         cd xtcocoapi
         make install
-    - name: Install MMLab Build Dependencies
-      if: ${{ contains(inputs.os, 'ubuntu') }}
-      run: |
-        sudo apt install gcc-10 gcc-10-base g++-10
     - name: Install MMLab Dependencies
       run: |
         pip install -U openmim
         mim install mmengine
-        mim install "mmcv>=2.0.1"
+        mim install "git+https://github.com/open-mmlab/mmcv.git@main#egg=mmcv"
         mim install "mmdet>=3.1.0"
         mim install "mmpose>=1.1.0"
     - name: Output Environment Information for Debugging
