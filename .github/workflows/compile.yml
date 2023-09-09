@@ -75,6 +75,7 @@ jobs:
       run: |
         . /c/Miniconda/etc/profile.d/conda.sh
         conda activate base
+        export CUDA_HOME=$CONDA
         pip install -U openmim
         mim install mmengine
         mim install "git+https://github.com/open-mmlab/mmcv.git@main#egg=mmcv"
@@ -86,6 +87,7 @@ jobs:
         FORCE_CUDA: 1
         MMCV_WITH_OPTS: 1
       run: |
+        export CUDA_HOME=$CONDA
         pip install -U openmim
         mim install mmengine
         mim install "git+https://github.com/open-mmlab/mmcv.git@main#egg=mmcv"
