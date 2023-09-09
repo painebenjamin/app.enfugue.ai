@@ -616,6 +616,9 @@ class DOMElement {
     }
 
     getChild(index) {
+        if (index < 0) {
+            index = this.contentArray.length + index;
+        }
         return this.contentArray[index];
     }
 

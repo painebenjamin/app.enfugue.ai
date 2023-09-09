@@ -27,15 +27,22 @@ class UpscaleController extends Controller {
      * When setting state, look for values from the upscale form
      */
     setState(newState) {
-        if (!isEmpty(newState.upscale)) {
-            let upscaleState = deepClone(newState.upscale);
-            this.upscaleForm.setValues({steps: upscaleState}).then(() => {
-                setTimeout(
-                    () => this.upscaleForm.submit(),
-                    250
-                );
-            });
+        let upscaleState = deepClone(newState.upscale);
+        if (upscaleState === null){
+            upscaleState = [];
+        } else if (!Array.isArray(upscaleState)) {
+            if (typeof upscaleState === "object" && !isEmpty(upscaleState[0])) {
+                upscaleState = Object.getOwnPropertyNames(upscaleState).map((i) => upscaleState[i]);
+            } else {
+                upscaleState = [upscaleState];
+            }
         }
+        this.upscaleForm.setValues({steps: upscaleState}).then(() => {
+            setTimeout(
+                () => this.upscaleForm.submit(),
+                250
+            );
+        });
     }
 
     /**

@@ -104,7 +104,7 @@ class RepeatableInputView extends InputView {
         if (this.node !== undefined) {
             let countToRemove = currentValueLength - newValueLength;
             for (let i = 0; i < countToRemove; i++) {
-                let childToRemove = this.node.getChild(this.node.children.length);
+                let childToRemove = this.node.getChild(-2);
                 if (childToRemove.className !== "add-item") {
                     this.node.remove(childToRemove);
                 }
@@ -113,6 +113,11 @@ class RepeatableInputView extends InputView {
                 this.disableRemove();
             } else {
                 this.enableRemove();
+            }
+            if (this.inputViews.length === 0) {
+                this.addClass("no-children");
+            } else {
+                this.removeClass("no-children");
             }
         }
         super.setValue(newValue, triggerChange);
