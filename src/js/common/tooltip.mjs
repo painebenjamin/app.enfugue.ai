@@ -104,6 +104,12 @@ class TooltipHelper {
      * The ElementBuilder checks, so we can call this all we need.
      */
     setTooltip(tooltipText) {
+        if (tooltipText.startsWith("{")) {
+            // JSON, break all
+            this.tooltipContainer.addClass("json");
+        } else {
+            this.tooltipContainer.removeClass("json");
+        }
         this.tooltipContainer.content(tooltipText);
         this.tooltipContainer.addClass("active");
     }

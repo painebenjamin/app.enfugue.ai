@@ -903,6 +903,11 @@ ul.list-input-view li.selected {
     opacity: 1;
 }
 
+.tooltip-container.json {
+    word-break: break-all;
+    font-family: var(--monospace-font), monospace;
+}
+
 .tooltip-container > p:not(:last-child) {
     margin-bottom: 1em;
 }
