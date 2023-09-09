@@ -30,7 +30,7 @@ dependencies:
     - einops>=0.6.1,<0.7
     - torch-fidelity>=0.3,<0.4
     - transformers>=4.30,<5.0
-    - torchmetrics>=1.0.0,<1.1
+    - torchmetrics>=1.1,<1.2
     - kornia>=0.6.10,<0.7
     - polygraphy>=0.47,<0.48
     - accelerate>=0.21,<0.22
