@@ -1,160 +1,139 @@
 /** @module common/tooltip */
-import { DOMWatcher } from '../base/watcher.mjs';
-import { ElementBuilder } from '../base/builder.mjs';
+import { isEmpty } from "../base/helpers.mjs";
+import { ElementBuilder } from "../base/builder.mjs";
 
-const trackingConfiguration = {
-        name: 'Tooltip tracker',
-        childList: true,
-        subtree: true,
-        attributes: true,
-        debug: false,
-        containerClassName: 'tooltip-container'
-    },
-    E = new ElementBuilder(),
-    offsetConfiguration = {
-        x: 10,
-        y: 10
-    },
-    activationDelay = 150,
-    checkInterval = 100;
-
-let enableTimer, checkIntervalTimer;
+const E = new ElementBuilder();
 
 /**
  * This class enables any element to add 'data-tooltip' attributes, and a
  * tooltip will be shown near the cursor when it hovers over that element.
- * The DOMWatcher lets us do this whenever any element is modified, so no need to initialize anything.
  */
-class TooltipHelper extends DOMWatcher {
+class TooltipHelper {
     /**
-     * @param object $configuration The tracking configuration overrides. Optional.
+     * @var int left offset in pixels
      */
-    constructor(configuration) {
-        if (configuration === undefined) configuration = trackingConfiguration;
-        configuration.initialize = false;
-        super(configuration);
-        this.filterFunction = this.tooltipFilter;
-        this.initializeFunction = this.tooltipInitialize;
-        this.updateFunction = this.tooltipUpdate;
+    static offsetX = 10;
 
-        this.tooltipContainer = E.div().class(configuration.containerClassName || trackingConfiguration.containerClassName);
+    /**
+     * @var int top offset in pixels
+     */
+    static offsetY = 10;
+
+    /**
+     * @var int milliseconds to wait before showing tooltip
+     */
+    static activationDelay = 150;
+
+    /**
+     * @var int milliseconds to wait between intervals checking if the target node was removed
+     */
+    static deactivationDelay = 150;
+
+    /**
+     * @var string the tooltip container classname
+     */
+    static containerClassName = "tooltip-container";
+
+    /**
+     * On construct, bind mouse/touch events.
+     */
+    constructor() {
+        this.tooltipContainer = E.div();
+        this.tooltipContainer.class(this.constructor.containerClassName);
+
+        window.addEventListener("mousemove", (e) => this.onMouseMove(e), true);
+        window.addEventListener("mouseout", (e) => this.onMouseOut(e), true);
+        window.addEventListener("touch", (e) => this.onTouch(e), true);
 
         document.body.appendChild(this.tooltipContainer.render());
-        this.initialize();
     }
 
     /**
-     * The update function checks if a node's tooltip changed while it's tooltip is shown
+     * On mouse out, check if the mouse has entirely left the window. If so, deactivate.
      */
-    tooltipUpdate(node) {
-        if (node == this.tooltipNode) {
-            this.tooltipContainer.content(
-                node.getAttribute('data-tooltip')
-            );
+    onMouseOut(e) {
+        if (e.toElement === null) {
+            this.deactivate();
         }
     }
 
-
     /**
-     * The filter function checks the nodes data-tooltip attribute, if possible.
-     * Check if it's an HTMLElement to avoid text nodes.
-     * @param node $node an HTMLElement, hopefully
+     * On mouse move, perform check to see what tooltip to display, if any.
      */
-    tooltipFilter(node) {
-        return node instanceof HTMLElement && node.hasAttribute('data-tooltip');
-    }
-
-    /**
-     * Initializes the function.
-     * @param node $node An HTMLElement
-     */
-    tooltipInitialize(node) {
-        if (node.hasAttribute('data-tooltip-initialized')) {
+    onMouseMove(e) {
+        let tooltipTarget = e.target;
+        while (!tooltipTarget.hasAttribute("data-tooltip")) {
+            tooltipTarget = tooltipTarget.parentElement;
+            if (isEmpty(tooltipTarget)) {
+                break;
+            }
+        }
+        if (isEmpty(tooltipTarget)) {
+            this.deactivate();
             return;
         }
+        this.setTooltip(tooltipTarget.getAttribute("data-tooltip"));
+        this.x = e.clientX;
+        this.y = e.clientY;
+        this.positionElement();
+    }
 
-        let self = this,
-            positionElement = function (mouseX, mouseY) {
-                window.requestAnimationFrame(() => {
-                    let tooltip = self.tooltipContainer,
-                        width = window.innerWidth,
-                        height = window.innerHeight;
+    /**
+     * On touch, perform check to see what tooltip to display, if any.
+     */
+    onTouch(e) {
+        let tooltipTarget = e.target;
+        while (!tooltipTarget.hasAttribute("data-tooltip")) {
+            tooltipTarget = tooltipTarget.parentElement;
+            if (isEmpty(tooltipTarget)) {
+                break;
+            }
+        }
+        if (isEmpty(tooltipTarget)) {
+            this.deactivate();
+            return;
+        }
+        this.setTooltip(tooltipTarget.getAttribute("data-tooltip"));
+        this.x = e.touches[0].clientX;
+        this.y = e.touches[0].clientY;
+        this.positionElement();
+    }
 
-                    if (mouseX > width / 2) {
-                        tooltip.css('left', null);
-                        tooltip.css(
-                            'right',
-                            width - mouseX + offsetConfiguration.x
-                        );
-                    } else {
-                        tooltip.css('right', null);
-                        tooltip.css('left', mouseX + offsetConfiguration.x);
-                    }
+    /**
+     * Sets the tooltip content and activates it.
+     * The ElementBuilder checks, so we can call this all we need.
+     */
+    setTooltip(tooltipText) {
+        this.tooltipContainer.content(tooltipText);
+        this.tooltipContainer.addClass("active");
+    }
 
-                    if (mouseY > height / 2) {
-                        tooltip.css('top', null);
-                        tooltip.css(
-                            'bottom',
-                            height - mouseY + offsetConfiguration.y
-                        );
-                    } else {
-                        tooltip.css('bottom', null);
-                        tooltip.css('top', mouseY + offsetConfiguration.y);
-                    }
-                });
-            },
-            activate = function () {
-                clearInterval(checkIntervalTimer);
-                self.tooltipContainer.addClass('active');
-                checkIntervalTimer = setInterval(() => {
-                    let tooltipElapsedTime = self.tooltipTime === null
-                        ? 0 
-                        : ((new Date()).getTime() - self.tooltipTime);
-                    if (!self.watchedNode.contains(node) && tooltipElapsedTime > 1000) {
-                        deactivate();
-                    }
-                }, checkInterval);
-            },
-            deactivate = function () {
-                self.tooltipNode = null;
-                self.tooltipContainer.removeClass('active');
-                clearInterval(checkIntervalTimer);
-            },
-            mouseMove = function (e) {
-                positionElement(e.clientX, e.clientY);
-            },
-            mouseEnter = function (e) {
-                self.tooltipTime = (new Date()).getTime();
-                self.tooltipNode = node;
-                self.tooltipContainer.content(node.getAttribute('data-tooltip'));
-                positionElement(e.clientX, e.clientY);
-                enableTimer = setTimeout(activate, activationDelay);
-                node.addEventListener('mousemove', mouseMove, true);
-            },
-            mouseLeave = function (e) {
-                clearTimeout(enableTimer);
-                deactivate();
-                node.removeEventListener('mousemove', mouseMove);
-            },
-            touchElsewhere = function (e) {
-                clearTimeout(enableTimer);
-                deactivate();
-                window.removeEventListener('touchstart', touchElsewhere);
-            },
-            touch = function (e) {
-                e.stopPropagation();
-                e.preventDefault();
-                self.tooltipNode = node;
-                self.tooltipContainer.content(node.getAttribute('data-tooltip'));
-                positionElement(e.touches[0].clientX, e.touches[0].clientY);
-                enableTimer = setTimeout(activate, activationDelay);
-                window.addEventListener('touchstart', touchElsewhere, true);
-            };
-        
-        node.addEventListener('mouseenter', mouseEnter, true);
-        node.addEventListener('mouseleave', mouseLeave), true;
-        node.addEventListener('touchstart', touch, true);
-        node.setAttribute('data-tooltip-initialized', new Date().getTime());
+    /**
+     * Position the element given an x and y poisiton.
+     */
+    positionElement() {
+        if (this.x > window.innerWidth / 2) {
+            this.tooltipContainer.css("left", null);
+            this.tooltipContainer.css("right", window.innerWidth - this.x + this.constructor.offsetX);
+        } else {
+            this.tooltipContainer.css("right", null);
+            this.tooltipContainer.css("left", this.x + this.constructor.offsetX);
+        }
+
+        if (this.y > window.innerHeight / 2) {
+            this.tooltipContainer.css("top", null);
+            this.tooltipContainer.css("bottom", window.innerHeight - this.y + this.constructor.offsetY);
+        } else {
+            this.tooltipContainer.css("bottom", null);
+            this.tooltipContainer.css("top", this.y + this.constructor.offsetY);
+        }
+    }
+
+    /**
+     * Deactivate the tooltip by hiding the container.
+     */
+    deactivate() {
+        this.tooltipContainer.removeClass("active");
     }
 }
 

@@ -48,7 +48,7 @@ class DOMWatcher {
         this.configuration = configuration.configuration || defaultConfiguration;
 
         this.trackedNodes = [];
-0
+
         if (configuration.initialize !== false) {
             this.initialize();
         }

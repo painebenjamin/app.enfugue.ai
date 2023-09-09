@@ -892,10 +892,11 @@ ul.list-input-view li.selected {
     pointer-events: none;
     transition: opacity 0.25s ease-in-out;
     white-space: break-spaces;
-    max-width: 50vw;
+    max-width: 33vw;
     z-index: 99;
     pointer-events: none;
-    line-height: 1.1em;
+    line-height: 1.25em;
+    font-size: 1.1em;
 }
 
 .tooltip-container.active {
