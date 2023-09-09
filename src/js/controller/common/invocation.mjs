@@ -318,10 +318,54 @@ class InvocationController extends Controller {
      * @param ?array<dict> The new upscale steps
      */
     set upscaleSteps(newSteps) {
-        if (!isEquivalent(this.upscaleSteps, newSteps)) {
-            this.publish("engineUpscaleStepsChange", newSteps);
+        let formattedSteps = [];
+        for (let step of newSteps) {
+            let formattedStep = {};
+            if (!isEmpty(step.prompt)) {
+                if (Array.isArray(step.prompt)) {
+                    formattedStep.prompt = step.prompt[0];
+                    formattedStep.prompt_2 = step.prompt[1];
+                } else {
+                    formattedStep.prompt = step.prompt;
+                }
+            }
+            if (!isEmpty(step.negativePrompt)) {
+                if (Array.isArray(step.negativePrompt)) {
+                    formattedStep.negative_prompt = step.negativePrompt[0];
+                    formattedStep.negative_prompt_2 = step.negativePrompt[1];
+                } else {
+                    formattedStep.negative_prompt = step.negativePrompt;
+                }
+            }
+            for (let arg of ["strength", "method", "amount", "scheduler"]) {
+                if (!isEmpty(step[arg])) {
+                    formattedStep[arg] = step[arg];
+                }
+            }
+            if (!isEmpty(step.inferenceSteps)) {
+                formattedStep.num_inference_steps = step.inferenceSteps;
+            }
+            if (!isEmpty(step.guidanceScale)) {
+                formattedStep.guidance_scale = step.guidanceScale;
+            }
+            if (!isEmpty(step.chunkingSize)) {
+                formattedStep.chunking_size = step.chunkingSize;
+            }
+            if (!isEmpty(step.chunkingMaskType)) {
+                formattedStep.chunking_mask_type = step.chunkingMaskType;
+            }
+            if (!isEmpty(step.controlnet)) {
+                formattedStep.controlnets = [step.controlnet];
+            }
+            if (!isEmpty(step.pipeline)) {
+                formattedStep.refiner = step.pipeline !== "base";
+            }
+            formattedSteps.push(formattedStep);
         }
-        this.kwargs.upscale_steps = newSteps;
+        if (!isEquivalent(this.upscaleSteps, formattedSteps)) {
+            this.publish("engineUpscaleStepsChange", formattedSteps);
+        }
+        this.kwargs.upscale_steps = formattedSteps;
     }
 
     /**
@@ -720,6 +764,12 @@ class InvocationController extends Controller {
     async invoke(payload, detached = false) {
         payload = isEmpty(payload) ? {} : payload;
         let invocationPayload = {...this.kwargs, ...payload};
+        // Remove NaN - this doesn't cause any problems but it's ugly
+        for (let key of Object.getOwnPropertyNames(invocationPayload)) {
+            if (typeof invocationPayload[key] == 'number' && isNaN(invocationPayload[key])) {
+                delete invocationPayload[key];
+            }
+        }
         if (this.config.debug) {
             console.log("Invoking with payload", invocationPayload);
         }

@@ -828,7 +828,7 @@ form.show-inpainter fieldset.field-set-additional-models:not(.collapsed) .vae-in
 }
 
 form.no-chunking .field-container.number-input-view-chunking-size,
-form.no-chunking .field-container.number-input-view-chunking-blur
+form.no-chunking .field-container.mask-type-input-view-chunking-mask-type
 {
     display: none;
 }

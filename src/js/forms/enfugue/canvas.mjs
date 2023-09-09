@@ -2,7 +2,8 @@
 import { FormView } from "../base.mjs";
 import {
     NumberInputView,
-    CheckboxInputView
+    CheckboxInputView,
+    MaskTypeInputView
 } from "../input.mjs";
 
 let defaultWidth = 512,
@@ -65,7 +66,7 @@ class CanvasFormView extends FormView {
                 }
             },
             "chunkingSize": {
-                "label": "Chunk Size",
+                "label": "Chunking Size",
                 "class": NumberInputView,
                 "config": {
                     "min": 0,
@@ -74,15 +75,9 @@ class CanvasFormView extends FormView {
                     "tooltip": "The number of pixels to move the frame when doing chunked diffusion. A low number can produce more detailed results, but can be noisy, and takes longer to process. A high number is faster to process, but can have poor results especially along frame boundaries. The recommended value is set by default."
                 }
             },
-            "chunkingBlur": {
-                "label": "Chunk Blur",
-                "class": NumberInputView,
-                "config": {
-                    "min": 0,
-                    "value": defaultChunkingBlur,
-                    "step": 8,
-                    "tooltip": "The number of pixels to feather along the edge of the frame when blending chunked diffusions together. Low numbers can produce less blurry but more noisy results, and can potentially result in visible breaks in the frame. High numbers can help blend frames, but produce blurrier results. The recommended value is set by default."
-                }
+            "chunkingMaskType": {
+                "label": "Chunking Mask",
+                "class": MaskTypeInputView
             }
         }
     };
