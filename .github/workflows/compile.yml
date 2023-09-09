@@ -19,6 +19,8 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       MINIMAL_BUILD: 1
       RUN_INTEGRATION_TEST: 0
+      FORCE_CUDA: 1
+      MMCV_WITH_OPTS: 1
     steps:
     - uses: actions/checkout@v3
     - name: Setup Miniconda (MacOS)
@@ -55,12 +57,17 @@ jobs:
       if: ${{ contains(inputs.os, 'ubuntu') && contains(inputs.api, 'tensorrt') }}
       run: |
         pip install onnx==1.12 onnxruntime-gpu==1.12.1 onnx-graphsurgeon==0.3.26 tensorrt==8.6.1 --no-deps
-    - name: Build XTCocoTools from Source
+    - name: Install MMLab Dependencies (MacOS)
       if: ${{ contains(inputs.os, 'mac') }}
       run: |
         git clone https://github.com/jin-s13/xtcocoapi
         cd xtcocoapi
         make install
+        pip install -U openmim
+        mim install mmengine
+        mim install "mmcv>=2.0.1"
+        mim install "mmdet>=3.1.0"
+        mim install "mmpose>=1.1.0"
     - name: Install MMLab Dependencies (Windows)
       if: ${{ contains(inputs.os, 'windows') }}
       shell: bash
@@ -72,8 +79,8 @@ jobs:
         mim install "git+https://github.com/open-mmlab/mmcv.git@main#egg=mmcv"
         mim install "mmdet>=3.1.0"
         mim install "mmpose>=1.1.0"
-    - name: Install MMLab Dependencies (Linux/MacOS)
-      if: ${{ !contains(inputs.os, 'windows') }}
+    - name: Install MMLab Dependencies (Linux)
+      if: ${{ contains(inputs.os, 'ubuntu') }}
       run: |
         pip install -U openmim
         mim install mmengine
