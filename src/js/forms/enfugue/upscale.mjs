@@ -121,7 +121,12 @@ class UpscaleStepsInputView extends RepeatableInputView {
     /**
      * @var string The no item label
      */
-    static noItemsLabel = "Press `+` to add an upscaling step";
+    static noItemsLabel = "No Upscaling";
+
+    /**
+     * @var string Text to display in the bvutton
+     */
+    static addItemLabel = "Add Upscaling Step";
 
     /**
      * @var class The form input view

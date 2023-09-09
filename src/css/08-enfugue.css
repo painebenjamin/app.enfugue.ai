@@ -667,6 +667,7 @@ ul.enfugue-multi-search-list-items > li.selected::before {
 
 enfugue-repeatable-input input.add-item {
     flex-grow: 0;
+    font-size: 12px;
 }
 
 enfugue-repeatable-input enfugue-repeatable-input-item {

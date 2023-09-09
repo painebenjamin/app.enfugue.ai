@@ -387,7 +387,12 @@ class MultiLoraInputView extends RepeatableInputView {
     /**
      * @var string Text to display when no items are added
      */
-    static noItemsLabel = "Click `+` to add a LoRA model";
+    static noItemsLabel = "No LoRA Configured";
+
+    /**
+     * @var string Text to show in the add items buttons
+     */
+    static addItemLabel = "Add LoRA";
 
     /**
      * @var class The repeatable input element.
@@ -402,7 +407,12 @@ class MultiLycorisInputView extends RepeatableInputView {
     /**
      * @var string Text to display when no items are added
      */
-    static noItemsLabel = "Click `+` to add a LyCORIS model";
+    static noItemsLabel = "No LyCORIS Configured";
+
+    /**
+     * @var string Text to show in the add items buttons
+     */
+    static addItemLabel = "Add LyCORIS";
 
     /**
      * @var class The repeatable input element.
@@ -417,7 +427,12 @@ class MultiInversionInputView extends RepeatableInputView {
     /**
      * @var string Text to display when no items are added
      */
-    static noItemsLabel = "Click `+` to add a Textual Inversion";
+    static noItemsLabel = "No Textual Inversion Configured";
+
+    /**
+     * @var string Text to show in the add items buttons
+     */
+    static addItemLabel = "Add Textual Inversion";
 
     /**
      * @var class The repeatable input element.
