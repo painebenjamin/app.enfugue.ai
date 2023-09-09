@@ -69,7 +69,7 @@ jobs:
         conda activate base
         pip install -U openmim
         mim install mmengine
-        mim install "mmcv>=2.0.1"
+        mim install "git+https://github.com/open-mmlab/mmcv.git@main#egg=mmcv"
         mim install "mmdet>=3.1.0"
         mim install "mmpose>=1.1.0"
     - name: Install MMLab Dependencies (Linux/MacOS)
