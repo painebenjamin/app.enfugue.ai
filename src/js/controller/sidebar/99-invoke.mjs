@@ -95,6 +95,8 @@ class InvokeButtonController extends Controller {
                     if (datum.imagePrompt) {
                         formattedState["ip_adapter_image"] = datum.src;
                         formattedState["ip_adapter_scale"] = datum.imagePromptScale;
+                        formattedState["ip_adapter_fit"] = datum.fit;
+                        formattedState["ip_adapter_anchor"] = datum.anchor;
                     }
                     if (datum.inpaint) {
                         formattedState["mask"] = datum.scribbleSrc;
