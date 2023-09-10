@@ -298,7 +298,7 @@ class DiffusionPipelineManager:
             return DEISMultistepScheduler
         elif scheduler in ["dpmsm", "dpmsmk", "dpmsmka"]:
             from diffusers.schedulers import DPMSolverMultistepScheduler
-            kwargs = {}
+            kwargs: Dict[str, Any] = {}
             if scheduler in ["dpmsmk", "dpmsmka"]:
                 kwargs["use_karras_sigmas"] = True
                 if scheduler == "dpmsmka":
@@ -347,18 +347,18 @@ class DiffusionPipelineManager:
         raise ValueError(f"Unknown scheduler {scheduler}")
 
     @property
-    def scheduler(self) -> Optional[KarrasDiffusionSchedulers]:
-        """
-        Gets the scheduler class to instantiate.
-        """
-        return getattr(self, "_scheduler", None)
-
-    @property
     def scheduler_config(self) -> Dict[str, Any]:
         """
         Gets the kwargs for the scheduler class.
         """
         return getattr(self, "_scheduler_config", {})
+
+    @property
+    def scheduler(self) -> Optional[KarrasDiffusionSchedulers]:
+        """
+        Gets the scheduler class to instantiate.
+        """
+        return getattr(self, "_scheduler", None)
 
     @scheduler.setter
     def scheduler(
@@ -374,10 +374,9 @@ class DiffusionPipelineManager:
                 self.unload_pipeline("returning to default scheduler")
             return
         scheduler_class = self.get_scheduler_class(new_scheduler)
+        scheduler_config: Dict[str, Any] = {}
         if isinstance(scheduler_class, tuple):
             scheduler_class, scheduler_config = scheduler_class
-        else:
-            scheduler_kwrags = {}
         if not hasattr(self, "_scheduler") or self._scheduler is not scheduler_class or self.scheduler_config != scheduler_config:
             logger.debug(f"Changing to scheduler {scheduler_class.__name__} ({new_scheduler})")
             self._scheduler = scheduler_class
