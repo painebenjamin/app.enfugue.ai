@@ -219,10 +219,14 @@ class SliderPreciseInputView extends NumberInputView {
      */
     constructor(config, fieldName, fieldConfig) {
         super(config, fieldName, fieldConfig);
-        fieldConfig.min = fieldConfig.min || this.constructor.min;
-        fieldConfig.max = fieldConfig.max || this.constructor.max;
-        fieldConfig.step = fieldConfig.step || this.constructor.step;
-        fieldConfig.value = fieldConfig.value || this.constructor.defaultValue;
+        for (let keyName of ["min", "max", "step"]) {
+            if (isEmpty(fieldConfig[keyName])) {
+                fieldConfig[keyName] = this.constructor[keyName];
+            }
+        }
+        if (isEmpty(fieldConfig.value)) {
+            fieldConfig.value = this.constructor.defaultValue;
+        }
         this.sliderInput = new this.constructor.sliderInputClass(config, fieldName, fieldConfig);
         this.numberInput = new this.constructor.numberInputClass(config, `${fieldName}Precise`, fieldConfig);
 
