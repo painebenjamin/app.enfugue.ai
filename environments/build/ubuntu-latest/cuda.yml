@@ -13,8 +13,8 @@ dependencies:
   - make=4.3
   - nodejs=18.16.0
   - pip:
-    - torch==2.1.0.dev20230720+cu121
-    - torchvision==0.16.0.dev20230720+cu121
+    - torch==2.1.0.dev20230910+cu121
+    - torchvision==0.17.0.dev20230910+cu121
     - brotli>=1.0.9
     - cheroot>=9.0.0
     - nvidia-pyindex>=1.0.9

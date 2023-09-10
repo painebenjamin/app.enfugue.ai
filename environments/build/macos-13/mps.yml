@@ -11,8 +11,8 @@ dependencies:
   - nodejs=18.16.0
   - pip:
     - brotli>=1.0.9
-    - torch==2.1.0.dev20230720
-    - torchvision==0.16.0.dev20230720
+    - torch==2.1.0.dev20230910
+    - torchvision==0.17.0.dev20230910
     - cheroot>=9.0.0
     - nvidia-pyindex>=1.0.9
     - pibble[cherrypy]>=0.6
