@@ -85,12 +85,14 @@ class PoseDetector(SupportModel):
         """
         Uses DWPose if available, otherwise uses OpenPose.
         """
+        yielded = False
         try:
-            from enfugue.diffusion.support.pose.dwpose import DWposeDetector  # type: ignore
-            context = self.dwpose
-            logger.debug("Using DWPose for pose detection.")
-        except ImportError:
-            context = self.openpose
-            logger.debug("Using OpenPose for pose detection.")
-        with context() as processor:
-            yield processor
+            with self.dwpose() as processor:
+                logger.debug("Using DWPose for pose detection.")
+                yielded = True
+                yield processor
+        except:
+            if not yielded:
+                with self.openpose() as processor:
+                    logger.debug("Using OpenPose for pose detection.")
+                    yield processor
