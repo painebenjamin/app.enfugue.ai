@@ -296,7 +296,7 @@ class CurrentInvocationImageView extends ImageView {
                 true, // Keep current state, except for...
                 {
                     "upscale": [values],
-                    "generation": {"samples": 1},
+                    "generation": {"samples": 1, "iterations": 1},
                     "samples": null
                 } // ...these state overrides
             );

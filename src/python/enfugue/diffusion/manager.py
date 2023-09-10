@@ -272,7 +272,13 @@ class DiffusionPipelineManager:
         if hasattr(self, "_generator"):
             delattr(self, "_generator")
 
-    def get_scheduler_class(self, scheduler: Optional[SCHEDULER_LITERAL]) -> KarrasDiffusionSchedulers:
+    def get_scheduler_class(
+        self,
+        scheduler: Optional[SCHEDULER_LITERAL]
+    ) -> Union[
+        KarrasDiffusionSchedulers,
+        Tuple[KarrasDiffusionSchedulers, Dict[str, Any]]
+    ]:
         """
         Sets the scheduler class
         """
@@ -290,10 +296,14 @@ class DiffusionPipelineManager:
             from diffusers.schedulers import DEISMultistepScheduler
 
             return DEISMultistepScheduler
-        elif scheduler == "dpmsm":
+        elif scheduler in ["dpmsm", "dpmsmk", "dpmsmka"]:
             from diffusers.schedulers import DPMSolverMultistepScheduler
-
-            return DPMSolverMultistepScheduler
+            kwargs = {}
+            if scheduler in ["dpmsmk", "dpmsmka"]:
+                kwargs["use_karras_sigmas"] = True
+                if scheduler == "dpmsmka":
+                    kwargs["algorithm_type"] = "sde-dpmsolver++"
+            return (DPMSolverMultistepScheduler, kwargs)
         elif scheduler == "dpmss":
             from diffusers.schedulers import DPMSolverSinglestepScheduler
 
@@ -341,9 +351,14 @@ class DiffusionPipelineManager:
         """
         Gets the scheduler class to instantiate.
         """
-        if not hasattr(self, "_scheduler"):
-            return None
-        return self._scheduler
+        return getattr(self, "_scheduler", None)
+
+    @property
+    def scheduler_config(self) -> Dict[str, Any]:
+        """
+        Gets the kwargs for the scheduler class.
+        """
+        return getattr(self, "_scheduler_config", {})
 
     @scheduler.setter
     def scheduler(
@@ -359,18 +374,25 @@ class DiffusionPipelineManager:
                 self.unload_pipeline("returning to default scheduler")
             return
         scheduler_class = self.get_scheduler_class(new_scheduler)
-        if not hasattr(self, "_scheduler") or self._scheduler is not scheduler_class:
+        if isinstance(scheduler_class, tuple):
+            scheduler_class, scheduler_config = scheduler_class
+        else:
+            scheduler_kwrags = {}
+        if not hasattr(self, "_scheduler") or self._scheduler is not scheduler_class or self.scheduler_config != scheduler_config:
             logger.debug(f"Changing to scheduler {scheduler_class.__name__} ({new_scheduler})")
             self._scheduler = scheduler_class
+            self._scheduler_config = scheduler_config
+        else:
+            return
         if hasattr(self, "_pipeline"):
             logger.debug(f"Hot-swapping pipeline scheduler.")
-            self._pipeline.scheduler = self.scheduler.from_config(self._pipeline.scheduler_config)  # type: ignore
+            self._pipeline.scheduler = self.scheduler.from_config({**self._pipeline.scheduler_config, **self.scheduler_config})  # type: ignore
         if hasattr(self, "_inpainter_pipeline"):
             logger.debug(f"Hot-swapping inpainter pipeline scheduler.")
-            self._inpainter_pipeline.scheduler = self.scheduler.from_config(self._inpainter_pipeline.scheduler_config)  # type: ignore
+            self._inpainter_pipeline.scheduler = self.scheduler.from_config({**self._inpainter_pipeline.scheduler_config, **self.scheduler_config})  # type: ignore
         if hasattr(self, "_refiner_pipeline"):
             logger.debug(f"Hot-swapping refiner pipeline scheduler.")
-            self._refiner_pipeline.scheduler = self.scheduler.from_config(self._refiner_pipeline.scheduler_config)  # type: ignore
+            self._refiner_pipeline.scheduler = self.scheduler.from_config({**self._refiner_pipeline.scheduler_config, **self.scheduler_config})  # type: ignore
 
     def get_vae_path(self, vae: Optional[str] = None) -> Optional[str]:
         """
@@ -2357,7 +2379,7 @@ class DiffusionPipelineManager:
             # load scheduler
             if self.scheduler is not None:
                 logger.debug(f"Setting scheduler to {self.scheduler.__name__}")
-                pipeline.scheduler = self.scheduler.from_config(pipeline.scheduler_config)
+                pipeline.scheduler = self.scheduler.from_config({**pipeline.scheduler_config, **self.scheduler_config})
             self._pipeline = pipeline.to(self.device)
         return self._pipeline
 
@@ -2467,7 +2489,7 @@ class DiffusionPipelineManager:
             # load scheduler
             if self.scheduler is not None:
                 logger.debug(f"Setting refiner scheduler to {self.scheduler.__name__}")
-                refiner_pipeline.scheduler = self.scheduler.from_config(refiner_pipeline.scheduler_config)
+                refiner_pipeline.scheduler = self.scheduler.from_config({**refiner_pipeline.scheduler_config, **self.scheduler_config})
             self._refiner_pipeline = refiner_pipeline.to(self.device)
         return self._refiner_pipeline
 
@@ -2613,7 +2635,7 @@ class DiffusionPipelineManager:
             # load scheduler
             if self.scheduler is not None:
                 logger.debug(f"Setting inpainter scheduler to {self.scheduler.__name__}")
-                inpainter_pipeline.scheduler = self.scheduler.from_config(inpainter_pipeline.scheduler_config)
+                inpainter_pipeline.scheduler = self.scheduler.from_config({**inpainter_pipeline.scheduler_config, **self.scheduler_config})
             self._inpainter_pipeline = inpainter_pipeline.to(self.device)
         return self._inpainter_pipeline
 

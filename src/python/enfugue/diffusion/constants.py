@@ -71,7 +71,7 @@ CONTROLNET_LITERAL = Literal[
 ]
 
 SCHEDULER_LITERAL = Literal[
-    "ddim", "ddpm", "deis", "dpmsm", "dpmss", "heun", "dpmd", "adpmd", "dpmsde", "unipc", "lmsd", "pndm", "eds", "eads"
+    "ddim", "ddpm", "deis", "dpmsm", "dpmsmk", "dpmsmka", "dpmss", "heun", "dpmd", "adpmd", "dpmsde", "unipc", "lmsd", "pndm", "eds", "eads"
 ]
 
 DEVICE_LITERAL = Literal["cpu", "cuda", "dml", "mps"]
