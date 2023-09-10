@@ -3,7 +3,7 @@
 </p>
 
 <h2 align="center">
-Enfugue is a feature-rich self-hosted Stable Diffusion web application.
+Enfugue is a feature-rich Stable Diffusion web application for desktop or server.
 </h2>
 <p align="center">
 <em>Forever open source and totally free.</em>
@@ -46,8 +46,9 @@ On windows, you will now see the Enfugue icon in the bottom-right-hand corner of
 This instruction assumes you are using a variant of [Conda](https://docs.conda.io/projects/conda/en/stable/).
 1. Choose an environment in in the `environments/` directory that corresponds to your platform and hardware.
    1. If you have a powerful next-generation Nvidia GPU (3000 series and better with at least 12 GB of VRAM), use `tensorrt` for all of the capabilities of `cuda` with the added ability to compile TensorRT engines.
-   2. If you have any other Nvidia GPU or CUDA-capable device, use `cuda`.
-   3. Additional graphics APIs for AMD and MacOS devices coming soon.
+   2. If you have any other Nvidia GPU or CUDA-capable device, or do not plan to use `tensorrt`, use `cuda`.
+   3. If you are on a MacOS M1 or M2 device, use `macos-mps`. Other MacOS devices are not supported.
+   4. Additional graphics APIs for AMD devices coming soon.
 2. Run the command `conda env create -f <file_downloaded_above>`
 3. Run the command `conda activate enfugue`
 4. Run the command `enfugue run` to run the server. Issue a keyboard interrupt (Ctrl+C) to stop it.
@@ -142,8 +143,10 @@ Nodes on the canvas often feature additional buttons on their headers. Place you
 
 <p align="center">
     <img src="https://github.com/painebenjamin/app.enfugue.ai/blob/main/docs/scribble.png?raw=true" width="300" alt="A scribble node on the ENFUGUE interface." />
-	<img src="https://github.com/painebenjamin/app.enfugue.ai/blob/main/docs/scribble-result.png?raw=true" width="300" alt="The result of a scribble on the ENFUGUE interface." />
+    <img src="https://github.com/painebenjamin/app.enfugue.ai/blob/main/docs/scribble-result.png?raw=true" width="300" alt="The result of a scribble on the ENFUGUE interface." />
 </p>
+
+Drag an image toward the top area of another image to merge them together. This allows you to use multiple different images for different methods of control.
 
 Additionally, some nodes feature the ability to draw black and white images using simple tools. These nodes all feature an array of buttons at the top to control various things about the brush you are drawing with. There are some additional controls available when drawing:
 1. Use the Scroll Wheel or Scroll Gestures to increase/decrease the size of the brush.
@@ -247,7 +250,6 @@ Here are a few steps to take if you're having trouble getting Enfugue to work fo
 3. Clear you cache and cookies, then try reload the app.
 4. Report your issue [in the issues tab](https://github.com/painebenjamin/app.enfugue.ai/issues)
 
-
 If all else fails, you can always try deleting the `enfugue` folder and `enfugue.db` file in your `~/.cache` directory to re-initialize the application.
 
 # FAQ
@@ -285,7 +287,7 @@ For anyone interested in building from source themselves, simply check out this 
 | ---------- | ----------- | ---------- |
 | **clean** | This target removes build artifacts. | None |
 | **typecheck** | This step runs `mypy` against each source file. See [mypy-lang.org](https://mypy-lang.org/) for details on python static typing. Mypy is ran with the `--strict` flag, meaning all constraints are opted in. |  Python source files |
-| **importcheck** | This step runs `importcheck` against each source file. See [github](https://github.com/python-coincidence/importcheck) for details on importcheck; simply put, it will produce an error if an imported module is not used. |  Python source files |
+| **importcheck** | This step runs `importcheck` against each source file. See [github](https://github.com/python-coincidence/importcheck) for details on importcheck; simply put, it will produce an error if an imported module is not used. |  Python source files | 
 | **unittest** | This step runs `doctest` against each source file. See [the Python Documentation](https://docs.python.org/3/library/doctest.html) for details on doctest. This will run all tests placed in docstrings, you will see these as python commands in the documentation, prepended by `>>>` |  Python source files |
 | **test** | This step runs `enfugue.test.run`. This will run the `main` method in `<n>*.py` files places in the `test` directory. |  Python source files, python test files |
 | **vendor** | This step fetches vendor resources by running all scripts under the `vendor/` directory. | Script files |
