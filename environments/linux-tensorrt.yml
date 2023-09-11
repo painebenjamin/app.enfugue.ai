@@ -56,7 +56,7 @@ dependencies:
     - onnx-graphsurgeon==0.3.26
     - tensorrt==8.6.1
     - protobuf==3.20.1
-    - enfugue==0.2.3
+    - enfugue==0.2.3.post1
     - git+https://github.com/CompVis/taming-transformers.git@master#egg=taming-transformers
     - git+https://github.com/openai/CLIP.git@main#egg=clip
     - git+https://github.com/CompVis/stable-diffusion.git@main#egg=latent-diffusion
