@@ -3,7 +3,7 @@
 </p>
 
 <h2 align="center">
-Enfugue is a feature-rich Stable Diffusion web application for desktop or server.
+Enfugue is a feature-rich Stable Diffusion web app for desktop or server.
 </h2>
 <p align="center">
 <em>Forever open source and totally free.</em>
