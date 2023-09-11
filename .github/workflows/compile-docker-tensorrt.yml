@@ -1,4 +1,4 @@
-name: Compile Docker Image
+name: Compile Docker Image with Tensorrt
 on:
   - workflow_dispatch
 jobs:
