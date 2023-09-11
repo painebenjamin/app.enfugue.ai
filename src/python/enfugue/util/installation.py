@@ -108,6 +108,13 @@ def get_local_configuration() -> Dict[str, Any]:
     return configuration
 
 
+def parse_version(version_string: str) -> Version:
+    """
+    Parses a version string to a semantic version.
+    Does not choke on post-releases, unlike base semver.
+    """
+    return Version(".".join(version_string.split(".")[:3]))
+
 def get_version() -> Version:
     """
     Gets the version of enfugue installed.
@@ -120,14 +127,14 @@ def get_version() -> Version:
         version_file = os.path.join(local_install, "version.txt")
         if os.path.exists(version_file):
             with open(version_file, "r") as fp:
-                return Version(fp.read())
+                return parse_version(fp.read())
     except:
         pass
 
     from importlib.metadata import version, PackageNotFoundError
 
     try:
-        return Version(version("enfugue"))
+        return parse_version(version("enfugue"))
     except PackageNotFoundError:
         return Version("0.0.0")
 

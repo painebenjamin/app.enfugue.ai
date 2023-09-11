@@ -1960,7 +1960,8 @@ class DiffusionPlan:
             if node_image:
                 if node_ip_adapter_scale and not node_ip_adapter_image:
                     node_ip_adapter_image = node_image
-                if node_remove_background:
+                if node_remove_background and will_infer:
+                    node_remove_background = False # Don't double-remove
                     node_image, new_inpaint_mask = prepare_image(
                         execute_remove_background(node_image),
                         mask=node_inpaint_mask,
