@@ -14,8 +14,11 @@ MACOS_ARTIFACT=$(BUILD_DIR)/enfugue-server-$(VERSION_MAJOR).$(VERSION_MINOR).$(V
 
 # Docker configs
 SRC_DOCKERFILE=$(CONFIG_DIR)/$(DOCKERFILE).j2
+SRC_DOCKERFILE_TENSORRT=$(CONFIG_DIR)/$(DOCKERFILE_TENSORRT).j2
 BUILD_DOCKERFILE=$(BUILD_DIR)/$(DOCKERFILE)
+BUILD_DOCKERFILE_TENSORRT=$(BUILD_DIR)/$(DOCKERFILE_TENSORRT)
 BUILD_DOCKERFILE_BUILD=$(BUILD_DIR)/.$(DOCKERFILE).build
+BUILD_DOCKERFILE_TENSORRT_BUILD=$(BUILD_DIR)/.$(DOCKERFILE_TENSORRT).build
 
 # Default build is linux, we'll test in a moment
 ARTIFACT=$(LINUX_ARTIFACT)
@@ -168,7 +171,7 @@ $(MACOS_ARTIFACT): $(PYTHON_ARTIFACTS)
 .PHONY: docker
 docker: $(BUILD_DOCKERFILE_BUILD)
 $(BUILD_DOCKERFILE_BUILD): $(BUILD_DOCKERFILE)
-	cd $(BUILD_DIR) && $(DOCKER) build -t enfugue .
+	cd $(BUILD_DIR) && $(DOCKER) build -f $(shell basename $(BUILD_DOCKERFILE)) -t enfugue .
 	@touch $@
 
 .PHONY: dockerfile
@@ -177,6 +180,20 @@ $(BUILD_DOCKERFILE): $(SRC_DOCKERFILE) $(PYTHON_ARTIFACTS)
 	cp $(SRC_DOCKERFILE) $@
 	$(eval SDIST=$(patsubst $(BUILD_DIR)/%,%,$(PYTHON_ARTIFACTS)))
 	$(PYTHON) -m pibble.scripts.templatefiles $@ --version_major "$(VERSION_MAJOR)" --version_minor "$(VERSION_MINOR)" --version_patch "$(VERSION_PATCH)" $(SDIST:%=--sdist %) --docker_container "$(DOCKER_CONTAINER)" --docker_username "$(DOCKER_USERNAME)"
+
+## Docker TensorRT build
+.PHONY: docker-tensorrt
+docker-tensorrt: $(BUILD_DOCKERFILE_TENSORRT_BUILD)
+$(BUILD_DOCKERFILE_TENSORRT_BUILD): $(BUILD_DOCKERFILE_TENSORRT)
+	cd $(BUILD_DIR) && $(DOCKER) build -f $(shell basename $(BUILD_DOCKERFILE_TENSORRT)) -t enfugue-tensorrt .
+	@touch $@
+
+.PHONY: dockerfile-tensorrt
+dockerfile-tensorrt: $(BUILD_DOCKERFILE_TENSORRT)
+$(BUILD_DOCKERFILE_TENSORRT): $(SRC_DOCKERFILE_TENSORRT) $(PYTHON_ARTIFACTS)
+	cp $(SRC_DOCKERFILE_TENSORRT) $@
+	$(eval SDIST=$(patsubst $(BUILD_DIR)/%,%,$(PYTHON_ARTIFACTS)))
+	$(PYTHON) -m pibble.scripts.templatefiles $@ --version_major "$(VERSION_MAJOR)" --version_minor "$(VERSION_MINOR)" --version_patch "$(VERSION_PATCH)" $(SDIST:%=--sdist %) --docker_container "$(DOCKER_CONTAINER_TENSORRT)" --docker_username "$(DOCKER_USERNAME)"
 
 ## Split on Linux
 .PHONY: split
