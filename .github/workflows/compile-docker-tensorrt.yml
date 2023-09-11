@@ -13,7 +13,7 @@ jobs:
       RUN_TYPE_CHECK: 0
       RUN_IMPORT_CHECK: 0
       REGISTRY: ghcr.io
-      IMAGE_NAME: ${{ github.repository }}
+      IMAGE_NAME: ${{ github.repository }}.tensorrt
     steps:
       - uses: actions/checkout@v3 
       - name: Clean and Prune System
