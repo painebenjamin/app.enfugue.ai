@@ -69,7 +69,8 @@ from diffusers.pipelines.stable_diffusion.convert_from_ckpt import (
     convert_open_clip_checkpoint,
 )
 
-from diffusers.utils import randn_tensor, PIL_INTERPOLATION
+from diffusers.utils import PIL_INTERPOLATION
+from diffusers.utils.torch_utils import randn_tensor
 from diffusers.image_processor import VaeImageProcessor
 
 from enfugue.util import logger, check_download_to_dir, TokenMerger
