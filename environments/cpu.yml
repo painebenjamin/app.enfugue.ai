@@ -9,8 +9,8 @@ dependencies:
   - pip=23.1.2
   - numpy=1.24.3
   - pip:
-    - torch==2.1.0.dev20230803+cpu
-    - torchvision==0.16.0.dev20230803+cpu
+    - torch==2.2.0.dev20230910+cpu
+    - torchvision==0.17.0.dev20230910+cpu
     - brotli>=1.0.9
     - cheroot>=9.0.0
     - nvidia-pyindex>=1.0.9
@@ -48,7 +48,7 @@ dependencies:
     - timm>=0.9.2,<1.0
     - certifi>=2023.5.7
     - lycoris-lora>=1.8
-    - enfugue==0.2.2.post3
+    - enfugue==0.2.3
     - git+https://github.com/CompVis/taming-transformers.git@master#egg=taming-transformers
     - git+https://github.com/openai/CLIP.git@main#egg=clip
     - git+https://github.com/CompVis/stable-diffusion.git@main#egg=latent-diffusion
