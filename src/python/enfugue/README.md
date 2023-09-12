@@ -6,6 +6,6 @@ There is a compilation step prior to installation, so simply installing this dir
 
 ## Diffusion Pipeline
 
-For details about the Enfugue Diffusion pipeline, see [here](https://github.com/painebenjamin/enfugue/tree/main/src/python/enfugue/diffusion)
+For details about the Enfugue Diffusion pipeline, see [here](https://github.com/painebenjamin/app.enfugue.ai/tree/main/src/python/enfugue/diffusion)
 
-For details about the TensorRT pipeline, which inherits the Enfugue Diffusion pipeline, see [here](https://github.com/painebenjamin/enfugue/tree/main/src/python/enfugue/diffusion/rt)
+For details about the TensorRT pipeline, which inherits the Enfugue Diffusion pipeline, see [here](https://github.com/painebenjamin/app.enfugue.ai/tree/main/src/python/enfugue/diffusion/rt)
