@@ -2177,7 +2177,7 @@ class DiffusionPipelineManager:
         """
         if not self.caching:
             return False
-        configured = self.configuration.get("enfugue.pipeline.cache", "xl")
+        configured = self.configuration.get("enfugue.pipeline.cache", None)
         if configured == "xl":
             return self.is_sdxl
         return configured in ["always", True]
@@ -2189,7 +2189,7 @@ class DiffusionPipelineManager:
         """
         if not self.caching:
             return False
-        configured = self.configuration.get("enfugue.pipeline.cache", "xl")
+        configured = self.configuration.get("enfugue.pipeline.cache", None)
         if configured == "xl":
             return self.inpainter_is_sdxl
         return configured in ["always", True]
@@ -2201,7 +2201,7 @@ class DiffusionPipelineManager:
         """
         if not self.caching:
             return False
-        configured = self.configuration.get("enfugue.pipeline.cache", "xl")
+        configured = self.configuration.get("enfugue.pipeline.cache", None)
         if configured == "xl":
             return self.refiner_is_sdxl
         return configured in ["always", True]
@@ -2212,6 +2212,8 @@ class DiffusionPipelineManager:
         If the model is cached, we can know for sure by checking for sdxl-exclusive models.
         Otherwise, we guess by file name.
         """
+        if getattr(self, "_pipeline", None) is not None:
+            return self._pipeline.is_sdxl
         if self.model_diffusers_cache_dir is not None:
             return os.path.exists(os.path.join(self.model_diffusers_cache_dir, "text_encoder_2"))  # type: ignore[arg-type]
         return "xl" in self.model_name.lower()
@@ -2224,6 +2226,8 @@ class DiffusionPipelineManager:
         """
         if not self.refiner_name:
             return False
+        if getattr(self, "_refiner_pipeline", None) is not None:
+            return self._refiner_pipeline.is_sdxl
         if self.refiner_diffusers_cache_dir is not None:
             return os.path.exists(os.path.join(self.refiner_diffusers_cache_dir, "text_encoder_2"))  # type: ignore[arg-type]
         return "xl" in self.refiner_name.lower()
@@ -2250,6 +2254,8 @@ class DiffusionPipelineManager:
         """
         if not self.inpainter_name:
             return False
+        if getattr(self, "_inpainter_pipeline", None) is not None:
+            return self._inpainter_pipeline.is_sdxl
         if self.inpainter_diffusers_cache_dir is not None:
             return os.path.exists(os.path.join(self.inpainter_diffusers_cache_dir, "text_encoder_2"))  # type: ignore[arg-type]
         return "xl" in self.inpainter_name.lower()
@@ -2394,6 +2400,10 @@ class DiffusionPipelineManager:
                     kwargs["vae_path"] = self.get_vae_path(self.vae_name)
                 logger.debug(f"Initializing pipeline from checkpoint at {self.model}. Arguments are {redact(kwargs)}")
                 pipeline = self.pipeline_class.from_ckpt(self.model, **kwargs)
+                if pipeline.is_sdxl and self.vae_name not in ["xl16", VAE_XL16]:
+                    # We may have made an incorrect guess earlier if 'xl' wasn't in the filename.
+                    # We can fix that here, though, by forcing full precision VAE
+                    pipeline.register_to_config(force_full_precision_vae=True)
                 if self.should_cache:
                     logger.debug("Saving pipeline to pretrained.")
                     pipeline.save_pretrained(self.model_diffusers_dir)
@@ -2515,6 +2525,8 @@ class DiffusionPipelineManager:
                     load_safety_checker=False,
                     **kwargs,
                 )
+                if refiner_pipeline.is_sdxl and self.refiner_vae_name not in ["xl16", VAE_XL16]:
+                    refiner_pipeline.register_to_config(force_full_precision_vae=True)
                 if self.should_cache_refiner:
                     logger.debug("Saving pipeline to pretrained.")
                     refiner_pipeline.save_pretrained(self.refiner_diffusers_dir)
@@ -2651,6 +2663,8 @@ class DiffusionPipelineManager:
                 inpainter_pipeline = self.inpainter_pipeline_class.from_ckpt(
                     self.inpainter, load_safety_checker=self.safe, **kwargs
                 )
+                if inpainter_pipeline.is_sdxl and self.inpainter_vae_name not in ["xl16", VAE_XL16]:
+                    inpainter_pipeline.register_to_config(force_full_precision_vae=True)
                 if self.should_cache_inpainter:
                     logger.debug("Saving inpainter pipeline to pretrained cache.")
                     inpainter_pipeline.save_pretrained(self.inpainter_diffusers_dir)

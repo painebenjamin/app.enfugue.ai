@@ -491,6 +491,19 @@ class ModelPickerInputView extends SearchListInputView {
     static listInputClass = ModelPickerListInputView;
 };
 
+/**
+ * When merging models, there are different modes of operation.
+ */
+class ModelMergeModeInputView extends SelectInputView {
+    /**
+     * @var object names and labels
+     */
+    static defaultOptions = {
+        "add-difference": "Add Difference",
+        "weighted-sum": "Weighted Sum"
+    };
+};
+
 export {
     CheckpointInputView,
     LoraInputView,
@@ -508,5 +521,6 @@ export {
     ModelPickerStringInputView,
     ModelPickerListInputView,
     ModelPickerInputView,
-    MaskTypeInputView
+    MaskTypeInputView,
+    ModelMergeModeInputView
 };

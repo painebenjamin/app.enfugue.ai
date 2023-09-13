@@ -52,7 +52,8 @@ import {
     ModelPickerStringInputView,
     ModelPickerListInputView,
     ModelPickerInputView,
-    MaskTypeInputView
+    MaskTypeInputView,
+    ModelMergeModeInputView
 } from "./input/enfugue/models.mjs";
 import {
     PipelineInpaintingModeInputView,
@@ -130,6 +131,7 @@ export {
     ModelPickerListInputView,
     ModelPickerInputView,
     MaskTypeInputView,
+    ModelMergeModeInputView,
     PipelineSwitchModeInputView,
     PipelineCacheModeInputView,
     PipelinePrecisionModeInputView,

@@ -631,7 +631,7 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         checkpoints_dir = self.configuration.get(
             "enfugue.engine.checkpoint", os.path.join(self.engine_root, "checkpoint")
         )
-        checkpoints  = list(find_files_in_directory(checkpoints_dir))
+        checkpoints = list(find_files_in_directory(checkpoints_dir))
         checkpoints.sort(key=lambda item: os.path.getmtime(os.path.join(checkpoints_dir, item)))
         checkpoints = [
             os.path.basename(checkpoint)
@@ -647,3 +647,43 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         ] + [
             {"type": "model", "name": model[0]} for model in model_names
         ]
+
+    @handlers.path("^/api/model-merge$")
+    @handlers.methods("POST")
+    @handlers.format()
+    @handlers.secured("System", "update") # Make system-level as this writes files
+    def merge_model(self, request: Request, response: Response) -> Dict[str, Any]:
+        """
+        Merges 2-3 models together.
+        """
+        try:
+            checkpoints_dir = self.configuration.get(
+                "enfugue.engine.checkpoint", os.path.join(self.engine_root, "checkpoint")
+            )
+            output_filename = request.parsed["filename"]
+            if not output_filename.endswith(".safetensors"):
+                output_filename = f"{output_filename}.safetensors"
+
+            output_path = os.path.join(checkpoints_dir, output_filename)
+            primary_model = os.path.join(checkpoints_dir, request.parsed["primary"])
+            secondary_model = os.path.join(checkpoints_dir, request.parsed["secondary"])
+            tertiary_model = request.parsed.get("tertiary", None)
+            if tertiary_model is not None:
+                tertiary_model = os.path.join(checkpoints_dir, tertiary_model)
+
+            from enfugue.diffusion.util import ModelMerger
+
+            ModelMerger(
+                primary_model=primary_model,
+                secondary_model=secondary_model,
+                tertiary_model=tertiary_model,
+                interpolation=request.parsed["method"],
+                multiplier=request.parsed.get("alpha", None)
+            ).save(output_path)
+
+            return {
+                "path": output_path,
+                "size": os.path.getsize(output_path)
+            }
+        except KeyError as ex:
+            raise BadRequestError(f"Missing required parameter `{ex}`")

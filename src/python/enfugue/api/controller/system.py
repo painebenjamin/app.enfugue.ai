@@ -141,7 +141,7 @@ class EnfugueAPISystemController(EnfugueAPIControllerBase):
             "max_queued_downloads": self.manager.max_queued_downloads,
             "max_concurrent_downloads": self.manager.max_concurrent_downloads,
             "switch_mode": self.configuration.get("enfugue.pipeline.switch", "offload"),
-            "cache_mode": self.configuration.get("enfugue.pipeline.cache", "xl"),
+            "cache_mode": self.configuration.get("enfugue.pipeline.cache", None),
             "precision": self.configuration.get("enfugue.dtype", None),
             "inpainting": "never" if self.configuration.get("enfugue.pipeline.inpainter", None) == False else None,
             "intermediate_steps": self.configuration.get("enfugue.engine.intermediates", 10)

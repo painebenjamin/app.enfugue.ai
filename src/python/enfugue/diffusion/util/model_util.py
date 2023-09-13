@@ -68,7 +68,7 @@ class ModelMerger:
     @staticmethod
     def weighted_sum(theta0: torch.Tensor, theta1: torch.Tensor, alpha: Union[int, float]) -> torch.Tensor:
         """
-        Returns the sum of θ0 and θ0 weighted by ɑ
+        Returns the sum of θ0 and θ1 weighted by ɑ
         """
         return ((1 - alpha) * theta0) + (alpha * theta1)
 
@@ -168,7 +168,7 @@ class ModelMerger:
                 a = theta_0[key]
                 b = theta_1[key]
 
-                # Check if we"re merging 4-channel (standard), 8-channel (ip2p) ir 9-channel (inpainting) model(s)
+                # Check if we're merging 4-channel (standard), 8-channel (ip2p) ir 9-channel (inpainting) model(s)
                 if a.shape != b.shape and a.shape[0:1] + a.shape[2:] == b.shape[0:1] + b.shape[2:]:
                     if a.shape[1] == 4 and b.shape[1] == 9:
                         raise RuntimeError(

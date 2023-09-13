@@ -942,13 +942,24 @@ ul.model-picker-list-input-view > li > span {
 
 .model-configuration-form-view {
     position: absolute;
-    top: 75px;
-    left: 35px;
-    max-width: 520px;
-    width: calc((100vw - 330px) / 2);
+    padding: 0 0 0 10px;
+    top: 90px;
+    left: 40px;
+    bottom: 55px;
+    max-width: 500px;
+    overflow-y: auto;
+    overflow-x: visible;
+    direction: rtl;
+    pointer-events: none;
+    width: calc((100vw - 350px) / 2);
     z-index: 4;
     opacity: 0.5;
     transition: opacity 0.25s ease-in-out;
+}
+
+.model-configuration-form-view * {
+    direction: ltr;
+    pointer-events: auto;
 }
 
 .model-configuration-form-view:hover {

@@ -44,15 +44,10 @@ Configuration.model = {
         height: 512,
         engineSize: 512,
         chunkingSize: 64,
-        chunkingBlur: 64,
+        chunkingMaskType: "bilinear",
         guidanceScale: 7,
         inferenceSteps: 40,
         interval: 1000,
-        upscaleDiffusionSteps: 100,
-        upscaleDiffusionGuidanceScale: 12,
-        upscaleDiffusionStrength: 0.2,
-        upscaleDiffusionChunkingSize: 128,
-        upscaleDiffusionChunkingBlur: 128,
         errors: {
             consecutive: 2
         }

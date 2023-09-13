@@ -11,6 +11,7 @@ import {
     MultiLoraInputView,
     MultiLycorisInputView,
     MultiInversionInputView,
+    ModelMergeModeInputView,
     VaeInputView,
     CheckpointInputView,
     EngineSizeInputView,
@@ -378,7 +379,82 @@ class AbridgedModelFormView extends ModelFormView {
     };
 };
 
+/**
+ * Allows merging 2-3 models together
+ */
+class MergeModelsFormView extends FormView {
+    /**
+     * @var Mode of operation and inputs
+     */
+    static fieldSets = {
+        "Method": {
+            "method": {
+                "class": ModelMergeModeInputView,
+                "config": {
+                    "required": true
+                }
+            }
+        },
+        "Primary Model": {
+            "primary": {
+                "class": CheckpointInputView,
+                "config": {
+                    "required": true
+                }
+            }
+        },
+        "Secondary Model": {
+            "secondary": {
+                "class": CheckpointInputView,
+                "config": {
+                    "required": true
+                }
+            }
+        },
+        "Tertiary Model": {
+            "tertiary": {
+                "class": CheckpointInputView,
+                "config": {
+                    "tooltip": "When using <strong>Add Difference</strong>, this model should be the subtrahend of the difference equation. The final output model will be of the formula (a + (b - c))."
+                }
+            }
+        },
+        "Alpha": {
+            "alpha": {
+                "class": SliderPreciseInputView,
+                "config": {
+                    "min": 0,
+                    "max": 1,
+                    "step": 0.001,
+                    "value": 0.5,
+                    "tooltip": "How much weight to apply between the primary and secondary models. A value of 0 represents full weight given to the primary model, a value of 1 is full weight to the secondary model, and 0.5 is equal weight given to both."
+                }
+            }
+        },
+        "Output": {
+            "filename": {
+                "label": "Checkpoint Name",
+                "class": StringInputView,
+                "config": {
+                    "required": true,
+                    "placeholder": "My Output(.safetensors)",
+                    "tooltip": "Enter a name for the output checkpoint. It will be saved as-is with a `.safetensors` extension."
+                }
+            }
+        }
+    };
+
+    /**
+     * @var object Conditions for displaying fields
+     */
+    static fieldSetConditions = {
+        "Tertiary Model": (values) => values.method === "add-difference",
+        "Alpha": (values) => values.method === "weighted-sum"
+    };
+};
+
 export { 
     ModelFormView,
-    AbridgedModelFormView
+    AbridgedModelFormView,
+    MergeModelsFormView
 };

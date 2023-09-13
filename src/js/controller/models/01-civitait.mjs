@@ -54,7 +54,7 @@ class CivitAIItemView extends View {
             description = E.p(),
             buildVersion = () => {
                 let versionDetails = this.item.modelVersions.filter(
-                        (version) => version.name === selectedVersion
+                        (version) => selectedVersion.startsWith(version.name)
                     ).shift(),
                     versionWords = versionDetails.trainedWords,
                     versionImages = versionDetails.images.slice(

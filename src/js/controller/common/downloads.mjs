@@ -229,7 +229,7 @@ class DownloadsController extends Controller {
     async cancelDownload(download) {
         try {
             await this.model.post("download/cancel", null, null, {"url": download.source});
-            this.application.notifications.push("info", "Success", `Canceled downloading ${download.filename}`);
+            this.notify("info", "Success", `Canceled downloading ${download.filename}`);
             this.checkDownloads();
         } catch(e) {
             let errorMessage = isEmpty(e) 
