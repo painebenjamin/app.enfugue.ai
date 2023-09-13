@@ -19,6 +19,7 @@ from pibble.util.files import dump_json, load_json
 
 from enfugue.util import logger, check_download, check_make_directory, find_file_in_directory
 from enfugue.diffusion.constants import *
+from enfugue.diffusion.util import get_vram_info
 
 __all__ = ["DiffusionPipelineManager"]
 
@@ -119,10 +120,22 @@ class DiffusionPipelineManager:
     _refiner_size: int
     _inpainter_size: int
 
-    def __init__(self, configuration: Optional[APIConfiguration] = None) -> None:
+    def __init__(self, configuration: Optional[APIConfiguration] = None, optimize: bool = True) -> None:
         self.configuration = APIConfiguration()
         if configuration:
             self.configuration = configuration
+        if optimize:
+            self.optimize_configuration()
+
+    def optimize_configuration(self) -> None:
+        """
+        Gets information about the execution environment and changes configuration.
+        """
+        vram_free, vram_total = get_vram_info()
+        if self.device.type == "cpu" or vram_total < 16 * 10 ** 9:
+            # Maximum optimization
+            self.configuration["enfugue.pipeline.cache"] = None
+            self.configuration["enfugue.pipeline.switch"] = "unload"
 
     @property
     def safe(self) -> bool:
@@ -2144,10 +2157,26 @@ class DiffusionPipelineManager:
         return self.inpainter_diffusers_cache_dir is not None
 
     @property
+    def caching(self) -> bool:
+        """
+        Returns if caching is enabled (default true.)
+        """
+        return getattr(self, "_caching", True)
+
+    @caching.setter
+    def caching(self, value: bool) -> None:
+        """
+        Enables/disables caching
+        """
+        self._caching = value
+
+    @property
     def should_cache(self) -> bool:
         """
         Returns true if the model should always be cached.
         """
+        if not self.caching:
+            return False
         configured = self.configuration.get("enfugue.pipeline.cache", "xl")
         if configured == "xl":
             return self.is_sdxl
@@ -2158,6 +2187,8 @@ class DiffusionPipelineManager:
         """
         Returns true if the inpainter model should always be cached.
         """
+        if not self.caching:
+            return False
         configured = self.configuration.get("enfugue.pipeline.cache", "xl")
         if configured == "xl":
             return self.inpainter_is_sdxl
@@ -2168,6 +2199,8 @@ class DiffusionPipelineManager:
         """
         Returns true if the refiner model should always be cached.
         """
+        if not self.caching:
+            return False
         configured = self.configuration.get("enfugue.pipeline.cache", "xl")
         if configured == "xl":
             return self.refiner_is_sdxl

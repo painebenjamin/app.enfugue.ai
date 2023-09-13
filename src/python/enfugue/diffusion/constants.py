@@ -81,4 +81,3 @@ PIPELINE_SWITCH_MODE_LITERAL = Literal["offload", "unload"]
 UPSCALE_LITERAL = Literal["esrgan", "esrganime", "gfpgan", "lanczos", "bilinear", "bicubic", "nearest"]
 
 MASK_TYPE_LITERAL = Literal["constant", "bilinear", "gaussian"]
-

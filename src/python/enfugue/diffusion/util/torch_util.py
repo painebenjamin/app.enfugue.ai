@@ -1,4 +1,4 @@
-from typing import Dict, Type, Union, Any
+from typing import Dict, Type, Union, Any, Optional, Tuple
 from typing_extensions import Self
 
 from dataclasses import dataclass, field
@@ -16,6 +16,11 @@ __all__ = [
     "mps_available",
     "directml_available",
     "get_optimal_device",
+    "load_ckpt_state_dict",
+    "load_safetensor_state_dict",
+    "load_state_dict",
+    "get_ram_info",
+    "get_vram_info",
     "DTypeConverter",
     "MaskWeightBuilder",
 ]
@@ -65,6 +70,63 @@ def get_optimal_device() -> torch.device:
     elif mps_available():
         return torch.device("mps")
     return torch.device("cpu")
+
+def get_ram_info() -> Tuple[int, int]:
+    """
+    Returns RAM amount in bytes as [free, total]
+    """
+    import psutil
+    mem = psutil.virtual_memory()
+    return (mem.free, mem.total)
+
+def get_vram_info() -> Tuple[int, int]:
+    """
+    Returns VRAM amount in bytes as [free, total]
+    If no GPU is found, returns RAM info.
+    """
+    if not cuda_available():
+        return get_ram_info()
+    return torch.cuda.mem_get_info()
+
+def load_ckpt_state_dict(path: str) -> Dict[str, Union[torch.Tensor, Dict[str, torch.Tensor]]]:
+    """
+    Loads a state dictionary from a .ckpt (old-style) file
+    """
+    return torch.load(path, map_location="cpu")
+
+def load_safetensor_state_dict(path: str) -> Dict[str, Union[torch.Tensor, Dict[str, torch.Tensor]]]:
+    """
+    Loads a state dictionary from a .safetensor(s) (new-style) file
+    """
+    from safetensors import safe_open
+
+    checkpoint = {}
+    with safe_open(path, framework="pt", device="cpu") as f:
+        for key in f.keys():
+            checkpoint[key] = f.get_tensor(key)
+    return checkpoint
+
+def load_state_dict(path: str) -> Dict[str, Union[torch.Tensor, Dict[str, torch.Tensor]]]:
+    """
+    Loads a state dictionary from file.
+    Tries to correct issues with incorrrect formats.
+    """
+    load_order = [load_safetensor_state_dict, load_ckpt_state_dict]
+    if "safetensor" not in path:
+        load_order = [load_ckpt_state_dict, load_safetensor_state_dict]
+
+    first_error: Optional[Exception] = None
+
+    for i, loader in enumerate(load_order):
+        try:
+            return loader(path)
+        except Exception as ex:
+            if first_error is None:
+                first_error = ex
+
+    if first_error is not None:
+        raise IOError(f"Recevied exception reading checkpoint {path}, please ensure file integrity.\n{type(first_error).__name__}: {first_error}")
+    raise IOError(f"No data read from path {path}")
 
 class DTypeConverter:
     """

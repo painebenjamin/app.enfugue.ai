@@ -99,6 +99,8 @@ class ControlImageDict(TypedDict):
     fit: NotRequired[IMAGE_FIT_LITERAL]
     anchor: NotRequired[IMAGE_ANCHOR_LITERAL]
     scale: NotRequired[float]
+    start: NotRequired[Optional[float]]
+    end: NotRequired[Optional[float]]
     process: NotRequired[bool]
     invert: NotRequired[bool]
     refiner: NotRequired[bool]
@@ -254,6 +256,8 @@ class DiffusionStep:
                     "scale": control_image.get("scale", 1.0),
                     "fit": control_image.get("fit", None),
                     "anchor": control_image.get("anchor", None),
+                    "start": control_image.get("start", None),
+                    "end": control_image.get("end", None)
                 }
                 if isinstance(control_image["image"], DiffusionStep):
                     if control_image["image"] in serialize_children:
@@ -409,7 +413,7 @@ class DiffusionStep:
             mask = self.mask
 
         if self.control_images is not None:
-            control_images: Dict[str, List[Tuple[PIL.Image.Image, float]]] = {}
+            control_images: Dict[str, List[Tuple[PIL.Image.Image, float, Optional[float], Optional[float]]]] = {}
             for control_image_dict in self.control_images:
                 control_image = control_image_dict["image"]
                 controlnet = control_image_dict["controlnet"]
@@ -420,6 +424,9 @@ class DiffusionStep:
                     control_image = PIL.Image.open(control_image)
 
                 conditioning_scale = control_image_dict.get("scale", 1.0)
+                conditioning_start = control_image_dict.get("start", None)
+                conditioning_end = control_image_dict.get("end", None)
+
                 if control_image_dict.get("process", True):
                     control_image = pipeline.control_image_processor(controlnet, control_image)
                 elif control_image_dict.get("invert", False):
@@ -428,11 +435,22 @@ class DiffusionStep:
                 if controlnet not in control_images:
                     control_images[controlnet] = [] # type: ignore[assignment]
 
-                control_images[controlnet].append((control_image, conditioning_scale)) # type: ignore[arg-type]
+                control_images[controlnet].append((
+                    control_image,
+                    conditioning_scale,
+                    conditioning_start,
+                    conditioning_end,
+                ))
         else:
             control_images = None # type: ignore[assignment]
 
-        if not self.prompt and not mask and not control_images and not ip_adapter_image and not self.ip_adapter_scale:
+        if (
+           not self.prompt and
+           not mask and
+           not control_images and
+           not ip_adapter_image and
+           not self.ip_adapter_scale
+        ):
             if image:
                 if self.remove_background:
                     image = execute_remove_background(image)
@@ -500,7 +518,12 @@ class DiffusionStep:
 
         if control_images is not None:
             for controlnet_name in control_images:
-                for control_image, conditioning_scale in control_images[controlnet_name]:
+                for (
+                    control_image,
+                    conditioning_scale,
+                    conditioning_start,
+                    conditioning_end
+                ) in control_images[controlnet_name]:
                     if image_width is None or image_height is None:
                         image_width, image_height = control_image.size
                     else:
@@ -640,6 +663,8 @@ class DiffusionStep:
                     "image": control_image,
                     "controlnet": control_image_dict["controlnet"],
                     "scale": control_image_dict.get("scale", 1.0),
+                    "start": control_image_dict.get("start", None),
+                    "end": control_image_dict.get("end", None),
                     "process": control_image_dict.get("process", True),
                     "invert": control_image_dict.get("invert", False)
                 })
@@ -1682,7 +1707,9 @@ class DiffusionPlan:
                         "controlnet": control_image_dict["controlnet"],
                         "process": control_image_dict.get("process", True),
                         "scale": control_image_dict.get("scale", 0.5),
-                        "invert": control_image_dict.get("invert", False)
+                        "invert": control_image_dict.get("invert", False),
+                        "start": control_image_dict.get("start", None),
+                        "end": control_image_dict.get("end", None),
                     }
 
             if mask and invert_mask:
@@ -2000,6 +2027,8 @@ class DiffusionPlan:
                         "scale": control_image.get("scale", 1.0),
                         "process": control_image.get("process", True),
                         "invert": control_image.get("invert", False),
+                        "start": control_image.get("start", None),
+                        "end": control_image.get("end", None),
                     }
                     for control_image in node_control_images
                 ]

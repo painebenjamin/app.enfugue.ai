@@ -442,7 +442,10 @@ class ImageEditorImageNodeView extends ImageEditorNodeView {
         this.imagePromptScale = newOptions.imagePromptScale;
         this.controlnet = newOptions.controlnet;
         this.conditioningScale = newOptions.conditioningScale;
+        this.conditioningStart = newOptions.conditioningStart;
+        this.conditioningEnd = newOptions.conditioningEnd;
         this.processControlImage = newOptions.processControlImage;
+        this.invertControlImage = newOptions.invertControlImage;
         this.cropInpaint = newOptions.cropInpaint;
         this.inpaintFeather = newOptions.inpaintFeather;
 
@@ -577,11 +580,13 @@ class ImageEditorImageNodeView extends ImageEditorNodeView {
         state.imagePromptScale = this.imagePromptScale || 0.9;
         state.strength = this.strength || 0.8;
         state.controlnet = this.controlnet || null;
-        state.colorSpace = this.colorSpace || "invert";
         state.cropInpaint = this.cropInpaint !== false;
         state.inpaintFeather = this.inpaintFeather || 32;
         state.conditioningScale = this.conditioningScale || 1.0;
+        state.conditioningStart = this.conditioningStart || 0.0;
+        state.conditioningEnd = this.conditioningEnd || 1.0;
         state.processControlImage = this.processControlImage !== false;
+        state.invertControlImage = this.invertControlImage === true;
         state.removeBackground = this.removeBackground === true;
         state.scaleToModelSize = this.scaleToModelSize === true;
         return state;
@@ -629,8 +634,10 @@ class ImageEditorImageNodeView extends ImageEditorNodeView {
             "imagePromptScale": 0.9,
             "strength": 0.8,
             "processControlImage": true,
-            "colorSpace": "invert",
+            "invertControlImage": false,
             "conditioningScale": 1.0,
+            "conditioningStart": 0.0,
+            "conditioningEnd": 1.0,
             "removeBackground": false,
             "scaleToModelSize": false,
         };

@@ -57,20 +57,35 @@ class GridMaker:
             text[(i*max_length):((i+1)*max_length)]
             for i in range(line_count)
         ])
-    
+
     def format_parameter(self, parameter: Any) -> str:
         """
         Formats an individual parameter.
         """
         from torch import Tensor
         from PIL import Image
-        if type(parameter) is Image:
+        if isinstance(parameter, Image.Image):
             width, height = parameter.size
             return f"Image({width}×{height})"
-        if type(parameter) is Tensor:
+        if isinstance(parameter, Tensor):
             return f"Tensor({parameter.shape})"
-        if type(parameter) is float:
+        if isinstance(parameter, float):
             return f"{parameter:.02g}"
+        if isinstance(parameter, dict):
+            return "{" + ", ".join([
+                f"{key} = {self.format_parameter(parameter[key])}"
+                for key in parameter
+            ])
+        if isinstance(parameter, tuple):
+            return "(" + ", ".join([
+                self.format_parameter(part)
+                for part in parameter
+            ]) + ")"
+        if isinstance(parameter, list):
+            return "[" + ", ".join([
+                self.format_parameter(part)
+                for part in parameter
+            ]) + "]"
         return Serializer.serialize(parameter)
 
     def format_parameters(self, parameters: Dict[str, Any]) -> str:
@@ -100,7 +115,7 @@ class GridMaker:
             rows += 1
 
         columns = total_images % self.grid_columns if total_images < self.grid_columns else self.grid_columns
-        
+
         # Calculate image height based on rows and columns
         width = self.grid_size * columns
         height = (self.grid_size * rows) + (self.caption_height * rows)
@@ -108,7 +123,7 @@ class GridMaker:
         # Create blank image
         grid = Image.new("RGB", (width, height), (255, 255, 255))
         draw = ImageDraw.Draw(grid)
-        
+
         # Iterate through each result image and paste
         row, column = 0, 0
         for parameter_set, images in results:

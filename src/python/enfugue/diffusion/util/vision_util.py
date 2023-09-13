@@ -25,10 +25,15 @@ class ComputerVision:
     def show(name: str, image: Image.Image) -> None:
         """
         Shows an image.
+        Tries to use the Colab monkeypatch first, in case this is being ran in Colab.
         """
-        cv2.imshow(name, ComputerVision.convert_image(image))
-        cv2.waitKey(0)
-        cv2.destroyAllWindows()
+        try:
+            from google.colab.patches import cv2_imshow
+            cv2_imshow(ComputerVision.convert_image(image))
+        except:
+            cv2.imshow(name, ComputerVision.convert_image(image))
+            cv2.waitKey(0)
+            cv2.destroyAllWindows()
 
     @staticmethod
     def convert_image(image: Image.Image) -> np.ndarray:

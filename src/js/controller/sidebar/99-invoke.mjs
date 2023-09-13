@@ -109,11 +109,13 @@ class InvokeButtonController extends Controller {
                             {
                                 "image": datum.src,
                                 "process": datum.processControlImage,
-                                "invert": datum.colorSpace == "invert",
+                                "invert": datum.invertControlImage === true,
                                 "controlnet": datum.controlnet,
                                 "scale": datum.conditioningScale,
                                 "fit": datum.fit,
-                                "anchor": datum.anchor
+                                "anchor": datum.anchor,
+                                "start": datum.conditioningStart,
+                                "end": datum.conditioningEnd
                             }
                         ];
                     }

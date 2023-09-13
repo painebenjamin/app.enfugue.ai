@@ -212,7 +212,7 @@ class SchedulerInputView extends SelectInputView {
         "dpmss": "DPM-Solver++",
         "dpmsm": "DPM-Solver++ 2M",
         "dpmsmk": "DPM-Solver++ 2M Karras",
-        "dpmsmka": "DPM-Solver++ 2S a Karras",
+        "dpmsmka": "DPM-Solver++ 2M SDE Karras",
         "heun": "Heun Discrete Scheduler",
         "dpmd": "DPM Discrete Scheduler",
         "adpmd": "DPM Ancestral Discrete Scheduler",

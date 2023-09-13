@@ -71,8 +71,8 @@ class DiffusionEngineProcess(Process):
         """
         if not hasattr(self, "_pipemanager"):
             from enfugue.diffusion.manager import DiffusionPipelineManager
-
-            self._pipemanager = DiffusionPipelineManager(self.configuration)
+            # Instantiate pipemanager, don't optimize as we want to be explicitly configured
+            self._pipemanager = DiffusionPipelineManager(self.configuration, optimize=False)
         return self._pipemanager
 
     @property

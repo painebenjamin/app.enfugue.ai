@@ -804,9 +804,9 @@ fieldset.field-set-additional-models .vae-input-view-inpainter-vae
     display: none;
 }
 
-fieldset.field-set-control-nets .field-container
+enfugue-node-editor.image-editor enfugue-node form fieldset.field-set-control .field-container
 {
-    flex-basis: 40%;
+    flex-basis: 45%;
 }
 
 form.show-refiner fieldset.field-set-engine:not(.collapsed) .refiner-engine-size-input-view,
@@ -831,6 +831,14 @@ form.no-chunking .field-container.number-input-view-chunking-size,
 form.no-chunking .field-container.mask-type-input-view-chunking-mask-type
 {
     display: none;
+}
+
+form .field-container.checkbox-input-view-invert-control-image {
+    display: none;
+}
+
+form.no-process .field-container.checkbox-input-view-invert-control-image {
+    display: flex;
 }
 
 enfugue-model-table {

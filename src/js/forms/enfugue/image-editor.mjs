@@ -258,6 +258,28 @@ class ImageEditorImageNodeOptionsFormView extends FormView {
                     "tooltip": "How closely to follow ControlNet's influence."
                 }
             },
+            "conditioningStart": {
+                "label": "Conditioning Start",
+                "class": SliderPreciseInputView,
+                "config": {
+                    "min": 0.0,
+                    "max": 1.0,
+                    "step": 0.01,
+                    "value": 0.0,
+                    "tooltip": "When to begin using this ControlNet for influence. Defaults to the beginning of generation."
+                }
+            },
+            "conditioningEnd": {
+                "label": "Conditioning End",
+                "class": SliderPreciseInputView,
+                "config": {
+                    "min": 0.0,
+                    "max": 1.0,
+                    "step": 0.01,
+                    "value": 1.0,
+                    "tooltip": "When to stop using this ControlNet for influence. Defaults to the end of generation."
+                }
+            },
             "processControlImage": {
                 "label": "Process Image for ControlNet",
                 "class": CheckboxInputView,
@@ -265,12 +287,14 @@ class ImageEditorImageNodeOptionsFormView extends FormView {
                     "value": true,
                     "tooltip": "When checked, the image will be processed through the appropriate edge detection algorithm for the ControlNet. Only uncheck this if your image has already been processed through edge detection."
                 }
-            }
-        },
-        "Color Space": {
-            "colorSpace": {
-                "label": "Input Image Color Space",
-                "class": ImageColorSpaceInputView
+            },
+            "invertControlImage": {
+                "label": "Invert Image for ControlNet",
+                "class": CheckboxInputView,
+                "config": {
+                    "value": false,
+                    "tooltip": "Invert the colors of the control image prior to using it."
+                }
             }
         }
     };
@@ -284,10 +308,7 @@ class ImageEditorImageNodeOptionsFormView extends FormView {
         "Inpainting": (values) => values.inpaint,
         "Inference": (values) => values.infer,
         "Control": (values) => values.control,
-        "Image Prompt": (values) => values.imagePrompt,
-        "Color Space": (values) => values.control && 
-            ["canny", "mlsd", "hed", "pidi", "scribble", "line", "anime"].indexOf(values.controlnet) !== -1 &&
-            values.processControlImage === false
+        "Image Prompt": (values) => values.imagePrompt
     };
 
     /**
@@ -318,7 +339,26 @@ class ImageEditorImageNodeOptionsFormView extends FormView {
                 inference.enable();
             }
         }
+        if (fieldName === "processControlImage") {
+            if (inputView.getValue()) {
+                this.removeClass("no-process");
+            } else {
+                this.addClass("no-process");
+            }
+        }
         return super.inputChanged.call(this, fieldName, inputView);
+    }
+
+    /**
+     * On set values, check and set classes.
+     */
+    async setValues() {
+        await super.setValues.apply(this, Array.from(arguments));
+        if (this.values.control && !this.values.processControlImage) {
+            this.addClass("no-process");
+        } else {
+            this.removeClass("no-process");
+        }
     }
 };
 

@@ -12,9 +12,11 @@ from typing import (
     Iterator,
     Literal,
     Mapping,
+    TypedDict,
     cast,
     TYPE_CHECKING
 )
+from typing_extensions import NotRequired
 
 import os
 import PIL
@@ -74,14 +76,32 @@ from diffusers.utils.torch_utils import randn_tensor
 from diffusers.image_processor import VaeImageProcessor
 
 from enfugue.util import logger, check_download_to_dir, TokenMerger
-from enfugue.diffusion.util import MaskWeightBuilder
-
-# This is ~64k×64k. Absurd, but I don't judge
-PIL.Image.MAX_IMAGE_PIXELS = 2**32
+from enfugue.diffusion.util import load_state_dict, MaskWeightBuilder
 
 if TYPE_CHECKING:
     from enfugue.diffusers.support.ip import IPAdapter
     from enfugue.diffusion.constants import MASK_TYPE_LITERAL
+
+# This is ~64k×64k. Absurd, but I don't judge
+PIL.Image.MAX_IMAGE_PIXELS = 2**32
+
+# Control image accepted arguments
+class ControlImageArgDict(TypedDict):
+    image: Union[str, PIL.Image.Image]
+    scale: NotRequired[float]
+    start: NotRequired[float]
+    end: NotRequired[float]
+
+ControlImageType = Union[
+    Union[str, PIL.Image.Image], # Image
+    Tuple[Union[str, PIL.Image.Image], float], # Image, Scale
+    Tuple[Union[str, PIL.Image.Image], float, float], # Image, Scale, End
+    Tuple[Union[str, PIL.Image.Image], float, float, float], # Image, Scale, Start, End
+    ControlImageArgDict
+]
+
+ControlImageArgType = Optional[Dict[str, Union[ControlImageType, List[ControlImageType]]]]
+PreparedControlImageArgType = Optional[Dict[str, List[Tuple[torch.Tensor, float, Optional[float], Optional[float]]]]]
 
 class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
     """
@@ -202,19 +222,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         https://github.com/huggingface/diffusers/blob/49949f321d9b034440b52e54937fd2df3027bf0a/src/diffusers/pipelines/stable_diffusion/convert_from_ckpt.py
         """
         logger.debug(f"Reading checkpoint file {checkpoint_path}")
-        try:
-            if checkpoint_path.endswith("safetensors"):
-                from safetensors import safe_open
-
-                checkpoint = {}
-                with safe_open(checkpoint_path, framework="pt", device="cpu") as f:
-                    for key in f.keys():
-                        checkpoint[key] = f.get_tensor(key)
-            else:
-                checkpoint = torch.load(checkpoint_path, map_location="cpu")
-        except Exception as ex:
-            # Usually a bad file
-            raise IOError(f"Recevied exception reading checkpoint {checkpoint_path}, please ensure file integrity.\n{type(ex).__name__}: {ex}")
+        checkpoint = load_state_dict(checkpoint_path)
 
         # Sometimes models don't have the global_step item
         if "global_step" in checkpoint:
@@ -225,8 +233,9 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         # NOTE: this while loop isn't great but this controlnet checkpoint has one additional
         # "state_dict" key https://huggingface.co/thibaud/controlnet-canny-sd21
         while "state_dict" in checkpoint:
-            checkpoint = checkpoint["state_dict"]
+            checkpoint = checkpoint["state_dict"] # type: ignore[assignment]
 
+        checkpoint = cast(Mapping[str, torch.Tensor], checkpoint) # type: ignore[assignment]
         key_name_2_1 = "model.diffusion_model.input_blocks.2.1.transformer_blocks.0.attn2.to_k.weight"
         key_name_xl_base = "conditioner.embedders.1.model.transformer.resblocks.9.mlp.c_proj.bias"
         key_name_xl_refiner = "conditioner.embedders.0.model.transformer.resblocks.9.mlp.c_proj.bias"
@@ -236,7 +245,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             "https://raw.githubusercontent.com/CompVis/stable-diffusion/main/configs/stable-diffusion/v1-inference.yaml"
         )
 
-        if key_name_2_1 in checkpoint and checkpoint[key_name_2_1].shape[-1] == 1024:
+        if key_name_2_1 in checkpoint and checkpoint[key_name_2_1].shape[-1] == 1024: # type: ignore[union-attr]
             # SD v2.1
             config_url = "https://raw.githubusercontent.com/Stability-AI/stablediffusion/main/configs/stable-diffusion/v2-inference-v.yaml"
 
@@ -1104,6 +1113,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         )
         logger.debug(f"Creating random latents of shape {shape} and type {dtype}")
         random_latents = randn_tensor(shape, generator=generator, device=device, dtype=dtype)
+
         return random_latents * self.scheduler.init_noise_sigma
 
     def encode_image_unchunked(
@@ -1597,7 +1607,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         mask: Optional[torch.Tensor] = None,
         mask_image: Optional[torch.Tensor] = None,
         image: Optional[torch.Tensor] = None,
-        control_images: Optional[Dict[str, List[Tuple[torch.Tensor, float]]]] = None,
+        control_images: PreparedControlImageArgType = None,
         progress_callback: Optional[Callable[[bool], None]] = None,
         latent_callback: Optional[Callable[[Union[torch.Tensor, np.ndarray, List[PIL.Image.Image]]], None]] = None,
         latent_callback_steps: Optional[int] = 1,
@@ -1624,20 +1634,43 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
         steps_since_last_callback = 0
         for i, t in enumerate(timesteps):
+            # store ratio for later
+            denoising_ratio = i / num_steps
+
             # expand the latents if we are doing classifier free guidance
             latent_model_input = torch.cat([latents] * 2) if do_classifier_free_guidance else latents
             latent_model_input = self.scheduler.scale_model_input(latent_model_input, t)
 
             # Get controlnet input(s) if configured
             if control_images is not None:
-                down_block, mid_block = self.get_controlnet_conditioning_blocks(
-                    device=device,
-                    latents=latent_model_input,
-                    timestep=t,
-                    encoder_hidden_states=prompt_embeds,
-                    controlnet_conds=control_images,
-                    added_cond_kwargs=added_cond_kwargs,
-                )
+                # Find which control image(s) to use
+                controlnet_conds: Dict[str, List[Tuple[torch.Tensor, float]]] = {}
+                for controlnet_name in control_images:
+                    for (
+                        control_image,
+                        conditioning_scale,
+                        conditioning_start,
+                        conditioning_end
+                    ) in control_images[controlnet_name]:
+                        if (
+                            (conditioning_start is None or conditioning_start <= denoising_ratio) and
+                            (conditioning_end is None or denoising_ratio <= conditioning_end)
+                        ):
+                            if controlnet_name not in controlnet_conds:
+                                controlnet_conds[controlnet_name] = []
+
+                            controlnet_conds[controlnet_name].append((control_image, conditioning_scale))
+                if not controlnet_conds:
+                    down_block, mid_block = None, None
+                else:
+                    down_block, mid_block = self.get_controlnet_conditioning_blocks(
+                        device=device,
+                        latents=latent_model_input,
+                        timestep=t,
+                        encoder_hidden_states=prompt_embeds,
+                        controlnet_conds=controlnet_conds,
+                        added_cond_kwargs=added_cond_kwargs,
+                    )
             else:
                 down_block, mid_block = None, None
 
@@ -1647,6 +1680,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     [latent_model_input, mask, mask_image],
                     dim=1,
                 )
+
             # predict the noise residual
             noise_pred = self.predict_noise_residual(
                 latent_model_input,
@@ -1662,6 +1696,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             if do_classifier_free_guidance:
                 noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
                 noise_pred = noise_pred_uncond + guidance_scale * (noise_pred_text - noise_pred_uncond)
+
             # Compute previous noisy sample
             latents = self.scheduler.step(
                 noise_pred,
@@ -1745,7 +1780,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         mask: Optional[torch.Tensor] = None,
         mask_image: Optional[torch.Tensor] = None,
         image: Optional[torch.Tensor] = None,
-        control_images: Optional[Dict[str, List[Tuple[torch.Tensor, float]]]] = None,
+        control_images: PreparedControlImageArgType = None,
         progress_callback: Optional[Callable[[bool], None]] = None,
         latent_callback: Optional[Callable[[Union[torch.Tensor, np.ndarray, List[PIL.Image.Image]]], None]] = None,
         latent_callback_steps: Optional[int] = 1,
@@ -1814,6 +1849,9 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         steps_since_last_callback = 0
         with MaskWeightBuilder(device=device, dtype=latents.dtype) as weight_builder:
             for i, t in enumerate(timesteps):
+                # Calculate ratio for later
+                denoising_ratio = i / num_steps
+
                 # zero view latents
                 count.zero_()
                 value.zero_()
@@ -1844,23 +1882,38 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
                         # Get controlnet input(s) if configured
                         if control_images is not None:
-                            down_block, mid_block = self.get_controlnet_conditioning_blocks(
-                                device=device,
-                                latents=latent_model_input,
-                                timestep=t,
-                                encoder_hidden_states=prompt_embeds,
-                                controlnet_conds=dict([
-                                    (
-                                        name,
-                                        [
-                                            (control_image[:, :, top_px:bottom_px, left_px:right_px], conditioning_scale)
-                                            for control_image, conditioning_scale in control_images[name]
-                                        ]
-                                    )
-                                    for name in control_images
-                                ]),
-                                added_cond_kwargs=added_cond_kwargs,
-                            )
+                            # Find which control image(s) to use
+                            controlnet_conds: Dict[str, List[Tuple[torch.Tensor, float]]] = {}
+                            for controlnet_name in control_images:
+                                for (
+                                    control_image,
+                                    conditioning_scale,
+                                    conditioning_start,
+                                    conditioning_end
+                                ) in control_images[controlnet_name]:
+                                    if (
+                                        (conditioning_start is None or denoising_ratio <= conditioning_start) and
+                                        (conditioning_end is None or denoising_ratio <= conditioning_end)
+                                    ):
+                                        if controlnet_name not in controlnet_conds:
+                                            controlnet_conds[controlnet_name] = []
+
+                                        controlnet_conds[controlnet_name].append((
+                                            control_image[:, :, top_px:bottom_px, left_px:right_px],
+                                            conditioning_scale
+                                        ))
+
+                            if not controlnet_conds:
+                                down_block, mid_block = None, None
+                            else:
+                                down_block, mid_block = self.get_controlnet_conditioning_blocks(
+                                    device=device,
+                                    latents=latent_model_input,
+                                    timestep=t,
+                                    encoder_hidden_states=prompt_embeds,
+                                    controlnet_conds=controlnet_conds,
+                                    added_cond_kwargs=added_cond_kwargs,
+                                )
                         else:
                             down_block, mid_block = None, None
 
@@ -2134,7 +2187,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         negative_prompt_2: Optional[str] = None,
         image: Optional[Union[PIL.Image.Image, torch.Tensor, str]] = None,
         mask: Optional[Union[PIL.Image.Image, torch.Tensor, str]] = None,
-        control_images: Optional[Dict[str, Union[List[Union[PIL.Image.Image, str, Tuple[Union[PIL.Image.Image, str], float]]], PIL.Image.Image, str, Tuple[PIL.Image.Image, float], Tuple[str, float]]]] = None,
+        control_images: ControlImageArgType = None,
         height: Optional[int] = None,
         width: Optional[int] = None,
         chunking_size: Optional[int] = None,
@@ -2458,7 +2511,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 # prepared_latents = noise
 
             # Look for controlnet and conditioning image
-            prepared_control_images: Optional[Dict[str, List[Tuple[torch.Tensor, float]]]] = {}
+            prepared_control_images: PreparedControlImageArgType = {}
             if control_images is not None:
                 if not self.controlnets:
                     logger.warning("Control image passed, but no controlnet present. Ignoring.")
@@ -2467,16 +2520,34 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     for name in control_images:
                         if name not in self.controlnets:
                             raise RuntimeError(f"Control image mapped to ControlNet {name}, but it is not loaded.")
+
                         image_list = control_images[name]
                         if not isinstance(image_list, list):
                             image_list = [image_list]
+
                         for controlnet_image in image_list:
                             if isinstance(controlnet_image, tuple):
-                                controlnet_image, conditioning_scale = controlnet_image
+                                if len(controlnet_image) == 4:
+                                    controlnet_image, conditioning_scale, conditioning_start, conditioning_end = controlnet_image
+                                elif len(controlnet_image) == 3:
+                                    controlnet_image, conditioning_scale, conditioning_start = controlnet_image
+                                    conditioning_end = None
+                                elif len(controlnet_image) == 2:
+                                    controlnet_image, conditioning_scale = controlnet_image
+                                    conditioning_start, conditioning_end = None, None
+
+                            elif isinstance(controlnet_image, dict):
+                                conditioning_scale = controlnet_image.get("scale", 1.0)
+                                conditioning_start = controlnet_image.get("start", None)
+                                conditioning_end = controlnet_image.get("end", None)
+                                controlnet_image = controlnet_image["image"]
                             else:
                                 conditioning_scale = 1.0
+                                conditioning_start, conditioning_end = None, None
+
                             if isinstance(controlnet_image, str):
                                 controlnet_image = PIL.Image.open(controlnet_image)
+
                             prepared_controlnet_image = self.prepare_control_image(
                                 image=controlnet_image,
                                 height=height,
@@ -2487,16 +2558,18 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                                 dtype=prompt_embeds.dtype,
                                 do_classifier_free_guidance=do_classifier_free_guidance,
                             )
+
                             if name not in prepared_control_images: # type: ignore[operator]
                                 prepared_control_images[name] = [] # type: ignore[index]
+
                             prepared_control_images[name].append( # type: ignore[index]
-                                (prepared_controlnet_image, conditioning_scale)
+                                (prepared_controlnet_image, conditioning_scale, conditioning_start, conditioning_end)
                             )
 
             # Should no longer be None
             prepared_latents = cast(torch.Tensor, prepared_latents)
 
-            # Prepare extra step kwargs.
+            # Prepare extra step kwargs
             extra_step_kwargs = self.prepare_extra_step_kwargs(generator, eta)
 
             # Swap out VAE here if not needed for mostly free VRAM
@@ -2540,6 +2613,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 if do_classifier_free_guidance:
                     prompt_embeds = torch.cat([negative_prompt_embeds, prompt_embeds], dim=0)
                     add_text_embeds = torch.cat([negative_pooled_prompt_embeds, add_text_embeds], dim=0)
+
                 if self.config.requires_aesthetic_score:
                     add_time_ids, add_neg_time_ids = self.get_add_time_ids(
                         original_size=original_size,

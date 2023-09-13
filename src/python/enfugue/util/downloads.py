@@ -17,7 +17,7 @@ def check_download(remote_url: str, local_path: str, chunk_size: int = 8192, che
         actual_length = os.path.getsize(local_path)
         if expected_length and actual_length != int(expected_length):
             logger.info(
-                f"File at {local_path} looks like an interrupted download, or the remote resource has changed. Removing."
+                f"File at {local_path} looks like an interrupted download, or the remote resource has changed - expected a size of {expected_length} bytes but got {actual_length} instead. Removing."
             )
             os.remove(local_path)
 
