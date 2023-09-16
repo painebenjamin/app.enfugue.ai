@@ -22,8 +22,8 @@ if TYPE_CHECKING:
     )
     from diffusers.models import (
         AutoencoderKL,
+        ControlNetModel,
         UNet2DConditionModel,
-        ControlNetModel
     )
     from diffusers.pipelines.stable_diffusion import (
         StableDiffusionSafetyChecker
@@ -66,6 +66,7 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         chunking_size: int = 32,
         chunking_mask_type: MASK_TYPE_LITERAL = "bilinear",
         chunking_mask_kwargs: Dict[str, Any] = {},
+        override_scheduler_config: bool = True,
     ) -> None:
         super(EnfugueAnimateStableDiffusionPipeline, self).__init__(
             vae=vae,
@@ -88,13 +89,14 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
             chunking_mask_type=chunking_mask_type,
             chunking_mask_kwargs=chunking_mask_kwargs,
         )
-        self.scheduler_config = {
-            **self.scheduler_config,
-            **EnfugueAnimateStableDiffusionPipeline.STATIC_SCHEDULER_KWARGS
-        }
-        self.scheduler.register_to_config(
-            **EnfugueAnimateStableDiffusionPipeline.STATIC_SCHEDULER_KWARGS
-        )
+        if override_scheduler_config:
+            self.scheduler_config = {
+                **self.scheduler_config,
+                **EnfugueAnimateStableDiffusionPipeline.STATIC_SCHEDULER_KWARGS
+            }
+            self.scheduler.register_to_config(
+                **EnfugueAnimateStableDiffusionPipeline.STATIC_SCHEDULER_KWARGS
+            )
 
     @classmethod
     def create_unet(

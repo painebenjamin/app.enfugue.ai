@@ -1868,7 +1868,11 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         count = torch.zeros_like(latents)
         value = torch.zeros_like(latents)
 
-        samples, num_channels, _, _ = latents.shape
+        if len(latents.shape) == 5:
+            samples, num_channels, num_frames, _, _ = latents.shape
+        else:
+            samples, num_channels, _, _ = latents.shape
+            num_frames = None
 
         total_num_steps = num_steps * num_chunks
         logger.debug(
@@ -1901,7 +1905,10 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                         right_px = right * self.vae_scale_factor
 
                         # Slice latents
-                        latents_for_view = latents[:, :, top:bottom, left:right]
+                        if num_frames is None:
+                            latents_for_view = latents[:, :, top:bottom, left:right]
+                        else:
+                            latents_for_view = latents[:, :, :, top:bottom, left:right]
 
                         # expand the latents if we are doing classifier free guidance
                         latent_model_input = (
@@ -1931,11 +1938,16 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                                     ):
                                         if controlnet_name not in controlnet_conds:
                                             controlnet_conds[controlnet_name] = []
-
-                                        controlnet_conds[controlnet_name].append((
-                                            control_image[:, :, top_px:bottom_px, left_px:right_px],
-                                            conditioning_scale
-                                        ))
+                                        if num_frames is None:
+                                            controlnet_conds[controlnet_name].append((
+                                                control_image[:, :, top_px:bottom_px, left_px:right_px],
+                                                conditioning_scale
+                                            ))
+                                        else:
+                                            controlnet_conds[controlnet_name].append((
+                                                control_image[:, :, :, top_px:bottom_px, left_px:right_px],
+                                                conditioning_scale
+                                            ))
 
                             if not controlnet_conds:
                                 down_block, mid_block = None, None
@@ -1953,14 +1965,24 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
                         # add other dimensions to unet input if set
                         if mask is not None and mask_image is not None and is_inpainting_unet:
-                            latent_model_input = torch.cat(
-                                [
-                                    latent_model_input,
-                                    mask[:, :, top:bottom, left:right],
-                                    mask_image[:, :, top:bottom, left:right],
-                                ],
-                                dim=1,
-                            )
+                            if num_frames is None:
+                                latent_model_input = torch.cat(
+                                    [
+                                        latent_model_input,
+                                        mask[:, :, top:bottom, left:right],
+                                        mask_image[:, :, top:bottom, left:right],
+                                    ],
+                                    dim=1,
+                                )
+                            else:
+                                latent_model_input = torch.cat(
+                                    [
+                                        latent_model_input,
+                                        mask[:, :, :, top:bottom, left:right],
+                                        mask_image[:, :, :, top:bottom, left:right],
+                                    ],
+                                    dim=1,
+                                )
 
                         # predict the noise residual
                         noise_pred = self.predict_noise_residual(
@@ -1995,16 +2017,28 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     # the same denoising on the image without unet and cross with the
                     # calculated unet input * mask
                     if mask is not None and image is not None and noise is not None and not is_inpainting_unet:
-                        init_latents = (image[:, :, top:bottom, left:right])[:1]
-                        init_mask = (mask[:, :, top:bottom, left:right])[:1]
+                        if num_frames is None:
+                            init_latents = (image[:, :, top:bottom, left:right])[:1]
+                            init_mask = (mask[:, :, top:bottom, left:right])[:1]
 
-                        if i < len(timesteps) - 1:
-                            noise_timestep = timesteps[i + 1]
-                            init_latents = self.scheduler.add_noise(
-                                init_latents,
-                                noise[:, :, top:bottom, left:right],
-                                torch.tensor([noise_timestep])
-                            )
+                            if i < len(timesteps) - 1:
+                                noise_timestep = timesteps[i + 1]
+                                init_latents = self.scheduler.add_noise(
+                                    init_latents,
+                                    noise[:, :, top:bottom, left:right],
+                                    torch.tensor([noise_timestep])
+                                )
+                        else:
+                            init_latents = (image[:, :, :, top:bottom, left:right])[:1]
+                            init_mask = (mask[:, :, :, top:bottom, left:right])[:1]
+
+                            if i < len(timesteps) - 1:
+                                noise_timestep = timesteps[i + 1]
+                                init_latents = self.scheduler.add_noise(
+                                    init_latents,
+                                    noise[:, :, :, top:bottom, left:right],
+                                    torch.tensor([noise_timestep])
+                                )
 
                         denoised_latents = (1 - init_mask) * init_latents + init_mask * denoised_latents
 
@@ -2013,6 +2047,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                         mask_type=self.chunking_mask_type,
                         batch=samples,
                         dim=num_channels,
+                        frames=num_frames,
                         width=engine_latent_size,
                         height=engine_latent_size,
                         unfeather_left=left==0,
@@ -2021,9 +2056,13 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                         unfeather_bottom=bottom==latent_height,
                         **self.chunking_mask_kwargs
                     )
-
-                    value[:, :, top:bottom, left:right] += denoised_latents * multiplier
-                    count[:, :, top:bottom, left:right] += multiplier
+                    
+                    if num_frames is None:
+                        value[:, :, top:bottom, left:right] += denoised_latents * multiplier
+                        count[:, :, top:bottom, left:right] += multiplier
+                    else:
+                        value[:, :, :, top:bottom, left:right] += denoised_latents * multiplier
+                        count[:, :, :, top:bottom, left:right] += multiplier
 
                     # Call the progress callback
                     if progress_callback is not None:
@@ -2079,7 +2118,12 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         """
         Decodes the latents in chunks as necessary.
         """
-        samples, num_channels, height, width = latents.shape
+        if len(latents.shape) == 5:
+            samples, num_channels, num_frames, height, width = latents.shape
+        else:
+            samples, num_channels, height, width = latents.shape
+            num_frames = None
+
         height *= self.vae_scale_factor
         width *= self.vae_scale_factor
 
@@ -2110,16 +2154,21 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         latent_height = height // self.vae_scale_factor
         engine_latent_size = self.engine_size // self.vae_scale_factor
 
-        count = torch.zeros((samples, 3, height, width)).to(device=device, dtype=latents.dtype)
+        if num_frames is None:
+            count = torch.zeros((samples, 3, height, width)).to(device=device, dtype=latents.dtype)
+        else:
+            count = torch.zeros((samples, 3, num_frames, height, width)).to(device=device, dtype=latents.dtype)
+
         value = torch.zeros_like(count)
-
         logger.debug(f"Decoding latents in {total_steps} steps")
-
         with weight_builder:
             # iterate over chunks
             for i, (top, bottom, left, right) in enumerate(chunks):
                 # Slice latents
-                latents_for_view = latents[:, :, top:bottom, left:right]
+                if num_frames is None:
+                    latents_for_view = latents[:, :, top:bottom, left:right]
+                else:
+                    latents_for_view = latents[:, :, :, top:bottom, left:right]
 
                 # Get pixel indices
                 top_px = top * self.vae_scale_factor
@@ -2137,6 +2186,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     dim=3,
                     width=self.engine_size,
                     height=self.engine_size,
+                    frames=num_frames,
                     unfeather_left=left==0,
                     unfeather_top=top==0,
                     unfeather_right=right==latent_width,
@@ -2144,8 +2194,12 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     **self.chunking_mask_kwargs
                 )
 
-                value[:, :, top_px:bottom_px, left_px:right_px] += decoded_latents * multiplier
-                count[:, :, top_px:bottom_px, left_px:right_px] += multiplier
+                if num_frames is None:
+                    value[:, :, top_px:bottom_px, left_px:right_px] += decoded_latents * multiplier
+                    count[:, :, top_px:bottom_px, left_px:right_px] += multiplier
+                else:
+                    value[:, :, :, top_px:bottom_px, left_px:right_px] += decoded_latents * multiplier
+                    count[:, :, :, top_px:bottom_px, left_px:right_px] += multiplier
 
                 if progress_callback is not None:
                     progress_callback(True)
@@ -2155,6 +2209,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         if revert_dtype is not None:
             latents = latents.to(dtype=revert_dtype)
             self.vae.to(dtype=revert_dtype)
+
         return latents
 
     def decode_animation_frames(self, videos: torch.Tensor, n_rows: int = 8, rescale: bool = False):
@@ -2211,7 +2266,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 seconds_in_window = (datetime.datetime.now() - window_start).total_seconds()
                 its = (overall_step - window_start_step) / seconds_in_window
                 unit = "s/it" if its < 1 else "it/s"
-                its_display = 1 / its if its < 1 else its
+                its_display = 0 if its == 0 else 1 / its if its < 1 else its
                 logger.debug(
                     f"{{0:0{digits}d}}/{{1:0{digits}d}}: {{2:0.2f}} {{3:s}}".format(
                         overall_step, overall_steps, its_display, unit

@@ -54,7 +54,8 @@ class ComputerVision:
         path: str,
         frames: Iterable[Image.Image],
         overwrite: bool = False,
-        rate: float = 20.
+        rate: float = 20.0,
+        encoder: str = "H264"
     ) -> int:
         """
         Saves PIL image frames to an .mp4 video.
@@ -66,12 +67,14 @@ class ComputerVision:
             if not overwrite:
                 raise IOError(f"File exists at path {path}, pass overwrite=True to write anyway.")
             os.unlink(path)
-        if path.endswith(".gif"):
-            # Save animated gif instead
+        basename, ext = os.path.splitext(os.path.basename(path))
+        if ext in [".gif", ".png", ".tiff", ".webp"]:
             frames = [frame for frame in frames]
-            frames[0].save(path, save_all=True, append_images=frames[1:])
+            frames[0].save(path, loop=0, duration=1000.0/rate, save_all=True, append_images=frames[1:])
             return os.path.getsize(path)
-        fourcc = cv2.VideoWriter_fourcc(*'mp4v') # type: ignore
+        elif ext != ".mp4":
+            raise IOError(f"Unknown file extension {ext}")
+        fourcc = cv2.VideoWriter_fourcc(*encoder) # type: ignore
         writer = None
         for frame in frames:
             if writer is None:

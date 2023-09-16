@@ -195,6 +195,7 @@ class DiffusionMask:
     batch: int
     width: int
     height: int
+    frames: Optional[int] = None
     unfeather_left: bool = False
     unfeather_top: bool = False
     unfeather_right: bool = False
@@ -209,26 +210,46 @@ class DiffusionMask:
         for i in range(feather_length):
             unfeathered = torch.tensor((feather_length - i) / feather_length).to(dtype=tensor.dtype, device=tensor.device)
             if self.unfeather_left:
-                tensor[:, :, :, i] = torch.maximum(tensor[:, :, :, i], unfeathered)
+                if self.frames is None:
+                    tensor[:, :, :, i] = torch.maximum(tensor[:, :, :, i], unfeathered)
+                else:
+                    tensor[:, :, :, :, i] = torch.maximum(tensor[:, :, :, :, i], unfeathered)
             if self.unfeather_top:
-                tensor[:, :, i, :] = torch.maximum(tensor[:, :, i, :], unfeathered)
+                if self.frames is None:
+                    tensor[:, :, i, :] = torch.maximum(tensor[:, :, i, :], unfeathered)
+                else:
+                    tensor[:, :, :, i, :] = torch.maximum(tensor[:, :, :, i, :], unfeathered)
             if self.unfeather_right:
-                tensor[:, :, :, self.width - i - 1] = torch.maximum(
-                    tensor[:, :, :, self.width - i - 1],
-                    unfeathered
-                )
+                if self.frames is None:
+                    tensor[:, :, :, self.width - i - 1] = torch.maximum(
+                        tensor[:, :, :, self.width - i - 1],
+                        unfeathered
+                    )
+                else:
+                    tensor[:, :, :, :, self.width - i - 1] = torch.maximum(
+                            tensor[:, :, :, :, self.width - i - 1],
+                        unfeathered
+                    )
             if self.unfeather_bottom:
-                tensor[:, :, self.height - i - 1, :] = torch.maximum(
-                    tensor[:, :, self.height - i - 1, :],
-                    unfeathered
-                )
+                if self.frames is None:
+                    tensor[:, :, self.height - i - 1, :] = torch.maximum(
+                        tensor[:, :, self.height - i - 1, :],
+                        unfeathered
+                    )
+                else:
+                   tensor[:, :, :, self.height - i - 1, :] = torch.maximum(
+                        tensor[:, :, :, self.height - i - 1, :],
+                        unfeathered
+                    )
         return tensor
 
     def calculate(self, feather_ratio: float = 0.125) -> torch.Tensor:
         """
         These weights are always 1.
         """
-        return torch.ones(self.batch, self.dim, self.height, self.width)
+        if self.frames is None:
+            return torch.ones(self.batch, self.dim, self.height, self.width)
+        return torch.ones(self.batch, self.dim, self.frames, self.height, self.width)
 
 @dataclass(frozen=True)
 class BilinearDiffusionMask(DiffusionMask):
@@ -246,19 +267,37 @@ class BilinearDiffusionMask(DiffusionMask):
         for i in range(latent_length):
             feathered = torch.tensor(i / latent_length)
             if not self.unfeather_left:
-                tensor[:, :, :, i] = torch.minimum(tensor[:, :, :, i], feathered)
+                if self.frames is None:
+                    tensor[:, :, :, i] = torch.minimum(tensor[:, :, :, i], feathered)
+                else:
+                    tensor[:, :, :, :, i] = torch.minimum(tensor[:, :, :, :, i], feathered)
             if not self.unfeather_top:
-                tensor[:, :, i, :] = torch.minimum(tensor[:, :, i, :], feathered)
+                if self.frames is None:
+                    tensor[:, :, i, :] = torch.minimum(tensor[:, :, i, :], feathered)
+                else:
+                    tensor[:, :, :, i, :] = torch.minimum(tensor[:, :, :, i, :], feathered)
             if not self.unfeather_right:
-                tensor[:, :, :, self.width - i - 1] = torch.minimum(
-                    tensor[:, :, :, self.width - i - 1],
-                    feathered
-                )
+                if self.frames is None:
+                    tensor[:, :, :, self.width - i - 1] = torch.minimum(
+                        tensor[:, :, :, self.width - i - 1],
+                        feathered
+                    )
+                else:
+                    tensor[:, :, :, :, self.width - i - 1] = torch.minimum(
+                        tensor[:, :, :, :, self.width - i - 1],
+                        feathered
+                    )
             if not self.unfeather_bottom:
-                tensor[:, :, self.height - i - 1, :] = torch.minimum(
-                    tensor[:, :, self.height - i - 1, :],
-                    feathered
-                )
+                if self.frames is None:
+                    tensor[:, :, self.height - i - 1, :] = torch.minimum(
+                        tensor[:, :, self.height - i - 1, :],
+                        feathered
+                    )
+                else:
+                    tensor[:, :, :, self.height - i - 1, :] = torch.minimum(
+                        tensor[:, :, :, self.height - i - 1, :],
+                        feathered
+                    )
         return tensor
 
 @dataclass(frozen=True)
@@ -284,7 +323,10 @@ class GaussianDiffusionMask(DiffusionMask):
         ]
 
         weights = np.outer(y_probabilities, x_probabilities)
-        weights = torch.tile(torch.tensor(weights), (self.batch, self.dim, 1, 1)) # type: ignore
+        if self.frames is None:
+            weights = torch.tile(torch.tensor(weights), (self.batch, self.dim, 1, 1)) # type: ignore
+        else:
+            weights = torch.tile(torch.tensor(weights), (self.batch, self.dim, self.frames, 1, 1)) # type: ignore
 
         return self.unfeather(weights, feather_ratio) # type: ignore
 
@@ -332,6 +374,7 @@ class MaskWeightBuilder:
         dim: int,
         width: int,
         height: int,
+        frames: Optional[int] = None,
         **kwargs: Any
     ) -> torch.Tensor:
         """
@@ -340,6 +383,7 @@ class MaskWeightBuilder:
         mask = DiffusionMask(
             batch=batch,
             dim=dim,
+            frames=frames,
             width=width,
             height=height
         )
@@ -356,6 +400,7 @@ class MaskWeightBuilder:
         dim: int,
         width: int,
         height: int,
+        frames: Optional[int] = None,
         unfeather_left: bool = False,
         unfeather_top: bool = False,
         unfeather_right: bool = False,
@@ -369,6 +414,7 @@ class MaskWeightBuilder:
         mask = BilinearDiffusionMask(
             batch=batch,
             dim=dim,
+            frames=frames,
             width=width,
             height=height,
             unfeather_left=unfeather_left,
@@ -390,6 +436,7 @@ class MaskWeightBuilder:
         dim: int,
         width: int,
         height: int,
+        frames: Optional[int] = None,
         unfeather_left: bool = False,
         unfeather_top: bool = False,
         unfeather_right: bool = False,
@@ -403,6 +450,7 @@ class MaskWeightBuilder:
         mask = GaussianDiffusionMask(
             batch=batch,
             dim=dim,
+            frames=frames,
             width=width,
             height=height,
             unfeather_left=unfeather_left,
@@ -425,6 +473,7 @@ class MaskWeightBuilder:
         dim: int,
         width: int,
         height: int,
+        frames: Optional[int] = None,
         unfeather_left: bool = False,
         unfeather_top: bool = False,
         unfeather_right: bool = False,
@@ -448,6 +497,7 @@ class MaskWeightBuilder:
             dim=dim,
             width=width,
             height=height,
+            frames=frames,
             unfeather_left=unfeather_left,
             unfeather_top=unfeather_top,
             unfeather_right=unfeather_right,
