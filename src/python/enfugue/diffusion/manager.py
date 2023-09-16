@@ -33,7 +33,7 @@ if TYPE_CHECKING:
     from diffusers.models import ControlNetModel, AutoencoderKL
     from diffusers.schedulers.scheduling_utils import KarrasDiffusionSchedulers
     from enfugue.diffusion.pipeline import EnfugueStableDiffusionPipeline
-    from enfugue.diffusion.support import ControlImageProcessor, Upscaler, IPAdapter
+    from enfugue.diffusion.support import ControlImageProcessor, Upscaler, IPAdapter, Interpolator
     from enfugue.diffusion.animate.pipeline import EnfugueAnimateStableDiffusionPipeline
 
 def noop(*args: Any) -> None:
@@ -2264,6 +2264,13 @@ class DiffusionPipelineManager:
         return os.path.splitext(os.path.basename(self.animator))[0]
 
     @property
+    def has_animator(self) -> bool:
+        """
+        Returns true if the animator is set.
+        """
+        return self.animator is not None
+
+    @property
     def dtype(self) -> torch.dtype:
         """
         Gets the default or configured torch data type
@@ -3426,9 +3433,18 @@ class DiffusionPipelineManager:
         """
         if not hasattr(self, "_ip_adapter"):
             from enfugue.diffusion.support.ip import IPAdapter
-
             self._ip_adapter = IPAdapter(self.engine_other_dir, self.device, self.dtype)
         return self._ip_adapter
+
+    @property
+    def interpolator(self) -> Interpolator:
+        """
+        Gets the interpolator (FILM)
+        """
+        if not hasattr(self, "_interpolator"):
+            from enfugue.diffusion.support.interpolator import Interpolator
+            self._interpolator = Interpolator(self.engine_other_dir, self.device, self.dtype)
+        return self._interpolator
 
     def get_controlnet(self, controlnet: Optional[str] = None) -> Optional[ControlNetModel]:
         """
@@ -4022,7 +4038,7 @@ class DiffusionPipelineManager:
         refiner_negative_prompt_2: Optional[str] = None,
         scale_to_refiner_size: bool = True,
         task_callback: Optional[Callable[[str], None]] = None,
-        next_intention: Optional[Literal["inpainting", "inference", "refining", "upscaling"]] = None,
+        next_intention: Optional[Literal["inpainting", "animation", "inference", "refining", "upscaling"]] = None,
         **kwargs: Any,
     ) -> StableDiffusionPipelineOutput:
         """
@@ -4047,6 +4063,7 @@ class DiffusionPipelineManager:
                 kwargs["latent_callback"] = memoize_callback
         self.start_keepalive()
         try:
+            animating = kwargs.get("animation_frames", None) is not None
             inpainting = kwargs.get("mask", None) is not None
             refining = (
                 kwargs.get("image", None) is not None and
@@ -4056,8 +4073,10 @@ class DiffusionPipelineManager:
                 refiner_start != 1 and
                 self.refiner is not None
             )
-            intention = "inpainting" if inpainting else "refining" if refining else "inference"
+            intention = "animation" if animating else "inpainting" if inpainting else "refining" if refining else "inference"
             task_callback(f"Preparing {intention.title()} Pipeline")
+            if animating and self.has_animator:
+                size = self.animator_size
             if inpainting and (self.has_inpainter or self.create_inpainter):
                 size = self.inpainter_size
             elif refining:
@@ -4073,6 +4092,7 @@ class DiffusionPipelineManager:
                     images=[kwargs["image"]] * samples,
                     nsfw_content_detected=[False] * samples
                 )
+                self.offload_animator(intention) # type: ignore
                 self.offload_pipeline(intention) # type: ignore
                 self.offload_inpainter(intention) # type: ignore
             else:
@@ -4101,11 +4121,22 @@ class DiffusionPipelineManager:
                 if inpainting and (self.has_inpainter or self.create_inpainter):
                     self.offload_pipeline(intention) # type: ignore
                     self.offload_refiner(intention) # type: ignore
+                    self.offload_animator(intention) # type: ignore
                     self.reload_inpainter()
                     pipe = self.inpainter_pipeline
+                elif animating:
+                    if not self.has_animator:
+                        logger.debug(f"Animation requested but no animator set, setting animator to the same as the base model")
+                        self.animator = self.model
+                    self.offload_pipeline(intention) # type: ignore
+                    self.offload_refiner(intention) # type: ignore
+                    self.offload_inpainter(intention) # type: ignore
+                    self.reload_animator()
+                    pipe = self.animator_pipeline
                 else:
                     self.offload_refiner(intention) # type: ignore
                     self.offload_inpainter(intention) # type: ignore
+                    self.offload_animator(intention) # type: ignore
                     self.reload_pipeline()
                     pipe = self.pipeline
 
