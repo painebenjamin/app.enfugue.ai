@@ -74,7 +74,7 @@ class Video:
         target_path: str,
         target_multiplier: int = 4,
         overwrite: bool = False,
-        encoder: str = "H264",
+        encoder: str = "avc1",
         configuration: Optional[APIConfiguration] = None
     ) -> int:
         """
@@ -132,7 +132,7 @@ class Video:
         frames: Iterable[Image.Image],
         overwrite: bool = False,
         rate: float = 20.0,
-        encoder: str = "H264"
+        encoder: str = "avc1"
     ) -> int:
         """
         Saves PIL image frames to an .mp4 video.
@@ -161,8 +161,9 @@ class Video:
             writer.write(ComputerVision.convert_image(frame))
         if writer is None:
             raise IOError(f"No frames written to {path}")
-
         writer.release()
+        if not os.path.exists(path):
+            raise IOError(f"Nothing was written to {path}")
         return os.path.getsize(path)
 
     @classmethod
@@ -237,7 +238,7 @@ class Video:
         maximum_frames: Optional[int] = None,
         resolution: Optional[int] = None,
         process_frame: Optional[Callable[[Image.Image], Image.Image]] = None,
-        encoder: str = "H264"
+        encoder: str = "avc1"
     ) -> int:
         """
         Saves PIL image frames to an .mp4 video.
