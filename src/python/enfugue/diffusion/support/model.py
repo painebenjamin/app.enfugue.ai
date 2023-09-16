@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import os
 import gc
+
 from contextlib import contextmanager
 from typing import Iterator, Any, Optional, TYPE_CHECKING
 from typing_extensions import Self
@@ -42,6 +44,8 @@ class SupportModel:
     process: Optional[SupportModelImageProcessor] = None
 
     def __init__(self, model_dir: str, device: torch.device, dtype: torch.dtype) -> None:
+        if model_dir.startswith("~"):
+            model_dir = os.path.expanduser(model_dir)
         self.model_dir = model_dir
         self.device = device
         self.dtype = dtype

@@ -455,7 +455,7 @@ class DiffusionStep:
                 if self.remove_background:
                     image = execute_remove_background(image)
 
-                samples = kwargs.get("num_images_per_prompt", 1)
+                samples = kwargs.get("num_results_per_prompt", 1)
                 from diffusers.pipelines.stable_diffusion import StableDiffusionPipelineOutput
 
                 self.result = StableDiffusionPipelineOutput(
@@ -814,7 +814,7 @@ class DiffusionPlan:
             "chunking_size": self.chunking_size,
             "chunking_mask_type": self.chunking_mask_type,
             "chunking_mask_kwargs": self.chunking_mask_kwargs,
-            "num_images_per_prompt": self.samples,
+            "num_results_per_prompt": self.samples,
         }
 
     @property
@@ -941,7 +941,7 @@ class DiffusionPlan:
                         "width": width,
                         "height": height,
                         "image": image,
-                        "num_images_per_prompt": 1,
+                        "num_results_per_prompt": 1,
                         "prompt": prompt,
                         "prompt_2": prompt_2,
                         "negative_prompt": negative_prompt,
@@ -1211,7 +1211,7 @@ class DiffusionPlan:
         image_r_min, image_r_max = outpaint_mask.getextrema()[1]
         if image_r_max > 0 and self.prompt and self.outpaint:
             # Outpaint
-            del invocation_kwargs["num_images_per_prompt"]
+            del invocation_kwargs["num_results_per_prompt"]
             outpaint_mask = feather_mask(outpaint_mask)
 
             outpaint_prompt_tokens = TokenMerger()
@@ -1266,7 +1266,7 @@ class DiffusionPlan:
                     negative_prompt=str(outpaint_negative_prompt_tokens),
                     negative_prompt_2=str(outpaint_negative_prompt_2_tokens),
                     latent_callback=outpaint_image_callback,
-                    num_images_per_prompt=1,
+                    num_results_per_prompt=1,
                     **invocation_kwargs,
                 )
                 images[i] = result["images"][0]

@@ -20,9 +20,8 @@ class ComputerVision:
     """
     Provides helper methods for cv2
     """
-
-    @staticmethod
-    def show(name: str, image: Image.Image) -> None:
+    @classmethod
+    def show(cls, name: str, image: Image.Image) -> None:
         """
         Shows an image.
         Tries to use the Colab monkeypatch first, in case this is being ran in Colab.
@@ -35,22 +34,23 @@ class ComputerVision:
             cv2.waitKey(0)
             cv2.destroyAllWindows()
 
-    @staticmethod
-    def convert_image(image: Image.Image) -> np.ndarray:
+    @classmethod
+    def convert_image(cls, image: Image.Image) -> np.ndarray:
         """
         Converts PIL image to OpenCV format.
         """
         return cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
 
-    @staticmethod
-    def revert_image(array: np.ndarray) -> Image.Image:
+    @classmethod
+    def revert_image(cls, array: np.ndarray) -> Image.Image:
         """
-        Converts PIL image to OpenCV format.
+        Converts OpenCV format to PIL image
         """
         return Image.fromarray(cv2.cvtColor(array, cv2.COLOR_BGR2RGB))
 
-    @staticmethod
+    @classmethod
     def frames_to_video(
+        cls,
         path: str,
         frames: Iterable[Image.Image],
         overwrite: bool = False,
@@ -66,6 +66,11 @@ class ComputerVision:
             if not overwrite:
                 raise IOError(f"File exists at path {path}, pass overwrite=True to write anyway.")
             os.unlink(path)
+        if path.endswith(".gif"):
+            # Save animated gif instead
+            frames = [frame for frame in frames]
+            frames[0].save(path, save_all=True, append_images=frames[1:])
+            return os.path.getsize(path)
         fourcc = cv2.VideoWriter_fourcc(*'mp4v') # type: ignore
         writer = None
         for frame in frames:
@@ -78,8 +83,9 @@ class ComputerVision:
         writer.release()
         return os.path.getsize(path)
 
-    @staticmethod
+    @classmethod
     def frames_from_video(
+        cls,
         path: str,
         skip_frames: Optional[int] = None,
         maximum_frames: Optional[int] = None,
@@ -135,8 +141,9 @@ class ComputerVision:
         if frames == 0:
             raise IOError(f"No frames were read from video at {path}")
     
-    @staticmethod
+    @classmethod
     def video_to_video(
+        cls,
         source_path: str,
         destination_path: str,
         overwrite: bool = False,

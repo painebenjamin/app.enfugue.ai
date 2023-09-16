@@ -180,6 +180,7 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
     def get_runtime_context(
         self,
         batch_size: int,
+        animation_frames: Optional[int],
         device: Union[str, torch.device],
         ip_adapter_scale: Optional[float] = None,
         step_complete_callback: Optional[Callable[[bool], None]] = None
@@ -260,22 +261,23 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         num_channels_latents: int,
         height: int,
         width: int,
-        dtype: Union[str, torch.dtype],
+        dtype: torch.dtype,
         device: Union[str, torch.device],
         generator: Optional[torch.Generator] = None,
+        animation_frames: Optional[int] = None,
     ) -> torch.Tensor:
         """
         Override to change to float32
         """
         return super(EnfugueTensorRTStableDiffusionPipeline, self).create_latents(
-            batch_size, num_channels_latents, height, width, torch.float32, device, generator,
+            batch_size, num_channels_latents, height, width, torch.float32, device, generator, animation_frames
         )
 
     def encode_prompt(
         self,
         prompt: Optional[str],
         device: torch.device,
-        num_images_per_prompt: int = 1,
+        num_results_per_prompt: int = 1,
         do_classifier_free_guidance: bool = False,
         negative_prompt: Optional[str] = None,
         prompt_embeds: Optional[torch.Tensor] = None,
@@ -298,7 +300,7 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
             return super(EnfugueTensorRTStableDiffusionPipeline, self).encode_prompt(
                 prompt=prompt,
                 device=device,
-                num_images_per_prompt=num_images_per_prompt,
+                num_results_per_prompt=num_results_per_prompt,
                 do_classifier_free_guidance=do_classifier_free_guidance,
                 negative_prompt=negative_prompt,
                 prompt_embeds=prompt_embeds,

@@ -63,7 +63,7 @@ def __call__(
     strength: Optional[float] = 0.8,
     num_inference_steps: int = 40,
     guidance_scale: float = 7.5,
-    num_images_per_prompt: int = 1,
+    num_results_per_prompt: int = 1,
     eta: float = 0.0,
     generator: Optional[torch.Generator] = None,
     latents: Optional[torch.Tensor] = None,
