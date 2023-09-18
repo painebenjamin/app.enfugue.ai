@@ -50,6 +50,27 @@ class SupportModel:
         self.device = device
         self.dtype = dtype
 
+    @classmethod
+    def get_default_instance(cls) -> SupportModel:
+        """
+        Builds a default interpolator without a configuration passed
+        """
+        import torch
+        from enfugue.diffusion.util import get_optimal_device
+        from enfugue.util import get_local_configuration
+        device = get_optimal_device()
+        try:
+            configuration = get_local_configuration()
+        except:
+            from pibble.api.configuration import APIConfiguration
+            configuration = APIConfiguration()
+
+        return cls(
+            configuration.get("enfugue.engine.cache", "~/.cache/enfugue/other"),
+            device,
+            torch.float16 if device.type == "cuda" else torch.float32
+        )
+
     @contextmanager
     def context(self) -> Iterator[Self]:
         """

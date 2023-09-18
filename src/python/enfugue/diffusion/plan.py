@@ -890,13 +890,12 @@ class DiffusionPlan:
                     else:
                         pipeline.offload_pipeline()
                         pipeline.unload_refiner("clearing memory for upscaler")
-
-                if method == "esrgan":
-                    image = pipeline.upscaler.esrgan(image, tile=pipeline.size, outscale=amount)
-                elif method == "esrganime":
-                    image = pipeline.upscaler.esrgan(image, tile=pipeline.size, outscale=amount, anime=True)
-                elif method == "gfpgan":
-                    image = pipeline.upscaler.gfpgan(image, tile=pipeline.size, outscale=amount)
+                    image = pipeline.upscaler(
+                        method=method,
+                        image=image,
+                        tile=pipeline.size,
+                        outscale=amount
+                    )
                 elif method in PIL_INTERPOLATION:
                     width, height = image.size
                     image = image.resize(

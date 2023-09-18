@@ -1,10 +1,14 @@
 # Inspired by https://github.com/guoyww/AnimateDiff/blob/main/animatediff/pipelines/pipeline_animation.py
 from __future__ import annotations
 
+import os
 import torch
 
 from typing import Optional, Dict, Any, Union, Callable, List, TYPE_CHECKING
 
+from pibble.util.files import load_json
+
+from diffusers.utils import WEIGHTS_NAME, DIFFUSERS_CACHE
 from diffusers.models.modeling_utils import ModelMixin
 
 from einops import rearrange
@@ -34,6 +38,7 @@ if TYPE_CHECKING:
 
 class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
     unet_3d: Optional[UNet3DConditionModel]
+    vae: AutoencoderKL
 
     STATIC_SCHEDULER_KWARGS = {
         "num_train_timesteps": 1000,
@@ -66,6 +71,8 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         chunking_size: int = 32,
         chunking_mask_type: MASK_TYPE_LITERAL = "bilinear",
         chunking_mask_kwargs: Dict[str, Any] = {},
+        temporal_engine_size: int = 16,
+        temporal_chunking_size: int = 4,
         override_scheduler_config: bool = True,
     ) -> None:
         super(EnfugueAnimateStableDiffusionPipeline, self).__init__(
@@ -88,6 +95,8 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
             chunking_size=chunking_size,
             chunking_mask_type=chunking_mask_type,
             chunking_mask_kwargs=chunking_mask_kwargs,
+            temporal_engine_size=temporal_engine_size,
+            temporal_chunking_size=temporal_chunking_size
         )
         if override_scheduler_config:
             self.scheduler_config = {
@@ -97,6 +106,33 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
             self.scheduler.register_to_config(
                 **EnfugueAnimateStableDiffusionPipeline.STATIC_SCHEDULER_KWARGS
             )
+
+    @classmethod
+    def from_pretrained(
+        cls,
+        pretrained_model_name_or_path: Optional[Union[str, os.PathLike]],
+        **kwargs: Any
+    ) -> EnfugueAnimateStableDiffusionPipeline:
+        """
+        Override from_pretrained to reload the unet as a 3D condition model instead.
+        """
+        pipe = super(EnfugueAnimateStableDiffusionPipeline, cls).from_pretrained(pretrained_model_name_or_path, **kwargs)
+        unet_dir = os.path.join(pretrained_model_name_or_path, "unet") # type: ignore[arg-type]
+        unet_config = os.path.join(unet_dir, "config.json")
+        unet_weights = os.path.join(unet_dir, WEIGHTS_NAME)
+        
+        if not os.path.exists(unet_config) or not os.path.exists(unet_weights):
+            raise IOError(f"Couldn't find UNet config or weights.")
+
+        unet = cls.create_unet(
+            load_json(unet_config),
+            kwargs.get("cache_dir", DIFFUSERS_CACHE),
+        )
+        unet.load_state_dict(torch.load(unet_weights), strict=False)
+        if "torch_dtype" in kwargs:
+            unet = unet.to(kwargs["torch_dtype"])
+        pipe.unet = unet
+        return pipe
 
     @classmethod
     def create_unet(
@@ -163,16 +199,24 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         Decodes each video frame individually.
         """
         animation_frames = latents.shape[2]
-        latents = 1 / self.vae.config.scaling_factor * latents
+        #latents = 1 / self.vae.config.scaling_factor * latents
         latents = rearrange(latents, "b c f h w -> (b f) c h w")
-
+        dtype = latents.dtype
+        # Force full precision VAE
+        #self.vae = self.vae.to(torch.float32)
+        #latents = latents.to(torch.float32)
         video: List[torch.Tensor] = []
         for frame_index in range(latents.shape[0]):
-            video.append(self.vae.decode(latents[frame_index:frame_index+1]).sample)
-            if progress_callback:
-                progress_callback(False) # TODO: Yes
+            video.append(
+                super(EnfugueAnimateStableDiffusionPipeline, self).decode_latents(
+                    latents=latents[frame_index:frame_index+1],
+                    device=device,
+                    progress_callback=progress_callback
+                )
+            )
         video = torch.cat(video) # type: ignore
         video = rearrange(video, "(b f) c h w -> b c f h w", f = animation_frames) # type: ignore
         video = (video / 2 + 0.5).clamp(0, 1) # type: ignore
         video = video.cpu().float() # type: ignore
+        #self.vae.to(dtype)
         return video # type: ignore

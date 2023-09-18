@@ -110,6 +110,8 @@ class DiffusionPipelineManager:
 
     DEFAULT_CHUNK = 64
     DEFAULT_SIZE = 512
+    DEFAULT_TEMPORAL_CHUNK = 4
+    DEFAULT_TEMPORAL_SIZE = 16
 
     _keepalive_thread: KeepaliveThread
     _keepalive_callback: Callable[[], None]
@@ -771,6 +773,37 @@ class DiffusionPipelineManager:
                 self._animator_pipeline.engine_size = new_animator_size
         if new_animator_size is not None:
             self._animator_size = new_animator_size
+    
+    @property
+    def temporal_size(self) -> int:
+        """
+        Gets the animator temporal engine size in frames when chunking (default always.)
+        """
+        if not hasattr(self, "_temporal_size"):
+            self._temporal_size = self.configuration.get("enfugue.frames", DiffusionPipelineManager.DEFAULT_TEMPORAL_SIZE)
+        return self._temporal_size
+
+    @temporal_size.setter
+    def temporal_size(self, new_temporal_size: Optional[int]) -> None:
+        """
+        Sets the animator engine size in pixels.
+        """
+        if new_temporal_size is None:
+            if hasattr(self, "_temporal_size"):
+                if self._temporal_size != self.temporal_size and self.tensorrt_is_ready:
+                    self.unload_animator("engine temporal size changing")
+                elif hasattr(self, "_animator_pipeline"):
+                    logger.debug("Setting animator engine size in-place.")
+                    self._animator_pipeline.temporal_engine_size = new_temporal_size # type: ignore[assignment]
+                delattr(self, "_temporal_size")
+        elif hasattr(self, "_temporal_size") and self._temporal_size != new_temporal_size:
+            if self.tensorrt_is_ready:
+                self.unload_animator("engine size changing")
+            elif hasattr(self, "_animator_pipeline"):
+                logger.debug("Setting animator temporal engine size in-place.")
+                self._animator_pipeline.temporal_engine_size = new_temporal_size
+        if new_temporal_size is not None:
+            self._temporal_size = new_temporal_size
 
     @property
     def chunking_size(self) -> int:
@@ -789,6 +822,26 @@ class DiffusionPipelineManager:
         Sets the new chunking size. This doesn't require a restart.
         """
         self._chunking_size = new_chunking_size
+
+    @property
+    def temporal_chunking_size(self) -> Optional[int]:
+        """
+        Gets the chunking size in pixels.
+        """
+        if not hasattr(self, "_temporal_chunking_size"):
+            self._temporal_chunking_size = int(
+                self.configuration.get("enfugue.temporal.size", DiffusionPipelineManager.DEFAULT_TEMPORAL_CHUNK)
+            )
+        return self._temporal_chunking_size
+
+    @temporal_chunking_size.setter
+    def temporal_chunking_size(self, new_temporal_chunking_size: Optional[int]) -> None:
+        """
+        Sets the new chunking size. This doesn't require a restart.
+        """
+        self._temporal_chunking_size = new_temporal_chunking_size # type: ignore[assignment]
+        if hasattr(self, "_animator_pipeline"):
+            self._animator_pipeline.temporal_chunking_size = new_temporal_chunking_size # type: ignore[assignment]
 
     @property
     def engine_root(self) -> str:
@@ -3142,6 +3195,8 @@ class DiffusionPipelineManager:
                 "cache_dir": self.engine_cache_dir,
                 "engine_size": self.animator_size,
                 "chunking_size": self.chunking_size,
+                "temporal_engine_size": self.temporal_size,
+                "temporal_chunking_size": self.temporal_chunking_size,
                 "torch_dtype": self.dtype,
                 "requires_safety_checker": self.safe,
                 "requires_aesthetic_score": False,
@@ -3442,7 +3497,7 @@ class DiffusionPipelineManager:
         Gets the interpolator (FILM)
         """
         if not hasattr(self, "_interpolator"):
-            from enfugue.diffusion.support.interpolator import Interpolator
+            from enfugue.diffusion.support import Interpolator
             self._interpolator = Interpolator(self.engine_other_dir, self.device, self.dtype)
         return self._interpolator
 
@@ -4039,6 +4094,8 @@ class DiffusionPipelineManager:
         scale_to_refiner_size: bool = True,
         task_callback: Optional[Callable[[str], None]] = None,
         next_intention: Optional[Literal["inpainting", "animation", "inference", "refining", "upscaling"]] = None,
+        interpolate_frames: Optional[Union[int, Tuple[int, ...]]] = None,
+        scheduler: Optional[SCHEDULER_LITERAL] = None,
         **kwargs: Any,
     ) -> StableDiffusionPipelineOutput:
         """
@@ -4073,8 +4130,18 @@ class DiffusionPipelineManager:
                 refiner_start != 1 and
                 self.refiner is not None
             )
-            intention = "animation" if animating else "inpainting" if inpainting else "refining" if refining else "inference"
+
+            if animating:
+                intention = "animation"
+            elif inpainting:
+                intention = "inpainting"
+            elif refining:
+                intention = "refining"
+            else:
+                intention = "inference"
+
             task_callback(f"Preparing {intention.title()} Pipeline")
+
             if animating and self.has_animator:
                 size = self.animator_size
             if inpainting and (self.has_inpainter or self.create_inpainter):
@@ -4083,6 +4150,10 @@ class DiffusionPipelineManager:
                 size = self.refiner_size
             else:
                 size = self.size
+
+            if scheduler is not None:
+                # Allow overriding scheduler
+                self.scheduler = scheduler
 
             if refining:
                 # Set result here to passed image
@@ -4238,6 +4309,17 @@ class DiffusionPipelineManager:
                     logger.debug("Next intention is upscaling, unloading pipeline and sending refiner to CPU")
                     self.unload_pipeline("unloading for upscaling")
                 self.offload_refiner(intention if next_intention is None else next_intention) # type: ignore
+            if interpolate_frames is not None:
+                from enfugue.diffusion.util.video_util import Video
+                with self.interpolator.interpolate() as process:
+                    interpolated_images = [
+                        image for image in Video.interpolate(
+                            frames=result["images"],
+                            multiplier=interpolate_frames,
+                            interpolate=process
+                        )
+                    ]
+                    result["images"] = interpolated_images
             return result
         finally:
             self.tensorrt_is_enabled = True

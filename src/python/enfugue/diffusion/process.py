@@ -35,7 +35,6 @@ if TYPE_CHECKING:
     # since we don't want torch to initialize itself.
     from enfugue.diffusion.manager import DiffusionPipelineManager
     from enfugue.diffusion.plan import DiffusionPlan
-    from enfugue.diffusion.constants import SCHEDULER_LITERAL
 
 __all__ = ["DiffusionEngineProcess"]
 
@@ -195,7 +194,6 @@ class DiffusionEngineProcess(Process):
         refiner_size: Optional[int] = None,
         inpainter_size: Optional[int] = None,
         animator_size: Optional[int] = None,
-        scheduler: Optional[SCHEDULER_LITERAL] = None,
         **kwargs: Any,
     ) -> dict:
         """
@@ -250,9 +248,6 @@ class DiffusionEngineProcess(Process):
 
         if animator_size is not None:
             self.pipemanager.animator_size = animator_size
-
-        if scheduler is not None:
-            self.pipemanager.scheduler = scheduler
 
         if width is not None:
             kwargs["width"] = int(width)

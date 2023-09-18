@@ -1,11 +1,11 @@
 from __future__ import annotations
 import os
-from typing import TYPE_CHECKING, Optional, Iterator, Iterable, List, Callable
+from typing import TYPE_CHECKING, Optional, Iterator, Iterable, List, Callable, Union, Tuple, cast
 from datetime import datetime
 from enfugue.util import logger
 
 if TYPE_CHECKING:
-    from pibble.api.configuration import APIConfiguration
+    from enfugue.diffusion.support import Interpolator
     from PIL.Image import Image
 
 __all__ = ["Video"]
@@ -21,50 +21,73 @@ class Video:
     Provides helper methods for video
     """
     @classmethod
+    def get_interpolator(cls) -> Interpolator:
+        """
+        Builds a default interpolator without a configuration passed
+        """
+        from enfugue.diffusion.support import Interpolator
+        return cast(Interpolator, Interpolator.get_default_instance())
+
+    @classmethod
     def interpolate(
         cls,
         frames: Iterable[Image],
-        multiplier: int = 4,
-        configuration: Optional[APIConfiguration] = None
+        multiplier: Union[int, Tuple[int, ...]] = 2,
+        interpolate: Optional[Callable[[Image, Image, float], Image]] = None,
     ) -> Iterator[Image]:
         """
         Provides a generator for interpolating between multiple frames.
         """
-        import torch
-        from enfugue.diffusion.util import get_optimal_device, ComputerVision
-        from enfugue.diffusion.support import Interpolator
+        from enfugue.diffusion.util import ComputerVision
+        
+        if interpolate is None:
+            interpolator = cls.get_interpolator()
+            with interpolator.interpolate() as process:
+                for frame in cls.interpolate(
+                    frames=frames,
+                    multiplier=multiplier,
+                    interpolate=process
+                ):
+                    yield frame
+                return
 
-        device = get_optimal_device()
-        if configuration is None:
-            from enfugue.util import get_local_configuration
-            configuration = get_local_configuration()
+        if isinstance(multiplier, tuple):
+            if len(multiplier) == 1:
+                multiplier = multiplier[0]
+            else:
+                this_multiplier = multiplier[0]
+                recursed_multiplier = multiplier[1:]
+                for frame in cls.interpolate(
+                    frames=cls.interpolate(
+                        frames=frames,
+                        multiplier=recursed_multiplier,
+                        interpolate=interpolate
+                    ),
+                    multiplier=this_multiplier,
+                    interpolate=interpolate
+                ):
+                    yield frame
+                return
 
-        interpolator = Interpolator(
-            configuration.get("enfugue.engine.cache", "~/.cache/enfugue/cache"),
-            device,
-            torch.float16 if device.type == "cuda" else torch.float32
-        )
-
-        with interpolator.interpolate() as process:
-            previous_frame = None
-            frame_index = 0
+        previous_frame = None
+        frame_index = 0
+        frame_start = datetime.now()
+        for frame in frames:
+            frame_index += 1
+            process_times: List[float] = []
+            if previous_frame is not None:
+                for i in range(multiplier - 1): # type: ignore[unreachable]
+                    process_start = datetime.now()
+                    yield interpolate(previous_frame, frame, (i + 1) / multiplier)
+                    process_times.append((datetime.now() - process_start).total_seconds())
+            yield frame
+            frame_time = (datetime.now() - frame_start).total_seconds()
+            if previous_frame is not None:
+                process_count = len(process_times) # type: ignore[unreachable]
+                process_average = sum(process_times) / process_count
+                logger.debug(f"Processed frames {frame_index-1}-{frame_index} in {frame_time:.1f} seconds. Interpolated {process_count} frame(s) at a rate of {process_average:.1f} seconds/frame.")
+            previous_frame = frame
             frame_start = datetime.now()
-            for frame in frames:
-                frame_index += 1
-                process_times: List[float] = []
-                if previous_frame is not None:
-                    for i in range(multiplier - 1): # type: ignore[unreachable]
-                        process_start = datetime.now()
-                        yield process(previous_frame, frame, (i + 1) / multiplier)
-                        process_times.append((datetime.now() - process_start).total_seconds())
-                yield frame
-                frame_time = (datetime.now() - frame_start).total_seconds()
-                if previous_frame is not None:
-                    process_count = len(process_times) # type: ignore[unreachable]
-                    process_average = sum(process_times) / process_count
-                    logger.debug(f"Processed frames {frame_index-1}-{frame_index} in {frame_time:.1f} seconds. Interpolated {process_count} frame(s) at a rate of {process_average:.1f} seconds/frame.")
-                previous_frame = frame
-                frame_start = datetime.now()
 
     @classmethod
     def uprate(
@@ -72,64 +95,34 @@ class Video:
         source_path: str,
         source_rate: float,
         target_path: str,
-        target_multiplier: int = 4,
+        target_multiplier: Union[int, Tuple[int, ...]] = 2,
         overwrite: bool = False,
         encoder: str = "avc1",
-        configuration: Optional[APIConfiguration] = None
     ) -> int:
         """
         Takes a video and increases it's framerate by interpolating intermediate frames.
         """
-        import torch
-        from enfugue.diffusion.util import get_optimal_device, ComputerVision
-        from enfugue.diffusion.support import Interpolator
+        multiplier = target_multiplier
+        if isinstance(multiplier, tuple):
+            from math import prod
+            multiplier = prod(multiplier)
 
-        device = get_optimal_device()
-        if configuration is None:
-            from enfugue.util import get_local_configuration
-            configuration = get_local_configuration()
-
-        interpolator = Interpolator(
-            configuration.get("enfugue.engine.cache", "~/.cache/enfugue/cache"),
-            device,
-            torch.float16 if device.type == "cuda" else torch.float32
+        return cls.frames_to_video(
+            path=target_path,
+            frames=cls.interpolate(
+                frames=cls.frames_from_video(source_path),
+                multiplier=target_multiplier
+            ),
+            overwrite=overwrite,
+            encoder=encoder,
+            rate=source_rate*multiplier
         )
-
-        with interpolator.interpolate() as process:
-            def get_frames() -> Iterator[Image]:
-                previous_frame = None
-                frame_index = 0
-                frame_start = datetime.now()
-                for frame in cls.frames_from_video(source_path):
-                    frame_index += 1
-                    process_times: List[float] = [] 
-                    if previous_frame is not None:
-                        for i in range(target_multiplier - 1): # type: ignore[unreachable]
-                            process_start = datetime.now()
-                            yield process(previous_frame, frame, (i + 1) / target_multiplier)
-                            process_times.append((datetime.now() - process_start).total_seconds())
-                    yield frame
-                    frame_time = (datetime.now() - frame_start).total_seconds()
-                    if previous_frame is not None:
-                        process_count = len(process_times) # type: ignore[unreachable]
-                        process_average = sum(process_times) / process_count
-                        logger.debug(f"Processed frames {frame_index-1}-{frame_index} in {frame_time:.1f} seconds. (interpolated {process_count} frames at a rate of {process_average:.1f} seconds/frame")
-                    previous_frame = frame
-                    frame_start = datetime.now()
-            
-            return cls.frames_to_video(
-                target_path,
-                get_frames(),
-                overwrite=overwrite,
-                encoder=encoder,
-                rate=source_rate*target_multiplier
-            )
 
     @classmethod
     def frames_to_video(
         cls,
         path: str,
-        frames: Iterable[Image.Image],
+        frames: Union[str, Iterable[Image.Image]],
         overwrite: bool = False,
         rate: float = 20.0,
         encoder: str = "avc1"
@@ -147,6 +140,8 @@ class Video:
                 raise IOError(f"File exists at path {path}, pass overwrite=True to write anyway.")
             os.unlink(path)
         basename, ext = os.path.splitext(os.path.basename(path))
+        if isinstance(frames, str):
+            frames = cls.frames_from_video(frames)
         if ext in [".gif", ".png", ".tiff", ".webp"]:
             frames = [frame for frame in frames]
             frames[0].save(path, loop=0, duration=1000.0/rate, save_all=True, append_images=frames[1:])
@@ -157,7 +152,7 @@ class Video:
         writer = None
         for frame in frames:
             if writer is None:
-                writer = cv2.VideoWriter(path, fourcc, rate, frame.size)
+                writer = cv2.VideoWriter(path, fourcc, rate, frame.size) # type: ignore[union-attr]
             writer.write(ComputerVision.convert_image(frame))
         if writer is None:
             raise IOError(f"No frames written to {path}")

@@ -200,6 +200,8 @@ class DiffusionMask:
     unfeather_top: bool = False
     unfeather_right: bool = False
     unfeather_bottom: bool = False
+    unfeather_start: bool = False
+    unfeather_end: bool = False
 
     def unfeather(self, tensor: torch.Tensor, feather_ratio: float) -> torch.Tensor:
         """
@@ -241,6 +243,21 @@ class DiffusionMask:
                         tensor[:, :, :, self.height - i - 1, :],
                         unfeathered
                     )
+
+        if self.frames is not None and (self.unfeather_start or self.unfeather_end):
+            frame_feather_length = int(feather_ratio * self.frames)
+            for i in range(frame_feather_length):
+                if self.unfeather_start:
+                    tensor[:, :, i, :, :] = torch.maximum(
+                        tensor[:, :, i, :, :],
+                        unfeathered
+                    )
+                if self.unfeather_end:
+                    tensor[:, :, self.frames - i - 1, :, :] = torch.maximum(
+                        tensor[:, :, self.frames - i - 1, :, :],
+                        unfeathered
+                    )
+
         return tensor
 
     def calculate(self, feather_ratio: float = 0.125) -> torch.Tensor:
@@ -298,6 +315,18 @@ class BilinearDiffusionMask(DiffusionMask):
                         tensor[:, :, :, self.height - i - 1, :],
                         feathered
                     )
+        if self.frames is not None:
+            frame_length = int(self.ratio * self.frames)
+            for i in range(frame_length):
+                feathered = torch.tensor(i / frame_length)
+                if not self.unfeather_start:
+                    tensor[:, :, i, :, :] = torch.minimum(tensor[:, :, i, :, :], feathered)
+                if not self.unfeather_end:
+                    tensor[:, :, self.frames - i - 1, :, :] = torch.minimum(
+                        tensor[:, :, self.frames - i - 1, :, :], 
+                        feathered
+                    )
+
         return tensor
 
 @dataclass(frozen=True)
@@ -322,11 +351,17 @@ class GaussianDiffusionMask(DiffusionMask):
             for y in range(self.height)
         ]
 
-        weights = np.outer(y_probabilities, x_probabilities)
         if self.frames is None:
+            weights = np.outer(y_probabilities, x_probabilities)
             weights = torch.tile(torch.tensor(weights), (self.batch, self.dim, 1, 1)) # type: ignore
         else:
-            weights = torch.tile(torch.tensor(weights), (self.batch, self.dim, self.frames, 1, 1)) # type: ignore
+            midpoint = (self.frames - 1) / 2
+            z_probabilities = [
+                exp(-(z - midpoint) * (z - midpoint) / (self.frames * self.frames) / (2 * self.deviation)) / sqrt(2 * pi * self.deviation)
+                for z in range(self.frames)
+            ]
+            weights = np.einsum('i,j,k', y_probabilities, x_probabilities, z_probabilities)
+            weights = torch.tile(torch.tensor(weights), (self.batch, self.dim, 1, 1, 1)) # type: ignore
 
         return self.unfeather(weights, feather_ratio) # type: ignore
 
@@ -405,6 +440,8 @@ class MaskWeightBuilder:
         unfeather_top: bool = False,
         unfeather_right: bool = False,
         unfeather_bottom: bool = False,
+        unfeather_start: bool = False,
+        unfeather_end: bool = False,
         ratio: float = 0.125,
         **kwargs: Any
     ) -> torch.Tensor:
@@ -421,6 +458,8 @@ class MaskWeightBuilder:
             unfeather_top=unfeather_top,
             unfeather_right=unfeather_right,
             unfeather_bottom=unfeather_bottom,
+            unfeather_start=unfeather_start,
+            unfeather_end=unfeather_end,
             ratio=ratio
         )
         if mask not in self.bilinear_weights:
@@ -441,6 +480,8 @@ class MaskWeightBuilder:
         unfeather_top: bool = False,
         unfeather_right: bool = False,
         unfeather_bottom: bool = False,
+        unfeather_start: bool = False,
+        unfeather_end: bool = False,
         deviation: float = 0.01,
         **kwargs: Any
     ) -> torch.Tensor:
@@ -457,6 +498,8 @@ class MaskWeightBuilder:
             unfeather_top=unfeather_top,
             unfeather_right=unfeather_right,
             unfeather_bottom=unfeather_bottom,
+            unfeather_start=unfeather_start,
+            unfeather_end=unfeather_end,
             deviation=deviation
         )
         if mask not in self.gaussian_weights:
@@ -478,6 +521,8 @@ class MaskWeightBuilder:
         unfeather_top: bool = False,
         unfeather_right: bool = False,
         unfeather_bottom: bool = False,
+        unfeather_start: bool = False,
+        unfeather_end: bool = False,
         **kwargs: Any
     ) -> torch.Tensor:
         """
@@ -502,5 +547,7 @@ class MaskWeightBuilder:
             unfeather_top=unfeather_top,
             unfeather_right=unfeather_right,
             unfeather_bottom=unfeather_bottom,
+            unfeather_start=unfeather_start,
+            unfeather_end=unfeather_end,
             **kwargs
         )
