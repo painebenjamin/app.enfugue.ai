@@ -269,7 +269,7 @@ class DiffusionMask:
         return torch.ones(self.batch, self.dim, self.frames, self.height, self.width)
 
 @dataclass(frozen=True)
-class BilinearDiffusionMask(DiffusionMask):
+class MultilinearDiffusionMask(DiffusionMask):
     """
     Feathers the edges of a mask. Uses the reverse of the 'unfeather' formula.
     """
@@ -279,7 +279,7 @@ class BilinearDiffusionMask(DiffusionMask):
         """
         Calculates weights in linear gradients.
         """
-        tensor = super(BilinearDiffusionMask, self).calculate(feather_ratio)
+        tensor = super(MultilinearDiffusionMask, self).calculate(feather_ratio)
         latent_length = int(self.ratio * self.width)
         for i in range(latent_length):
             feathered = torch.tensor(i / latent_length)
@@ -376,7 +376,7 @@ class MaskWeightBuilder:
     dtype: torch.dtype
 
     constant_weights: Dict[DiffusionMask, torch.Tensor] = field(default_factory=dict)
-    bilinear_weights: Dict[BilinearDiffusionMask, torch.Tensor] = field(default_factory=dict)
+    multilinear_weights: Dict[MultilinearDiffusionMask, torch.Tensor] = field(default_factory=dict)
     gaussian_weights: Dict[GaussianDiffusionMask, torch.Tensor] = field(default_factory=dict)
     unfeather_ratio: float = 1 / 8
 
@@ -386,8 +386,8 @@ class MaskWeightBuilder:
         """
         for key in list(self.constant_weights.keys()):
             del self.constant_weights[key]
-        for key in list(self.bilinear_weights.keys()):
-            del self.bilinear_weights[key]
+        for key in list(self.multilinear_weights.keys()):
+            del self.multilinear_weights[key]
         for key in list(self.gaussian_weights.keys()):
             del self.gaussian_weights[key]
 
@@ -429,7 +429,7 @@ class MaskWeightBuilder:
             )
         return self.constant_weights[mask]
 
-    def bilinear(
+    def multilinear(
         self,
         batch: int,
         dim: int,
@@ -446,9 +446,9 @@ class MaskWeightBuilder:
         **kwargs: Any
     ) -> torch.Tensor:
         """
-        Calculates the bilinear mask.
+        Calculates the multilinear mask.
         """
-        mask = BilinearDiffusionMask(
+        mask = MultilinearDiffusionMask(
             batch=batch,
             dim=dim,
             frames=frames,
@@ -462,12 +462,12 @@ class MaskWeightBuilder:
             unfeather_end=unfeather_end,
             ratio=ratio
         )
-        if mask not in self.bilinear_weights:
-            self.bilinear_weights[mask] = mask.calculate(self.unfeather_ratio).to(
+        if mask not in self.multilinear_weights:
+            self.multilinear_weights[mask] = mask.calculate(self.unfeather_ratio).to(
                 dtype=self.dtype,
                 device=self.device
             )
-        return self.bilinear_weights[mask]
+        return self.multilinear_weights[mask]
 
     def gaussian(
         self,
@@ -530,8 +530,8 @@ class MaskWeightBuilder:
         """
         if mask_type == "constant":
             get_mask = self.constant
-        elif mask_type == "bilinear":
-            get_mask = self.bilinear
+        elif mask_type == "multilinear":
+            get_mask = self.multilinear
         elif mask_type == "gaussian":
             get_mask = self.gaussian
         else:

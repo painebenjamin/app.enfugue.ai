@@ -30,8 +30,10 @@ def __init__(
     ip_adapter: Optional[IPAdapter] = None,
     engine_size: int = 512,
     chunking_size: int = 64,
-    chunking_mask_type: Literal['constant', 'bilinear', 'gaussian'] = 'bilinear',
-    chunking_mask_kwargs: Dict[str, Any] = {}
+    chunking_mask_type: Literal['constant', 'multilinear', 'gaussian'] = 'multilinear',
+    chunking_mask_kwargs: Dict[str, Any] = {},
+    temporal_engine_size: int = 16,
+    temporal_chunking_size: int = 4
 ) -> None:
 ```
 
@@ -56,6 +58,8 @@ def __call__(
     height: Optional[int] = None,
     width: Optional[int] = None,
     chunking_size: Optional[int] = None,
+    temporal_engine_size: Optional[int] = None,
+    temporal_chunking_size: Optional[int] = None,
     denoising_start: Optional[float] = None,
     denoising_end: Optional[float] = None,
     ip_adapter_scale: Optional[float] = None,
