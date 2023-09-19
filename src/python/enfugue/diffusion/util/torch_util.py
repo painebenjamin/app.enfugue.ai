@@ -229,7 +229,7 @@ class DiffusionMask:
                     )
                 else:
                     tensor[:, :, :, :, self.width - i - 1] = torch.maximum(
-                            tensor[:, :, :, :, self.width - i - 1],
+                        tensor[:, :, :, :, self.width - i - 1],
                         unfeathered
                     )
             if self.unfeather_bottom:
@@ -360,9 +360,11 @@ class GaussianDiffusionMask(DiffusionMask):
                 exp(-(z - midpoint) * (z - midpoint) / (self.frames * self.frames) / (2 * self.deviation)) / sqrt(2 * pi * self.deviation)
                 for z in range(self.frames)
             ]
-            weights = np.einsum('i,j,k', y_probabilities, x_probabilities, z_probabilities)
+            weights = np.einsum('i,j,k', z_probabilities, y_probabilities, x_probabilities)
             weights = torch.tile(torch.tensor(weights), (self.batch, self.dim, 1, 1, 1)) # type: ignore
 
+        tmp = np.outer(y_probabilities, x_probabilities)
+        tmp = torch.tile(torch.tensor(tmp), (self.batch, self.dim, 1, 1)) # type: ignore
         return self.unfeather(weights, feather_ratio) # type: ignore
 
 @dataclass

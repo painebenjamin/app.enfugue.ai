@@ -39,6 +39,9 @@ class Video:
         Provides a generator for interpolating between multiple frames.
         """
         from enfugue.diffusion.util import ComputerVision
+
+        if not frames:
+            return
         
         if interpolate is None:
             interpolator = cls.get_interpolator()
@@ -107,10 +110,10 @@ class Video:
             from math import prod
             multiplier = prod(multiplier)
 
-        return cls.frames_to_video(
+        return cls.from_frames(
             path=target_path,
             frames=cls.interpolate(
-                frames=cls.frames_from_video(source_path),
+                frames=cls.to_frames(source_path),
                 multiplier=target_multiplier
             ),
             overwrite=overwrite,
@@ -119,13 +122,109 @@ class Video:
         )
 
     @classmethod
-    def frames_to_video(
+    def loop(
+        cls,
+        frames: Union[str, Iterable[Image.Image]],
+        ease_frames: int = 2,
+        double_ease_frames: int = 1,
+        hold_frames: int = 0,
+        interpolate: Optional[Callable[[Image, Image, float], Image]] = None,
+    ) -> Iterable[Image.Image]:
+        """
+        Takes a video and creates a gently-looping version of it.
+        """
+        if interpolate is None:
+            interpolator = cls.get_interpolator()
+            with interpolator.interpolate() as process:
+                for frame in cls.loop(
+                    frames=frames,
+                    ease_frames=ease_frames,
+                    double_ease_frames=double_ease_frames,
+                    hold_frames=hold_frames,
+                    interpolate=process
+                ):
+                    yield frame
+                return
+
+        # Memoized frames
+        frame_list: List[Image.Image] = [frame for frame in frames]
+        
+        if double_ease_frames:
+            double_ease_start_frames, frame_list = frame_list[:double_ease_frames], frame_list[double_ease_frames:]
+        else:
+            double_ease_start_frames = []
+        if ease_frames:
+            ease_start_frames, frame_list = frame_list[:ease_frames], frame_list[ease_frames:]
+        else:
+            ease_start_frames = []
+
+        if double_ease_frames:
+            frame_list, double_ease_end_frames = frame_list[:-double_ease_frames], frame_list[-double_ease_frames:]
+        else:
+            double_ease_end_frames = []
+        if ease_frames:
+            frame_list, ease_end_frames = frame_list[:-ease_frames], frame_list[-ease_frames:]
+        else:
+            ease_end_frames = []
+
+        # Interpolate frames
+        double_ease_start_frames = [
+            frame for frame in cls.interpolate(
+                frames=double_ease_start_frames,
+                multiplier=(2,2),
+                interpolate=interpolate
+            )
+        ]
+        ease_start_frames = [
+            frame for frame in cls.interpolate(
+                frames=ease_start_frames,
+                multiplier=2,
+                interpolate=interpolate
+            )
+        ]
+        ease_end_frames = [
+            frame for frame in cls.interpolate(
+                frames=ease_end_frames,
+                multiplier=2,
+                interpolate=interpolate
+            )
+        ]
+        double_ease_end_frames = [
+            frame for frame in cls.interpolate(
+                frames=double_ease_end_frames,
+                multiplier=(2,2),
+                interpolate=interpolate
+            )
+        ]
+
+        # Return to one list
+        frame_list = double_ease_start_frames + ease_start_frames + frame_list + ease_end_frames + double_ease_end_frames
+
+        # Iterate
+        for frame in frame_list:
+            yield frame
+
+        # Hold on final frame
+        for i in range(hold_frames):
+            yield frame_list[-1]
+
+        # Reverse the frames
+        frame_list.reverse()
+        for frame in frame_list[1:-1]:
+            yield frame
+
+        # Hold on first frame
+        for i in range(hold_frames):
+            yield frame_list[-1]
+
+    @classmethod
+    def from_frames(
         cls,
         path: str,
         frames: Union[str, Iterable[Image.Image]],
         overwrite: bool = False,
         rate: float = 20.0,
-        encoder: str = "avc1"
+        encoder: str = "avc1",
     ) -> int:
         """
         Saves PIL image frames to an .mp4 video.
@@ -141,7 +240,7 @@ class Video:
             os.unlink(path)
         basename, ext = os.path.splitext(os.path.basename(path))
         if isinstance(frames, str):
-            frames = cls.frames_from_video(frames)
+            frames = cls.to_frames(frames)
         if ext in [".gif", ".png", ".tiff", ".webp"]:
             frames = [frame for frame in frames]
             frames[0].save(path, loop=0, duration=1000.0/rate, save_all=True, append_images=frames[1:])
@@ -150,19 +249,23 @@ class Video:
             raise IOError(f"Unknown file extension {ext}")
         fourcc = cv2.VideoWriter_fourcc(*encoder) # type: ignore
         writer = None
+
         for frame in frames:
             if writer is None:
                 writer = cv2.VideoWriter(path, fourcc, rate, frame.size) # type: ignore[union-attr]
             writer.write(ComputerVision.convert_image(frame))
+
         if writer is None:
             raise IOError(f"No frames written to {path}")
+
         writer.release()
+
         if not os.path.exists(path):
             raise IOError(f"Nothing was written to {path}")
         return os.path.getsize(path)
 
     @classmethod
-    def frames_from_video(
+    def to_frames(
         cls,
         path: str,
         skip_frames: Optional[int] = None,
@@ -179,6 +282,18 @@ class Video:
             path = os.path.expanduser(path)
         if not os.path.exists(path):
             raise IOError(f"Video at path {path} not found or inaccessible")
+        
+        basename, ext = os.path.splitext(os.path.basename(path))
+        if ext in [".gif", ".png", ".tiff", ".webp"]:
+            from PIL import Image
+            image = Image.open(path)
+            for i in range(image.n_frames):
+                image.seek(i)
+                copied = image.copy()
+                copied = copied.convert("RGBA")
+                yield copied
+            return
+
         frames = 0
 
         frame_start = 0 if skip_frames is None else skip_frames
@@ -223,7 +338,7 @@ class Video:
             raise IOError(f"No frames were read from video at {path}")
     
     @classmethod
-    def video_to_video(
+    def to_video(
         cls,
         source_path: str,
         destination_path: str,

@@ -1605,29 +1605,43 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
         return chunks
 
-    def get_temporal_chunks(self, frames: Optional[int]) -> List[Tuple[int, int]]:
+    def get_temporal_chunks(
+        self,
+        frames: Optional[int],
+        loop: bool = False
+    ) -> List[List[int]]:
         """
         Gets the chunked latent indices for animation multidiffusion
         """
         if frames is None:
-            return [(0, 1)]
+            return [[0]]
 
         if not self.temporal_chunking_size:
-            return [(0, frames)]
+            return [list(range(frames))]
 
-        blocks = math.ceil((frames - self.temporal_engine_size) / self.temporal_chunking_size + 1)
+        if loop:
+            blocks = math.ceil(frames / self.temporal_chunking_size)
+        else:
+            blocks = math.ceil((frames - self.temporal_engine_size) / self.temporal_chunking_size + 1)
+
         chunks = []
 
         for i in range(blocks):
+            offset = None
             start = i * self.temporal_chunking_size
             end = start + self.temporal_engine_size
 
             if end > frames:
                 offset = end - frames
                 end -= offset
-                start -= offset
+                if not loop:
+                    start -= offset
 
-            chunks.append((start, end))
+            frame_indexes = list(range(start, end))
+            if offset is not None and loop:
+                frame_indexes += list(range(offset))
+
+            chunks.append(frame_indexes)
         return chunks
 
     def get_controlnet_conditioning_blocks(
@@ -1865,6 +1879,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         extra_step_kwargs: Optional[Dict[str, Any]] = None,
         cross_attention_kwargs: Optional[Dict[str, Any]] = None,
         added_cond_kwargs: Optional[Dict[str, Any]] = None,
+        loop: bool = False
     ) -> torch.Tensor:
         """
         Executes the denoising loop.
@@ -1879,7 +1894,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             num_frames = None
 
         chunks = self.get_chunks(height, width)
-        temporal_chunks = self.get_temporal_chunks(num_frames)
+        temporal_chunks = self.get_temporal_chunks(num_frames, loop)
         num_chunks = len(chunks)
         num_temporal_chunks = len(temporal_chunks)
 
@@ -1945,7 +1960,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 # iterate over chunks
                 for j, (top, bottom, left, right) in enumerate(chunks):
                     # iterate over temporal chunks
-                    for k, (start, end) in enumerate(temporal_chunks):
+                    for k, frame_indexes in enumerate(temporal_chunks):
                         # Wrap IndexError to give a nice error about MultiDiff w/ some schedulers
                         try:
                             # Get pixel indices
@@ -1958,7 +1973,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                             if num_frames is None:
                                 latents_for_view = latents[:, :, top:bottom, left:right]
                             else:
-                                latents_for_view = latents[:, :, start:end, top:bottom, left:right]
+                                latents_for_view = latents[:, :, frame_indexes, top:bottom, left:right]
 
                             # expand the latents if we are doing classifier free guidance
                             latent_model_input = (
@@ -1995,7 +2010,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                                                 ))
                                             else:
                                                 controlnet_conds[controlnet_name].append((
-                                                    control_image[:, :, start:end, top_px:bottom_px, left_px:right_px],
+                                                    control_image[:, :, frame_indexes, top_px:bottom_px, left_px:right_px],
                                                     conditioning_scale
                                                 ))
 
@@ -2028,8 +2043,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                                     latent_model_input = torch.cat(
                                         [
                                             latent_model_input,
-                                            mask[:, :, start:end, top:bottom, left:right],
-                                            mask_image[:, :, start:end, top:bottom, left:right],
+                                            mask[:, :, frame_indexes, top:bottom, left:right],
+                                            mask_image[:, :, frame_indexes, top:bottom, left:right],
                                         ],
                                         dim=1,
                                     )
@@ -2080,14 +2095,14 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                                         torch.tensor([noise_timestep])
                                     )
                             else:
-                                init_latents = (image[:, :, start:end, top:bottom, left:right])[:1]
-                                init_mask = (mask[:, :, start:end, top:bottom, left:right])[:1]
+                                init_latents = (image[:, :, frame_indexes, top:bottom, left:right])[:1]
+                                init_mask = (mask[:, :, frame_indexes, top:bottom, left:right])[:1]
 
                                 if i < len(timesteps) - 1:
                                     noise_timestep = timesteps[i + 1]
                                     init_latents = self.scheduler.add_noise(
                                         init_latents,
-                                        noise[:, :, start:end, top:bottom, left:right],
+                                        noise[:, :, frame_indexes, top:bottom, left:right],
                                         torch.tensor([noise_timestep])
                                     )
 
@@ -2098,15 +2113,15 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                             mask_type=self.chunking_mask_type,
                             batch=samples,
                             dim=num_channels,
-                            frames=self.temporal_engine_size,
-                            width=engine_latent_size,
-                            height=engine_latent_size,
+                            frames=None if num_frames is None else len(frame_indexes),
+                            width=right-left,
+                            height=bottom-top,
                             unfeather_left=left==0,
                             unfeather_top=top==0,
                             unfeather_right=right==latent_width,
                             unfeather_bottom=bottom==latent_height,
-                            unfeather_start=start==0,
-                            unfeather_end=end==num_frames,
+                            unfeather_start=False if num_frames is None else frame_indexes[0]==0,
+                            unfeather_end=False if num_frames is None else frame_indexes[-1]==num_frames-1,
                             **self.chunking_mask_kwargs
                         )
                         
@@ -2114,8 +2129,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                             value[:, :, top:bottom, left:right] += denoised_latents * multiplier
                             count[:, :, top:bottom, left:right] += multiplier
                         else:
-                            value[:, :, start:end, top:bottom, left:right] += denoised_latents * multiplier
-                            count[:, :, start:end, top:bottom, left:right] += multiplier
+                            value[:, :, frame_indexes, top:bottom, left:right] += denoised_latents * multiplier
+                            count[:, :, frame_indexes, top:bottom, left:right] += multiplier
 
                         # Call the progress callback
                         if progress_callback is not None:
@@ -2141,11 +2156,17 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                             device=device,
                             progress_callback=progress_callback
                         )
-                        latent_callback_value = self.denormalize_latents(latent_callback_value)
-                        if latent_callback_type != "pt":
-                            latent_callback_value = self.image_processor.pt_to_numpy(latent_callback_value)
-                            if latent_callback_type == "pil":
-                                latent_callback_value = self.image_processor.numpy_to_pil(latent_callback_value)
+                        if num_frames is not None:
+                            output = [] # type: ignore[assignment]
+                            for frame in self.decode_animation_frames(latent_callback_value):
+                                output.extend(self.image_processor.numpy_to_pil(frame)) # type: ignore[attr-defined]
+                            latent_callback_value = output # type: ignore[assignment]
+                        else:
+                            latent_callback_value = self.denormalize_latents(latent_callback_value)
+                            if latent_callback_type != "pt":
+                                latent_callback_value = self.image_processor.pt_to_numpy(latent_callback_value)
+                                if latent_callback_type == "pil":
+                                    latent_callback_value = self.image_processor.numpy_to_pil(latent_callback_value)
                     latent_callback(latent_callback_value)
 
         return latents
@@ -2358,6 +2379,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         guidance_scale: float = 7.5,
         num_results_per_prompt: int = 1,
         animation_frames: Optional[int] = None,
+        loop: bool = False,
         eta: float = 0.0,
         generator: Optional[torch.Generator] = None,
         latents: Optional[torch.Tensor] = None,
@@ -2442,7 +2464,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
         # Calculate chunks
         num_chunks = max(1, len(self.get_chunks(height, width)))
-        num_temporal_chunks = max(1, len(self.get_temporal_chunks(animation_frames)))
+        num_temporal_chunks = max(1, len(self.get_temporal_chunks(animation_frames, loop)))
         self.scheduler.set_timesteps(num_inference_steps, device=device)
 
         if image is not None and mask is None and (strength is not None or denoising_start is not None):
@@ -2823,6 +2845,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 do_classifier_free_guidance=do_classifier_free_guidance,
                 is_inpainting_unet=is_inpainting_unet,
                 mask=prepared_mask,
+                loop=loop,
                 mask_image=prepared_image_latents,
                 image=init_image,
                 control_images=prepared_control_images,
