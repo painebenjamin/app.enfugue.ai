@@ -78,7 +78,13 @@ from diffusers.utils.torch_utils import randn_tensor
 from diffusers.image_processor import VaeImageProcessor
 
 from enfugue.util import logger, check_download_to_dir, TokenMerger
-from enfugue.diffusion.util import load_state_dict, MaskWeightBuilder
+from enfugue.diffusion.util import (
+    MaskWeightBuilder,
+    Prompt,
+    EncodedPrompt,
+    EncodedPrompts,
+    load_state_dict
+)
 
 from einops import rearrange
 
@@ -1691,7 +1697,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         num_inference_steps: int,
         timesteps: torch.Tensor,
         latents: torch.Tensor,
-        prompt_embeds: torch.Tensor,
+        encoded_prompts: EncodedPrompts,
         guidance_scale: float,
         do_classifier_free_guidance: bool = False,
         is_inpainting_unet: bool = False,
@@ -1715,6 +1721,12 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
         num_steps = len(timesteps)
         num_warmup_steps = num_steps - num_inference_steps * self.scheduler.order
+
+        if len(latents.shape) == 5:
+            samples, num_channels, num_frames, latent_height, latent_width = latents.shape
+        else:
+            samples, num_channels, latent_height, latent_width = latents.shape
+            num_frames = None
         
         noise = None
         if mask is not None and mask_image is not None and not is_inpainting_unet:
@@ -1731,6 +1743,16 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             # expand the latents if we are doing classifier free guidance
             latent_model_input = torch.cat([latents] * 2) if do_classifier_free_guidance else latents
             latent_model_input = self.scheduler.scale_model_input(latent_model_input, t)
+
+            # Get embeds
+            embeds = encoded_prompts.get_embeds()
+            if embeds is None:
+                if self.text_encoder:
+                    embeds = torch.zeros(samples, 77, self.text_encoder.config.hidden_size)
+                elif self.text_encoder_2:
+                    embeds = torch.zeros(samples, 77, self.text_encoder_2.config.hidden_size)
+                else:
+                    raise IOError("No embeds and no text encoder.")
 
             # Get controlnet input(s) if configured
             if control_images is not None:
@@ -1758,7 +1780,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                         device=device,
                         latents=latent_model_input,
                         timestep=t,
-                        encoder_hidden_states=prompt_embeds,
+                        encoder_hidden_states=embeds,
                         controlnet_conds=controlnet_conds,
                         added_cond_kwargs=added_cond_kwargs,
                     )
@@ -1771,12 +1793,12 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     [latent_model_input, mask, mask_image],
                     dim=1,
                 )
-
+            
             # predict the noise residual
             noise_pred = self.predict_noise_residual(
                 latent_model_input,
                 t,
-                prompt_embeds,
+                embeds,
                 cross_attention_kwargs,
                 added_cond_kwargs,
                 down_block,
@@ -1864,7 +1886,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         num_inference_steps: int,
         timesteps: torch.Tensor,
         latents: torch.Tensor,
-        prompt_embeds: torch.Tensor,
+        encoded_prompts: EncodedPrompts,
         guidance_scale: float,
         do_classifier_free_guidance: bool = False,
         is_inpainting_unet: bool = False,
@@ -1906,7 +1928,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 num_inference_steps=num_inference_steps,
                 timesteps=timesteps,
                 latents=latents,
-                prompt_embeds=prompt_embeds,
+                encoded_prompts=encoded_prompts,
                 guidance_scale=guidance_scale,
                 is_inpainting_unet=is_inpainting_unet,
                 do_classifier_free_guidance=do_classifier_free_guidance,
@@ -1986,6 +2008,16 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                             # Scale model input
                             latent_model_input = self.scheduler.scale_model_input(latent_model_input, t)
 
+                            # Get embeds
+                            embeds = encoded_prompts.get_embeds(frame_indexes)
+                            if embeds is None:
+                                if self.text_encoder:
+                                    embeds = torch.zeros(samples, 77, self.text_encoder.config.hidden_size)
+                                elif self.text_encoder_2:
+                                    embeds = torch.zeros(samples, 77, self.text_encoder_2.config.hidden_size)
+                                else:
+                                    raise IOError("No embeds and no text encoder.")
+
                             # Get controlnet input(s) if configured
                             if control_images is not None:
                                 # Find which control image(s) to use
@@ -2021,7 +2053,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                                         device=device,
                                         latents=latent_model_input,
                                         timestep=t,
-                                        encoder_hidden_states=prompt_embeds,
+                                        encoder_hidden_states=embeds,
                                         controlnet_conds=controlnet_conds,
                                         added_cond_kwargs=added_cond_kwargs,
                                     )
@@ -2053,7 +2085,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                             noise_pred = self.predict_noise_residual(
                                 latents=latent_model_input,
                                 timestep=t,
-                                embeddings=prompt_embeds,
+                                embeddings=embeds,
                                 cross_attention_kwargs=cross_attention_kwargs,
                                 added_cond_kwargs=added_cond_kwargs,
                                 down_block_additional_residuals=down_block,
@@ -2363,6 +2395,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         prompt_2: Optional[str] = None,
         negative_prompt: Optional[str] = None,
         negative_prompt_2: Optional[str] = None,
+        prompts: Optional[List[Prompt]] = None,
         image: Optional[Union[PIL.Image.Image, torch.Tensor, str]] = None,
         mask: Optional[Union[PIL.Image.Image, torch.Tensor, str]] = None,
         control_images: ControlImageArgType = None,
@@ -2444,7 +2477,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         is_inpainting_unet = self.unet.config.in_channels == 9
 
         # Define call parameters
-        if prompt is not None:
+        if prompt is not None or prompts is not None:
             batch_size = 1
         elif prompt_embeds:
             batch_size = prompt_embeds.shape[0]
@@ -2526,39 +2559,71 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             self.vae.to(dtype=torch.float16)
 
         with self.get_runtime_context(batch_size, animation_frames, device, ip_adapter_scale, step_complete):
-            if self.is_sdxl:
-                # XL uses more inputs for prompts than 1.5
-                (
-                    prompt_embeds,
-                    negative_prompt_embeds,
-                    pooled_prompt_embeds,
-                    negative_pooled_prompt_embeds,
-                ) = self.encode_prompt(
-                    prompt,
-                    device,
-                    num_results_per_prompt,
-                    do_classifier_free_guidance,
-                    negative_prompt,
-                    prompt_embeds=prompt_embeds,
-                    negative_prompt_embeds=negative_prompt_embeds,
-                    prompt_2=prompt_2,
-                    negative_prompt_2=negative_prompt_2
+            if prompts is None:
+                prompts = [
+                    Prompt(
+                        positive=prompt,
+                        positive_2=prompt_2,
+                        negative=negative_prompt,
+                        negative_2=negative_prompt_2,
+                        start=None,
+                        end=None,
+                        weight=None
+                    )
+                ]
+            encoded_prompt_list = []
+            for given_prompt in prompts:
+                if self.is_sdxl:
+                    # XL uses more inputs for prompts than 1.5
+                    (
+                        these_prompt_embeds,
+                        these_negative_prompt_embeds,
+                        these_pooled_prompt_embeds,
+                        these_negative_pooled_prompt_embeds,
+                    ) = self.encode_prompt(
+                        given_prompt.positive,
+                        device,
+                        num_results_per_prompt,
+                        do_classifier_free_guidance,
+                        given_prompt.negative,
+                        prompt_embeds=prompt_embeds,
+                        negative_prompt_embeds=negative_prompt_embeds,
+                        prompt_2=given_prompt.positive_2,
+                        negative_prompt_2=given_prompt.negative_2
+                    )
+                else:
+                    these_prompt_embeds = self.encode_prompt(
+                        given_prompt.positive,
+                        device,
+                        num_results_per_prompt,
+                        do_classifier_free_guidance,
+                        given_prompt.negative,
+                        prompt_embeds=prompt_embeds,
+                        negative_prompt_embeds=negative_prompt_embeds,
+                        prompt_2=given_prompt.positive_2,
+                        negative_prompt_2=given_prompt.negative_2
+                    )  # type: ignore
+                    these_pooled_prompt_embeds = None
+                    these_negative_prompt_embeds = None
+                    these_negative_pooled_prompt_embeds = None
+
+                encoded_prompt_list.append(
+                    EncodedPrompt(
+                        prompt=given_prompt,
+                        embeds=these_prompt_embeds, # type: ignore[arg-type]
+                        negative_embeds=these_negative_prompt_embeds,
+                        pooled_embeds=these_pooled_prompt_embeds,
+                        negative_pooled_embeds=these_negative_pooled_prompt_embeds
+                    )
                 )
-            else:
-                prompt_embeds = self.encode_prompt(
-                    prompt,
-                    device,
-                    num_results_per_prompt,
-                    do_classifier_free_guidance,
-                    negative_prompt,
-                    prompt_embeds=prompt_embeds,
-                    negative_prompt_embeds=negative_prompt_embeds,
-                    prompt_2=prompt_2,
-                    negative_prompt_2=negative_prompt_2
-                )  # type: ignore
-                pooled_prompt_embeds = None
-                negative_prompt_embeds = None
-                negative_pooled_prompt_embeds = None
+
+            encoded_prompts = EncodedPrompts(
+                prompts=encoded_prompt_list,
+                is_sdxl=self.is_sdxl,
+                do_classifier_free_guidance=do_classifier_free_guidance,
+                image_prompt_embeds=None, # Will be set later
+                image_uncond_prompt_embeds=None # Will be set later
+            )
 
             # Open images if they're files
             if isinstance(image, str):
@@ -2618,7 +2683,6 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 logger.debug(f"{width}x{height} is smaller than is chunkable, disabling.")
                 self.chunking_size = 0
 
-            prompt_embeds = cast(torch.Tensor, prompt_embeds)
             if prepared_image is not None and prepared_mask is not None:
                 # Inpainting
                 num_channels_latents = self.vae.config.latent_channels
@@ -2631,7 +2695,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                         num_channels_latents,
                         height,
                         width,
-                        prompt_embeds.dtype,
+                        encoded_prompts.dtype,
                         device,
                         generator,
                         animation_frames=animation_frames
@@ -2643,7 +2707,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     batch_size,
                     height,
                     width,
-                    prompt_embeds.dtype,
+                    encoded_prompts.dtype,
                     device,
                     generator,
                     do_classifier_free_guidance,
@@ -2652,11 +2716,11 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 )
 
                 if init_image is not None:
-                    init_image = init_image.to(device=device, dtype=prompt_embeds.dtype)
+                    init_image = init_image.to(device=device, dtype=encoded_prompts.dtype)
                     init_image = self.encode_image(
                         init_image,
                         device=device,
-                        dtype=prompt_embeds.dtype,
+                        dtype=encoded_prompts.dtype,
                         generator=generator,
                     )
 
@@ -2670,7 +2734,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     prepared_image,
                     timesteps[:1].repeat(batch_size),
                     batch_size,
-                    prompt_embeds.dtype,
+                    encoded_prompts.dtype,
                     device,
                     generator,
                     progress_callback=step_complete,
@@ -2688,7 +2752,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     self.unet.config.in_channels,
                     height,
                     width,
-                    prompt_embeds.dtype,
+                    encoded_prompts.dtype,
                     device,
                     generator,
                     animation_frames=animation_frames
@@ -2740,7 +2804,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                                 batch_size=batch_size,
                                 num_results_per_prompt=num_results_per_prompt,
                                 device=device,
-                                dtype=prompt_embeds.dtype,
+                                dtype=encoded_prompts.dtype,
                                 do_classifier_free_guidance=do_classifier_free_guidance,
                                 animation_frames=animation_frames
                             )
@@ -2769,43 +2833,30 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 if not ip_image:
                     logger.warning("IP adapter scale included, but no image to probe.")
                 else:
-                    image_prompt_embeds, image_uncond_prompt_embeds = self.get_image_embeds(
+                    encoded_prompts.image_prompt_embeds, encoded_prompts.image_uncond_prompt_embeds = self.get_image_embeds(
                         ip_image,
                         num_results_per_prompt
                     )
-                    if self.is_sdxl:
-                        negative_prompt_embeds = cast(torch.Tensor, negative_prompt_embeds)
-                        prompt_embeds = torch.cat([prompt_embeds, image_prompt_embeds], dim=1)
-                        negative_prompt_embeds = torch.cat([negative_prompt_embeds, image_uncond_prompt_embeds], dim=1)
-                    else:
-                        if do_classifier_free_guidance:
-                            _negative_prompt_embeds, _prompt_embeds = prompt_embeds.chunk(2)
-                        else:
-                            _negative_prompt_embeds, _prompt_embeds = negative_prompt_embeds, prompt_embeds # type: ignore
-                        prompt_embeds = torch.cat([_prompt_embeds, image_prompt_embeds], dim=1)
-                        negative_prompt_embeds = torch.cat([_negative_prompt_embeds, image_uncond_prompt_embeds], dim=1)
-                        if do_classifier_free_guidance:
-                            prompt_embeds = torch.cat([negative_prompt_embeds, prompt_embeds])
                     if ip_adapter_image:
                         del ip_adapter_image
                 
             # Prepared added time IDs and embeddings (SDXL)
             if self.is_sdxl:
-                negative_prompt_embeds = cast(torch.Tensor, negative_prompt_embeds)
-                pooled_prompt_embeds = cast(torch.Tensor, pooled_prompt_embeds)
-                negative_pooled_prompt_embeds = cast(torch.Tensor, negative_pooled_prompt_embeds)
-                add_text_embeds = pooled_prompt_embeds
+                negative_prompt_embeds = cast(torch.Tensor, encoded_prompts.get_negative_embeds())
+                pooled_prompt_embeds = cast(torch.Tensor, encoded_prompts.get_pooled_embeds())
+                negative_pooled_prompt_embeds = cast(torch.Tensor, encoded_prompts.get_negative_pooled_embeds())
+                add_text_embeds = encoded_prompts.get_pooled_embeds()
 
                 if do_classifier_free_guidance:
-                    prompt_embeds = torch.cat([negative_prompt_embeds, prompt_embeds], dim=0)
-                    add_text_embeds = torch.cat([negative_pooled_prompt_embeds, add_text_embeds], dim=0)
+                    prompt_embeds = torch.cat([negative_prompt_embeds, prompt_embeds], dim=0) # type: ignore[list-item]
+                    add_text_embeds = torch.cat([negative_pooled_prompt_embeds, add_text_embeds], dim=0) # type: ignore[list-item]
 
                 if self.config.requires_aesthetic_score:
                     add_time_ids, add_neg_time_ids = self.get_add_time_ids(
                         original_size=original_size,
                         crops_coords_top_left=crops_coords_top_left,
                         target_size=target_size,
-                        dtype=prompt_embeds.dtype,
+                        dtype=encoded_prompts.dtype,
                         aesthetic_score=aesthetic_score,
                         negative_aesthetic_score=negative_aesthetic_score,
                     )
@@ -2816,14 +2867,14 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                         original_size=original_size,
                         crops_coords_top_left=crops_coords_top_left,
                         target_size=target_size,
-                        dtype=prompt_embeds.dtype,
+                        dtype=encoded_prompts.dtype,
                     )
                     add_time_ids = torch.cat([add_time_ids, add_time_ids], dim=0)
-
-                prompt_embeds = prompt_embeds.to(device)
-                add_text_embeds = add_text_embeds.to(device)
-                add_time_ids = add_time_ids.to(device).repeat(batch_size, 1)
-                added_cond_kwargs = {"text_embeds": add_text_embeds, "time_ids": add_time_ids}
+                
+                if add_text_embeds is not None:
+                    add_text_embeds = add_text_embeds.to(device)
+                    add_time_ids = add_time_ids.to(device).repeat(batch_size, 1)
+                    added_cond_kwargs = {"text_embeds": add_text_embeds, "time_ids": add_time_ids}
             else:
                 added_cond_kwargs = None
             
@@ -2840,7 +2891,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 num_inference_steps=num_inference_steps,
                 timesteps=timesteps,
                 latents=prepared_latents,
-                prompt_embeds=prompt_embeds,
+                encoded_prompts=encoded_prompts,
                 guidance_scale=guidance_scale,
                 do_classifier_free_guidance=do_classifier_free_guidance,
                 is_inpainting_unet=is_inpainting_unet,
@@ -2909,7 +2960,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             output = self.denormalize_latents(prepared_latents)
             if output_type != "pt":
                 output = self.image_processor.pt_to_numpy(output)
-                output_nsfw = self.run_safety_checker(output, device, prompt_embeds.dtype)[1]
+                output_nsfw = self.run_safety_checker(output, device, encoded_prompts.dtype)[1]
                 if output_type == "pil":
                     output = self.image_processor.numpy_to_pil(output)
 

@@ -21,8 +21,11 @@ __all__ = [
     "load_state_dict",
     "get_ram_info",
     "get_vram_info",
+    "interpolate_tensors",
+    "interpolate_tensors_linear",
+    "interpolate_tensors_spherical",
     "DTypeConverter",
-    "MaskWeightBuilder",
+    "MaskWeightBuilder"
 ]
 
 def tensorrt_available() -> bool:
@@ -553,3 +556,42 @@ class MaskWeightBuilder:
             unfeather_end=unfeather_end,
             **kwargs
         )
+
+def interpolate_tensors(
+    a: torch.Tensor,
+    b: torch.Tensor,
+    alpha: float,
+    spherical: bool = True,
+    threshold: float = 0.9995
+) -> torch.Tensor:
+    """
+    Interpolates tensors in the desired method
+    """
+    if spherical:
+        return interpolate_tensors_spherical(a, b, alpha, threshold)
+    return interpolate_tensors_linear(a, b, alpha)
+
+def interpolate_tensors_linear(
+    a: torch.Tensor,
+    b: torch.Tensor,
+    alpha: float
+) -> torch.Tensor:
+    """
+    Performs a linear tensor interpolation
+    """
+    return (1.0 - alpha) * a + alpha * b
+
+def interpolate_tensors_spherical(
+    a: torch.Tensor,
+    b: torch.Tensor,
+    alpha: float,
+    threshold: float = 0.9995
+) -> torch.Tensor:
+    """
+    Performs a spherical linear tensor interpolation (slerp)
+    """
+    dot = ((a / a.norm()) * (b / b.norm())).sum()
+    if dot > threshold:
+        return interpolate_tensors_linear(a, b, alpha)
+    omega = dot.acos()
+    return (((1.0 - alpha) * omega.sin() * a + (alpha * omega).sin() * b) / omega.sin())
