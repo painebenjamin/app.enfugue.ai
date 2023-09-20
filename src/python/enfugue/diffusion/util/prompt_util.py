@@ -2,14 +2,17 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional, Union, Tuple, List, Callable, TYPE_CHECKING
 
-from enfugue.util import logger
-
 if TYPE_CHECKING:
     from torch import Tensor, dtype
 
+    PromptGetterCallable = Callable[
+        [EncodedPrompt, Optional[List[int]]],
+        Tuple[Optional[Tensor], Union[float, int]]
+    ]
+
 __all__ = ["Prompt", "EncodedPrompt", "EncodedPrompts"]
 
-@dataclass(frozen=True)
+@dataclass
 class Prompt:
     """
     This class holds, at a minimum, a prompt string.
@@ -41,7 +44,7 @@ class Prompt:
             return "(none)"
         return self.positive
 
-@dataclass(frozen=True)
+@dataclass
 class EncodedPrompt:
     """
     After encoding a prompt, this class holds the tensors and provides
@@ -70,8 +73,7 @@ class EncodedPrompt:
         if frames is None or self.prompt.start is None:
             return tensor * weight, weight
         overlap = self.prompt.get_frame_overlap(frames)
-        logger.debug(f"{self.prompt}, {weight}, {overlap}")
-        if overlap == 0:
+        if overlap == 0 or weight == 0:
             return None, 0
         weight *= overlap
         return tensor * weight, weight
@@ -119,12 +121,7 @@ class EncodedPrompt:
         """
         return self.embeds.dtype
 
-PromptGetterCallable = Callable[
-    [EncodedPrompt, Optional[List[int]]],
-    Tuple[Optional[Tensor], Union[float, int]]
-]
-
-@dataclass()
+@dataclass
 class EncodedPrompts:
     """
     Holds any number of encoded prompts.
