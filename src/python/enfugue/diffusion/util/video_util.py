@@ -20,6 +20,9 @@ class Video:
     """
     Provides helper methods for video
     """
+    def __init__(self, frames: Iterable[Image]) -> None:
+        self.frames = frames
+
     @classmethod
     def get_interpolator(cls) -> Interpolator:
         """
@@ -28,10 +31,9 @@ class Video:
         from enfugue.diffusion.support import Interpolator
         return cast(Interpolator, Interpolator.get_default_instance())
 
-    @classmethod
     def interpolate(
-        cls,
-        frames: Iterable[Image],
+        self,
+        frames: Optional[Iterable[Image]] = None,
         multiplier: Union[int, Tuple[int, ...]] = 2,
         interpolate: Optional[Callable[[Image, Image, float], Image]] = None,
     ) -> Iterator[Image]:
@@ -40,13 +42,19 @@ class Video:
         """
         from enfugue.diffusion.util import ComputerVision
 
-        if not frames:
+        if frames is None:
+            for frame in self.interpolate(
+                frames=self.frames, # type: ignore[arg-type]
+                multiplier=multiplier,
+                interpolate=interpolate
+            ):
+                yield frame
             return
-        
+
         if interpolate is None:
-            interpolator = cls.get_interpolator()
+            interpolator = self.get_interpolator()
             with interpolator.interpolate() as process:
-                for frame in cls.interpolate(
+                for frame in self.interpolate(
                     frames=frames,
                     multiplier=multiplier,
                     interpolate=process
@@ -60,9 +68,9 @@ class Video:
             else:
                 this_multiplier = multiplier[0]
                 recursed_multiplier = multiplier[1:]
-                for frame in cls.interpolate(
-                    frames=cls.interpolate(
-                        frames=frames,
+                for frame in self.interpolate(
+                    frames=self.interpolate(
+                        frames=frames, # type: ignore[arg-type]
                         multiplier=recursed_multiplier,
                         interpolate=interpolate
                     ),
@@ -88,43 +96,15 @@ class Video:
             if previous_frame is not None:
                 process_count = len(process_times) # type: ignore[unreachable]
                 process_average = sum(process_times) / process_count
-                logger.debug(f"Processed frames {frame_index-1}-{frame_index} in {frame_time:.1f} seconds. Interpolated {process_count} frame(s) at a rate of {process_average:.1f} seconds/frame.")
+                logger.debug(
+                    f"Processed frames {frame_index-1}-{frame_index} in {frame_time:.1f} seconds. " +
+                    f"Interpolated {process_count} frame(s) at a rate of {process_average:.1f} seconds/frame."
+                )
             previous_frame = frame
             frame_start = datetime.now()
 
-    @classmethod
-    def uprate(
-        cls,
-        source_path: str,
-        source_rate: float,
-        target_path: str,
-        target_multiplier: Union[int, Tuple[int, ...]] = 2,
-        overwrite: bool = False,
-        encoder: str = "avc1",
-    ) -> int:
-        """
-        Takes a video and increases it's framerate by interpolating intermediate frames.
-        """
-        multiplier = target_multiplier
-        if isinstance(multiplier, tuple):
-            from math import prod
-            multiplier = prod(multiplier)
-
-        return cls.from_frames(
-            path=target_path,
-            frames=cls.interpolate(
-                frames=cls.to_frames(source_path),
-                multiplier=target_multiplier
-            ),
-            overwrite=overwrite,
-            encoder=encoder,
-            rate=source_rate*multiplier
-        )
-
-    @classmethod
     def loop(
-        cls,
-        frames: Union[str, Iterable[Image.Image]],
+        self,
         ease_frames: int = 2,
         double_ease_frames: int = 1,
         hold_frames: int = 0,
@@ -134,10 +114,9 @@ class Video:
         Takes a video and creates a gently-looping version of it.
         """
         if interpolate is None:
-            interpolator = cls.get_interpolator()
+            interpolator = self.get_interpolator()
             with interpolator.interpolate() as process:
-                for frame in cls.loop(
-                    frames=frames,
+                for frame in self.loop(
                     ease_frames=ease_frames,
                     double_ease_frames=double_ease_frames,
                     hold_frames=hold_frames,
@@ -147,7 +126,7 @@ class Video:
                 return
 
         # Memoized frames
-        frame_list: List[Image.Image] = [frame for frame in frames]
+        frame_list: List[Image.Image] = [frame for frame in self.frames]
         
         if double_ease_frames:
             double_ease_start_frames, frame_list = frame_list[:double_ease_frames], frame_list[double_ease_frames:]
@@ -169,28 +148,28 @@ class Video:
 
         # Interpolate frames
         double_ease_start_frames = [
-            frame for frame in cls.interpolate(
+            frame for frame in self.interpolate(
                 frames=double_ease_start_frames,
                 multiplier=(2,2),
                 interpolate=interpolate
             )
         ]
         ease_start_frames = [
-            frame for frame in cls.interpolate(
+            frame for frame in self.interpolate(
                 frames=ease_start_frames,
                 multiplier=2,
                 interpolate=interpolate
             )
         ]
         ease_end_frames = [
-            frame for frame in cls.interpolate(
+            frame for frame in self.interpolate(
                 frames=ease_end_frames,
                 multiplier=2,
                 interpolate=interpolate
             )
         ]
         double_ease_end_frames = [
-            frame for frame in cls.interpolate(
+            frame for frame in self.interpolate(
                 frames=double_ease_end_frames,
                 multiplier=(2,2),
                 interpolate=interpolate
@@ -217,11 +196,9 @@ class Video:
         for i in range(hold_frames):
             yield frame_list[-1]
 
-    @classmethod
-    def from_frames(
-        cls,
+    def save(
+        self,
         path: str,
-        frames: Union[str, Iterable[Image.Image]],
         overwrite: bool = False,
         rate: float = 20.0,
         encoder: str = "avc1",
@@ -239,10 +216,8 @@ class Video:
                 raise IOError(f"File exists at path {path}, pass overwrite=True to write anyway.")
             os.unlink(path)
         basename, ext = os.path.splitext(os.path.basename(path))
-        if isinstance(frames, str):
-            frames = cls.to_frames(frames)
         if ext in [".gif", ".png", ".tiff", ".webp"]:
-            frames = [frame for frame in frames]
+            frames = [frame for frame in self.frames]
             frames[0].save(path, loop=0, duration=1000.0/rate, save_all=True, append_images=frames[1:])
             return os.path.getsize(path)
         elif ext != ".mp4":
@@ -250,7 +225,7 @@ class Video:
         fourcc = cv2.VideoWriter_fourcc(*encoder) # type: ignore
         writer = None
 
-        for frame in frames:
+        for frame in self.frames:
             if writer is None:
                 writer = cv2.VideoWriter(path, fourcc, rate, frame.size) # type: ignore[union-attr]
             writer.write(ComputerVision.convert_image(frame))
@@ -265,7 +240,7 @@ class Video:
         return os.path.getsize(path)
 
     @classmethod
-    def to_frames(
+    def file_to_frames(
         cls,
         path: str,
         skip_frames: Optional[int] = None,
@@ -336,117 +311,22 @@ class Video:
         capture.release()
         if frames == 0:
             raise IOError(f"No frames were read from video at {path}")
-    
+
     @classmethod
-    def to_video(
+    def from_file(
         cls,
-        source_path: str,
-        destination_path: str,
-        overwrite: bool = False,
-        rate: float = 20.,
+        path: str,
         skip_frames: Optional[int] = None,
         maximum_frames: Optional[int] = None,
         resolution: Optional[int] = None,
-        process_frame: Optional[Callable[[Image.Image], Image.Image]] = None,
-        encoder: str = "avc1"
-    ) -> int:
+    ) -> Video:
         """
-        Saves PIL image frames to an .mp4 video.
-        Returns the total size of the video in bytes.
+        Uses Video.frames_from_file and instantiates a Video object.
         """
-        import cv2
-        from enfugue.diffusion.util import ComputerVision
-        if destination_path.startswith("~"):
-            destination_path = os.path.expanduser(destination_path)
-        if os.path.exists(destination_path):
-            if not overwrite:
-                raise IOError(f"File exists at destination_path {destination_path}, pass overwrite=True to write anyway.")
-            os.unlink(destination_path)
-
-        if source_path.startswith("~"):
-            source_path = os.path.expanduser(source_path)
-        if not os.path.exists(source_path):
-            raise IOError(f"Video at path {source_path} not found or inaccessible")
-
-        frames = 0
-
-        frame_start = 0 if skip_frames is None else skip_frames
-        frame_end = None if maximum_frames is None else frame_start + maximum_frames - 1
-
-        frame_string = "end-of-video" if frame_end is None else f"frame {frame_end}"
-        logger.debug(f"Reading video file at {source_path} starting from frame {frame_start} until {frame_string}. Will process and write to {destination_path}")
-
-        capture = cv2.VideoCapture(source_path)
-        fourcc = cv2.VideoWriter_fourcc(*encoder) # type: ignore
-        writer = None
-
-        def process_image(image: Image.Image) -> Image.Image:
-            """
-            Processes an image frame if requested.
-            """
-            width, height = image.size
-            if resolution is not None:
-                ratio = float(resolution) / float(min(width, height))
-                height = round(height * ratio)
-                width = round(width * ratio)
-
-            image = image.resize((
-                latent_friendly(width),
-                latent_friendly(height)
-            ))
-
-            if process_frame is not None:
-                image = process_frame(image)
-
-            return image
-
-        opened = datetime.now()
-        started = opened
-        last_log = 0
-        processed_frames = 0
-
-        while capture.isOpened():
-            success, image = capture.read()
-            if not success:
-                break
-            elif frames == 0:
-                opened = datetime.now()
-                logger.debug("Video opened, iterating through frames.")
-
-            frames += 1
-            if frame_start > frames:
-                continue
-            elif frame_start == frames:
-                started = datetime.now()
-                logger.debug(f"Beginning processing from frame {frames}")
-
-            image = process_image(ComputerVision.revert_image(image))
-            processed_frames += 1
-            
-            if writer is None:
-                writer = cv2.VideoWriter(destination_path, fourcc, rate, image.size)
-            
-            writer.write(ComputerVision.convert_image(image))
-            
-            if last_log < processed_frames - rate:
-                unit = "frames/sec"
-                process_rate = processed_frames / (datetime.now() - started).total_seconds()
-                if process_rate < 1.0:
-                    unit = "sec/frame"
-                    process_rate = 1.0 / process_rate
-
-                logger.debug(f"Processed {processed_frames} at {process_rate:.2f} {unit}")
-                last_log = processed_frames
-            
-            if frame_end is not None and frames >= frame_end:
-                break
-        if writer is None:
-            raise IOError(f"No frames written to path {destination_path}")
-
-        writer.release()
-        capture.release()
-
-        if frames == 0:
-            raise IOError(f"No frames were read from video at {source_path}")
-
-        return os.path.getsize(destination_path)
+        return cls(
+            frames=cls.file_to_frames(
+                path=path,
+                skip_frames=skip_frames,
+                maximum_frames=maximum_frames
+            )
+        )
