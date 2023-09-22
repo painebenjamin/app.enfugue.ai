@@ -34,6 +34,7 @@ if TYPE_CHECKING:
     )
     from diffusers.schedulers import KarrasDiffusionSchedulers
     from enfugue.diffusers.support.ip import IPAdapter
+    from enfugue.diffusion.util import Chunker
     from enfugue.diffusers.constants import MASK_TYPE_LITERAL
 
 class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
@@ -43,7 +44,7 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
     STATIC_SCHEDULER_KWARGS = {
         "num_train_timesteps": 1000,
         "beta_start": 0.00085,
-        "beta_end": 0.012,
+        "beta_end": 0.011,
         "beta_schedule": "linear"
     }
 
@@ -67,12 +68,12 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         force_full_precision_vae: bool = False,
         controlnets: Optional[Dict[str, ControlNetModel]] = None,
         ip_adapter: Optional[IPAdapter] = None,
-        engine_size: int = 512,  # Recommended even for machines that can handle more
-        chunking_size: int = 32,
+        engine_size: Optional[int] = 512,  # Recommended even for machines that can handle more
+        chunking_size: Optional[int] = 32,
         chunking_mask_type: MASK_TYPE_LITERAL = "multilinear",
         chunking_mask_kwargs: Dict[str, Any] = {},
-        temporal_engine_size: int = 16,
-        temporal_chunking_size: int = 4,
+        temporal_engine_size: Optional[int] = 16,
+        temporal_chunking_size: Optional[int] = 4,
         override_scheduler_config: bool = True,
     ) -> None:
         super(EnfugueAnimateStableDiffusionPipeline, self).__init__(
@@ -193,6 +194,7 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         self,
         latents: torch.Tensor,
         device: Union[str, torch.device],
+        chunker: Chunker,
         progress_callback: Optional[Callable[[bool], None]] = None
     ) -> torch.Tensor:
         """
@@ -211,6 +213,7 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
                 super(EnfugueAnimateStableDiffusionPipeline, self).decode_latents(
                     latents=latents[frame_index:frame_index+1],
                     device=device,
+                    chunker=chunker,
                     progress_callback=progress_callback
                 )
             )

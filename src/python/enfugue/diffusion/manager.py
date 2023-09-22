@@ -125,7 +125,11 @@ class DiffusionPipelineManager:
     _inpainter_size: int
     _animator_size: int
 
-    def __init__(self, configuration: Optional[APIConfiguration] = None, optimize: bool = True) -> None:
+    def __init__(
+        self,
+        configuration: Optional[APIConfiguration] = None,
+        optimize: bool = True
+    ) -> None:
         self.configuration = APIConfiguration()
         if configuration:
             self.configuration = configuration
@@ -4313,8 +4317,7 @@ class DiffusionPipelineManager:
                 from enfugue.diffusion.util.video_util import Video
                 with self.interpolator.interpolate() as process:
                     interpolated_images = [
-                        image for image in Video.interpolate(
-                            frames=result["images"],
+                        image for image in Video(result["images"]).interpolate(
                             multiplier=interpolate_frames,
                             interpolate=process
                         )

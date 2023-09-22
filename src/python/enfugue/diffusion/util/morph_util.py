@@ -280,12 +280,11 @@ class Morpher:
         Saves the warped image(s) to an .mp4
         """
         from enfugue.diffusion.util import Video
-        return Video.from_frames(
+        return Video([
+            self(i/length)
+            for i in range(length+1)
+        ]).save(
             path,
-            [
-                self(i/length)
-                for i in range(length+1)
-            ],
             rate=rate,
             overwrite=overwrite
         )

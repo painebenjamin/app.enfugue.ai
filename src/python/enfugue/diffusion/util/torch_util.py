@@ -1,14 +1,18 @@
-from typing import Dict, Type, Union, Any, Optional, Tuple
+from __future__ import annotations
+
+from typing import Dict, Type, Union, Any, Optional, Tuple, TYPE_CHECKING
 from typing_extensions import Self
 
 from dataclasses import dataclass, field
 
-import torch
 import numpy as np
 
 from numpy import pi, exp, sqrt
 
 from enfugue.diffusion.constants import MASK_TYPE_LITERAL
+
+if TYPE_CHECKING:
+    import torch
 
 __all__ = [
     "cuda_available",
@@ -43,12 +47,14 @@ def cuda_available() -> bool:
     """
     Returns true if CUDA is available.
     """
+    import torch
     return torch.cuda.is_available() and torch.backends.cuda.is_built()
 
 def mps_available() -> bool:
     """
     Returns true if MPS is available.
     """
+    import torch
     return torch.backends.mps.is_available() and torch.backends.mps.is_built()
 
 def directml_available() -> bool:
@@ -65,6 +71,7 @@ def get_optimal_device() -> torch.device:
     """
     Gets the optimal device based on availability.
     """
+    import torch
     if cuda_available():
         return torch.device("cuda")
     elif directml_available():
@@ -87,6 +94,7 @@ def get_vram_info() -> Tuple[int, int]:
     Returns VRAM amount in bytes as [free, total]
     If no GPU is found, returns RAM info.
     """
+    import torch
     if not cuda_available():
         return get_ram_info()
     return torch.cuda.mem_get_info()
@@ -95,6 +103,7 @@ def load_ckpt_state_dict(path: str) -> Dict[str, Union[torch.Tensor, Dict[str, t
     """
     Loads a state dictionary from a .ckpt (old-style) file
     """
+    import torch
     return torch.load(path, map_location="cpu")
 
 def load_safetensor_state_dict(path: str) -> Dict[str, Union[torch.Tensor, Dict[str, torch.Tensor]]]:
@@ -135,56 +144,54 @@ class DTypeConverter:
     """
     This class converts between numpy and torch types.
     """
-
-    numpy_to_torch: Dict[Type, torch.dtype] = {
-        np.uint8: torch.uint8,
-        np.int8: torch.int8,
-        np.int16: torch.int16,
-        np.int32: torch.int32,
-        np.int64: torch.int64,
-        np.float16: torch.float16,
-        np.float32: torch.float32,
-        np.float64: torch.float64,
-        np.complex64: torch.complex64,
-        np.complex128: torch.complex128,
-        np.bool_: torch.bool,
-    }
-
-    torch_to_numpy: Dict[torch.dtype, Type] = {
-        torch.uint8: np.uint8,
-        torch.int8: np.int8,
-        torch.int16: np.int16,
-        torch.int32: np.int32,
-        torch.int64: np.int64,
-        torch.float16: np.float16,
-        torch.float32: np.float32,
-        torch.float64: np.float64,
-        torch.complex64: np.complex64,
-        torch.complex128: np.complex128,
-        torch.bool: np.bool_,
-    }
-
     @staticmethod
     def from_torch(torch_type: torch.dtype) -> Type:
         """
         Gets the numpy type from torch.
         :raises: KeyError When type is unknown.
         """
-        return DTypeConverter.torch_to_numpy[torch_type]
+        import torch
+        return {
+            torch.uint8: np.uint8,
+            torch.int8: np.int8,
+            torch.int16: np.int16,
+            torch.int32: np.int32,
+            torch.int64: np.int64,
+            torch.float16: np.float16,
+            torch.float32: np.float32,
+            torch.float64: np.float64,
+            torch.complex64: np.complex64,
+            torch.complex128: np.complex128,
+            torch.bool: np.bool_,
+        }[torch_type]
 
     @staticmethod
     def from_numpy(numpy_type: Type) -> torch.dtype:
         """
-        Gets the torch type from nump.
+        Gets the torch type from numpy.
         :raises: KeyError When type is unknown.
         """
-        return DTypeConverter.numpy_to_torch[numpy_type]
+        import torch
+        return {
+            np.uint8: torch.uint8,
+            np.int8: torch.int8,
+            np.int16: torch.int16,
+            np.int32: torch.int32,
+            np.int64: torch.int64,
+            np.float16: torch.float16,
+            np.float32: torch.float32,
+            np.float64: torch.float64,
+            np.complex64: torch.complex64,
+            np.complex128: torch.complex128,
+            np.bool_: torch.bool,
+        }[numpy_type]
 
     @staticmethod
     def __call__(type_to_convert: Union[torch.dtype, Type]) -> Union[torch.dtype, Type]:
         """
         Converts from one type to the other, inferring based on the type passed.
         """
+        import torch
         if isinstance(type_to_convert, torch.dtype):
             return DTypeConverter.from_torch(type_to_convert)
         return DTypeConverter.from_numpy(type_to_convert)
@@ -211,6 +218,7 @@ class DiffusionMask:
         Unfeathers the edges of a tensor if requested.
         This ensures the edges of images are not blurred.
         """
+        import torch
         feather_length = int(feather_ratio * self.width)
         for i in range(feather_length):
             unfeathered = torch.tensor((feather_length - i) / feather_length).to(dtype=tensor.dtype, device=tensor.device)
@@ -267,6 +275,7 @@ class DiffusionMask:
         """
         These weights are always 1.
         """
+        import torch
         if self.frames is None:
             return torch.ones(self.batch, self.dim, self.height, self.width)
         return torch.ones(self.batch, self.dim, self.frames, self.height, self.width)
@@ -282,6 +291,7 @@ class MultilinearDiffusionMask(DiffusionMask):
         """
         Calculates weights in linear gradients.
         """
+        import torch
         tensor = super(MultilinearDiffusionMask, self).calculate(feather_ratio)
         latent_length = int(self.ratio * self.width)
         for i in range(latent_length):
@@ -343,6 +353,7 @@ class GaussianDiffusionMask(DiffusionMask):
         """
         Calculates weights with a gaussian distribution
         """
+        import torch
         midpoint = (self.width - 1) / 2
         x_probabilities = [
             exp(-(x - midpoint) * (x - midpoint) / (self.width * self.width) / (2 * self.deviation)) / sqrt(2 * pi * self.deviation)

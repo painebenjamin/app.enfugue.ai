@@ -68,6 +68,8 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         build_preview_features: bool = False,
         onnx_opset: int = 17,
     ) -> None:
+        if engine_size is None:
+            raise ValueError("Cannot use TensorRT with a 'None' engine size.")
         super(EnfugueTensorRTStableDiffusionPipeline, self).__init__(
             vae=vae,
             text_encoder=text_encoder,
@@ -89,7 +91,6 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
             chunking_mask_type=chunking_mask_type,
             chunking_mask_kwargs=chunking_mask_kwargs,
         )
-
         if self.controlnets:
             # Hijack forward
             self.unet.forward = self.controlled_unet_forward
@@ -105,7 +106,7 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         self.build_preview_features = build_preview_features
         self.max_batch_size = max_batch_size
 
-        if self.build_dynamic_shape or self.engine_size > 512:
+        if self.build_dynamic_shape or self.engine_size > 512: # type: ignore
             self.max_batch_size = 4
 
         # Set default to DDIM - The PNDM default that some models have does not work with TRT
@@ -188,7 +189,7 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         """
         We initialize the TensorRT runtime here.
         """
-        self.load_resources(self.engine_size, self.engine_size, batch_size)
+        self.load_resources(self.engine_size, self.engine_size, batch_size) # type: ignore[arg-type]
         with (
             torch.inference_mode(),
             torch.autocast(device.type if isinstance(device, torch.device) else device),
@@ -244,8 +245,8 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
             engines_to_build,
             self.onnx_opset,
             use_fp16=use_fp16,
-            opt_image_height=self.engine_size,
-            opt_image_width=self.engine_size,
+            opt_image_height=self.engine_size, # type: ignore[arg-type]
+            opt_image_width=self.engine_size, # type: ignore[arg-type]
             force_engine_rebuild=self.force_engine_rebuild,
             static_batch=self.build_static_batch,
             static_shape=not self.build_dynamic_shape,

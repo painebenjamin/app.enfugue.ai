@@ -5,11 +5,6 @@ from typing import Optional, Union, Tuple, List, Callable, TYPE_CHECKING
 if TYPE_CHECKING:
     from torch import Tensor, dtype
 
-    PromptGetterCallable = Callable[
-        [EncodedPrompt, Optional[List[int]]],
-        Tuple[Optional[Tensor], Union[float, int]]
-    ]
-
 __all__ = ["Prompt", "EncodedPrompt", "EncodedPrompts"]
 
 @dataclass
@@ -120,6 +115,12 @@ class EncodedPrompt:
         Gets the dtype of the encoded prompt.
         """
         return self.embeds.dtype
+
+if TYPE_CHECKING:
+    PromptGetterCallable = Callable[
+        [EncodedPrompt, Optional[List[int]]],
+        Tuple[Optional[Tensor], Union[float, int]]
+    ]
 
 @dataclass
 class EncodedPrompts:
