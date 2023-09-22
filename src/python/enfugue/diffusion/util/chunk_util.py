@@ -190,9 +190,10 @@ class Chunker:
         """
         Iterates over all chunks, yielding (vertical, horizontal, temporal)
         """
-        for vertical_chunk, horizontal_chunk in self.chunks:
-            if self.frames:
-                for frame_chunk in self.frame_chunks:
+        if self.frames:
+            for frame_chunk in self.frame_chunks:
+                for vertical_chunk, horizontal_chunk in self.chunks:
                     yield (vertical_chunk, horizontal_chunk, frame_chunk)
-            else:
+        else:
+            for vertical_chunk, horizontal_chunk in self.chunks:
                 yield (vertical_chunk, horizontal_chunk, (None, None))

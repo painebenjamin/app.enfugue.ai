@@ -2016,7 +2016,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                             if num_frames is None:
                                 tensor_for_view = torch.cat([tensor_for_view[:, :, top_idx:height_idx, :], tensor_for_view[:, :, :bottom_idx, :]], dim=2)
                             else:
-                                tensor_for_view = torch.cat([tensor[:, :, :, top_idx:height_idx, :], tensor_for_view[:, :, :, :bottom_idx, :]], dim=3)
+                                tensor_for_view = torch.cat([tensor_for_view[:, :, :, top_idx:height_idx, :], tensor_for_view[:, :, :, :bottom_idx, :]], dim=3)
                         elif num_frames is None:
                             tensor_for_view = tensor_for_view[:, :, top_idx:bottom_idx, :]
                         else:
