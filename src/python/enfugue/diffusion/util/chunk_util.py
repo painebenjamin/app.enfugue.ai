@@ -93,7 +93,7 @@ class Chunker:
             tile_x = self.tile
         if tile_x:
             return ceil(self.latent_width / self.latent_stride[0])
-        return ceil((self.latent_width - self.latent_size[0]) / self.latent_stride[0] + 1)
+        return max(ceil((self.latent_width - self.latent_size[0]) / self.latent_stride[0] + 1), 1)
 
     @property
     def num_vertical_chunks(self) -> int:
@@ -108,7 +108,7 @@ class Chunker:
             tile_y = self.tile
         if tile_y:
             return ceil(self.latent_height / self.latent_stride[1])
-        return ceil((self.latent_height - self.latent_size[1]) / self.latent_stride[1] + 1)
+        return max(ceil((self.latent_height - self.latent_size[1]) / self.latent_stride[1] + 1), 1)
 
     @property
     def num_chunks(self) -> int:
@@ -150,6 +150,7 @@ class Chunker:
             tile_x, tile_y = self.tile
         else:
             tile_x, tile_y = self.tile, self.tile
+
         for i in range(total):
             vertical_offset = None
             horizontal_offset = None
@@ -164,13 +165,13 @@ class Chunker:
                 vertical_offset = bottom - self.latent_height
                 bottom -= vertical_offset
                 if not tile_y:
-                    top -= vertical_offset
+                    top = max(0, top - vertical_offset)
 
             if right > self.latent_width:
                 horizontal_offset = right - self.latent_width
                 right -= horizontal_offset
                 if not tile_x:
-                    left -= horizontal_offset
+                    left = max(0, left - horizontal_offset)
 
             horizontal = [left, right]
             vertical = [top, bottom]
