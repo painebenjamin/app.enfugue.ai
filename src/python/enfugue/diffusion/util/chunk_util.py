@@ -16,6 +16,7 @@ class Chunker:
     tile: Union[bool, Tuple[bool, bool]] = False
     loop: bool = False
     vae_scale_factor: int = 8
+    temporal_first: bool = False
 
     def get_pixel_from_latent(self, chunk: List[int]) -> List[int]:
         """
@@ -227,9 +228,14 @@ class Chunker:
         Iterates over all chunks, yielding (vertical, horizontal, temporal)
         """
         if self.frames:
-            for frame_chunk in self.frame_chunks:
+            if self.temporal_first:
+                for frame_chunk in self.frame_chunks:
+                    for vertical_chunk, horizontal_chunk in self.chunks:
+                        yield (vertical_chunk, horizontal_chunk, frame_chunk)
+            else:
                 for vertical_chunk, horizontal_chunk in self.chunks:
-                    yield (vertical_chunk, horizontal_chunk, frame_chunk)
+                    for frame_chunk in self.frame_chunks:
+                        yield (vertical_chunk, horizontal_chunk, frame_chunk)
         else:
             for vertical_chunk, horizontal_chunk in self.chunks:
                 yield (vertical_chunk, horizontal_chunk, (None, None))
