@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Optional, Iterator, List, Tuple
+from typing import Optional, Iterator, List, Tuple, Union
 from math import ceil
 
 __all__ = ["Chunker"]
@@ -9,12 +9,12 @@ class Chunker:
     width: int
     height: int
     frames: Optional[int] = None
-    size: Optional[int] = None
-    stride: Optional[int] = None
+    size: Optional[Union[int, Tuple[int, int]]] = None
+    stride: Optional[Union[int, Tuple[int, int]]] = None
     frame_size: Optional[int] = None
     frame_stride: Optional[int] = None
+    tile: Union[bool, Tuple[bool, bool]] = False
     loop: bool = False
-    tile: bool = False
     vae_scale_factor: int = 8
 
     def get_pixel_from_latent(self, chunk: List[int]) -> List[int]:
@@ -49,22 +49,36 @@ class Chunker:
         return self.height // self.vae_scale_factor
 
     @property
-    def latent_size(self) -> int:
+    def latent_size(self) -> Tuple[int, int]:
         """
         Returns latent (not pixel) size
         """
         if self.size is None:
-            return max(self.latent_width, self.latent_height)
-        return self.size // self.vae_scale_factor
+            return (self.latent_width, self.latent_height)
+        if isinstance(self.size, tuple):
+            width, height = self.size
+        else:
+            width, height = self.size, self.size
+        return (
+            width // self.vae_scale_factor,
+            height // self.vae_scale_factor,
+        )
 
     @property
-    def latent_stride(self) -> int:
+    def latent_stride(self) -> Tuple[int, int]:
         """
         Returns latent (not pixel) stride
         """
         if self.stride is None:
-            return max(self.latent_width, self.latent_height)
-        return self.stride // self.vae_scale_factor
+            return (self.latent_width, self.latent_height)
+        if isinstance(self.stride, tuple):
+            left, top = self.stride
+        else:
+            left, top = self.stride, self.stride
+        return (
+            left // self.vae_scale_factor,
+            top // self.vae_scale_factor,
+        )
 
     @property
     def num_horizontal_chunks(self) -> int:
@@ -73,9 +87,13 @@ class Chunker:
         """
         if not self.size or not self.stride:
             return 1
-        if self.tile:
-            return ceil(self.latent_width / self.latent_stride)
-        return ceil((self.latent_width - self.latent_size) / self.latent_stride + 1)
+        if isinstance(self.tile, tuple):
+            tile_x, tile_y, = self.tile
+        else:
+            tile_x = self.tile
+        if tile_x:
+            return ceil(self.latent_width / self.latent_stride[0])
+        return ceil((self.latent_width - self.latent_size[0]) / self.latent_stride[0] + 1)
 
     @property
     def num_vertical_chunks(self) -> int:
@@ -84,9 +102,13 @@ class Chunker:
         """
         if not self.size or not self.stride:
             return 1
-        if self.tile:
-            return ceil(self.latent_height / self.latent_stride)
-        return ceil((self.latent_height - self.latent_size) / self.latent_stride + 1)
+        if isinstance(self.tile, tuple):
+            tile_x, tile_y, = self.tile
+        else:
+            tile_y = self.tile
+        if tile_y:
+            return ceil(self.latent_height / self.latent_stride[1])
+        return ceil((self.latent_height - self.latent_size[1]) / self.latent_stride[1] + 1)
 
     @property
     def num_chunks(self) -> int:
@@ -121,35 +143,42 @@ class Chunker:
         vertical_chunks = self.num_vertical_chunks
         horizontal_chunks = self.num_horizontal_chunks
         total = vertical_chunks * horizontal_chunks
+
+        latent_size_x, latent_size_y = self.latent_size
+        latent_stride_x, latent_stride_y = self.latent_stride
+        if isinstance(self.tile, tuple):
+            tile_x, tile_y = self.tile
+        else:
+            tile_x, tile_y = self.tile, self.tile
         for i in range(total):
             vertical_offset = None
             horizontal_offset = None
 
-            top = (i // horizontal_chunks) * self.latent_stride
-            bottom = top + self.latent_size
+            top = (i // horizontal_chunks) * latent_stride_y
+            bottom = top + latent_size_y
 
-            left = (i % horizontal_chunks) * self.latent_stride
-            right = left + self.latent_size
+            left = (i % horizontal_chunks) * latent_stride_x
+            right = left + latent_size_x
 
             if bottom > self.latent_height:
                 vertical_offset = bottom - self.latent_height
                 bottom -= vertical_offset
-                if not self.tile:
+                if not tile_y:
                     top -= vertical_offset
 
             if right > self.latent_width:
                 horizontal_offset = right - self.latent_width
                 right -= horizontal_offset
-                if not self.tile:
+                if not tile_x:
                     left -= horizontal_offset
 
             horizontal = [left, right]
             vertical = [top, bottom]
 
-            if horizontal_offset is not None and self.tile:
+            if horizontal_offset is not None and tile_x:
                horizontal[-1] = horizontal_offset
 
-            if vertical_offset is not None and self.tile:
+            if vertical_offset is not None and tile_y:
                 vertical[-1] = vertical_offset
 
             yield tuple(vertical), tuple(horizontal) # type: ignore
@@ -186,7 +215,13 @@ class Chunker:
         """
         return self.num_chunks * self.num_frame_chunks
 
-    def __iter__(self) -> Iterator[Tuple[Tuple[int, int], Tuple[int, int], Tuple[Optional[int], Optional[int]]]]:
+    def __iter__(self) -> Iterator[
+        Tuple[
+            Tuple[int, int],
+            Tuple[int, int], 
+            Tuple[Optional[int], Optional[int]]
+        ]
+    ]:
         """
         Iterates over all chunks, yielding (vertical, horizontal, temporal)
         """
