@@ -1272,8 +1272,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     height=engine_latent_size,
                     unfeather_left=left==0,
                     unfeather_top=top==0,
-                    unfeather_right=right==latent_width-1,
-                    unfeather_bottom=bottom==latent_height-1,
+                    unfeather_right=right==latent_width,
+                    unfeather_bottom=bottom==latent_height,
                     **self.chunking_mask_kwargs
                 )
 
