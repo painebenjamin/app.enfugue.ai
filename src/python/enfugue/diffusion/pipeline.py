@@ -1570,12 +1570,12 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             if isinstance(image[0], PIL.Image.Image):
                 images = []
 
-                for image_ in image:
-                    image_ = image_.convert("RGB")
-                    image_ = image_.resize((width, height), resample=PIL_INTERPOLATION["lanczos"])
-                    image_ = np.array(image_)
-                    image_ = image_[None, :]
-                    images.append(image_)
+                for i in image:
+                    i = i.convert("RGB")
+                    i = i.resize((width, height), resample=PIL_INTERPOLATION["lanczos"])
+                    i = np.array(i)
+                    i = i[None, :]
+                    images.append(i)
 
                 image = images
 
@@ -1586,6 +1586,10 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             elif isinstance(image[0], torch.Tensor):
                 image = torch.cat(image, dim=0)
 
+        if animation_frames:
+            # Expand batch to frames
+            image = rearrange(image, 't c h w -> c t h w').unsqueeze(0)
+
         image_batch_size = image.shape[0]
 
         if image_batch_size == 1:
@@ -1595,10 +1599,6 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             repeat_by = num_results_per_prompt
 
         image = image.repeat_interleave(repeat_by, dim=0)
-        if animation_frames is not None:
-            image = image.unsqueeze(2)
-            image = torch.cat([image] * animation_frames, dim=2)
-
         if do_classifier_free_guidance:
             image = torch.cat([image] * 2)
 
@@ -2931,7 +2931,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                                 conditioning_start, conditioning_end = None, None
 
                             if isinstance(controlnet_image, str):
-                                controlnet_image = PIL.Image.open(controlnet_image)
+                                controlnet_image = self.open_image(controlnet_image)
 
                             prepared_controlnet_image = self.prepare_control_image(
                                 image=controlnet_image,
