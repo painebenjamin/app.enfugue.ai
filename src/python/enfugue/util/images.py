@@ -6,13 +6,14 @@ import PIL
 import PIL.Image
 import PIL.ImageChops
 
-from typing import Optional, Literal
+from typing import Optional, Literal, Union, Tuple
 
 from pibble.resources.retriever import Retriever
 
 __all__ = [
     "fit_image",
     "feather_mask",
+    "tile_image",
     "remove_background",
     "image_from_uri",
     "images_are_equal",
@@ -32,7 +33,6 @@ IMAGE_ANCHOR_LITERAL = Literal[
     "bottom-center",
     "bottom-right",
 ]
-
 
 def fit_image(
     image: PIL.Image.Image,
@@ -133,7 +133,6 @@ def fit_image(
     else:
         raise ValueError(f"Unknown fit {fit}")
 
-
 def feather_mask(image: PIL.Image.Image) -> PIL.Image.Image:
     """
     Given an image, create a feathered binarized mask by 'growing' the black/white pixel sections.
@@ -154,6 +153,21 @@ def feather_mask(image: PIL.Image.Image) -> PIL.Image.Image:
 
     return feathered
 
+def tile_image(image: PIL.Image.Image, tiles: Union[int, Tuple[int, int]]) -> PIL.Image.Image:
+    """
+    Given an image and number of tiles, create a tiled image.
+    Accepts either an integer (squre tiles) or tuple (rectangular)
+    """
+    width, height = image.size
+    if isinstance(tiles, tuple):
+        width_tiles, height_tiles = tiles
+    else:
+        width_tiles, height_tiles = tiles, tiles
+    tiled = PIL.Image.new(image.mode, (width * width_tiles, height * height_tiles))
+    for i in range(width_tiles):
+        for j in range(height_tiles):
+            tiled.paste(image, (i * width, j * height))
+    return tiled
 
 def remove_background(image: PIL.Image.Image) -> PIL.Image.Image:
     """
@@ -168,7 +182,6 @@ def remove_background(image: PIL.Image.Image) -> PIL.Image.Image:
     buf = io.BytesIO()
     image.save(buf, "PNG")
     return PIL.Image.open(io.BytesIO(backgroundremover.bg.remove(buf.getvalue())))
-
 
 def image_from_uri(uri: str) -> PIL.Image.Image:
     """

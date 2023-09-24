@@ -327,6 +327,7 @@ class Video:
             frames=cls.file_to_frames(
                 path=path,
                 skip_frames=skip_frames,
-                maximum_frames=maximum_frames
+                maximum_frames=maximum_frames,
+                resolution=resolution
             )
         )
