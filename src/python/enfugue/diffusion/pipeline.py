@@ -1224,12 +1224,19 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         Encodes an image in chunks using the VAE.
         """
         _, _, height, width = image.shape
+
+        # Disable tiling during encoding
+        tile = chunker.tile
+        chunker.tile = None
+
         total_steps = chunker.num_chunks
 
         if total_steps == 1:
             result = self.encode_image_unchunked(image, dtype, generator)
             if progress_callback is not None:
                 progress_callback(True)
+            # Re-enable tiling if asked for
+            chunker.tile = tile
             return result
 
         chunks = chunker.chunks
@@ -1283,6 +1290,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 if progress_callback is not None:
                     progress_callback(True)
 
+        # Re-enable tiling if asked for
+        chunker.tile = tile
         if self.config.force_full_precision_vae:
             self.vae.to(dtype=dtype)
         return (torch.where(count > 0, value / count, value) * self.vae.config.scaling_factor).to(dtype=dtype)
@@ -2186,8 +2195,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                         unfeather_top=top==0,
                         unfeather_right=right==latent_width,
                         unfeather_bottom=bottom==latent_height,
-                        unfeather_start=False if num_frames is None else start==0,
-                        unfeather_end=False if num_frames is None else end==num_frames,
+                        unfeather_start=False if num_frames is None else (start==0 and not chunker.loop),
+                        unfeather_end=False if num_frames is None else (end==num_frames and not chunker.loop),
                         **self.chunking_mask_kwargs
                     )
 

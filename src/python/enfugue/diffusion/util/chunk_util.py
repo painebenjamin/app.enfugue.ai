@@ -130,6 +130,24 @@ class Chunker:
         return ceil((self.frames - self.frame_size) / self.frame_stride + 1)
 
     @property
+    def tile_x(self) -> bool:
+        """
+        Gets whether or not tiling is eanbled on the X dimension.
+        """
+        if isinstance(self.tile, tuple):
+            return self.tile[0]
+        return self.tile
+
+    @property
+    def tile_y(self) -> bool:
+        """
+        Gets whether or not tiling is eanbled on the Y dimension.
+        """
+        if isinstance(self.tile, tuple):
+            return self.tile[1]
+        return self.tile
+
+    @property
     def chunks(self) -> Iterator[Tuple[Tuple[int, int], Tuple[int, int]]]:
         """
         Gets the chunked latent indices

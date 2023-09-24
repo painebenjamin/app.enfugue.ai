@@ -57,6 +57,20 @@ class CanvasFormView extends FormView {
                     "tooltip": "The height of the canvas in pixels."
                 }
             },
+            "tileHorizontally": {
+                "label": "Horizontally Tiling",
+                "class": CheckboxInputView,
+                "config": {
+                    "tooltip": "When enabled, the resulting image will tile horizontally, i.e., when duplicated and placed side-by-side, there will be no seams between the copies."
+                }
+            },
+            "tileVertically": {
+                "label": "Vertically Tiling",
+                "class": CheckboxInputView,
+                "config": {
+                    "tooltip": "When enabled, the resulting image will tile vertically, i.e., when duplicated and placed with on image on top of the other, there will be no seams between the copies."
+                }
+            },
             "useChunking": {
                 "label": "Use Chunking",
                 "class": CheckboxInputView,
@@ -87,10 +101,18 @@ class CanvasFormView extends FormView {
      */
     async submit() {
         await super.submit();
-        if (this.values.useChunking) {
+        let chunkInput = (await this.getInputView("useChunking"));
+        if (this.values.tileHorizontally || this.values.tileVertically) {
             this.removeClass("no-chunking");
+            chunkInput.setValue(true, false);
+            chunkInput.disable();
         } else {
-            this.addClass("no-chunking");
+            chunkInput.enable();
+            if (this.values.useChunking) {
+                this.removeClass("no-chunking");
+            } else {
+                this.addClass("no-chunking");
+            }
         }
     }
 };
