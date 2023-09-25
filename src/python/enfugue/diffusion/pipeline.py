@@ -1318,15 +1318,16 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     yield i
                 else:
                     yield self.encode_image(
-                        image=i,
+                        image=i.to(dtype=dtype, device=device),
                         device=device,
                         generator=generator,
                         dtype=dtype,
                         chunker=chunker,
                         progress_callback=progress_callback
                     )
+
         # these should all be [1, 4, h, w], collapse along batch dim
-        latents = torch.cat(list(encoded()), dim=0) # type: ignore[assignment]
+        latents = torch.cat(list(encoded()), dim=0).to(dtype) # type: ignore[assignment]
 
         if animation_frames:
             # Change from collapsing on batch dim to temporal dim
