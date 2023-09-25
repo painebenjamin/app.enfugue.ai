@@ -40,6 +40,8 @@ def fit_image(
     height: int,
     fit: Optional[IMAGE_FIT_LITERAL] = None,
     anchor: Optional[IMAGE_ANCHOR_LITERAL] = None,
+    offset_left: Optional[int] = None,
+    offset_top: Optional[int] = None
 ) -> PIL.Image.Image:
     """
     Given an image of unknown size, make it a known size with optional fit parameters.
@@ -63,8 +65,13 @@ def fit_image(
                 left = width - image_width
 
         blank_image = PIL.Image.new("RGBA", (width, height), (0, 0, 0, 0))
-        blank_image.paste(image, (left, top))
 
+        if offset_top is not None:
+            top += offset_top
+        if offset_left is not None:
+            left += offset_left
+
+        blank_image.paste(image, (left, top))
         return blank_image
     elif fit == "contain":
         image_width, image_height = image.size
@@ -91,6 +98,12 @@ def fit_image(
                     left = width // 2 - vertical_image_width // 2
                 elif left_part == "right":
                     left = width - vertical_image_width
+
+        if offset_top is not None:
+            top += offset_top
+        if offset_left is not None:
+            left += offset_left
+
         blank_image = PIL.Image.new("RGBA", (width, height))
         blank_image.paste(input_image, (left, top))
 
@@ -124,6 +137,12 @@ def fit_image(
                     left = width - vertical_image_width
         else:
             input_image = image.resize((width, height))  # We're probably off by a pixel
+
+        if offset_top is not None:
+            top += offset_top
+        if offset_left is not None:
+            left += offset_left
+
         blank_image = PIL.Image.new("RGBA", (width, height))
         blank_image.paste(input_image, (left, top))
 

@@ -1649,15 +1649,29 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         if not controlnet_conds or not self.controlnets:
             return None, None
 
+        is_animation = len(latents.shape) == 5
+        if is_animation:
+            batch, channels, frames, height, width = latents.shape
+            # Compress frames to batch
+            latent_input = rearrange(latents, "b c f h w -> (b f) c h w")
+            hidden_state_input = encoder_hidden_states.repeat_interleave(frames, dim=0)
+        else:
+            batch, channels, height, width = latents.shape
+            frames = None
+            latent_input = latents
+            hidden_state_input = encoder_hidden_states
+
         down_blocks, mid_block = None, None
         for name in controlnet_conds:
             if self.controlnets.get(name, None) is None:
                 raise RuntimeError(f"Conditioning image requested ControlNet {name}, but it's not loaded.")
             for controlnet_cond, conditioning_scale in controlnet_conds[name]:
+                if is_animation:
+                    controlnet_cond = rearrange(controlnet_cond, "b c f h w -> (b f) c h w")
                 down_samples, mid_sample = self.controlnets[name](
-                    latents,
+                    latent_input,
                     timestep,
-                    encoder_hidden_states=encoder_hidden_states,
+                    encoder_hidden_states=hidden_state_input,
                     controlnet_cond=controlnet_cond,
                     conditioning_scale=conditioning_scale,
                     added_cond_kwargs=added_cond_kwargs,
@@ -1671,6 +1685,13 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                         for previous_block, current_block in zip(down_blocks, down_samples)
                     ]
                     mid_block += mid_sample
+        if is_animation:
+            # Expand batch back to frames
+            down_blocks = [
+                rearrange(block, "(b f) c h w -> b c f h w", b=batch, f=frames)
+                for block in down_blocks
+            ]
+            mid_block = rearrange(mid_block, "(b f) c h w -> b c f h w", b=batch, f=frames)
         return down_blocks, mid_block
 
     def denoise_unchunked(
