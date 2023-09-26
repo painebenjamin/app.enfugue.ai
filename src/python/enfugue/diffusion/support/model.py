@@ -47,6 +47,8 @@ class SupportModel:
     process: Optional[SupportModelImageProcessor] = None
 
     def __init__(self, model_dir: str, device: torch.device, dtype: torch.dtype) -> None:
+        if model_dir.startswith("~"):
+            model_dir = os.path.expanduser(model_dir)
         self.model_dir = model_dir
         self.device = device
         self.dtype = dtype
@@ -68,6 +70,27 @@ class SupportModel:
             check_download(uri, local_path, check_size=check_remote_size)
             return local_path
         raise IOError(f"Cannot retrieve model file {uri}")
+
+    @classmethod
+    def get_default_instance(cls) -> SupportModel:
+        """
+        Builds a default interpolator without a configuration passed
+        """
+        import torch
+        from enfugue.diffusion.util import get_optimal_device
+        from enfugue.util import get_local_configuration
+        device = get_optimal_device()
+        try:
+            configuration = get_local_configuration()
+        except:
+            from pibble.api.configuration import APIConfiguration
+            configuration = APIConfiguration()
+
+        return cls(
+            configuration.get("enfugue.engine.cache", "~/.cache/enfugue/other"),
+            device,
+            torch.float16 if device.type == "cuda" else torch.float32
+        )
 
     @contextmanager
     def context(self) -> Iterator[Self]:

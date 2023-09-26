@@ -786,7 +786,8 @@ fieldset.field-set-directories .field-container,
 fieldset.field-set-engine .field-container,
 fieldset.field-set-diffusion .field-container,
 fieldset.field-set-filters .field-container.string-input-view-search,
-fieldset.field-set-dimensions .field-container.checkbox-input-view,
+fieldset.field-set-dimensions .field-container.checkbox-input-view-use-chunking,
+fieldset.field-set-animation .field-container.checkbox-input-view,
 enfugue-sidebar .field-container.slider-precise-input-view
 {
     flex-basis: 100%;
@@ -823,12 +824,25 @@ form.show-inpainter fieldset.field-set-additional-models:not(.collapsed) .vae-in
 }
 
 .field-container.multi-lora-input-view form .field-container,
-.field-container.multi-lycoris-input-view form .field-container {
+.field-container.multi-lycoris-input-view form .field-container
+{
     flex-basis: 100%;
 }
 
 form.no-chunking .field-container.number-input-view-chunking-size,
 form.no-chunking .field-container.mask-type-input-view-chunking-mask-type
+{
+    display: none;
+}
+
+form.no-animation .field-container:not(.checkbox-input-view-animation-enabled)
+{
+    display: none;
+}
+
+form.no-animation-chunking .field-container.number-input-view-animation-size,
+form.no-animation-chunking .field-container.number-input-view-animation-stride,
+form.no-animation-chunking .field-container.checkbox-input-view-animation-loop
 {
     display: none;
 }

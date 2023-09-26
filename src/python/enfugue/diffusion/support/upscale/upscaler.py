@@ -59,6 +59,50 @@ class GFPGANProcessor(SupportModelImageProcessor):
         multiplier = outscale / 4
         return result.resize((int(width * multiplier), int(height * multiplier)))
 
+class ESRGANProcessor(SupportModelImageProcessor):
+    """
+    Holds a reference to the esrganer and provides a callable
+    """
+    def __init__(self, esrganer: RealESRGANer, **kwargs: Any) -> None:
+        super(ESRGANProcessor, self).__init__(**kwargs)
+        self.esrganer = esrganer
+
+    def __call__(self, image: Image.Image, outscale: int = 2) -> Image.Image:
+        """
+        Upscales an image
+        """
+        return ComputerVision.revert_image(
+            self.esrganer.enhance(
+                ComputerVision.convert_image(image),
+                outscale=outscale
+            )[0]
+        )
+
+class GFPGANProcessor(SupportModelImageProcessor):
+    """
+    Holds a reference to the gfpganer and provides a callable
+    """
+    def __init__(self, gfpganer: GFPGANer, **kwargs: Any) -> None:
+        super(GFPGANProcessor, self).__init__(**kwargs)
+        self.gfpganer = gfpganer
+
+    def __call__(self, image: Image.Image, outscale: int = 2) -> Image.Image:
+        """
+        Upscales an image
+        GFPGan is fixed at x4 so this fixes the scale here
+        """
+        result = ComputerVision.revert_image(
+            self.gfpganer.enhance(
+                ComputerVision.convert_image(image),
+                has_aligned=False,
+                only_center_face=False,
+                paste_back=True,
+            )[2]
+        )
+        width, height = result.size
+        multiplier = outscale / 4
+        return result.resize((int(width * multiplier), int(height * multiplier)))
+
 class Upscaler(SupportModel):
     """
     The upscaler user ESRGAN or GFGPGAN for up to 4x upscale
