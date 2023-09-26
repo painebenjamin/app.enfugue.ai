@@ -1,18 +1,28 @@
+import os
 import cv2
 import numpy as np
 
-from PIL import Image
+from typing import Iterator, Iterable, Optional, Callable
 
-from typing import Union, Literal
+from datetime import datetime
+from PIL import Image
+from enfugue.util import logger
 
 __all__ = ["ComputerVision"]
+
+def latent_friendly(number: int) -> int:
+    """
+    Returns a latent-friendly image size (divisible by 8)
+    """
+    return (number // 8) * 8
 
 class ComputerVision:
     """
     Provides helper methods for cv2
     """
-    @classmethod
-    def show(cls, name: str, image: Image.Image) -> None:
+
+    @staticmethod
+    def show(name: str, image: Image.Image) -> None:
         """
         Shows an image.
         Tries to use the Colab monkeypatch first, in case this is being ran in Colab.
@@ -25,78 +35,212 @@ class ComputerVision:
             cv2.waitKey(0)
             cv2.destroyAllWindows()
 
-    @classmethod
-    def convert_image(cls, image: Image.Image) -> np.ndarray:
+    @staticmethod
+    def convert_image(image: Image.Image) -> np.ndarray:
         """
         Converts PIL image to OpenCV format.
         """
         return cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
 
-    @classmethod
-    def revert_image(cls, array: np.ndarray) -> Image.Image:
+    @staticmethod
+    def revert_image(array: np.ndarray) -> Image.Image:
         """
-        Converts OpenCV format to PIL image
+        Converts PIL image to OpenCV format.
         """
         return Image.fromarray(cv2.cvtColor(array, cv2.COLOR_BGR2RGB))
 
-    @classmethod
-    def noise(
-        cls,
-        image: Union[np.ndarray, Image.Image],
-        method: Literal["gaussian", "poisson", "speckle", "salt-and-pepper"] = "poisson",
-        gaussian_mean: Union[int, float] = 0.0,
-        gaussian_variance: float = 0.01,
-        poisson_factor: Union[int, float] = 2.25,
-        salt_pepper_ratio: float = 0.5,
-        salt_pepper_amount: float = 0.004,
-        speckle_amount: float = 0.01,
-    ) -> Union[np.ndarray, Image.Image]:
+    @staticmethod
+    def frames_to_video(
+        path: str,
+        frames: Iterable[Image.Image],
+        overwrite: bool = False,
+        rate: float = 20.
+    ) -> int:
         """
-        Adds noise to an image.
+        Saves PIL image frames to an .mp4 video.
+        Returns the total size of the video in bytes.
         """
-        return_pil = isinstance(image, Image.Image)
-        if return_pil:
-            image = cls.convert_image(image)
-        image = image.astype(np.float64) / 255.0
-        width, height, channels = image.shape
-        if method == "gaussian":
-            gaussian_sigma = gaussian_variance ** 0.5
-            gaussian = np.random.normal(
-                gaussian_mean,
-                gaussian_sigma,
-                (width, height, channels)
-            )
-            gaussian = gaussian.reshape(width, height, channels)
-            image += gaussian
-        elif method == "salt-and-pepper":
-            output = np.copy(image)
-            # Do salt
-            salt = np.ceil(salt_pepper_amount * image.size * salt_pepper_ratio)
-            coordinates = [
-                np.random.randint(0, i - 1, int(salt))
-                for i in image.shape
-            ]
-            output[coordinates] = 1
-            # Do pepper
-            pepper = np.ceil(salt_pepper_amount * image.size * (1.0 - salt_pepper_ratio))
-            coordinates = [
-                np.random.randint(0, i - 1, int(pepper))
-                for i in image.shape
-            ]
-            output[coordinates] = 0
-            image = output
-        elif method == "poisson":
-            distinct_values = len(np.unique(image))
-            distinct_values = poisson_factor ** np.ceil(np.log2(distinct_values))
-            image = np.random.poisson(image * distinct_values) / float(distinct_values)
-        elif method == "speckle":
-            speckled = np.random.randn(width, height, channels)
-            speckled = speckled.reshape(width, height, channels)
-            image += (image * speckled * speckle_amount)
-        else:
-            raise ValueError(f"Unknown noise method {method}") # type: ignore[unreachable]
-        image *= 255.0
-        image = image.astype(np.uint8)
-        if return_pil:
-            return cls.revert_image(image)
-        return image
+        if path.startswith("~"):
+            path = os.path.expanduser(path)
+        if os.path.exists(path):
+            if not overwrite:
+                raise IOError(f"File exists at path {path}, pass overwrite=True to write anyway.")
+            os.unlink(path)
+        fourcc = cv2.VideoWriter_fourcc(*'mp4v') # type: ignore
+        writer = None
+        for frame in frames:
+            if writer is None:
+                writer = cv2.VideoWriter(path, fourcc, rate, frame.size)
+            writer.write(ComputerVision.convert_image(frame))
+        if writer is None:
+            raise IOError(f"No frames written to {path}")
+
+        writer.release()
+        return os.path.getsize(path)
+
+    @staticmethod
+    def frames_from_video(
+        path: str,
+        skip_frames: Optional[int] = None,
+        maximum_frames: Optional[int] = None,
+        resolution: Optional[int] = None,
+    ) -> Iterator[Image.Image]:
+        """
+        Starts a video capture and yields PIL images for each frame.
+        """
+        if path.startswith("~"):
+            path = os.path.expanduser(path)
+        if not os.path.exists(path):
+            raise IOError(f"Video at path {path} not found or inaccessible")
+        frames = 0
+
+        frame_start = 0 if skip_frames is None else skip_frames
+        frame_end = None if maximum_frames is None else frame_start + maximum_frames - 1
+
+        frame_string = "end-of-video" if frame_end is None else f"frame {frame_end}"
+        logger.debug(f"Reading video file at {path} starting from frame {frame_start} until {frame_string}")
+
+        capture = cv2.VideoCapture(path)
+
+        def resize_image(image: Image.Image) -> Image.Image:
+            """
+            Resizes an image frame if requested.
+            """
+            if resolution is None:
+                return image
+
+            width, height = image.size
+            ratio = float(resolution) / float(min(width, height))
+            height = round(height * ratio)
+            width = round(width * ratio)
+            return image.resize((width, height))
+
+        while capture.isOpened():
+            success, image = capture.read()
+            if not success:
+                break
+            elif frames == 0:
+                logger.debug("First frame captured, iterating.")
+
+            frames += 1
+            if frame_start > frames:
+                continue
+
+            yield resize_image(ComputerVision.revert_image(image))
+
+            if frame_end is not None and frames >= frame_end:
+                break
+
+        capture.release()
+        if frames == 0:
+            raise IOError(f"No frames were read from video at {path}")
+    
+    @staticmethod
+    def video_to_video(
+        source_path: str,
+        destination_path: str,
+        overwrite: bool = False,
+        rate: float = 20.,
+        skip_frames: Optional[int] = None,
+        maximum_frames: Optional[int] = None,
+        resolution: Optional[int] = None,
+        process_frame: Optional[Callable[[Image.Image], Image.Image]] = None,
+    ) -> int:
+        """
+        Saves PIL image frames to an .mp4 video.
+        Returns the total size of the video in bytes.
+        """
+        if destination_path.startswith("~"):
+            destination_path = os.path.expanduser(destination_path)
+        if os.path.exists(destination_path):
+            if not overwrite:
+                raise IOError(f"File exists at destination_path {destination_path}, pass overwrite=True to write anyway.")
+            os.unlink(destination_path)
+
+        if source_path.startswith("~"):
+            source_path = os.path.expanduser(source_path)
+        if not os.path.exists(source_path):
+            raise IOError(f"Video at path {source_path} not found or inaccessible")
+
+        frames = 0
+
+        frame_start = 0 if skip_frames is None else skip_frames
+        frame_end = None if maximum_frames is None else frame_start + maximum_frames - 1
+
+        frame_string = "end-of-video" if frame_end is None else f"frame {frame_end}"
+        logger.debug(f"Reading video file at {source_path} starting from frame {frame_start} until {frame_string}. Will process and write to {destination_path}")
+
+        capture = cv2.VideoCapture(source_path)
+        fourcc = cv2.VideoWriter_fourcc(*'mp4v') # type: ignore
+        writer = None
+
+        def process_image(image: Image.Image) -> Image.Image:
+            """
+            Processes an image frame if requested.
+            """
+            width, height = image.size
+            if resolution is not None:
+                ratio = float(resolution) / float(min(width, height))
+                height = round(height * ratio)
+                width = round(width * ratio)
+
+            image = image.resize((
+                latent_friendly(width),
+                latent_friendly(height)
+            ))
+
+            if process_frame is not None:
+                image = process_frame(image)
+
+            return image
+
+        opened = datetime.now()
+        started = opened
+        last_log = 0
+        processed_frames = 0
+
+        while capture.isOpened():
+            success, image = capture.read()
+            if not success:
+                break
+            elif frames == 0:
+                opened = datetime.now()
+                logger.debug("Video opened, iterating through frames.")
+
+            frames += 1
+            if frame_start > frames:
+                continue
+            elif frame_start == frames:
+                started = datetime.now()
+                logger.debug(f"Beginning processing from frame {frames}")
+
+            image = process_image(ComputerVision.revert_image(image))
+            processed_frames += 1
+            
+            if writer is None:
+                writer = cv2.VideoWriter(destination_path, fourcc, rate, image.size)
+            
+            writer.write(ComputerVision.convert_image(image))
+            
+            if last_log < processed_frames - rate:
+                unit = "frames/sec"
+                process_rate = processed_frames / (datetime.now() - started).total_seconds()
+                if process_rate < 1.0:
+                    unit = "sec/frame"
+                    process_rate = 1.0 / process_rate
+
+                logger.debug(f"Processed {processed_frames} at {process_rate:.2f} {unit}")
+                last_log = processed_frames
+            
+            if frame_end is not None and frames >= frame_end:
+                break
+        if writer is None:
+            raise IOError(f"No frames written to path {destination_path}")
+
+        writer.release()
+        capture.release()
+
+        if frames == 0:
+            raise IOError(f"No frames were read from video at {source_path}")
+
+        return os.path.getsize(destination_path)

@@ -54,7 +54,7 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         ip_adapter: Optional[IPAdapter] = None,
         engine_size: int = 512,  # Recommended even for machines that can handle more
         chunking_size: int = 32,
-        chunking_mask_type: MASK_TYPE_LITERAL = "multilinear",
+        chunking_mask_type: MASK_TYPE_LITERAL = "bilinear",
         chunking_mask_kwargs: Dict[str, Any] = {},
         max_batch_size: int = 16,
         # ONNX export parameters
@@ -68,8 +68,6 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         build_preview_features: bool = False,
         onnx_opset: int = 17,
     ) -> None:
-        if engine_size is None:
-            raise ValueError("Cannot use TensorRT with a 'None' engine size.")
         super(EnfugueTensorRTStableDiffusionPipeline, self).__init__(
             vae=vae,
             text_encoder=text_encoder,
@@ -91,6 +89,7 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
             chunking_mask_type=chunking_mask_type,
             chunking_mask_kwargs=chunking_mask_kwargs,
         )
+
         if self.controlnets:
             # Hijack forward
             self.unet.forward = self.controlled_unet_forward
@@ -106,7 +105,7 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         self.build_preview_features = build_preview_features
         self.max_batch_size = max_batch_size
 
-        if self.build_dynamic_shape or self.engine_size > 512: # type: ignore
+        if self.build_dynamic_shape or self.engine_size > 512:
             self.max_batch_size = 4
 
         # Set default to DDIM - The PNDM default that some models have does not work with TRT
@@ -181,7 +180,6 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
     def get_runtime_context(
         self,
         batch_size: int,
-        animation_frames: Optional[int],
         device: Union[str, torch.device],
         ip_adapter_scale: Optional[float] = None,
         step_complete_callback: Optional[Callable[[bool], None]] = None
@@ -189,7 +187,7 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         """
         We initialize the TensorRT runtime here.
         """
-        self.load_resources(self.engine_size, self.engine_size, batch_size) # type: ignore[arg-type]
+        self.load_resources(self.engine_size, self.engine_size, batch_size)
         with (
             torch.inference_mode(),
             torch.autocast(device.type if isinstance(device, torch.device) else device),
@@ -245,8 +243,8 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
             engines_to_build,
             self.onnx_opset,
             use_fp16=use_fp16,
-            opt_image_height=self.engine_size, # type: ignore[arg-type]
-            opt_image_width=self.engine_size, # type: ignore[arg-type]
+            opt_image_height=self.engine_size,
+            opt_image_width=self.engine_size,
             force_engine_rebuild=self.force_engine_rebuild,
             static_batch=self.build_static_batch,
             static_shape=not self.build_dynamic_shape,
@@ -262,23 +260,22 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         num_channels_latents: int,
         height: int,
         width: int,
-        dtype: torch.dtype,
+        dtype: Union[str, torch.dtype],
         device: Union[str, torch.device],
         generator: Optional[torch.Generator] = None,
-        animation_frames: Optional[int] = None,
     ) -> torch.Tensor:
         """
         Override to change to float32
         """
         return super(EnfugueTensorRTStableDiffusionPipeline, self).create_latents(
-            batch_size, num_channels_latents, height, width, torch.float32, device, generator, animation_frames
+            batch_size, num_channels_latents, height, width, torch.float32, device, generator,
         )
 
     def encode_prompt(
         self,
         prompt: Optional[str],
         device: torch.device,
-        num_results_per_prompt: int = 1,
+        num_images_per_prompt: int = 1,
         do_classifier_free_guidance: bool = False,
         negative_prompt: Optional[str] = None,
         prompt_embeds: Optional[torch.Tensor] = None,
@@ -301,7 +298,7 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
             return super(EnfugueTensorRTStableDiffusionPipeline, self).encode_prompt(
                 prompt=prompt,
                 device=device,
-                num_results_per_prompt=num_results_per_prompt,
+                num_images_per_prompt=num_images_per_prompt,
                 do_classifier_free_guidance=do_classifier_free_guidance,
                 negative_prompt=negative_prompt,
                 prompt_embeds=prompt_embeds,

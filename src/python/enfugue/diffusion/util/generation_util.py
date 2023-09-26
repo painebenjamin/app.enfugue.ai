@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pibble.util.strings import Serializer
-from typing import Any, Dict, List, Tuple, Union, Optional, TYPE_CHECKING
+from typing import Any, Dict, List, Tuple, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from enfugue.diffusion.manager import DiffusionPipelineManager
@@ -22,7 +22,6 @@ class GridMaker:
         grid_size: int = 256,
         grid_columns: int = 4,
         caption_height: int = 50,
-        use_video: bool = False,
         **base_kwargs: Any
     ) -> None:
         self.seed = seed
@@ -30,7 +29,6 @@ class GridMaker:
         self.grid_columns = grid_columns
         self.caption_height = caption_height
         self.base_kwargs = base_kwargs
-        self.use_video = use_video
 
     @property
     def font(self) -> ImageFont:
@@ -99,10 +97,7 @@ class GridMaker:
             for key in parameters
         ])
 
-    def collage(
-        self,
-        results: List[Tuple[Dict[str, Any], Optional[str], List[Image]]]
-    ) -> Union[Image, List[Image]]:
+    def collage(self, results: List[Tuple[Dict[str, Any], List[Image]]]) -> Image:
         """
         Builds the results into a collage.
         """
@@ -110,11 +105,7 @@ class GridMaker:
         from PIL import Image, ImageDraw
         
         # Get total images
-        if self.use_video:
-            total_images = len(results)
-        else:
-            total_images = sum([len(images) for kwargs, label, images in results])
-
+        total_images = sum([len(images) for kwargs, images in results])
         if total_images == 0:
             raise RuntimeError("No images passed.")
 
@@ -131,76 +122,41 @@ class GridMaker:
 
         # Create blank image
         grid = Image.new("RGB", (width, height), (255, 255, 255))
-
-        # Multiply if making a video
-        if self.use_video:
-            frame_count = max([len(images) for kwargs, label, images in results])
-            grid = [grid.copy() for i in range(frame_count)]
-            draw = [ImageDraw.Draw(image) for image in grid]
-        else:
-            draw = ImageDraw.Draw(grid)
+        draw = ImageDraw.Draw(grid)
 
         # Iterate through each result image and paste
         row, column = 0, 0
-        for parameter_set, label, images in results:
+        for parameter_set, images in results:
             for i, image in enumerate(images):
-                # Fit the image to the grid size
                 width, height = image.size
+                # Fit the image to the grid size
                 image = fit_image(image, self.grid_size, self.grid_size, "contain", "center-center")
-                # Figure out which image/draw to use
-                if self.use_video:
-                    target_image = grid[i]
-                    target_draw = draw[i]
-                else:
-                    target_image = grid
-                    target_draw = draw
                 # Paste the image on the grid
-                target_image.paste(
-                    image,
-                    (column * self.grid_size, row * (self.grid_size + self.caption_height))
-                )
+                grid.paste(image, (column * self.grid_size, row * (self.grid_size + self.caption_height)))
                 # Put the caption under the image
-                if label is None:
-                    if self.use_video:
-                        label = f"{self.format_parameters(parameter_set)}, {width}×{height}"
-                    else:
-                        label = f"{self.format_parameters(parameter_set)}, sample {i+1}, {width}×{height}"
-                target_draw.text(
+                draw.text(
                     (column * self.grid_size + 5, row * (self.grid_size + self.caption_height) + self.grid_size + 2),
-                    self.split_text(label),
+                    self.split_text(f"{self.format_parameters(parameter_set)}, sample {i+1}, {width}×{height}"),
                     fill=(0,0,0),
                     font=self.font
                 )
                 # Increment as necessary
-                if not self.use_video:
-                    column += 1
-                    if column >= self.grid_columns:
-                        row += 1
-                        column = 0
-            # Increment as necessary
-            if self.use_video:
                 column += 1
                 if column >= self.grid_columns:
                     row += 1
                     column = 0
         return grid
 
-    def execute(
-        self,
-        manager: DiffusionPipelineManager,
-        *parameter_sets: Dict[str, Any]
-    )-> Union[Image, Tuple[Image]]:
+    def execute(self, manager: DiffusionPipelineManager, *parameter_sets: Dict[str, Any]) -> Image:
         """
         Executes each parameter set and pastes on the grid.
         """
-        results: List[Tuple[Dict[str, Any], Optional[str], List[Image]]] = []
+        results: List[Tuple[Dict[str, Any], List[Image]]] = []
         for parameter_set in parameter_sets:
             manager.seed = self.seed
-            label = parameter_set.pop("label", None)
             result = manager(**{**self.base_kwargs, **parameter_set})
             results.append((
                 parameter_set,
-                label,
                 result["images"]
             ))
         return self.collage(results)

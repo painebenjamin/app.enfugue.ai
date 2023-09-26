@@ -41,13 +41,91 @@ from enfugue.util import (
     IMAGE_FIT_LITERAL,
     IMAGE_ANCHOR_LITERAL,
 )
-from enfugue.diffusion.constants import *
 
 if TYPE_CHECKING:
     from enfugue.diffusers.manager import DiffusionPipelineManager
     from diffusers.pipelines.stable_diffusion import StableDiffusionPipelineOutput
+    from enfugue.diffusion.constants import (
+        SCHEDULER_LITERAL,
+        CONTROLNET_LITERAL,
+        UPSCALE_LITERAL,
+        MASK_TYPE_LITERAL,
+    )
+
+DEFAULT_SIZE = 512
+DEFAULT_IMAGE_CALLBACK_STEPS = 10
+DEFAULT_CONDITIONING_SCALE = 1.0
+DEFAULT_IMG2IMG_STRENGTH = 0.8
+DEFAULT_INFERENCE_STEPS = 40
+DEFAULT_GUIDANCE_SCALE = 7.5
+DEFAULT_UPSCALE_PROMPT = "highly detailed, ultra-detailed, intricate detail, high definition, HD, 4k, 8k UHD"
+DEFAULT_UPSCALE_INFERENCE_STEPS = 100
+DEFAULT_UPSCALE_GUIDANCE_SCALE = 12
+DEFAULT_UPSCALE_CHUNKING_SIZE = 128
+
+DEFAULT_REFINER_START = 0.85
+DEFAULT_REFINER_STRENGTH = 0.3
+DEFAULT_REFINER_GUIDANCE_SCALE = 5.0
+DEFAULT_AESTHETIC_SCORE = 6.0
+DEFAULT_NEGATIVE_AESTHETIC_SCORE = 2.5
+
+MODEL_PROMPT_WEIGHT = 0.2
+GLOBAL_PROMPT_STEP_WEIGHT = 0.4
+GLOBAL_PROMPT_UPSCALE_WEIGHT = 0.4
+UPSCALE_PROMPT_STEP_WEIGHT = 0.1
+MAX_IMAGE_SCALE = 3.0
 
 __all__ = ["NodeDict", "DiffusionStep", "DiffusionPlan"]
+
+class UpscaleStepDict(TypedDict):
+    method: UPSCALE_LITERAL
+    amount: Union[int, float]
+    strength: NotRequired[float]
+    num_inference_steps: NotRequired[int]
+    scheduler: NotRequired[SCHEDULER_LITERAL]
+    guidance_scale: NotRequired[float]
+    controlnets: NotRequired[List[Union[CONTROLNET_LITERAL, Tuple[CONTROLNET_LITERAL, float]]]]
+    prompt: NotRequired[str]
+    prompt_2: NotRequired[str]
+    negative_prompt: NotRequired[str]
+    negative_prompt_2: NotRequired[str]
+    chunking_size: NotRequired[int]
+    chunking_mask_type: NotRequired[MASK_TYPE_LITERAL]
+    chunking_mask_kwargs: NotRequired[Dict[str, Any]]
+
+class ControlImageDict(TypedDict):
+    controlnet: CONTROLNET_LITERAL
+    image: PIL.Image.Image
+    fit: NotRequired[IMAGE_FIT_LITERAL]
+    anchor: NotRequired[IMAGE_ANCHOR_LITERAL]
+    scale: NotRequired[float]
+    start: NotRequired[Optional[float]]
+    end: NotRequired[Optional[float]]
+    process: NotRequired[bool]
+    invert: NotRequired[bool]
+    refiner: NotRequired[bool]
+
+class NodeDict(TypedDict):
+    w: int
+    h: int
+    x: int
+    y: int
+    control_images: NotRequired[List[ControlImageDict]]
+    image: NotRequired[PIL.Image.Image]
+    mask: NotRequired[PIL.Image.Image]
+    fit: NotRequired[IMAGE_FIT_LITERAL]
+    anchor: NotRequired[IMAGE_ANCHOR_LITERAL]
+    prompt: NotRequired[str]
+    prompt_2: NotRequired[str]
+    negative_prompt: NotRequired[str]
+    negative_prompt_2: NotRequired[str]
+    strength: NotRequired[float]
+    ip_adapter_image: NotRequired[PIL.Image.Image]
+    ip_adapter_scale: NotRequired[float]
+    remove_background: NotRequired[bool]
+    invert_mask: NotRequired[bool]
+    crop_inpaint: NotRequired[bool]
+    inpaint_feather: NotRequired[int]
 
 class DiffusionStep:
     """
@@ -188,16 +266,11 @@ class DiffusionStep:
                         serialize_children.append(control_image["image"])
                         image_dict["image"] = len(serialize_children) - 1
                 elif control_image["image"] is not None and image_directory is not None:
-                    if isinstance(control_image["image"], list):
-                        from enfugue.diffusion.util import Video
-                        path = os.path.join(image_directory, f"{get_uuid()}.mp4")
-                        Video(control_image["image"]).save(path)
-                    else:
-                        path = os.path.join(image_directory, f"{get_uuid()}.png")
-                        control_image["image"].save(path)
+                    path = os.path.join(image_directory, f"{get_uuid()}.png")
+                    control_image["image"].save(path)
                     image_dict["image"] = path # type:ignore[assignment]
                 else:
-                    image_dict["image"] = control_image["image"] # type: ignore
+                    image_dict["image"] = control_image["image"]
                 control_images.append(image_dict)
             serialized["control_images"] = control_images
         serialized["children"] = [child.get_serialization_dict(image_directory) for child in serialize_children]
@@ -382,7 +455,7 @@ class DiffusionStep:
                 if self.remove_background:
                     image = execute_remove_background(image)
 
-                samples = kwargs.get("num_results_per_prompt", 1)
+                samples = kwargs.get("num_images_per_prompt", 1)
                 from diffusers.pipelines.stable_diffusion import StableDiffusionPipelineOutput
 
                 self.result = StableDiffusionPipelineOutput(
@@ -741,7 +814,7 @@ class DiffusionPlan:
             "chunking_size": self.chunking_size,
             "chunking_mask_type": self.chunking_mask_type,
             "chunking_mask_kwargs": self.chunking_mask_kwargs,
-            "num_results_per_prompt": self.samples,
+            "num_images_per_prompt": self.samples,
         }
 
     @property
@@ -817,12 +890,13 @@ class DiffusionPlan:
                     else:
                         pipeline.offload_pipeline()
                         pipeline.unload_refiner("clearing memory for upscaler")
-                    image = pipeline.upscaler(
-                        method=method,
-                        image=image,
-                        tile=pipeline.size,
-                        outscale=amount
-                    )
+
+                if method == "esrgan":
+                    image = pipeline.upscaler.esrgan(image, tile=pipeline.size, outscale=amount)
+                elif method == "esrganime":
+                    image = pipeline.upscaler.esrgan(image, tile=pipeline.size, outscale=amount, anime=True)
+                elif method == "gfpgan":
+                    image = pipeline.upscaler.gfpgan(image, tile=pipeline.size, outscale=amount)
                 elif method in PIL_INTERPOLATION:
                     width, height = image.size
                     image = image.resize(
@@ -867,7 +941,7 @@ class DiffusionPlan:
                         "width": width,
                         "height": height,
                         "image": image,
-                        "num_results_per_prompt": 1,
+                        "num_images_per_prompt": 1,
                         "prompt": prompt,
                         "prompt_2": prompt_2,
                         "negative_prompt": negative_prompt,
@@ -1137,7 +1211,7 @@ class DiffusionPlan:
         image_r_min, image_r_max = outpaint_mask.getextrema()[1]
         if image_r_max > 0 and self.prompt and self.outpaint:
             # Outpaint
-            del invocation_kwargs["num_results_per_prompt"]
+            del invocation_kwargs["num_images_per_prompt"]
             outpaint_mask = feather_mask(outpaint_mask)
 
             outpaint_prompt_tokens = TokenMerger()
@@ -1192,7 +1266,7 @@ class DiffusionPlan:
                     negative_prompt=str(outpaint_negative_prompt_tokens),
                     negative_prompt_2=str(outpaint_negative_prompt_2_tokens),
                     latent_callback=outpaint_image_callback,
-                    num_results_per_prompt=1,
+                    num_images_per_prompt=1,
                     **invocation_kwargs,
                 )
                 images[i] = result["images"][0]

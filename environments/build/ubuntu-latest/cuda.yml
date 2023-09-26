@@ -12,8 +12,6 @@ dependencies:
   - numpy=1.24.3
   - make=4.3
   - nodejs=18.16.0
-  - ffmpeg=4.2.2
-  - opencv=4.6.0
   - pip:
     - torch==2.2.0.dev20230910+cu121
     - torchvision==0.17.0.dev20230910+cu121

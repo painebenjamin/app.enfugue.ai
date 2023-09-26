@@ -1,4 +1,4 @@
-/** @module controller/sidebar/07-upscale */
+/** @module controller/sidebar/05-upscale */
 import { isEmpty, deepClone } from "../../base/helpers.mjs";
 import { Controller } from "../base.mjs";
 import { UpscaleStepsFormView } from "../../forms/enfugue/upscale.mjs";

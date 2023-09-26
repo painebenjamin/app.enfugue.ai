@@ -6,7 +6,6 @@ import datetime
 from typing import TypedDict, List, Dict, Any, Iterator, Optional, Union, cast
 
 from semantic_version import Version
-from pibble.api.configuration import APIConfiguration
 from pibble.util.files import load_yaml, load_json
 
 __all__ = [
@@ -87,7 +86,7 @@ def check_make_directory(directory: str) -> None:
             return
 
 
-def get_local_configuration(as_api_configuration: bool = False) -> Union[Dict[str, Any], APIConfiguration]:
+def get_local_configuration() -> Dict[str, Any]:
     """
     Gets configuration from a file in the environment, or the base config.
     """
@@ -106,8 +105,6 @@ def get_local_configuration(as_api_configuration: bool = False) -> Union[Dict[st
         raise IOError(f"Unknown extension {ext}")
     if "configuration" in configuration:
         configuration = configuration["configuration"]
-    if as_api_configuration:
-        return APIConfiguration(**configuration)
     return configuration
 
 

@@ -12,16 +12,10 @@ class TokenMerger:
 
     tokens: Dict[str, Union[int, float]]
 
-    def __init__(
-        self,
-        *initial_phrases: Union[str, Tuple[str, Union[int, float]]]
-    ) -> None:
+    def __init__(self, *initial_phrases: str) -> None:
         self.tokens = {}
         for phrase in initial_phrases:
-            weight = 1.0
-            if isinstance(phrase, tuple):
-                phrase, weight = phrase
-            self.add(phrase, weight)
+            self.add(phrase)
 
     def add(self, phrase: str, weight: Union[int, float] = 1) -> None:
         """

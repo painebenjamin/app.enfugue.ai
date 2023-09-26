@@ -1,18 +1,14 @@
-from __future__ import annotations
-
-from typing import Dict, Type, Union, Any, Optional, Tuple, TYPE_CHECKING
+from typing import Dict, Type, Union, Any, Optional, Tuple
 from typing_extensions import Self
 
 from dataclasses import dataclass, field
 
+import torch
 import numpy as np
 
 from numpy import pi, exp, sqrt
 
 from enfugue.diffusion.constants import MASK_TYPE_LITERAL
-
-if TYPE_CHECKING:
-    import torch
 
 __all__ = [
     "cuda_available",
@@ -25,11 +21,8 @@ __all__ = [
     "load_state_dict",
     "get_ram_info",
     "get_vram_info",
-    "interpolate_tensors",
-    "interpolate_tensors_linear",
-    "interpolate_tensors_spherical",
     "DTypeConverter",
-    "MaskWeightBuilder"
+    "MaskWeightBuilder",
 ]
 
 def tensorrt_available() -> bool:
@@ -47,14 +40,12 @@ def cuda_available() -> bool:
     """
     Returns true if CUDA is available.
     """
-    import torch
     return torch.cuda.is_available() and torch.backends.cuda.is_built()
 
 def mps_available() -> bool:
     """
     Returns true if MPS is available.
     """
-    import torch
     return torch.backends.mps.is_available() and torch.backends.mps.is_built()
 
 def directml_available() -> bool:
@@ -71,7 +62,6 @@ def get_optimal_device() -> torch.device:
     """
     Gets the optimal device based on availability.
     """
-    import torch
     if cuda_available():
         return torch.device("cuda")
     elif directml_available():
@@ -94,7 +84,6 @@ def get_vram_info() -> Tuple[int, int]:
     Returns VRAM amount in bytes as [free, total]
     If no GPU is found, returns RAM info.
     """
-    import torch
     if not cuda_available():
         return get_ram_info()
     return torch.cuda.mem_get_info()
@@ -103,7 +92,6 @@ def load_ckpt_state_dict(path: str) -> Dict[str, Union[torch.Tensor, Dict[str, t
     """
     Loads a state dictionary from a .ckpt (old-style) file
     """
-    import torch
     return torch.load(path, map_location="cpu")
 
 def load_safetensor_state_dict(path: str) -> Dict[str, Union[torch.Tensor, Dict[str, torch.Tensor]]]:
@@ -144,54 +132,56 @@ class DTypeConverter:
     """
     This class converts between numpy and torch types.
     """
+
+    numpy_to_torch: Dict[Type, torch.dtype] = {
+        np.uint8: torch.uint8,
+        np.int8: torch.int8,
+        np.int16: torch.int16,
+        np.int32: torch.int32,
+        np.int64: torch.int64,
+        np.float16: torch.float16,
+        np.float32: torch.float32,
+        np.float64: torch.float64,
+        np.complex64: torch.complex64,
+        np.complex128: torch.complex128,
+        np.bool_: torch.bool,
+    }
+
+    torch_to_numpy: Dict[torch.dtype, Type] = {
+        torch.uint8: np.uint8,
+        torch.int8: np.int8,
+        torch.int16: np.int16,
+        torch.int32: np.int32,
+        torch.int64: np.int64,
+        torch.float16: np.float16,
+        torch.float32: np.float32,
+        torch.float64: np.float64,
+        torch.complex64: np.complex64,
+        torch.complex128: np.complex128,
+        torch.bool: np.bool_,
+    }
+
     @staticmethod
     def from_torch(torch_type: torch.dtype) -> Type:
         """
         Gets the numpy type from torch.
         :raises: KeyError When type is unknown.
         """
-        import torch
-        return {
-            torch.uint8: np.uint8,
-            torch.int8: np.int8,
-            torch.int16: np.int16,
-            torch.int32: np.int32,
-            torch.int64: np.int64,
-            torch.float16: np.float16,
-            torch.float32: np.float32,
-            torch.float64: np.float64,
-            torch.complex64: np.complex64,
-            torch.complex128: np.complex128,
-            torch.bool: np.bool_,
-        }[torch_type]
+        return DTypeConverter.torch_to_numpy[torch_type]
 
     @staticmethod
     def from_numpy(numpy_type: Type) -> torch.dtype:
         """
-        Gets the torch type from numpy.
+        Gets the torch type from nump.
         :raises: KeyError When type is unknown.
         """
-        import torch
-        return {
-            np.uint8: torch.uint8,
-            np.int8: torch.int8,
-            np.int16: torch.int16,
-            np.int32: torch.int32,
-            np.int64: torch.int64,
-            np.float16: torch.float16,
-            np.float32: torch.float32,
-            np.float64: torch.float64,
-            np.complex64: torch.complex64,
-            np.complex128: torch.complex128,
-            np.bool_: torch.bool,
-        }[numpy_type]
+        return DTypeConverter.numpy_to_torch[numpy_type]
 
     @staticmethod
     def __call__(type_to_convert: Union[torch.dtype, Type]) -> Union[torch.dtype, Type]:
         """
         Converts from one type to the other, inferring based on the type passed.
         """
-        import torch
         if isinstance(type_to_convert, torch.dtype):
             return DTypeConverter.from_torch(type_to_convert)
         return DTypeConverter.from_numpy(type_to_convert)
@@ -205,83 +195,43 @@ class DiffusionMask:
     batch: int
     width: int
     height: int
-    frames: Optional[int] = None
     unfeather_left: bool = False
     unfeather_top: bool = False
     unfeather_right: bool = False
     unfeather_bottom: bool = False
-    unfeather_start: bool = False
-    unfeather_end: bool = False
 
     def unfeather(self, tensor: torch.Tensor, feather_ratio: float) -> torch.Tensor:
         """
         Unfeathers the edges of a tensor if requested.
         This ensures the edges of images are not blurred.
         """
-        import torch
         feather_length = int(feather_ratio * self.width)
         for i in range(feather_length):
             unfeathered = torch.tensor((feather_length - i) / feather_length).to(dtype=tensor.dtype, device=tensor.device)
             if self.unfeather_left:
-                if self.frames is None:
-                    tensor[:, :, :, i] = torch.maximum(tensor[:, :, :, i], unfeathered)
-                else:
-                    tensor[:, :, :, :, i] = torch.maximum(tensor[:, :, :, :, i], unfeathered)
+                tensor[:, :, :, i] = torch.maximum(tensor[:, :, :, i], unfeathered)
             if self.unfeather_top:
-                if self.frames is None:
-                    tensor[:, :, i, :] = torch.maximum(tensor[:, :, i, :], unfeathered)
-                else:
-                    tensor[:, :, :, i, :] = torch.maximum(tensor[:, :, :, i, :], unfeathered)
+                tensor[:, :, i, :] = torch.maximum(tensor[:, :, i, :], unfeathered)
             if self.unfeather_right:
-                if self.frames is None:
-                    tensor[:, :, :, self.width - i - 1] = torch.maximum(
-                        tensor[:, :, :, self.width - i - 1],
-                        unfeathered
-                    )
-                else:
-                    tensor[:, :, :, :, self.width - i - 1] = torch.maximum(
-                        tensor[:, :, :, :, self.width - i - 1],
-                        unfeathered
-                    )
+                tensor[:, :, :, self.width - i - 1] = torch.maximum(
+                    tensor[:, :, :, self.width - i - 1],
+                    unfeathered
+                )
             if self.unfeather_bottom:
-                if self.frames is None:
-                    tensor[:, :, self.height - i - 1, :] = torch.maximum(
-                        tensor[:, :, self.height - i - 1, :],
-                        unfeathered
-                    )
-                else:
-                   tensor[:, :, :, self.height - i - 1, :] = torch.maximum(
-                        tensor[:, :, :, self.height - i - 1, :],
-                        unfeathered
-                    )
-
-        if self.frames is not None and (self.unfeather_start or self.unfeather_end):
-            frame_feather_length = int(feather_ratio * self.frames)
-            for i in range(frame_feather_length):
-                if self.unfeather_start:
-                    tensor[:, :, i, :, :] = torch.maximum(
-                        tensor[:, :, i, :, :],
-                        unfeathered
-                    )
-                if self.unfeather_end:
-                    tensor[:, :, self.frames - i - 1, :, :] = torch.maximum(
-                        tensor[:, :, self.frames - i - 1, :, :],
-                        unfeathered
-                    )
-
+                tensor[:, :, self.height - i - 1, :] = torch.maximum(
+                    tensor[:, :, self.height - i - 1, :],
+                    unfeathered
+                )
         return tensor
 
     def calculate(self, feather_ratio: float = 0.125) -> torch.Tensor:
         """
         These weights are always 1.
         """
-        import torch
-        if self.frames is None:
-            return torch.ones(self.batch, self.dim, self.height, self.width)
-        return torch.ones(self.batch, self.dim, self.frames, self.height, self.width)
+        return torch.ones(self.batch, self.dim, self.height, self.width)
 
 @dataclass(frozen=True)
-class MultilinearDiffusionMask(DiffusionMask):
+class BilinearDiffusionMask(DiffusionMask):
     """
     Feathers the edges of a mask. Uses the reverse of the 'unfeather' formula.
     """
@@ -291,55 +241,24 @@ class MultilinearDiffusionMask(DiffusionMask):
         """
         Calculates weights in linear gradients.
         """
-        import torch
-        tensor = super(MultilinearDiffusionMask, self).calculate(feather_ratio)
+        tensor = super(BilinearDiffusionMask, self).calculate(feather_ratio)
         latent_length = int(self.ratio * self.width)
         for i in range(latent_length):
             feathered = torch.tensor(i / latent_length)
             if not self.unfeather_left:
-                if self.frames is None:
-                    tensor[:, :, :, i] = torch.minimum(tensor[:, :, :, i], feathered)
-                else:
-                    tensor[:, :, :, :, i] = torch.minimum(tensor[:, :, :, :, i], feathered)
+                tensor[:, :, :, i] = torch.minimum(tensor[:, :, :, i], feathered)
             if not self.unfeather_top:
-                if self.frames is None:
-                    tensor[:, :, i, :] = torch.minimum(tensor[:, :, i, :], feathered)
-                else:
-                    tensor[:, :, :, i, :] = torch.minimum(tensor[:, :, :, i, :], feathered)
+                tensor[:, :, i, :] = torch.minimum(tensor[:, :, i, :], feathered)
             if not self.unfeather_right:
-                if self.frames is None:
-                    tensor[:, :, :, self.width - i - 1] = torch.minimum(
-                        tensor[:, :, :, self.width - i - 1],
-                        feathered
-                    )
-                else:
-                    tensor[:, :, :, :, self.width - i - 1] = torch.minimum(
-                        tensor[:, :, :, :, self.width - i - 1],
-                        feathered
-                    )
+                tensor[:, :, :, self.width - i - 1] = torch.minimum(
+                    tensor[:, :, :, self.width - i - 1],
+                    feathered
+                )
             if not self.unfeather_bottom:
-                if self.frames is None:
-                    tensor[:, :, self.height - i - 1, :] = torch.minimum(
-                        tensor[:, :, self.height - i - 1, :],
-                        feathered
-                    )
-                else:
-                    tensor[:, :, :, self.height - i - 1, :] = torch.minimum(
-                        tensor[:, :, :, self.height - i - 1, :],
-                        feathered
-                    )
-        if self.frames is not None:
-            frame_length = int(self.ratio * self.frames)
-            for i in range(frame_length):
-                feathered = torch.tensor(i / frame_length)
-                if not self.unfeather_start:
-                    tensor[:, :, i, :, :] = torch.minimum(tensor[:, :, i, :, :], feathered)
-                if not self.unfeather_end:
-                    tensor[:, :, self.frames - i - 1, :, :] = torch.minimum(
-                        tensor[:, :, self.frames - i - 1, :, :], 
-                        feathered
-                    )
-
+                tensor[:, :, self.height - i - 1, :] = torch.minimum(
+                    tensor[:, :, self.height - i - 1, :],
+                    feathered
+                )
         return tensor
 
 @dataclass(frozen=True)
@@ -353,7 +272,6 @@ class GaussianDiffusionMask(DiffusionMask):
         """
         Calculates weights with a gaussian distribution
         """
-        import torch
         midpoint = (self.width - 1) / 2
         x_probabilities = [
             exp(-(x - midpoint) * (x - midpoint) / (self.width * self.width) / (2 * self.deviation)) / sqrt(2 * pi * self.deviation)
@@ -365,20 +283,9 @@ class GaussianDiffusionMask(DiffusionMask):
             for y in range(self.height)
         ]
 
-        if self.frames is None:
-            weights = np.outer(y_probabilities, x_probabilities)
-            weights = torch.tile(torch.tensor(weights), (self.batch, self.dim, 1, 1)) # type: ignore
-        else:
-            midpoint = (self.frames - 1) / 2
-            z_probabilities = [
-                exp(-(z - midpoint) * (z - midpoint) / (self.frames * self.frames) / (2 * self.deviation)) / sqrt(2 * pi * self.deviation)
-                for z in range(self.frames)
-            ]
-            weights = np.einsum('i,j,k', z_probabilities, y_probabilities, x_probabilities)
-            weights = torch.tile(torch.tensor(weights), (self.batch, self.dim, 1, 1, 1)) # type: ignore
+        weights = np.outer(y_probabilities, x_probabilities)
+        weights = torch.tile(torch.tensor(weights), (self.batch, self.dim, 1, 1)) # type: ignore
 
-        tmp = np.outer(y_probabilities, x_probabilities)
-        tmp = torch.tile(torch.tensor(tmp), (self.batch, self.dim, 1, 1)) # type: ignore
         return self.unfeather(weights, feather_ratio) # type: ignore
 
 @dataclass
@@ -392,7 +299,7 @@ class MaskWeightBuilder:
     dtype: torch.dtype
 
     constant_weights: Dict[DiffusionMask, torch.Tensor] = field(default_factory=dict)
-    multilinear_weights: Dict[MultilinearDiffusionMask, torch.Tensor] = field(default_factory=dict)
+    bilinear_weights: Dict[BilinearDiffusionMask, torch.Tensor] = field(default_factory=dict)
     gaussian_weights: Dict[GaussianDiffusionMask, torch.Tensor] = field(default_factory=dict)
     unfeather_ratio: float = 1 / 8
 
@@ -402,8 +309,8 @@ class MaskWeightBuilder:
         """
         for key in list(self.constant_weights.keys()):
             del self.constant_weights[key]
-        for key in list(self.multilinear_weights.keys()):
-            del self.multilinear_weights[key]
+        for key in list(self.bilinear_weights.keys()):
+            del self.bilinear_weights[key]
         for key in list(self.gaussian_weights.keys()):
             del self.gaussian_weights[key]
 
@@ -425,7 +332,6 @@ class MaskWeightBuilder:
         dim: int,
         width: int,
         height: int,
-        frames: Optional[int] = None,
         **kwargs: Any
     ) -> torch.Tensor:
         """
@@ -434,7 +340,6 @@ class MaskWeightBuilder:
         mask = DiffusionMask(
             batch=batch,
             dim=dim,
-            frames=frames,
             width=width,
             height=height
         )
@@ -445,45 +350,39 @@ class MaskWeightBuilder:
             )
         return self.constant_weights[mask]
 
-    def multilinear(
+    def bilinear(
         self,
         batch: int,
         dim: int,
         width: int,
         height: int,
-        frames: Optional[int] = None,
         unfeather_left: bool = False,
         unfeather_top: bool = False,
         unfeather_right: bool = False,
         unfeather_bottom: bool = False,
-        unfeather_start: bool = False,
-        unfeather_end: bool = False,
         ratio: float = 0.125,
         **kwargs: Any
     ) -> torch.Tensor:
         """
-        Calculates the multilinear mask.
+        Calculates the bilinear mask.
         """
-        mask = MultilinearDiffusionMask(
+        mask = BilinearDiffusionMask(
             batch=batch,
             dim=dim,
-            frames=frames,
             width=width,
             height=height,
             unfeather_left=unfeather_left,
             unfeather_top=unfeather_top,
             unfeather_right=unfeather_right,
             unfeather_bottom=unfeather_bottom,
-            unfeather_start=unfeather_start,
-            unfeather_end=unfeather_end,
             ratio=ratio
         )
-        if mask not in self.multilinear_weights:
-            self.multilinear_weights[mask] = mask.calculate(self.unfeather_ratio).to(
+        if mask not in self.bilinear_weights:
+            self.bilinear_weights[mask] = mask.calculate(self.unfeather_ratio).to(
                 dtype=self.dtype,
                 device=self.device
             )
-        return self.multilinear_weights[mask]
+        return self.bilinear_weights[mask]
 
     def gaussian(
         self,
@@ -491,13 +390,10 @@ class MaskWeightBuilder:
         dim: int,
         width: int,
         height: int,
-        frames: Optional[int] = None,
         unfeather_left: bool = False,
         unfeather_top: bool = False,
         unfeather_right: bool = False,
         unfeather_bottom: bool = False,
-        unfeather_start: bool = False,
-        unfeather_end: bool = False,
         deviation: float = 0.01,
         **kwargs: Any
     ) -> torch.Tensor:
@@ -507,15 +403,12 @@ class MaskWeightBuilder:
         mask = GaussianDiffusionMask(
             batch=batch,
             dim=dim,
-            frames=frames,
             width=width,
             height=height,
             unfeather_left=unfeather_left,
             unfeather_top=unfeather_top,
             unfeather_right=unfeather_right,
             unfeather_bottom=unfeather_bottom,
-            unfeather_start=unfeather_start,
-            unfeather_end=unfeather_end,
             deviation=deviation
         )
         if mask not in self.gaussian_weights:
@@ -532,13 +425,10 @@ class MaskWeightBuilder:
         dim: int,
         width: int,
         height: int,
-        frames: Optional[int] = None,
         unfeather_left: bool = False,
         unfeather_top: bool = False,
         unfeather_right: bool = False,
         unfeather_bottom: bool = False,
-        unfeather_start: bool = False,
-        unfeather_end: bool = False,
         **kwargs: Any
     ) -> torch.Tensor:
         """
@@ -546,8 +436,8 @@ class MaskWeightBuilder:
         """
         if mask_type == "constant":
             get_mask = self.constant
-        elif mask_type == "multilinear":
-            get_mask = self.multilinear
+        elif mask_type == "bilinear":
+            get_mask = self.bilinear
         elif mask_type == "gaussian":
             get_mask = self.gaussian
         else:
@@ -558,51 +448,9 @@ class MaskWeightBuilder:
             dim=dim,
             width=width,
             height=height,
-            frames=frames,
             unfeather_left=unfeather_left,
             unfeather_top=unfeather_top,
             unfeather_right=unfeather_right,
             unfeather_bottom=unfeather_bottom,
-            unfeather_start=unfeather_start,
-            unfeather_end=unfeather_end,
             **kwargs
         )
-
-def interpolate_tensors(
-    a: torch.Tensor,
-    b: torch.Tensor,
-    alpha: float,
-    spherical: bool = True,
-    threshold: float = 0.9995
-) -> torch.Tensor:
-    """
-    Interpolates tensors in the desired method
-    """
-    if spherical:
-        return interpolate_tensors_spherical(a, b, alpha, threshold)
-    return interpolate_tensors_linear(a, b, alpha)
-
-def interpolate_tensors_linear(
-    a: torch.Tensor,
-    b: torch.Tensor,
-    alpha: float
-) -> torch.Tensor:
-    """
-    Performs a linear tensor interpolation
-    """
-    return (1.0 - alpha) * a + alpha * b
-
-def interpolate_tensors_spherical(
-    a: torch.Tensor,
-    b: torch.Tensor,
-    alpha: float,
-    threshold: float = 0.9995
-) -> torch.Tensor:
-    """
-    Performs a spherical linear tensor interpolation (slerp)
-    """
-    dot = ((a / a.norm()) * (b / b.norm())).sum()
-    if dot > threshold:
-        return interpolate_tensors_linear(a, b, alpha)
-    omega = dot.acos()
-    return (((1.0 - alpha) * omega.sin() * a + (alpha * omega).sin() * b) / omega.sin())
