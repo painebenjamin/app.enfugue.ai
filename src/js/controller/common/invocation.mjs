@@ -709,6 +709,142 @@ class InvocationController extends Controller {
     }
     
     /**
+     * @return string Optional animator when not using preconfigured models
+     */
+    get animator() {
+        return this.kwargs.animator || null;
+    }
+
+    /**
+     * @param array<object> The new value of animator for when not using preconfigured models
+     */
+    set animator(newAnimator) {
+        if(this.animator !== newAnimator) {
+            this.publish("engineAnimatorChange", newAnimator);
+        }
+        this.kwargs.animator = newAnimator;
+    }
+    
+    /**
+     * @return int Optional inpainting engine size when not using preconfigured models
+     */
+    get animatorSize() {
+        return this.kwargs.animator_size || null;
+    }
+
+    /**
+     * @param int Optional inpainting engine size when not using preconfigured models
+     */
+    set animatorSize(newAnimatorSize) {
+        if(this.animatorSize !== newAnimatorSize) {
+            this.publish("engineAnimatorSizeChange", newAnimatorSize);
+        }
+        this.kwargs.animator_size = newAnimatorSize;
+    }
+    
+    /**
+     * @return int Optional animator VAE when not using preconfigured models
+     */
+    get animatorVae() {
+        return this.kwargs.animator_vae || null;
+    }
+
+    /**
+     * @param int Optional animator VAE when not using preconfigured models
+     */
+    set animatorVae(newVae) {
+        if(this.animatorVae !== newVae) {
+            this.publish("engineAnimatorVaeChange", newVae);
+        }
+        this.kwargs.animator_vae = newVae;
+    }
+
+    /**
+     * @return int Optional number of animation frames when rendering animation
+     */
+    get animationFrames() {
+        return this.kwargs.animation_frames || null;
+    }
+
+    /**
+     * @param int New number of animation frames, or null to disable animation
+     */
+    set animationFrames(newFrames) {
+        if (this.animationFrames !== newFrames) {
+            this.publish("engineAnimationFramesChange", newFrames);
+        }
+        this.kwargs.animation_frames = newFrames;
+    }
+
+    /**
+     * @return int Optional number of animation frames to render at once when rendering chunked animation
+     */
+    get animationSize() {
+        return this.kwargs.temporal_engine_size || null;
+    }
+
+    /**
+     * @param int New number of frames to render at once, or null/0 to disable chunking
+     */
+    set animationSize(newSize) {
+        if (this.animationSize !== newSize) {
+            this.publish("engineAnimationSizeChange", newSize);
+        }
+        this.kwargs.temporal_engine_size = newSize;
+    }
+
+    /**
+     * @return int frames per second to save the animation as when using animation
+     */
+    get animationRate() {
+        return this.kwargs.animation_rate || 8;
+    }
+
+    /**
+     * @param int New frames per second
+     */
+    set animationRate(newRate) {
+        if (this.animationRate !== newRate) {
+            this.publish("engineAnimationRateChange", newRate);
+        }
+        this.kwargs.animation_rate = newRate;
+    }
+
+    /**
+     * @return int Optional number of frames to move when rendering chunked animation
+     */
+    get animationStride() {
+        return this.kwargs.temporal_chunking_size || null;
+    }
+
+    /**
+     * @param int New number of frames to stride when doing chunked animate diffusion
+     */
+    set animationStride(newStride) {
+        if (this.animationStride !== newStride) {
+            this.publish("engineAnimationStrideChange", newStride);
+        }
+        this.kwargs.temporal_chunking_size = newStride;
+    }
+    
+    /**
+     * @return bool Whether or not to loop the animation
+     */
+    get animationLoop() {
+        return this.kwargs.loop || false;
+    }
+
+    /**
+     * @param bool Whether or not to loop the animation
+     */
+    set animationLoop(newLoop) {
+        if (this.animationLoop !== newLoop) {
+            this.publish("engineAnimationLoopChange", newLoop);
+        }
+        this.kwargs.loop = newLoop;
+    }
+
+    /**
      * On initialization, create DOM elements related to invocations.
      */
     async initialize() {

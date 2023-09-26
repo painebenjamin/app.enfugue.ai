@@ -176,6 +176,7 @@ class DiffusionEngineProcess(Process):
         model: Optional[str] = None,
         refiner: Optional[str] = None,
         inpainter: Optional[str] = None,
+        animator: Optional[str] = None,
         lora: Optional[Union[str, Tuple[str, float], List[Union[str, Tuple[str, float]]]]] = None,
         inversion: Optional[Union[str, List[str]]] = None,
         vae: Optional[str] = None,
@@ -192,6 +193,7 @@ class DiffusionEngineProcess(Process):
         size: Optional[int] = None,
         refiner_size: Optional[int] = None,
         inpainter_size: Optional[int] = None,
+        animator_size: Optional[int] = None,
         **kwargs: Any,
     ) -> dict:
         """
@@ -217,6 +219,9 @@ class DiffusionEngineProcess(Process):
         if inpainter is not None:
             self.pipemanager.inpainter = inpainter  # type: ignore
 
+        if animator is not None:
+            self.pipemanager.animator = animator # type: ignore
+
         if vae is not None:
             self.pipemanager.vae = vae  # type: ignore
 
@@ -240,6 +245,9 @@ class DiffusionEngineProcess(Process):
 
         if inpainter_size is not None:
             self.pipemanager.inpainter_size = inpainter_size
+
+        if animator_size is not None:
+            self.pipemanager.animator_size = animator_size
 
         if width is not None:
             kwargs["width"] = int(width)
@@ -269,6 +277,8 @@ class DiffusionEngineProcess(Process):
                 if controlnet not in control_images_dict:
                     control_images_dict[controlnet] = []
                 control_images_dict[controlnet].append((control_image, scale))
+            if kwargs.get("animation_frames", None) is not None:
+                self.pipemanager.animator_controlnets = list(control_images_dict.keys()) # type: ignore[assignment]
             if kwargs.get("mask", None) is not None:
                 self.pipemanager.inpainter_controlnets = list(control_images_dict.keys()) # type: ignore[assignment]
             else:

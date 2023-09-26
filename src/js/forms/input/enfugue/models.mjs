@@ -183,7 +183,7 @@ class MaskTypeInputView extends SelectInputView {
      */
     static defaultOptions = {
         "constant": "Constant",
-        "bilinear": "Bilinear",
+        "multilinear": "Multilinear",
         "gaussian": "Gaussian"
     };
 
@@ -195,7 +195,7 @@ class MaskTypeInputView extends SelectInputView {
     /**
      * @var string Default value
      */
-    static defaultValue = "bilinear";
+    static defaultValue = "multilinear";
 }
 
 /**
