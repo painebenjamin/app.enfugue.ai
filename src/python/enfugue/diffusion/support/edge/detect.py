@@ -75,7 +75,8 @@ class EdgeDetector(SupportModel):
     Provides edge detection methods
     """
 
-    PRETRAINED_PATH = "lllyasviel/Annotators"
+    PIDINET_PATH = "https://huggingface.co/lllyasviel/Annotators/resolve/main/table5_pidinet.pth"
+    HEDNET_PATH = "https://huggingface.co/lllyasviel/Annotators/resolve/main/ControlNetHED.pth"
 
     @contextmanager
     def canny(self, lower: int = 100, upper: int = 200) -> Iterator[SupportModelImageProcessor]:
@@ -95,7 +96,8 @@ class EdgeDetector(SupportModel):
         from enfugue.diffusion.support.edge.pidi import PidiNetDetector  # type: ignore
 
         with self.context():
-            detector = PidiNetDetector.from_pretrained(self.PRETRAINED_PATH, cache_dir=self.model_dir)
+            pidinet_path = self.get_model_file(self.PIDINET_PATH)
+            detector = PidiNetDetector.from_pretrained(pidinet_path)
             detector.to(self.device)
             processor = PidiImageProcessor(detector)
             yield processor
@@ -110,7 +112,8 @@ class EdgeDetector(SupportModel):
         from enfugue.diffusion.support.edge.hed import HEDDetector  # type: ignore
 
         with self.context():
-            detector = HEDDetector.from_pretrained(self.PRETRAINED_PATH)
+            hednet_path = self.get_model_file(self.HEDNET_PATH)
+            detector = HEDDetector.from_pretrained(hednet_path)
             detector.to(self.device)
             processor = HEDImageProcessor(detector)
             yield processor
@@ -125,7 +128,8 @@ class EdgeDetector(SupportModel):
         from enfugue.diffusion.support.edge.hed import HEDDetector  # type: ignore
 
         with self.context():
-            detector = HEDDetector.from_pretrained(self.PRETRAINED_PATH)
+            hednet_path = self.get_model_file(self.HEDNET_PATH)
+            detector = HEDDetector.from_pretrained(hednet_path)
             detector.to(self.device)
             processor = HEDImageProcessor(detector, scribble=True)
             yield processor

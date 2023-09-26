@@ -15,7 +15,7 @@ class MergeModelsController extends MenuController {
     /**
      * @var int height of the merge window
      */
-    static modelMergeWindowHeight = 560;
+    static modelMergeWindowHeight = 575;
 
     /**
      * @var string The text in the UI

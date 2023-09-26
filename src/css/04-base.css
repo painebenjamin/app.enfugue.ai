@@ -882,7 +882,8 @@ ul.list-input-view li.selected {
 
 .tooltip-container {
     position: fixed;
-    background-color: var(--darker-color);
+    background-color: rgba(20, 20, 20, 0.8);
+    backdrop-filter: blur(5px);
     color: var(--lighter-color);
     font-weight: 300;
     padding: 10px;

@@ -3,7 +3,6 @@ from __future__ import annotations
 import cv2
 import numpy as np
 
-from enfugue.util import check_download_to_dir
 from enfugue.diffusion.util import ComputerVision
 from enfugue.diffusion.support.model import SupportModel, SupportModelImageProcessor
 
@@ -35,8 +34,6 @@ class LineArtImageProcessor(SupportModelImageProcessor):
             detect_resolution=resolution,
             image_resolution=resolution
         ).resize(image.size)
-
-
 
 class MLSDImageProcessor(SupportModelImageProcessor):
     """
@@ -80,15 +77,10 @@ class LineDetector(SupportModel):
     Uses to predict human poses.
     """
 
-    MLSD_WEIGHTS = "https://github.com/lhwcv/mlsd_pytorch/raw/main/models/mlsd_large_512_fp32.pth"
-    LINEART_PATH = "lllyasviel/Annotators"
-
-    @property
-    def mlsd_weights(self) -> str:
-        """
-        Gets the local path to the MLSD weights file.
-        """
-        return check_download_to_dir(self.MLSD_WEIGHTS, self.model_dir)
+    MLSD_MODEL_PATH = "https://github.com/lhwcv/mlsd_pytorch/raw/main/models/mlsd_large_512_fp32.pth"
+    LINEART_MODEL_PATH = "https://huggingface.co/lllyasviel/Annotators/resolve/main/sk_model.pth"
+    LINEART_COARSE_MODEL_PATH = "https://huggingface.co/lllyasviel/Annotators/resolve/main/sk_model2.pth"
+    LINEART_ANIME_MODEL_PATH = "https://huggingface.co/lllyasviel/Annotators/resolve/main/netG.pth"
 
     @contextmanager
     def lineart(self) -> Iterator[LineArtImageProcessor]:
@@ -97,7 +89,9 @@ class LineDetector(SupportModel):
         """
         from enfugue.diffusion.support.line.art import LineartDetector  # type: ignore
         with self.context():
-            detector = LineartDetector.from_pretrained(self.LINEART_PATH, cache_dir=self.model_dir)
+            model_path = self.get_model_file(self.LINEART_MODEL_PATH)
+            coarse_model_path = self.get_model_file(self.LINEART_COARSE_MODEL_PATH)
+            detector = LineartDetector.from_pretrained(model_path, coarse_model_path)
             detector.to(self.device)
             processor = LineArtImageProcessor(detector)
             yield processor
@@ -111,7 +105,8 @@ class LineDetector(SupportModel):
         """
         from enfugue.diffusion.support.line.anime import LineartAnimeDetector  # type: ignore
         with self.context():
-            detector = LineartAnimeDetector.from_pretrained(self.LINEART_PATH, cache_dir=self.model_dir)
+            model_path = self.get_model_file(self.LINEART_ANIME_MODEL_PATH)
+            detector = LineartAnimeDetector.from_pretrained(model_path)
             detector.to(self.device)
             processor = LineArtImageProcessor(detector)
             yield processor
@@ -127,8 +122,9 @@ class LineDetector(SupportModel):
         from enfugue.diffusion.support.line.mlsd import MLSD  # type: ignore
 
         with self.context():
+            mlsd_path = self.get_model_file(self.MLSD_MODEL_PATH)
             model = MLSD().to(self.device).eval()
-            model.load_state_dict(torch.load(self.mlsd_weights, map_location=self.device), strict=True)
+            model.load_state_dict(torch.load(mlsd_path, map_location=self.device), strict=True)
             processor = MLSDImageProcessor(self.device, model)
             yield processor
             del processor

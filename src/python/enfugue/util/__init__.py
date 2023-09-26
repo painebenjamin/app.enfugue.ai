@@ -5,3 +5,4 @@ from enfugue.util.installation import *
 from enfugue.util.log import *
 from enfugue.util.signature import *
 from enfugue.util.tokens import *
+from enfugue.util.misc import *
