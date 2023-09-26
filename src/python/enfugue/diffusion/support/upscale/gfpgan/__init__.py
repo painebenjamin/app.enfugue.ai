@@ -1,20 +1,18 @@
 # type: ignore
 # Taken from https://github.com/TencentARC/GFPGAN/blob/master/gfpgan/utils.py
-# Slightly adapted to allow passing face restore model root path
 import cv2
 import os
 import torch
 from basicsr.utils import img2tensor, tensor2img
-from basicsr.utils.download_util import load_file_from_url
-from facexlib.utils.face_restoration_helper import FaceRestoreHelper
 from torchvision.transforms.functional import normalize
 
 from gfpgan.archs.gfpgan_bilinear_arch import GFPGANBilinear
 from gfpgan.archs.gfpganv1_arch import GFPGANv1
 from gfpgan.archs.gfpganv1_clean_arch import GFPGANv1Clean
 
-ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+from enfugue.diffusion.support.upscale.gfpgan.face import FaceRestoreHelper
 
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 class GFPGANer:
     """Helper for restoration with GFPGAN.
@@ -35,12 +33,13 @@ class GFPGANer:
     def __init__(
         self,
         model_path,
+        detection_model_path,
+        parse_model_path,
         upscale=2,
         arch="clean",
         channel_multiplier=2,
         bg_upsampler=None,
         device=None,
-        rootpath=None,
     ):
         self.upscale = upscale
         self.bg_upsampler = bg_upsampler
@@ -89,27 +88,21 @@ class GFPGANer:
             )
         elif arch == "RestoreFormer":
             from gfpgan.archs.restoreformer_arch import RestoreFormer
-
             self.gfpgan = RestoreFormer()
+
         # initialize face helper
         self.face_helper = FaceRestoreHelper(
             upscale,
+            detection_model_path=detection_model_path,
+            parse_model_path=parse_model_path,
             face_size=512,
             crop_ratio=(1, 1),
             det_model="retinaface_resnet50",
             save_ext="png",
             use_parse=True,
             device=self.device,
-            model_rootpath="gfpgan/weights" if not rootpath else rootpath,
         )
 
-        if model_path.startswith("https://"):
-            model_path = load_file_from_url(
-                url=model_path,
-                model_dir=os.path.join(ROOT_DIR, "gfpgan/weights"),
-                progress=True,
-                file_name=None,
-            )
         loadnet = torch.load(model_path)
         if "params_ema" in loadnet:
             keyname = "params_ema"

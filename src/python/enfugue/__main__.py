@@ -1,6 +1,6 @@
 import os
 import sys
-import tqdm
+import json
 import click
 import termcolor
 import logging
@@ -10,11 +10,10 @@ from typing import Optional
 from PIL import Image
 from pibble.util.strings import Serializer
 from pibble.util.log import LevelUnifiedLoggingContext
+from pibble.util.files import load_json, load_yaml
 from pibble.api.configuration import APIConfiguration
-from enfugue.util import logger
 
-
-TRT_PIPELINE = "enfugue.diffusion.rt.pipeline.EnfugueTensorRTStableDiffusionPipeline"
+from enfugue.util import logger, merge_into, get_local_configuration
 
 
 @click.group(name="enfugue")
@@ -23,7 +22,6 @@ def main() -> None:
     Enfugue command-line tools.
     """
     pass
-
 
 @main.command(short_help="Prints the version of the main enfugue package and dependant packages.")
 def version() -> None:
@@ -96,21 +94,27 @@ def dump_config(filename: Optional[str] = None, json: bool = False) -> None:
             from pibble.util.files import dump_yaml
 
             dump_yaml(filename, configuration)
-        print(f"Wrote {filename}")
+        click.echo(f"Wrote {filename}")
         return
     if json:
         import json
 
-        print(json.dumps(configuration, indent=4))
+        click.echo(json.dumps(configuration, indent=4))
     else:
         import yaml
 
-        print(yaml.dump(configuration))
+        click.echo(yaml.dump(configuration))
 
 
 @click.option("-c", "--config", help="An optional path to a configuration file to use instead of the default.")
+@click.option("-m", "--merge", is_flag=True, default=False, help="When set, merge the passed configuration with the default configuration instead of replacing it.")
+@click.option("-o", "--overrides", help="An optional JSON object containing override configuration.")
 @main.command(short_help="Runs the server.")
-def run(config: str = None) -> None:
+def run(
+    config: str = None,
+    merge: bool = False,
+    overrides: str = None
+) -> None:
     """
     Runs the server synchronously using cherrypy.
     """
@@ -118,7 +122,6 @@ def run(config: str = None) -> None:
 
     if config is not None:
         if config.endswith("json"):
-            from pibble.util.files import load_json
 
             configuration = json_file(config)
         elif config.endswith("yml") or config.endswith("yaml"):
@@ -127,10 +130,15 @@ def run(config: str = None) -> None:
             configuration = load_yaml(config)
         else:
             raise IOError(f"Unknown format for configuration file {config}")
-    else:
-        from enfugue.util import get_local_configuration
 
+        if merge:
+            configuration = merge_into(configuration, get_local_configuration())
+    else:
         configuration = get_local_configuration()
+
+    if overrides:
+        overrides = json.loads(overrides)
+        merge_into(overrides, configuration)
 
     server = EnfugueServer()
     server.configure(**configuration)
@@ -140,10 +148,10 @@ def run(config: str = None) -> None:
     port = configuration["server"].get("port", 45554)
 
     scheme = "https" if secure else "http"
-    port_print = "" if port in [80, 443] else f":{port}"
-    print(f"Running enfugue, visit at {scheme}://{domain}{port_print}/ (press Ctrl+C to exit)")
+    port_echo = "" if port in [80, 443] else f":{port}"
+    click.echo(f"Running enfugue, visit at {scheme}://{domain}{port_echo}/ (press Ctrl+C to exit)")
     server.serve()
-    print("Goodbye!")
+    click.echo("Goodbye!")
 
 
 try:

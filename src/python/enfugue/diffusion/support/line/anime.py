@@ -10,7 +10,6 @@ import torch
 import torch.nn as nn
 
 from einops import rearrange
-from huggingface_hub import hf_hub_download
 from PIL import Image
 
 from enfugue.diffusion.support.util import HWC3, resize_image
@@ -133,14 +132,8 @@ class LineartAnimeDetector:
         self.model = model
 
     @classmethod
-    def from_pretrained(cls, pretrained_model_or_path, filename=None, cache_dir=None):
-        filename = filename or "netG.pth"
-
-        if os.path.isdir(pretrained_model_or_path):
-            model_path = os.path.join(pretrained_model_or_path, filename)
-        else:
-            model_path = hf_hub_download(pretrained_model_or_path, filename, cache_dir=cache_dir)
-
+    def from_pretrained(cls, model_path):
+        assert os.path.exists(model_path), "model path must be accessible"
         norm_layer = functools.partial(nn.InstanceNorm2d, affine=False, track_running_stats=False)
         net = UnetGenerator(3, 1, 8, 64, norm_layer=norm_layer, use_dropout=False)
         ckpt = torch.load(model_path)

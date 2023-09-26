@@ -146,6 +146,14 @@ class DiffusionPipelineManager:
             self.configuration["enfugue.pipeline.cache"] = None
             self.configuration["enfugue.pipeline.switch"] = "unload"
 
+    @classmethod
+    def is_loadable_model_file(cls, path: str) -> bool:
+        """
+        Returns if the path is a known format for loadable models.
+        """
+        _, ext = os.path.splitext(path)
+        return ext in [".safetensors", ".ckpt", ".pt", ".pth", ".pb", ".caffemodel", ".bin"]
+
     @property
     def safe(self) -> bool:
         """
@@ -3513,13 +3521,18 @@ class DiffusionPipelineManager:
             return None
         from diffusers.models import ControlNetModel
 
-        if ".safetensors" in controlnet or ".ckpt" in controlnet or "/" not in controlnet:
-            expected_controlnet_location = os.path.join(self.engine_cache_dir, os.path.basename(controlnet))
-            if not os.path.exists(expected_controlnet_location):
-                logger.info(
-                    f"Controlnet {controlnet} does not exist in cache directory {self.engine_cache_dir}, it will be downloaded."
-                )
-            check_download(controlnet, expected_controlnet_location)
+        if self.is_loadable_model_file(controlnet) or "/" not in controlnet:
+            if os.path.exists(controlnet):
+                expected_controlnet_location = controlnet
+            elif controlnet.startswith("http"):
+                expected_controlnet_location = os.path.join(self.engine_cache_dir, os.path.basename(controlnet))
+                if not os.path.exists(expected_controlnet_location):
+                    logger.info(
+                        f"Controlnet {controlnet} does not exist in cache directory {self.engine_cache_dir}, it will be downloaded."
+                    )
+                check_download(controlnet, expected_controlnet_location)
+            else:
+                raise ValueError(f"ControlNet path {controlnet} is not a file that can be accessed, a URL that can be downloaded or a repository that can be cloned.")
             return ControlNetModel.from_single_file(
                 expected_controlnet_location,
                 torch_dtype=torch.half,

@@ -4,8 +4,11 @@ import os
 import gc
 
 from contextlib import contextmanager
+
 from typing import Iterator, Any, Optional, TYPE_CHECKING
 from typing_extensions import Self
+
+from enfugue.util import find_file_in_directory, check_download
 
 if TYPE_CHECKING:
     from PIL.Image import Image
@@ -49,6 +52,24 @@ class SupportModel:
         self.model_dir = model_dir
         self.device = device
         self.dtype = dtype
+
+    def get_model_file(self, uri: str, check_remote_size: bool = True) -> str:
+        """
+        Searches for a file in the current directory.
+        If it's not found and the passed URI is HTTP, it will be downloaded.
+        """
+        if os.path.exists(uri):
+            # File already exists right where you passed it ya silly goose
+            return uri
+        basename = os.path.basename(uri)
+        existing_path = find_file_in_directory(self.model_dir, basename)
+        if existing_path is not None:
+            return existing_path # Already downloaded somewhere (can be nested)
+        if uri.startswith("http"):
+            local_path = os.path.join(self.model_dir, basename)
+            check_download(uri, local_path, check_size=check_remote_size)
+            return local_path
+        raise IOError(f"Cannot retrieve model file {uri}")
 
     @classmethod
     def get_default_instance(cls) -> SupportModel:
