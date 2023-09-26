@@ -13,7 +13,7 @@ from pibble.util.log import LevelUnifiedLoggingContext
 from pibble.util.files import load_json, load_yaml
 from pibble.api.configuration import APIConfiguration
 
-from enfugue.util import logger, merge, get_local_configuration
+from enfugue.util import logger, merge_into, get_local_configuration
 
 
 @click.group(name="enfugue")
@@ -113,7 +113,7 @@ def dump_config(filename: Optional[str] = None, json: bool = False) -> None:
 def run(
     config: str = None,
     merge: bool = False,
-    override: str = None
+    overrides: str = None
 ) -> None:
     """
     Runs the server synchronously using cherrypy.
@@ -136,9 +136,9 @@ def run(
     else:
         configuration = get_local_configuration()
 
-    if override:
-        override = json.loads(override)
-        merge_into(override, configuration)
+    if overrides:
+        overrides = json.loads(overrides)
+        merge_into(overrides, configuration)
 
     server = EnfugueServer()
     server.configure(**configuration)
@@ -148,8 +148,8 @@ def run(
     port = configuration["server"].get("port", 45554)
 
     scheme = "https" if secure else "http"
-    port_click.echo = "" if port in [80, 443] else f":{port}"
-    click.echo(f"Running enfugue, visit at {scheme}://{domain}{port_click.echo}/ (press Ctrl+C to exit)")
+    port_echo = "" if port in [80, 443] else f":{port}"
+    click.echo(f"Running enfugue, visit at {scheme}://{domain}{port_echo}/ (press Ctrl+C to exit)")
     server.serve()
     click.echo("Goodbye!")
 
