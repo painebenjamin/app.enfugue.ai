@@ -33,7 +33,7 @@ if TYPE_CHECKING:
     from diffusers.models import ControlNetModel, AutoencoderKL
     from diffusers.schedulers.scheduling_utils import KarrasDiffusionSchedulers
     from enfugue.diffusion.pipeline import EnfugueStableDiffusionPipeline
-    from enfugue.diffusion.support import ControlImageProcessor, Upscaler, IPAdapter
+    from enfugue.diffusion.support import ControlImageProcessor, Upscaler, IPAdapter, BackgroundRemover
 
 def noop(*args: Any) -> None:
     """
@@ -2839,6 +2839,16 @@ class DiffusionPipelineManager:
             from enfugue.diffusion.support import ControlImageProcessor
             self._control_image_processor = ControlImageProcessor(self.engine_other_dir, self.device, self.dtype)
         return self._control_image_processor
+
+    @property
+    def background_remover(self) -> BackgroundRemover:
+        """
+        Gets the processor for removing backgrounds
+        """
+        if not hasattr(self, "_background_remover"):
+            from enfugue.diffusion.support import BackgroundRemover
+            self._background_remover = BackgroundRemover(self.engine_other_dir, self.device, self.dtype)
+        return self._background_remover
 
     @property
     def ip_adapter(self) -> IPAdapter:
