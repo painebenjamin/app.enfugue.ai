@@ -2975,6 +2975,8 @@ class DiffusionPipelineManager:
                 return CONTROLNET_PIDI
             elif name == "temporal":
                 return CONTROLNET_TEMPORAL
+            elif name == "qr":
+                return CONTROLNET_QR
         raise ValueError(f"Unknown or unsupported ControlNet {name}")
 
     def get_controlnet_path_by_name(self, name: CONTROLNET_LITERAL, is_sdxl: bool) -> str:
@@ -2995,7 +2997,6 @@ class DiffusionPipelineManager:
                     os.path.basename(file),
                     self.LOADABLE_EXTENSIONS
                 )
-                logger.critical(f"Looked for {file}, found {possible_file}")
                 if possible_file is not None:
                     return possible_file
             return default_path

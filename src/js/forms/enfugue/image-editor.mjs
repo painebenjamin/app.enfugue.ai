@@ -249,13 +249,12 @@ class ImageEditorImageNodeOptionsFormView extends FormView {
             },
             "conditioningScale": {
                 "label": "Conditioning Scale",
-                "class": SliderPreciseInputView,
+                "class": FloatInputView,
                 "config": {
                     "min": 0.0,
-                    "max": 1.0,
                     "step": 0.01,
                     "value": 1.0,
-                    "tooltip": "How closely to follow ControlNet's influence."
+                    "tooltip": "How closely to follow ControlNet's influence. Typical values vary, usually values between 0.5 and 1.0 produce good conditioning with balanced randomness, but other values may produce something closer to the desired result."
                 }
             },
             "conditioningStart": {

@@ -27,6 +27,7 @@ __all__ = [
     "CONTROLNET_ANIME",
     "CONTROLNET_LITERAL",
     "CONTROLNET_TEMPORAL",
+    "CONTROLNET_QR",
     "SCHEDULER_LITERAL",
     "DEVICE_LITERAL",
     "PIPELINE_SWITCH_MODE_LITERAL",
@@ -56,11 +57,14 @@ VAE_MSE = (
 VAE_XL = (
     "stabilityai/sdxl-vae",
     "sdxl-vae",
+    "sdxl_vae"
 )
 VAE_XL16 = (
     "madebyollin/sdxl-vae-fp16-fix",
     "sdxl-vae-fp16-fix",
-    "sdxl-vae-fp16"
+    "sdxl-vae-fp16",
+    "sdxl_vae_fp16_fix",
+    "sdxl_vae_fp16"
 )
 
 VAE_LITERAL = Literal["ema", "mse", "xl", "xl16"]
@@ -126,6 +130,11 @@ CONTROLNET_TEMPORAL = (
     "CiaraRowles/TemporalNet",
     "TemporalNet", # TODO
 )
+CONTROLNET_QR = (
+    "https://huggingface.co/monster-labs/control_v1p_sd15_qrcode_monster/resolve/main/v2/control_v1p_sd15_qrcode_monster_v2.safetensors",
+    "control_v1p_sd15_qrcode_monster_v2",
+    "control_v1p_sd15_qrcode_monster",
+)
 CONTROLNET_CANNY_XL = (
     "diffusers/controlnet-canny-sdxl-1.0",
     "controlnet-canny-sdxl-1.0",
@@ -142,7 +151,7 @@ CONTROLNET_POSE_XL = (
     "OpenPoseXL2",
 )
 CONTROLNET_LITERAL = Literal[
-    "canny", "mlsd", "hed", "scribble", "tile", "inpaint", "depth", "normal", "pose", "pidi", "line", "anime", "temporal"
+    "canny", "mlsd", "hed", "scribble", "tile", "inpaint", "depth", "normal", "pose", "pidi", "line", "anime", "temporal", "qr"
 ]
 
 SCHEDULER_LITERAL = Literal[

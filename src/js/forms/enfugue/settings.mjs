@@ -16,12 +16,12 @@ class ControlNetPathInputView extends StringInputView {
     /**
      * @var string The placeholder
      */
-    static placeholder = "e.g. lllyasviel/sd-controlnet-canny";
+    static placeholder = "File or URL or Repository";
 
     /**
      * @var string the tooltip
      */
-    static tooltip = "Enter the path to the Huggingface Diffusers repository containing the configuration for a ControlNet to use for each supported ControlNet type.<br /><br />See https://huggingface.co for more details.";
+    static tooltip = "Enter the path to the Huggingface Diffusers repository containing the configuration for a ControlNet to use for each supported ControlNet type.<br /><br />You can also directly point to a checkpoint or other pretrained file. See https://huggingface.co for more details.";
 }
 
 /**
@@ -197,6 +197,14 @@ class SystemSettingsFormView extends FormView {
             "pose_xl": {
                 "label": "Pose Detection (DWPose/OpenPose) XL",
                 "class": ControlNetPathInputView
+            },
+            "qr": {
+                "label": "QR Code (QR Monster)",
+                "class": ControlNetPathInputView
+            },
+            "qr_xl": {
+                "label": "QR Code (QR Monster) XL",
+                "class": ControlNetPathInputView,
             },
             "tile": {
                 "label": "Tile",

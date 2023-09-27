@@ -804,6 +804,7 @@ fieldset.field-set-additional-models .vae-input-view-inpainter-vae
     display: none;
 }
 
+fieldset.field-set-control-nets .field-container,
 enfugue-node-editor.image-editor enfugue-node form fieldset.field-set-control .field-container
 {
     flex-basis: 45%;

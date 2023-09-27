@@ -66,7 +66,8 @@ class EnfugueAPISystemController(EnfugueAPIControllerBase):
     CONTROLNETS = [
         "canny", "hed", "pidi", "mlsd",
         "line", "anime", "scribble", "depth",
-        "normal", "pose", "tile", "inpaint"
+        "normal", "pose", "tile", "inpaint",
+        "qr"
     ]
 
     def get_default_controlnet_path(
@@ -109,6 +110,8 @@ class EnfugueAPISystemController(EnfugueAPIControllerBase):
                 return CONTROLNET_ANIME[0]
             elif name == "pidi":
                 return CONTROLNET_PIDI[0]
+            elif name == "qr":
+                return CONTROLNET_QR[0]
         return None
 
     def get_controlnet_path(
