@@ -2,14 +2,12 @@
 # adapted from https://github.com/nadermx/backgroundremover/
 import os
 import torch
-from hsh.library.hash import Hasher
 from enfugue.diffusion.support.background.u2net import u2net
 
 class Net(torch.nn.Module):
     def __init__(self, model_name, path):
         super(Net, self).__init__()
         assert os.path.exists(path), "model path must exist"
-        hasher = Hasher()
         model = {
             'u2netp': (u2net.U2NETP,
                        'e4f636406ca4e2af789941e7f139ee2e',
