@@ -1,4 +1,5 @@
 # type: ignore
+# adapted from https://github.com/nadermx/backgroundremover/
 import torch
 import torch.nn as nn
 import torch.nn.functional as F

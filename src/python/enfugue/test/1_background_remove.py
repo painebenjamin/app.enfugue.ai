@@ -19,8 +19,6 @@ def main() -> None:
         image = image_from_uri(BASE_IMAGE)
         manager = DiffusionPipelineManager()
         image.save(os.path.join(save_dir, "base.png"))
-        from enfugue.util import remove_background
-        remove_background(image)
         with manager.background_remover.remover() as remove:
             remove(image).save(os.path.join(save_dir, "removed.png"))
 

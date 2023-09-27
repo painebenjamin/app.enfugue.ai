@@ -229,7 +229,7 @@ class Application {
      * actions as well as versions from remote.
      */
     async startAnnouncements() {
-        if (this.userIsAdmin) {
+        if (this.userIsAdmin && !this.userIsSandboxed) {
             this.announcements = new AnnouncementsController(this);
             await this.announcements.initialize();
         }
@@ -360,12 +360,24 @@ class Application {
     }
 
     /**
+     * Returns true if the frontend thinks this user is sandboxed
+     * 
+     * @return bool True if the user is admin
+     */
+    get userIsSandboxed() {
+        return !isEmpty(window.enfugue) && window.enfugue.sandboxed === true;
+    }
+
+    /**
      * Returns the menu categories to import based on user context
      */
     getMenuCategories() {
         let menuCategories = {...this.constructor.menuCategories};
         if (this.userIsAdmin) {
             menuCategories = {...menuCategories, ...this.constructor.adminMenuCategories };
+            if (this.userIsSandboxed) {
+                delete menuCategories.system;
+            }
         }
         menuCategories.help = "Help";
         return menuCategories;

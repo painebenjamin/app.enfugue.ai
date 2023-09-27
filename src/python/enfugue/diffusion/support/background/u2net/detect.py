@@ -1,4 +1,5 @@
 # type: ignore
+# adapted from https://github.com/nadermx/backgroundremover/
 import numpy as np
 import torch
 from PIL import Image

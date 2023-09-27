@@ -1,5 +1,5 @@
 # type: ignore
-# data loader
+# adapted from https://github.com/nadermx/backgroundremover/
 from __future__ import division, print_function
 
 import random

@@ -13,7 +13,6 @@ from pibble.resources.retriever import Retriever
 __all__ = [
     "fit_image",
     "feather_mask",
-    "remove_background",
     "image_from_uri",
     "images_are_equal",
     "IMAGE_FIT_LITERAL",
@@ -153,22 +152,6 @@ def feather_mask(image: PIL.Image.Image) -> PIL.Image.Image:
                         break
 
     return feathered
-
-
-def remove_background(image: PIL.Image.Image) -> PIL.Image.Image:
-    """
-    Remove the background from an image.
-    """
-    import backgroundremover.utilities
-
-    # We have to import this in this order for backgroundremover to work
-    backgroundremover.utilities  # silence importchecker
-    import backgroundremover.bg
-
-    buf = io.BytesIO()
-    image.save(buf, "PNG")
-    return PIL.Image.open(io.BytesIO(backgroundremover.bg.remove(buf.getvalue())))
-
 
 def image_from_uri(uri: str) -> PIL.Image.Image:
     """

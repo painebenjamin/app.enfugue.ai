@@ -5,7 +5,7 @@ import gc
 
 from contextlib import contextmanager
 
-from typing import Iterator, Any, Optional, TYPE_CHECKING
+from typing import Iterator, Any, Optional, List, TYPE_CHECKING
 from typing_extensions import Self
 
 from enfugue.util import find_file_in_directory, check_download
@@ -51,7 +51,13 @@ class SupportModel:
         self.device = device
         self.dtype = dtype
 
-    def get_model_file(self, uri: str, check_remote_size: bool = True) -> str:
+    def get_model_file(
+        self,
+        uri: str,
+        filename: Optional[str] = None,
+        check_remote_size: bool = False,
+        extensions: Optional[List[str]] = None,
+    ) -> str:
         """
         Searches for a file in the current directory.
         If it's not found and the passed URI is HTTP, it will be downloaded.
@@ -59,12 +65,17 @@ class SupportModel:
         if os.path.exists(uri):
             # File already exists right where you passed it ya silly goose
             return uri
-        basename = os.path.basename(uri)
-        existing_path = find_file_in_directory(self.model_dir, basename)
+        if filename is None:
+            filename = os.path.basename(uri)
+        if extensions is not None:
+            basename, ext = os.path.splitext(filename)
+            existing_path = find_file_in_directory(self.model_dir, basename, extensions=extensions)
+        else:
+            existing_path = find_file_in_directory(self.model_dir, filename)
         if existing_path is not None:
             return existing_path # Already downloaded somewhere (can be nested)
         if uri.startswith("http"):
-            local_path = os.path.join(self.model_dir, basename)
+            local_path = os.path.join(self.model_dir, filename)
             check_download(uri, local_path, check_size=check_remote_size)
             return local_path
         raise IOError(f"Cannot retrieve model file {uri}")

@@ -15,7 +15,7 @@ from enfugue.util import logger
 if TYPE_CHECKING:
     import torch
     from PIL import Image
-    from enfugue.diffusion.support.background.bg import Net # type: ignore
+    from enfugue.diffusion.support.background.u2net.helper import Net # type: ignore
 
 __all__ = ["BackgroundRemover"]
 
@@ -72,7 +72,7 @@ class BackgroundRemover(SupportModel):
         """
         Runs the background remover on an image.
         """
-        from enfugue.diffusion.support.background.bg import Net # type: ignore
+        from enfugue.diffusion.support.background.u2net.helper import Net # type: ignore
         with self.context():
             net = Net("u2net", self.u2net_model_path)
             net.to(self.device)

@@ -36,7 +36,6 @@ from enfugue.util import (
     feather_mask,
     fit_image,
     images_are_equal,
-    remove_background as execute_remove_background,
     TokenMerger,
     IMAGE_FIT_LITERAL,
     IMAGE_ANCHOR_LITERAL,
@@ -163,6 +162,7 @@ class DiffusionStep:
         crop_inpaint: Optional[bool] = True,
         inpaint_feather: Optional[int] = None,
         remove_background: bool = False,
+        fill_background: bool = False,
         scale_to_model_size: bool = False,
     ) -> None:
         self.name = name
@@ -185,6 +185,7 @@ class DiffusionStep:
         self.refiner_negative_prompt = refiner_negative_prompt
         self.refiner_negative_prompt_2 = refiner_negative_prompt_2
         self.remove_background = remove_background
+        self.fill_background = fill_background
         self.scale_to_model_size = scale_to_model_size
         self.num_inference_steps = num_inference_steps if num_inference_steps is not None else DEFAULT_INFERENCE_STEPS
         self.guidance_scale = guidance_scale if guidance_scale is not None else DEFAULT_GUIDANCE_SCALE
@@ -219,6 +220,7 @@ class DiffusionStep:
             "num_inference_steps": self.num_inference_steps,
             "guidance_scale": self.guidance_scale,
             "remove_background": self.remove_background,
+            "fill_background": self.fill_background,
             "refiner_start": self.refiner_start,
             "refiner_strength": self.refiner_strength,
             "refiner_guidance_scale": self.refiner_guidance_scale,
@@ -453,7 +455,8 @@ class DiffusionStep:
         ):
             if image:
                 if self.remove_background:
-                    image = execute_remove_background(image)
+                    with pipeline.background_remover.remover as remove_background:
+                        image = remove_background(image)
 
                 samples = kwargs.get("num_images_per_prompt", 1)
                 from diffusers.pipelines.stable_diffusion import StableDiffusionPipelineOutput
@@ -471,9 +474,25 @@ class DiffusionStep:
         image_width, image_height, image_background, image_position = None, None, None, None
 
         if image is not None:
+            if self.remove_background and self.fill_background:
+                # Execute remove background here
+                with pipeline.background_remover.remover as remove_background:
+                    image = remove_background(image)
+                    white = PIL.Image.new("RGB", image.size, (255, 255, 255))
+                    black = PIL.Image.new("RGB", image.size, (0, 0, 0))
+                    image_mask = white.copy()
+                    alpha = image.split()[-1]
+                    alpha_clamp = PIL.Image.eval(alpha, lambda a: 255 if a > 128 else 0)
+                    image_mask.paste(black, mask=alpha)
+                    if mask is not None:
+                        assert mask.size == image.size, "image and mask must be the same size"
+                        # Merge mask and alpha
+                        image_mask.paste(mask)
+                        inverse_alpha = PIL.Image.eval(alpha_clamp, lambda a: 255 - a)
+                        image_mask.paste(white, mask=inverse_alpha)
+                    mask = image_mask
             image_width, image_height = image.size
             invocation_kwargs["image"] = image
-
         if mask is not None:
             mask_width, mask_height = mask.size
             if (
@@ -505,7 +524,7 @@ class DiffusionStep:
                     )
             invocation_kwargs["mask"] = mask
             if image is not None:
-                assert image.size == mask.size
+                assert image.size == mask.size, "image and mask must be the same size"
             else:
                 image_width, image_height = mask.size
 
@@ -528,7 +547,7 @@ class DiffusionStep:
                         image_width, image_height = control_image.size
                     else:
                         this_width, this_height = control_image.size
-                        assert image_width == this_width and image_height == this_height
+                        assert image_width == this_width and image_height == this_height, "all images must be the same size"
             invocation_kwargs["control_images"] = control_images
             if mask is not None:
                 pipeline.inpainter_controlnets = list(control_images.keys())
@@ -584,9 +603,10 @@ class DiffusionStep:
             for i, image in enumerate(result["images"]):
                 result["images"][i] = self.paste_inpaint_image(image_background, image, image_position)
 
-        if self.remove_background:
-            for i, image in enumerate(result["images"]):
-                result["images"][i] = execute_remove_background(image)
+        if self.remove_background and not self.fill_background:
+            with pipeline.background_remover.remover as remove_background:
+                for i, image in enumerate(result["images"]):
+                    result["images"][i] = remove_background(image)
 
         if image_scale > 1:
             for i, image in enumerate(result["images"]):
@@ -632,6 +652,7 @@ class DiffusionStep:
             "refiner_negative_prompt_2",
             "width",
             "height",
+            "fill_background",
             "remove_background",
             "scale_to_model_size",
             "crop_inpaint",
@@ -890,13 +911,7 @@ class DiffusionPlan:
                     else:
                         pipeline.offload_pipeline()
                         pipeline.unload_refiner("clearing memory for upscaler")
-
-                if method == "esrgan":
-                    image = pipeline.upscaler.esrgan(image, tile=pipeline.size, outscale=amount)
-                elif method == "esrganime":
-                    image = pipeline.upscaler.esrgan(image, tile=pipeline.size, outscale=amount, anime=True)
-                elif method == "gfpgan":
-                    image = pipeline.upscaler.gfpgan(image, tile=pipeline.size, outscale=amount)
+                    image = pipeline.upscaler(method, image, tile=pipeline.size, outscale=amount)
                 elif method in PIL_INTERPOLATION:
                     width, height = image.size
                     image = image.resize(
@@ -1714,18 +1729,6 @@ class DiffusionPlan:
 
             if mask and invert_mask:
                 mask = PIL.ImageOps.invert(mask.convert("L"))
-            
-            if image and remove_background and fill_background:
-                image = execute_remove_background(image)
-                remove_background = False
-                
-                if not mask:
-                    mask = PIL.Image.new("RGB", image.size, (255, 255, 255))
-
-                alpha = image.split()[-1]
-                black = PIL.Image.new("RGB", image.size, (0, 0, 0))
-                mask.paste(black, mask=alpha)
-
             if control_images and image and mask and ip_adapter_scale:
                 name = "Controlled Inpainting with Image Prompting"
             elif control_images and image and mask:
@@ -1778,6 +1781,7 @@ class DiffusionPlan:
                 image=image,
                 mask=mask,
                 remove_background=remove_background,
+                fill_background=fill_background,
                 scale_to_model_size=scale_to_model_size,
                 control_images=control_images
             )
@@ -1978,6 +1982,7 @@ class DiffusionPlan:
                 return fitted_image, image_mask
 
             will_infer = node_strength is not None or node_inpaint_mask is not None
+            node_fill_background = node_remove_background and will_infer
 
             if node_inpaint_mask:
                 node_inpaint_mask = node_inpaint_mask.convert("L")
@@ -1987,25 +1992,6 @@ class DiffusionPlan:
             if node_image:
                 if node_ip_adapter_scale and not node_ip_adapter_image:
                     node_ip_adapter_image = node_image
-                if node_remove_background and will_infer:
-                    node_remove_background = False # Don't double-remove
-                    node_image, new_inpaint_mask = prepare_image(
-                        execute_remove_background(node_image),
-                        mask=node_inpaint_mask,
-                        fit=node_fit,
-                        anchor=node_anchor
-                    )
-                    if node_inpaint_mask:
-                        node_inpaint_mask = new_inpaint_mask
-                else:
-                    node_image, new_inpaint_mask = prepare_image(
-                        node_image,
-                        mask=node_inpaint_mask,
-                        fit=node_fit,
-                        anchor=node_anchor
-                    )
-                    if node_inpaint_mask:
-                        node_inpaint_mask = new_inpaint_mask
 
             if node_ip_adapter_image:
                 node_ip_adapter_image = prepare_image( # type: ignore[assignment]
@@ -2039,7 +2025,7 @@ class DiffusionPlan:
             node_negative_prompt_2_str = str(node_negative_prompt_2_tokens)
 
             if node_inpaint_mask:
-                node_inpaint_mask_r_min, node_inpaint_mask_r_max = node_inpaint_mask.getextrema()[1]
+                node_inpaint_mask_r_min, node_inpaint_mask_r_max = node_inpaint_mask.getextrema()
                 image_needs_inpainting = node_inpaint_mask_r_max > 0
             else:
                 image_needs_inpainting = False
@@ -2106,6 +2092,7 @@ class DiffusionPlan:
                 refiner_negative_prompt=refiner_negative_prompt,
                 refiner_negative_prompt_2=refiner_negative_prompt_2,
                 remove_background=node_remove_background,
+                fill_background=node_fill_background,
                 scale_to_model_size=node_scale_to_model_size
             )
 

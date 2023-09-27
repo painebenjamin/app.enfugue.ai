@@ -34,6 +34,7 @@
     <script>
         window.enfugue = window.enfugue || {};
         window.enfugue.url = {{ paths | serialize }};
+        window.enfugue.sandboxed = {{ "true" if sandboxed else "false" }};
         {% if user %}
         window.enfugue.user = "{{ user.username }}";
         window.enfugue.admin = {{ "true" if admin else "false" }};

@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import os
-
 from typing import List, Union, Dict, Any, Iterator, Optional, Tuple, Callable, TYPE_CHECKING
 from typing_extensions import Self
 from contextlib import contextmanager
@@ -9,8 +7,9 @@ from contextlib import contextmanager
 from transformers import (
     CLIPVisionModelWithProjection,
     CLIPImageProcessor,
+    PretrainedConfig
 )
-from enfugue.util import check_download_to_dir, logger
+from enfugue.util import logger
 from enfugue.diffusion.support.model import SupportModel
 
 if TYPE_CHECKING:
@@ -26,18 +25,12 @@ class IPAdapter(SupportModel):
     cross_attention_dim: int = 768
     is_sdxl: bool = False
 
-    DEFAULT_ENCODER_PATH = (
-        "https://huggingface.co/h94/IP-Adapter/resolve/main/models/image_encoder/config.json",
-        "https://huggingface.co/h94/IP-Adapter/resolve/main/models/image_encoder/pytorch_model.bin",
-    )
-
+    DEFAULT_ENCODER_CONFIG_PATH = "https://huggingface.co/h94/IP-Adapter/resolve/main/models/image_encoder/config.json"
+    DEFAULT_ENCODER_PATH = "https://huggingface.co/h94/IP-Adapter/resolve/main/models/image_encoder/pytorch_model.bin"
     DEFAULT_ADAPTER_PATH = "https://huggingface.co/h94/IP-Adapter/resolve/main/models/ip-adapter_sd15.bin"
     
-    XL_ENCODER_PATH = (
-        "https://huggingface.co/h94/IP-Adapter/resolve/main/sdxl_models/image_encoder/config.json",
-        "https://huggingface.co/h94/IP-Adapter/resolve/main/sdxl_models/image_encoder/pytorch_model.bin",
-    )
-
+    XL_ENCODER_CONFIG_PATH = "https://huggingface.co/h94/IP-Adapter/resolve/main/sdxl_models/image_encoder/config.json"
+    XL_ENCODER_PATH = "https://huggingface.co/h94/IP-Adapter/resolve/main/sdxl_models/image_encoder/pytorch_model.bin"
     XL_ADAPTER_PATH = "https://huggingface.co/h94/IP-Adapter/resolve/main/sdxl_models/ip-adapter_sdxl.bin"
 
     def load(
@@ -134,6 +127,19 @@ class IPAdapter(SupportModel):
                         new_processors[key] = CNAttentionProcessor()
                 controlnets[controlnet].set_attn_processor(new_processors)
 
+    def check_download(self, is_sdxl: bool) -> None:
+        """
+        Downloads necessary files for either pipeline
+        """
+        if is_sdxl:
+            _ = self.xl_encoder_config
+            _ = self.xl_encoder_model
+            _ = self.xl_image_prompt_checkpoint
+        else:
+            _ = self.default_encoder_config
+            _ = self.default_encoder_model
+            _ = self.default_image_prompt_checkpoint
+
     def set_scale(self, unet: UNet2DConditionModel, new_scale: float) -> int:
         """
         Sets the scale on attention processors.
@@ -170,30 +176,27 @@ class IPAdapter(SupportModel):
         del self._default_controlnet_attention_processors
 
     @property
-    def adapter_directory(self) -> str:
+    def default_encoder_model(self) -> str:
         """
-        Gets the location where adapter models will be downloaded
-        """
-        path = os.path.join(self.model_dir, "ip-adapter")
-        if not os.path.isdir(path):
-            os.makedirs(path)
-        return path
-
-    @property
-    def default_adapter_directory(self) -> str:
-        """
-        Gets the path to where the 1.5 adapter models are stored.
+        Gets the path to the IP model for 1.5
         Downloads if needed
         """
-        if not hasattr(self, "_default_adapter_directory"):
-            config_path, bin_path = self.DEFAULT_ENCODER_PATH
-            path = os.path.join(self.adapter_directory, "default")
-            if not os.path.isdir(path):
-                os.makedirs(path)
-            check_download_to_dir(config_path, path)
-            check_download_to_dir(bin_path, path)
-            self._default_adapter_directory = path
-        return self._default_adapter_directory
+        return self.get_model_file(
+            self.DEFAULT_ENCODER_PATH,
+            filename="ip-adapter_sd15_encoder.pth",
+            extensions=[".bin", ".pth", ".safetensors"]
+        )
+
+    @property
+    def default_encoder_config(self) -> str:
+        """
+        Gets the path to the IP model for 1.5
+        Downloads if needed
+        """
+        return self.get_model_file(
+            self.DEFAULT_ENCODER_CONFIG_PATH,
+            filename="ip-adapter_sd15_encoder_config.json"
+        )
 
     @property
     def default_image_prompt_checkpoint(self) -> str:
@@ -201,25 +204,34 @@ class IPAdapter(SupportModel):
         Gets the path to the IP checkpoint for 1.5
         Downloads if needed
         """
-        if not hasattr(self, "_default_ip_checkpoint"):
-            self._default_ip_checkpoint = check_download_to_dir(self.DEFAULT_ADAPTER_PATH, self.adapter_directory)
-        return self._default_ip_checkpoint
-    
+        return self.get_model_file(
+            self.DEFAULT_ADAPTER_PATH,
+            filename="ip-adapter_sd15.pth",
+            extensions=[".bin", ".pth", ".safetensors"]
+        )
+
     @property
-    def xl_adapter_directory(self) -> str:
+    def xl_encoder_model(self) -> str:
         """
-        Gets the path to where the XL adapter models are stored.
+        Gets the path to the IP model for 1.5
         Downloads if needed
         """
-        if not hasattr(self, "_xl_adapter_directory"):
-            config_path, bin_path = self.XL_ENCODER_PATH
-            path = os.path.join(self.adapter_directory, "xl")
-            if not os.path.isdir(path):
-                os.makedirs(path)
-            check_download_to_dir(config_path, path)
-            check_download_to_dir(bin_path, path)
-            self._xl_adapter_directory = path
-        return self._xl_adapter_directory
+        return self.get_model_file(
+            self.XL_ENCODER_PATH,
+            filename="ip-adapter_sdxl_encoder.pth",
+            extensions=[".bin", ".pth", ".safetensors"]
+        )
+
+    @property
+    def xl_encoder_config(self) -> str:
+        """
+        Gets the path to the IP model for 1.5
+        Downloads if needed
+        """
+        return self.get_model_file(
+            self.XL_ENCODER_CONFIG_PATH,
+            filename="ip-adapter_sdxl_encoder_config.json"
+        )
 
     @property
     def xl_image_prompt_checkpoint(self) -> str:
@@ -227,9 +239,11 @@ class IPAdapter(SupportModel):
         Gets the path to the IP checkpoint for XL
         Downloads if needed
         """
-        if not hasattr(self, "_xl_ip_checkpoint"):
-            self._xl_ip_checkpoint = check_download_to_dir(self.XL_ADAPTER_PATH, self.adapter_directory)
-        return self._xl_ip_checkpoint
+        return self.get_model_file(
+            self.XL_ADAPTER_PATH,
+            filename="ip-adapter_sdxl.pth",
+            extensions=[".bin", ".pth", ".safetensors"]
+        )
 
     @property
     def tokens(self) -> int:
@@ -252,14 +266,18 @@ class IPAdapter(SupportModel):
         """
         if not hasattr(self, "_encoder"):
             if self.is_sdxl:
-                logger.debug(f"Initializing CLIPVisionModelWithProjection from {self.xl_adapter_directory}")
+                logger.debug(f"Initializing CLIPVisionModelWithProjection from {self.xl_encoder_model}")
                 self._encoder = CLIPVisionModelWithProjection.from_pretrained(
-                    self.xl_adapter_directory
+                    self.xl_encoder_model,
+                    config=PretrainedConfig.from_json_file(self.xl_encoder_config),
+                    use_safetensors="safetensors" in self.xl_encoder_model,
                 )
             else:
-                logger.debug(f"Initializing CLIPVisionModelWithProjection from {self.default_adapter_directory}")
+                logger.debug(f"Initializing CLIPVisionModelWithProjection from {self.default_encoder_model}")
                 self._encoder = CLIPVisionModelWithProjection.from_pretrained(
-                    self.default_adapter_directory
+                    self.default_encoder_model,
+                    config=PretrainedConfig.from_json_file(self.default_encoder_config),
+                    use_safetensors="safetensors" in self.default_encoder_model,
                 )
         return self._encoder
 
@@ -276,7 +294,7 @@ class IPAdapter(SupportModel):
         """
         Gets the state dict from the IP checkpoint
         """
-        if not hasattr(self, "_default_tate_dict"):
+        if not hasattr(self, "_default_state_dict"):
             import torch
             self._default_state_dict = torch.load(self.default_image_prompt_checkpoint, map_location="cpu")
         return self._default_state_dict
