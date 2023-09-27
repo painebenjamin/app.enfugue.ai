@@ -147,6 +147,20 @@ class DiffusionPipelineManager:
         return ext in cls.LOADABLE_EXTENSIONS
 
     @property
+    def offline(self) -> bool:
+        """
+        True if this should be running in offline (local files only) mode.
+        """
+        return getattr(self, "_offline", self.configuration.get("enfugue.offline", False))
+
+    @offline.setter
+    def offline(self, new_offline: bool) -> None:
+        """
+        Enables/disables offline mode.
+        """
+        self._offline = new_offline
+
+    @property
     def safe(self) -> bool:
         """
         Returns true if safety checking should be enabled.
@@ -450,6 +464,8 @@ class DiffusionPipelineManager:
 
         if vae.startswith("http"):
             target_path = os.path.join(self.engine_cache_dir, os.path.basename(vae))
+            if not os.path.exists(target_path) and self.offline:
+                raise IOError(f"Offline mode enabled, cannot find requested VAE at {target_path}")
             check_download(vae, target_path)
             vae = target_path
 
@@ -466,11 +482,14 @@ class DiffusionPipelineManager:
             expected_vae_location = os.path.join(self.engine_cache_dir, "models--" + vae.replace("/", "--"))
 
             if not os.path.exists(expected_vae_location):
+                if self.offline:
+                    raise IOError(f"Offline mode enabled, cannot download {vae} to {expected_vae_location}")
                 logger.info(f"VAE {vae} does not exist in cache directory {self.engine_cache_dir}, it will be downloaded.")
             result = AutoencoderKL.from_pretrained(
                 vae,
                 torch_dtype=self.dtype,
                 cache_dir=self.engine_cache_dir,
+                local_files_only=self.offline
             )
 
         return result.to(device=self.device)
@@ -2417,7 +2436,11 @@ class DiffusionPipelineManager:
                 logger.debug(
                     f"Initializing TensorRT pipeline from diffusers cache directory at {self.model_diffusers_cache_dir}. Arguments are {redact(kwargs)}"
                 )
-                pipeline = self.pipeline_class.from_pretrained(self.model_diffusers_cache_dir, **kwargs)
+                pipeline = self.pipeline_class.from_pretrained(
+                    self.model_diffusers_cache_dir,
+                    local_files_only=self.offline,
+                    **kwargs
+                )
             elif self.model_diffusers_cache_dir is not None:
                 if not self.safe:
                     kwargs["safety_checker"] = None
@@ -2429,7 +2452,11 @@ class DiffusionPipelineManager:
                 logger.debug(
                     f"Initializing pipeline from diffusers cache directory at {self.model_diffusers_cache_dir}. Arguments are {redact(kwargs)}"
                 )
-                pipeline = self.pipeline_class.from_pretrained(self.model_diffusers_cache_dir, **kwargs)
+                pipeline = self.pipeline_class.from_pretrained(
+                    self.model_diffusers_cache_dir,
+                    local_files_only=self.offline,
+                    **kwargs
+                )
             else:
                 kwargs["load_safety_checker"] = self.safe
                 if self.vae_name is not None:
@@ -2533,6 +2560,7 @@ class DiffusionPipelineManager:
                 refiner_pipeline = self.refiner_pipeline_class.from_pretrained(
                     self.refiner_diffusers_cache_dir,
                     safety_checker=None,
+                    local_files_only=self.offline,
                     **kwargs,
                 )
             elif self.refiner_engine_cache_exists:
@@ -2552,6 +2580,7 @@ class DiffusionPipelineManager:
                 refiner_pipeline = self.refiner_pipeline_class.from_pretrained(
                     self.refiner_diffusers_cache_dir,
                     safety_checker=None,
+                    local_files_only=self.offline,
                     **kwargs,
                 )
             else:
@@ -2672,7 +2701,9 @@ class DiffusionPipelineManager:
                 )
 
                 inpainter_pipeline = self.inpainter_pipeline_class.from_pretrained(
-                    self.inpainter_diffusers_cache_dir, **kwargs
+                    self.inpainter_diffusers_cache_dir,
+                    local_files_only=self.offline,
+                    **kwargs
                 )
             elif self.inpainter_engine_cache_exists:
                 if not self.safe:
@@ -2690,7 +2721,9 @@ class DiffusionPipelineManager:
                 )
 
                 inpainter_pipeline = self.inpainter_pipeline_class.from_pretrained(
-                    self.inpainter_diffusers_cache_dir, **kwargs
+                    self.inpainter_diffusers_cache_dir,
+                    local_files_only=self.offline,
+                    **kwargs
                 )
             else:
                 if self.inpainter_vae_name is not None:
@@ -2858,8 +2891,12 @@ class DiffusionPipelineManager:
         """
         if not hasattr(self, "_upscaler"):
             from enfugue.diffusion.support.upscale import Upscaler
-
-            self._upscaler = Upscaler(self.engine_other_dir, self.device, self.dtype)
+            self._upscaler = Upscaler(
+                self.engine_other_dir,
+                device=self.device,
+                dtype=self.dtype,
+                offline=self.offline
+            )
         return self._upscaler
 
     @property
@@ -2869,7 +2906,12 @@ class DiffusionPipelineManager:
         """
         if not hasattr(self, "_control_image_processor"):
             from enfugue.diffusion.support import ControlImageProcessor
-            self._control_image_processor = ControlImageProcessor(self.engine_other_dir, self.device, self.dtype)
+            self._control_image_processor = ControlImageProcessor(
+                self.engine_other_dir,
+                device=self.device,
+                dtype=self.dtype,
+                offline=self.offline
+            )
         return self._control_image_processor
 
     @property
@@ -2879,7 +2921,12 @@ class DiffusionPipelineManager:
         """
         if not hasattr(self, "_background_remover"):
             from enfugue.diffusion.support import BackgroundRemover
-            self._background_remover = BackgroundRemover(self.engine_other_dir, self.device, self.dtype)
+            self._background_remover = BackgroundRemover(
+                self.engine_other_dir,
+                device=self.device,
+                dtype=self.dtype,
+                offline=self.offline
+            )
         return self._background_remover
 
     @property
@@ -2889,9 +2936,31 @@ class DiffusionPipelineManager:
         """
         if not hasattr(self, "_ip_adapter"):
             from enfugue.diffusion.support.ip import IPAdapter
-
-            self._ip_adapter = IPAdapter(self.engine_other_dir, self.device, self.dtype)
+            self._ip_adapter = IPAdapter(
+                self.engine_other_dir,
+                device=self.device,
+                dtype=self.dtype,
+                offline=self.offline
+            )
         return self._ip_adapter
+
+    def get_xl_controlnet(self, controlnet: str) -> ControlNetModel:
+        """
+        Loads an XL ControlNet from file or dies trying
+        """
+        from diffusers.models import ControlNetModel
+        from enfugue.diffusion.util.torch_util import load_state_dict
+
+        controlnet_config = os.path.join(self.engine_cache_dir, "controlnet-xl-config.json")
+        check_download(
+            "https://huggingface.co/diffusers/controlnet-canny-sdxl-1.0/raw/main/config.json",
+            controlnet_config
+        )
+        controlnet_model = ControlNetModel.from_config(
+            ControlNetModel._dict_from_json_file(controlnet_config)
+        )
+        controlnet_model.load_state_dict(load_state_dict(controlnet), strict=False)
+        return controlnet_model.to(self.device, self.dtype)
 
     def get_controlnet(self, controlnet: Optional[str] = None) -> Optional[ControlNetModel]:
         """
@@ -2907,19 +2976,27 @@ class DiffusionPipelineManager:
             elif controlnet.startswith("http"):
                 expected_controlnet_location = os.path.join(self.engine_cache_dir, os.path.basename(controlnet))
                 if not os.path.exists(expected_controlnet_location):
+                    if self.offline:
+                        raise IOError(f"Offline mode enabled, cannot find requested ControlNet at {expected_controlnet_location}")
                     logger.info(
                         f"Controlnet {controlnet} does not exist in cache directory {self.engine_cache_dir}, it will be downloaded."
                     )
                 check_download(controlnet, expected_controlnet_location)
             else:
                 raise ValueError(f"ControlNet path {controlnet} is not a file that can be accessed, a URL that can be downloaded or a repository that can be cloned.")
-            return ControlNetModel.from_single_file(
-                expected_controlnet_location,
-                cache_dir=self.engine_cache_dir,
-            ).to(torch.half)
+            try:
+                return ControlNetModel.from_single_file(
+                    expected_controlnet_location,
+                    cache_dir=self.engine_cache_dir,
+                ).to(torch.half)
+            except KeyError as ex:
+                logger.debug(f"Received KeyError on '{ex}' when instantiating controlnet from single file, trying to use XL ControlNet loader fix.")
+                return self.get_xl_controlnet(expected_controlnet_location)
         else:
             expected_controlnet_location = os.path.join(self.engine_cache_dir, "models--" + controlnet.replace("/", "--"))
             if not os.path.exists(expected_controlnet_location):
+                if self.offline:
+                    raise IOError(f"Offline mode enabled, cannot find requested ControlNet at {expected_controlnet_location}")
                 logger.info(
                     f"Controlnet {controlnet} does not exist in cache directory {self.engine_cache_dir}, it will be downloaded."
                 )
@@ -2927,6 +3004,7 @@ class DiffusionPipelineManager:
                 controlnet,
                 torch_dtype=torch.half,
                 cache_dir=self.engine_cache_dir,
+                local_files_only=self.offline,
             )
 
         return result

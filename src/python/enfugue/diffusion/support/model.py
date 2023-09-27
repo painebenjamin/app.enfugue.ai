@@ -46,10 +46,17 @@ class SupportModel:
 
     process: Optional[SupportModelImageProcessor] = None
 
-    def __init__(self, model_dir: str, device: torch.device, dtype: torch.dtype) -> None:
+    def __init__(
+        self,
+        model_dir: str,
+        device: torch.device,
+        dtype: torch.dtype,
+        offline: bool = False
+    ) -> None:
         self.model_dir = model_dir
         self.device = device
         self.dtype = dtype
+        self.offline = offline
 
     def get_model_file(
         self,
@@ -76,6 +83,8 @@ class SupportModel:
             return existing_path # Already downloaded somewhere (can be nested)
         if uri.startswith("http"):
             local_path = os.path.join(self.model_dir, filename)
+            if not os.path.exists(local_path) and self.offline:
+                raise IOError(f"Offline mode is enabled and could not find requested model file at {local_path}")
             check_download(uri, local_path, check_size=check_remote_size)
             return local_path
         raise IOError(f"Cannot retrieve model file {uri}")

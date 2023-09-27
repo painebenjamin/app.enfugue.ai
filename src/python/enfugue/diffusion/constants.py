@@ -81,8 +81,8 @@ CONTROLNET_MLSD = (
 )
 CONTROLNET_HED = (
     "lllyasviel/sd-controlnet-hed",
-    "sd-controlnet-hed",
     "control_sd15_hed",
+    "sd-controlnet-hed",
 )
 CONTROLNET_SCRIBBLE = (
     "lllyasviel/control_v11p_sd15_scribble",
@@ -135,20 +135,21 @@ CONTROLNET_QR = (
     "control_v1p_sd15_qrcode_monster_v2",
     "control_v1p_sd15_qrcode_monster",
 )
+# Recommend XL files come from https://huggingface.co/lllyasviel/sd_control_collection/tree/main
 CONTROLNET_CANNY_XL = (
     "diffusers/controlnet-canny-sdxl-1.0",
-    "controlnet-canny-sdxl-1.0",
     "diffusers_xl_canny_full",
+    "controlnet-canny-sdxl-1.0",
 )
 CONTROLNET_DEPTH_XL = (
     "diffusers/controlnet-depth-sdxl-1.0",
-    "controlnet-depth-sdxl-1.0",
     "diffusers_xl_depth_full",
+    "controlnet-depth-sdxl-1.0",
 )
 CONTROLNET_POSE_XL = (
     "thibaud/controlnet-openpose-sdxl-1.0",
-    "controlnet-openpose-sdxl-1.0",
     "OpenPoseXL2",
+    "controlnet-openpose-sdxl-1.0",
 )
 CONTROLNET_LITERAL = Literal[
     "canny", "mlsd", "hed", "scribble", "tile", "inpaint", "depth", "normal", "pose", "pidi", "line", "anime", "temporal", "qr"

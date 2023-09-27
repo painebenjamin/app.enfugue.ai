@@ -173,8 +173,8 @@ def find_file_in_directory(directory: str, file: str, extensions: Optional[List[
     """
     if not os.path.isdir(directory):
         return None
-    file, current_ext = os.path.splitext(file)
     if extensions is None:
+        file, current_ext = os.path.splitext(file)
         extensions = [current_ext]
     for ext in extensions:
         check_file = os.path.join(directory, f"{file}{ext}")

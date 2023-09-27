@@ -455,7 +455,7 @@ class DiffusionStep:
         ):
             if image:
                 if self.remove_background:
-                    with pipeline.background_remover.remover as remove_background:
+                    with pipeline.background_remover.remover() as remove_background:
                         image = remove_background(image)
 
                 samples = kwargs.get("num_images_per_prompt", 1)
@@ -476,7 +476,7 @@ class DiffusionStep:
         if image is not None:
             if self.remove_background and self.fill_background:
                 # Execute remove background here
-                with pipeline.background_remover.remover as remove_background:
+                with pipeline.background_remover.remover() as remove_background:
                     image = remove_background(image)
                     white = PIL.Image.new("RGB", image.size, (255, 255, 255))
                     black = PIL.Image.new("RGB", image.size, (0, 0, 0))
@@ -604,7 +604,7 @@ class DiffusionStep:
                 result["images"][i] = self.paste_inpaint_image(image_background, image, image_position)
 
         if self.remove_background and not self.fill_background:
-            with pipeline.background_remover.remover as remove_background:
+            with pipeline.background_remover.remover() as remove_background:
                 for i, image in enumerate(result["images"]):
                     result["images"][i] = remove_background(image)
 

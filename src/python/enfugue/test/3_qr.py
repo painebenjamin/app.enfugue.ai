@@ -27,7 +27,8 @@ def main() -> None:
                 prompt="A creeping vine crawling up a trellice",
                 control_images=[{
                     "controlnet": "qr",
-                    "image": image
+                    "image": image,
+                    "scale": 1.5
                 }],
             )["images"][0].save(output_path)
             logger.info(f"Wrote {output_path}")

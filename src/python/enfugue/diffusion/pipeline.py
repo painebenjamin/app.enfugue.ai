@@ -365,7 +365,10 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         unet = UNet2DConditionModel(**unet_config)
 
         converted_unet_checkpoint = convert_ldm_unet_checkpoint(
-            checkpoint, unet_config, path=checkpoint_path, extract_ema=extract_ema
+            checkpoint,
+            unet_config,
+            path=checkpoint_path,
+            extract_ema=extract_ema
         )
 
         unet.load_state_dict(converted_unet_checkpoint)
