@@ -43,6 +43,7 @@ class IPAdapter(SupportModel):
         self,
         unet: UNet2DConditionModel,
         is_sdxl: bool = False,
+        use_fine_grained: bool = False,
         scale: float = 1.0,
         keepalive_callback: Optional[Callable[[],None]] = None,
         controlnets: Optional[Dict[str, ControlNetModel]] = None,
@@ -52,6 +53,7 @@ class IPAdapter(SupportModel):
         """
         if keepalive_callback is None:
             keepalive_callback = lambda: None
+
         import torch
         from diffusers.models.attention_processor import (
             AttnProcessor2_0,
@@ -65,11 +67,13 @@ class IPAdapter(SupportModel):
             AttentionProcessor,
             AttentionProcessor2_0,
         )
-        if self.cross_attention_dim != unet.config.cross_attention_dim or self.is_sdxl != is_sdxl:
+
+        if self.cross_attention_dim != unet.config.cross_attention_dim or self.is_sdxl != is_sdxl or self.use_fine_grained != use_fine_grained:
             del self.projector
             del self.encoder
 
         self.is_sdxl = is_sdxl
+        self.use_fine_grained = use_fine_grained
         self.cross_attention_dim = unet.config.cross_attention_dim
 
         self._default_unet_attention_processors: Dict[str, Any] = {}
@@ -105,12 +109,14 @@ class IPAdapter(SupportModel):
                 new_attention_processors[name] = ip_attn_class(
                     hidden_size=hidden_size,
                     cross_attention_dim=cross_attention_dim,
-                    scale=scale
+                    scale=scale,
+                    num_tokens=self.tokens,
                 ).to(self.device, dtype=self.dtype)
 
         keepalive_callback()
         unet.set_attn_processor(new_attention_processors)
         layers = torch.nn.ModuleList(unet.attn_processors.values())
+
         state_dict = self.xl_state_dict if is_sdxl else self.default_state_dict
 
         keepalive_callback()
@@ -146,10 +152,30 @@ class IPAdapter(SupportModel):
             _ = self.default_encoder_model
             _ = self.default_image_prompt_checkpoint
 
-    def set_scale(self, unet: UNet2DConditionModel, new_scale: float) -> int:
+    def set_scale(
+        self,
+        unet: UNet2DConditionModel,
+        new_scale: float,
+        is_sdxl: bool = False,
+        use_fine_grained: bool = False,
+        keepalive_callback: Optional[Callable[[],None]] = None,
+        controlnets: Optional[Dict[str, ControlNetModel]] = None,
+    ) -> int:
         """
         Sets the scale on attention processors.
         """
+        if self.is_sdxl != is_sdxl or self.use_fine_grained != use_fine_grained:
+            # Completely reload adapter
+            self.unload(unet, controlnets)
+            self.load(
+                unet,
+                is_sdxl=is_sdxl,
+                scale=new_scale,
+                use_fine_grained=use_fine_grained,
+                keepalive_callback=keepalive_callback,
+                controlnets=controlnets
+            )
+            return 1
         from enfugue.diffusion.support.ip.attention import ( # type: ignore[attr-defined]
             IPAttentionProcessor,
             IPAttentionProcessor2_0,
@@ -304,36 +330,18 @@ class IPAdapter(SupportModel):
         """
         Gets the state dict from the IP checkpoint
         """
-        if not hasattr(self, "_default_state_dict"):
-            import torch
-            self._default_state_dict = torch.load(self.default_image_prompt_checkpoint, map_location="cpu")
-        return self._default_state_dict
+        from enfugue.diffusion.util.torch_util import load_state_dict
+        logger.debug(f"Loading state dictionary from {self.default_image_prompt_checkpoint}")
+        return load_state_dict(self.default_image_prompt_checkpoint)
 
-    @default_state_dict.deleter
-    def default_state_dict(self) -> None:
-        """
-        Deletes the state dict to clear memory
-        """
-        if hasattr(self, "_default_state_dict"):
-            del self._default_state_dict
-    
     @property
     def xl_state_dict(self) -> Dict[str, Any]:
         """
         Gets the state dict from the IP checkpoint
         """
-        if not hasattr(self, "_xl_state_dict"):
-            import torch
-            self._xl_state_dict = torch.load(self.xl_image_prompt_checkpoint, map_location="cpu")
-        return self._xl_state_dict
-
-    @xl_state_dict.deleter
-    def xl_state_dict(self) -> None:
-        """
-        Deletes the state dict to clear memory
-        """
-        if hasattr(self, "_xl_state_dict"):
-            del self._xl_state_dict
+        from enfugue.diffusion.util.torch_util import load_state_dict
+        logger.debug(f"Loading state dictionary from {self.xl_image_prompt_checkpoint}")
+        return load_state_dict(self.xl_image_prompt_checkpoint)
 
     @property
     def projector(self) -> Union[ImageProjectionModel, Resampler]:

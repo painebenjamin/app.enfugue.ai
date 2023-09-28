@@ -571,6 +571,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         self,
         device: Union[str, torch.device],
         scale: float = 1.0,
+        use_fine_grained: bool = False,
         keepalive_callback: Optional[Callable[[], None]] = None
     ) -> None:
         """
@@ -579,10 +580,24 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         if getattr(self, "ip_adapter", None) is None:
             raise RuntimeError("Pipeline does not have an IP adapter")
         if self.ip_adapter_loaded:
-            altered = self.ip_adapter.set_scale(self.unet, scale) # type: ignore[union-attr]
+            altered = self.ip_adapter.set_scale( # type: ignore[union-attr]
+                unet=self.unet,
+                new_scale=scale,
+                use_fine_grained=use_fine_grained,
+                keepalive_callback=keepalive_callback,
+                is_sdxl=self.is_sdxl,
+                controlnets=self.controlnets
+            )
             if altered == 0:
                 logger.error("IP adapter appeared loaded, but setting scale did not modify it.")
-                self.ip_adapter.load(self.unet, self.is_sdxl, scale) # type: ignore[union-attr]
+                self.ip_adapter.load( # type: ignore[union-attr]
+                    unet=self.unet,
+                    is_sdxl=self.is_sdxl,
+                    scale=scale,
+                    use_fined_grained=use_fine_grained,
+                    keepalive_callback=keepalive_callback,
+                    controlnets=self.controlnets
+                )
         else:
             logger.debug("Loading IP adapter")
             self.ip_adapter.load( # type: ignore[union-attr]
@@ -590,6 +605,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 is_sdxl=self.is_sdxl,
                 scale=scale,
                 keepalive_callback=keepalive_callback,
+                use_fine_grained=use_fine_grained,
                 controlnets=self.controlnets
             )
             self.ip_adapter_loaded = True
@@ -805,6 +821,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         batch_size: int,
         device: Union[str, torch.device],
         ip_adapter_scale: Optional[Union[List[float], float]] = None,
+        ip_adapter_plus: bool = False,
         step_complete: Optional[Callable[[bool], None]] = None
     ) -> Iterator[None]:
         """
@@ -820,9 +837,10 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             self.text_encoder_2.to(device)
         if ip_adapter_scale is not None:
             self.load_ip_adapter(
-                device,
-                max(ip_adapter_scale) if isinstance(ip_adapter_scale, list) else ip_adapter_scale,
-                None if step_complete is None else lambda: step_complete(False) # type: ignore[misc]
+                device=device,
+                scale=max(ip_adapter_scale) if isinstance(ip_adapter_scale, list) else ip_adapter_scale,
+                use_fine_grained=ip_adapter_plus,
+                keepalive_callback=None if step_complete is None else lambda: step_complete(False) # type: ignore[misc]
             )
         else:
             self.unload_ip_adapter()
@@ -2222,6 +2240,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         mask: Optional[Union[PIL.Image.Image, torch.Tensor, str]] = None,
         control_images: ControlImageArgType = None,
         ip_adapter_images: ImagePromptArgType = None,
+        ip_adapter_plus: bool = False,
         height: Optional[int] = None,
         width: Optional[int] = None,
         chunking_size: Optional[int] = None,
@@ -2393,7 +2412,13 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             logger.debug(f"Configuration indicates VAE may operate in half precision")
             self.vae.to(dtype=torch.float16)
 
-        with self.get_runtime_context(batch_size, device, ip_adapter_scale, step_complete):
+        with self.get_runtime_context(
+            batch_size=batch_size,
+            device=device,
+            ip_adapter_scale=ip_adapter_scale,
+            ip_adapter_plus=ip_adapter_plus,
+            step_complete=step_complete
+        ):
             if self.is_sdxl:
                 # XL uses more inputs for prompts than 1.5
                 (

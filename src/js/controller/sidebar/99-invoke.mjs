@@ -98,6 +98,9 @@ class InvokeButtonController extends Controller {
                         formattedState["crop_inpaint"] = datum.cropInpaint;
                         formattedState["inpaint_feather"] = datum.inpaintFeather;
                     }
+                    if (datum.imagePromptPlus) {
+                        formattedState["ip_adapter_plus"] = true;
+                    }
                     if (datum.imagePrompt) {
                         formattedState["ip_adapter_images"] = [
                             {
@@ -150,6 +153,9 @@ class InvokeButtonController extends Controller {
                         if (child.imagePrompt) {
                             if (isEmpty(formattedState["ip_adapter_images"])) {
                                 formattedState["ip_adapter_images"] = [];
+                            }
+                            if (child.imagePromptPlus) {
+                                formattedState["ip_adapter_plus"] = true;
                             }
                             formattedState["ip_adapter_images"].push(
                                 {

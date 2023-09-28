@@ -117,6 +117,7 @@ class NodeDict(TypedDict):
     y: int
     control_images: NotRequired[List[ControlImageDict]]
     ip_adapter_images: NotRequired[List[IPAdapterImageDict]]
+    ip_adapter_plus: NotRequired[bool]
     image: NotRequired[PIL.Image.Image]
     mask: NotRequired[PIL.Image.Image]
     fit: NotRequired[IMAGE_FIT_LITERAL]
@@ -151,6 +152,7 @@ class DiffusionStep:
         mask: Optional[Union[DiffusionStep, PIL.Image.Image, str]] = None,
         control_images: Optional[List[ControlImageDict]] = None,
         ip_adapter_images: Optional[List[IPAdapterImageDict]] = None,
+        ip_adapter_plus: bool = False,
         strength: Optional[float] = None,
         num_inference_steps: Optional[int] = DEFAULT_INFERENCE_STEPS,
         guidance_scale: Optional[float] = DEFAULT_GUIDANCE_SCALE,
@@ -179,6 +181,7 @@ class DiffusionStep:
         self.image = image
         self.mask = mask
         self.ip_adapter_images = ip_adapter_images
+        self.ip_adapter_plus = ip_adapter_plus
         self.control_images = control_images
         self.strength = strength
         self.refiner_start = refiner_start
@@ -235,6 +238,7 @@ class DiffusionStep:
             "scale_to_model_size": self.scale_to_model_size,
             "crop_inpaint": self.crop_inpaint,
             "inpaint_feather": self.inpaint_feather,
+            "ip_adapter_plus": self.ip_adapter_plus,
         }
 
         serialize_children: List[DiffusionStep] = []
@@ -327,6 +331,7 @@ class DiffusionStep:
             "refiner_prompt_2": self.refiner_prompt_2,
             "refiner_negative_prompt": self.refiner_negative_prompt,
             "refiner_negative_prompt_2": self.refiner_negative_prompt_2,
+            "ip_adapter_plus": self.ip_adapter_plus,
         }
 
     def get_inpaint_bounding_box(self, pipeline_size: int) -> List[Tuple[int, int]]:
@@ -682,7 +687,8 @@ class DiffusionStep:
             "remove_background",
             "scale_to_model_size",
             "crop_inpaint",
-            "inpaint_feather"
+            "inpaint_feather",
+            "ip_adapter_plus"
         ]:
             if key in step_dict:
                 kwargs[key] = step_dict[key]
@@ -1534,6 +1540,7 @@ class DiffusionPlan:
         anchor: Optional[IMAGE_ANCHOR_LITERAL] = None,
         strength: Optional[float] = None,
         ip_adapter_images: Optional[List[IPAdapterImageDict]] = None,
+        ip_adapter_plus: bool = False,
         control_images: Optional[List[ControlImageDict]] = None,
         remove_background: bool = False,
         fill_background: bool = False,
@@ -1833,6 +1840,7 @@ class DiffusionPlan:
                 remove_background=remove_background,
                 fill_background=fill_background,
                 scale_to_model_size=scale_to_model_size,
+                ip_adapter_plus=ip_adapter_plus,
                 ip_adapter_images=ip_adapter_images,
                 control_images=control_images
             )
@@ -1885,6 +1893,7 @@ class DiffusionPlan:
             node_scale_to_model_size = bool(node_dict.get("scale_to_model_size", False))
             node_remove_background = bool(node_dict.get("remove_background", False))
 
+            node_ip_adapter_plus = node_dict.get("ip_adapter_plus", False)
             node_ip_adapter_images: Optional[List[IPAdapterImageDict]] = node_dict.get("ip_adapter_images", None)
             node_control_images: Optional[List[ControlImageDict]] = node_dict.get("control_images", None)
 
@@ -2144,6 +2153,7 @@ class DiffusionPlan:
                 guidance_scale=guidance_scale,
                 num_inference_steps=node_inference_steps if node_inference_steps else num_inference_steps,
                 ip_adapter_images=node_ip_adapter_images,
+                ip_adapter_plus=node_ip_adapter_plus,
                 control_images=node_control_images,
                 refiner_start=refiner_start,
                 refiner_strength=refiner_strength,
