@@ -64,7 +64,6 @@ jobs:
         git clone https://github.com/jin-s13/xtcocoapi
         cd xtcocoapi
         make install
-        pip install -U openmim
         mim install mmengine
         mim install "mmcv>=2.0.1"
         mim install "mmdet>=3.1.0"
@@ -75,7 +74,6 @@ jobs:
       run: |
         . /c/Miniconda/etc/profile.d/conda.sh
         conda activate base
-        pip install -U openmim
         mim install mmengine
         mim install "mmcv>=2.0.1"
         mim install "mmdet>=3.1.0"
@@ -83,7 +81,6 @@ jobs:
     - name: Install MMLab Dependencies (Linux)
       if: ${{ contains(inputs.os, 'ubuntu') && inputs.dwpose }}
       run: |
-        pip install -U openmim
         mim install mmengine
         mim install "mmcv>=2.0.1"
         mim install "mmdet>=3.1.0"
