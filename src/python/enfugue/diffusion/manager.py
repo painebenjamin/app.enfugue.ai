@@ -2254,26 +2254,10 @@ class DiffusionPipelineManager:
         return self.inpainter_diffusers_cache_dir is not None
 
     @property
-    def caching(self) -> bool:
-        """
-        Returns if caching is enabled (default true.)
-        """
-        return getattr(self, "_caching", True)
-
-    @caching.setter
-    def caching(self, value: bool) -> None:
-        """
-        Enables/disables caching
-        """
-        self._caching = value
-
-    @property
     def should_cache(self) -> bool:
         """
         Returns true if the model should always be cached.
         """
-        if not self.caching:
-            return False
         configured = self.configuration.get("enfugue.pipeline.cache", None)
         if configured == "xl":
             return self.is_sdxl
@@ -2284,8 +2268,6 @@ class DiffusionPipelineManager:
         """
         Returns true if the inpainter model should always be cached.
         """
-        if not self.caching:
-            return False
         configured = self.configuration.get("enfugue.pipeline.cache", None)
         if configured == "xl":
             return self.inpainter_is_sdxl
@@ -2296,8 +2278,6 @@ class DiffusionPipelineManager:
         """
         Returns true if the refiner model should always be cached.
         """
-        if not self.caching:
-            return False
         configured = self.configuration.get("enfugue.pipeline.cache", None)
         if configured == "xl":
             return self.refiner_is_sdxl

@@ -578,6 +578,8 @@ class DiffusionStep:
                 pipeline.inpainter_controlnets = list(control_images.keys())
             else:
                 pipeline.controlnets = list(control_images.keys())
+        if ip_adapter_images is not None:
+            invocation_kwargs["ip_adapter_images"] = ip_adapter_images
 
         if self.width is not None and self.height is not None and image_width is None and image_height is None:
             image_width, image_height = self.width, self.height
