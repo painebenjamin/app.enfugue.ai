@@ -1,12 +1,23 @@
 <p align="center">
     <img src="https://github.com/painebenjamin/app.enfugue.ai/blob/main/docs/github-header.png?raw=true" alt="ENFUGUE">
 </p>
-
 <h2 align="center">
 Enfugue is a feature-rich Stable Diffusion web app for desktop or server.
 </h2>
 <p align="center">
 <em>Forever open source and totally free.</em>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/static/v1?label=painebenjamin&message=app.enfugue.ai&color=ff3366&logo=github" alt="painebenjamin - app.enfugue.ai">
+    <img src="https://img.shields.io/github/stars/painebenjamin/app.enfugue.ai?style=social" alt="stars - app.enfugue.ai">
+    <img src="https://img.shields.io/github/forks/painebenjamin/app.enfugue.ai?style=social" alt="forks - app.enfugue.ai"><br />
+    <a href="https://github.com/painebenjamin/app.enfugue.ai/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-AGPL3-ff3366" alt="License"></a>
+    <a href="https://github.com/painebenjamin/app.enfugue.ai/releases/"><img src="https://img.shields.io/github/tag/painebenjamin/app.enfugue.ai?include_prereleases=&sort=semver&color=ff3366" alt="GitHub tag"></a>
+    <a href="https://github.com/painebenjamin/app.enfugue.ai/releases/"><img alt="GitHub release (with filter)" src="https://img.shields.io/github/v/release/painebenjamin/app.enfugue.ai?color=ff3366"></a>
+    <a href="https://pypi.org/project/enfugue"><img alt="PyPI - Version" src="https://img.shields.io/pypi/v/enfugue?color=ff3366"></a>
+    <a href="https://github.com/painebenjamin/app.enfugue.ai/releases/"><img alt="GitHub all releases" src="https://img.shields.io/github/downloads/painebenjamin/app.enfugue.ai/total?logo=github&color=ff3366"></a>
+    <a href="https://pypi.org/project/enfugue"><img alt="PyPI - Downloads" src="https://img.shields.io/pypi/dm/enfugue?logo=python&logoColor=white&color=ff3366"></a>
 </p>
 
 <p align="center">
