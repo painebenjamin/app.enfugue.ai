@@ -75,7 +75,7 @@ from diffusers.utils import PIL_INTERPOLATION
 from diffusers.utils.torch_utils import randn_tensor
 from diffusers.image_processor import VaeImageProcessor
 
-from enfugue.util import logger, check_download_to_dir, TokenMerger
+from enfugue.util import logger, check_download, check_download_to_dir, TokenMerger
 from enfugue.diffusion.util import load_state_dict, MaskWeightBuilder
 
 if TYPE_CHECKING:
@@ -84,6 +84,18 @@ if TYPE_CHECKING:
 
 # This is ~64k×64k. Absurd, but I don't judge
 PIL.Image.MAX_IMAGE_PIXELS = 2**32
+
+# IP image accepted arguments
+class ImagePromptArgDict(TypedDict):
+    image: Union[str, PIL.Image.Image]
+    scale: NotRequired[float]
+
+ImagePromptType = Union[
+    Union[str, PIL.Image.Image], # Image
+    Tuple[Union[str, PIL.Image.Image], float], # Image, Scale
+    ImagePromptArgDict
+]
+ImagePromptArgType = Optional[Union[ImagePromptType, List[ImagePromptType]]]
 
 # Control image accepted arguments
 class ControlImageArgDict(TypedDict):
@@ -395,6 +407,24 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 default_path = "stabilityai/sdxl-vae" if model_type in ["SDXL", "SDXL-Refiner"] else "stabilityai/sd-vae-ft-ema"
                 logger.error(f"Malformed VAE state dictionary detected; missing required key '{ex}'. Reverting to default model {default_path}")
                 vae = AutoencoderKL.from_pretrained(default_path, cache_dir=cache_dir)
+        elif os.path.exists(vae_path):
+            if model_type in ["SDXL", "SDXL-Refiner"]:
+                vae_config_path = os.path.join(cache_dir, "sdxl-vae-config.json")
+                check_download(
+                    "https://huggingface.co/stabilityai/sdxl-vae/raw/main/config.json",
+                    vae_config_path,
+                    check_size=False
+                )
+                vae = AutoencoderKL.from_config(
+                    AutoencoderKL._dict_from_json_file(vae_config_path)
+                )
+                vae.load_state_dict(load_state_dict(vae_path), strict=False)
+            else:
+                vae = AutoencoderKL.from_single_file(
+                    vae_path,
+                    cache_dir=cache_dir,
+                    from_safetensors = "safetensors" in vae_path
+                )
         else:
             vae = AutoencoderKL.from_pretrained(vae_path, cache_dir=cache_dir)
 
@@ -774,7 +804,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         self,
         batch_size: int,
         device: Union[str, torch.device],
-        ip_adapter_scale: Optional[float] = None,
+        ip_adapter_scale: Optional[Union[List[float], float]] = None,
         step_complete: Optional[Callable[[bool], None]] = None
     ) -> Iterator[None]:
         """
@@ -791,7 +821,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         if ip_adapter_scale is not None:
             self.load_ip_adapter(
                 device,
-                ip_adapter_scale,
+                max(ip_adapter_scale) if isinstance(ip_adapter_scale, list) else ip_adapter_scale,
                 None if step_complete is None else lambda: step_complete(False) # type: ignore[misc]
             )
         else:
@@ -2191,13 +2221,12 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         image: Optional[Union[PIL.Image.Image, torch.Tensor, str]] = None,
         mask: Optional[Union[PIL.Image.Image, torch.Tensor, str]] = None,
         control_images: ControlImageArgType = None,
+        ip_adapter_images: ImagePromptArgType = None,
         height: Optional[int] = None,
         width: Optional[int] = None,
         chunking_size: Optional[int] = None,
         denoising_start: Optional[float] = None,
         denoising_end: Optional[float] = None,
-        ip_adapter_scale: Optional[float] = None,
-        ip_adapter_image: Optional[Union[PIL.Image.Image, str]] = None,
         strength: Optional[float] = 0.8,
         num_inference_steps: int = 40,
         guidance_scale: float = 7.5,
@@ -2249,8 +2278,25 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         if latent_callback_steps == 0:
             latent_callback_steps = None
 
-        # Check ip_adapter_scale, disable if no image or passed latents
-        if ip_adapter_image is None and not isinstance(image, str) and not isinstance(image, PIL.Image.Image):
+        # Standardize IP adapter tuples
+        ip_adapter_tuples: Optional[List[Tuple[PIL.Image.Image, float]]] = None
+        if ip_adapter_images:
+            ip_adapter_tuples = []
+            for ip_adapter_argument in (ip_adapter_images if isinstance(ip_adapter_images, list) else [ip_adapter_images]):
+                if isinstance(ip_adapter_argument, dict):
+                    ip_adapter_tuples.append((
+                        ip_adapter_argument["image"],
+                        ip_adapter_argument.get("scale", 1.0)
+                    ))
+                elif isinstance(ip_adapter_argument, list):
+                    ip_adapter_tuples.append(tuple(ip_adapter_argument)) # type: ignore[arg-type]
+                elif isinstance(ip_adapter_argument, tuple):
+                    ip_adapter_tuples.append(ip_adapter_argument) # type: ignore[arg-type]
+                else:
+                    ip_adapter_tuples.append((ip_adapter_argument, 1.0))
+            ip_adapter_scale = max([scale for img, scale in ip_adapter_tuples])
+        else:
+            ip_adapter_tuples = None
             ip_adapter_scale = None
 
         # Convenient bool for later
@@ -2389,9 +2435,6 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             if isinstance(mask, str):
                 mask = PIL.Image.open(mask)
 
-            if isinstance(ip_adapter_image, str):
-                ip_adapter_image = PIL.Image.open(ip_adapter_image)
-
             # Scale images if requested
             if scale_image and isinstance(image, PIL.Image.Image):
                 image_width, image_height = image.size
@@ -2405,17 +2448,9 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     logger.debug(f"Resizing input mask from {mask_width}x{mask_height} to {width}x{height}")
                     mask = mask.resize((width, height), resample=PIL_INTERPOLATION["lanczos"])
 
-            if scale_image and isinstance(ip_adapter_image, PIL.Image.Image):
-                image_width, image_height = ip_adapter_image.size
-                if image_width != width or image_height != height:
-                    logger.debug(f"Resizing input IP adapter image from {image_width}x{image_height} to {width}x{height}")
-                    ip_adapter_image = ip_adapter_image.resize((width, height), resample=PIL_INTERPOLATION["lanczos"])
-
             # Remove any alpha mask on image, convert mask to grayscale
             if isinstance(image, PIL.Image.Image):
                 image = image.convert("RGB")
-            if isinstance(ip_adapter_image, PIL.Image.Image):
-                ip_adapter_image = ip_adapter_image.convert("RGB")
             if isinstance(mask, PIL.Image.Image):
                 mask = mask.convert("L")
             if isinstance(image, PIL.Image.Image) and isinstance(mask, PIL.Image.Image):
@@ -2429,11 +2464,6 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 prepared_mask, prepared_image_latents, init_image = None, None, None
             else:
                 prepared_mask, prepared_image, prepared_image_latents, init_image = None, None, None, None
-
-            if ip_adapter_image is not None:
-                prepared_ip_adapter_image = self.image_processor.preprocess(ip_adapter_image)
-            else:
-                prepared_ip_adapter_image = None
 
             if width < self.engine_size or height < self.engine_size:
                 # Disable chunking
@@ -2581,31 +2611,52 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 self.vae.to("cpu")
 
             # Get prompt embeds here if using ip adapter
-            if ip_adapter_scale is not None:
-                ip_image = ip_adapter_image if ip_adapter_image else image
-                if not ip_image:
-                    logger.warning("IP adapter scale included, but no image to probe.")
-                else:
-                    image_prompt_embeds, image_uncond_prompt_embeds = self.get_image_embeds(
-                        ip_image,
+            if ip_adapter_tuples is not None:
+                image_prompt_embeds = torch.Tensor().to(
+                    device=device,
+                    dtype=prompt_embeds.dtype
+                )
+                image_uncond_prompt_embeds = torch.Tensor().to(
+                    device=device,
+                    dtype=prompt_embeds.dtype
+                )
+                total_scale = 0.0
+                
+                for img, scale in ip_adapter_tuples:
+                    these_prompt_embeds, these_uncond_prompt_embeds = self.get_image_embeds(
+                        img,
                         num_images_per_prompt
                     )
-                    if self.is_sdxl:
-                        negative_prompt_embeds = cast(torch.Tensor, negative_prompt_embeds)
-                        prompt_embeds = torch.cat([prompt_embeds, image_prompt_embeds], dim=1)
-                        negative_prompt_embeds = torch.cat([negative_prompt_embeds, image_uncond_prompt_embeds], dim=1)
+                    image_prompt_embeds = torch.cat([
+                        image_prompt_embeds,
+                        (these_prompt_embeds * scale).unsqueeze(0)
+                    ])
+                    image_uncond_prompt_embeds = torch.cat([
+                        image_uncond_prompt_embeds,
+                        (these_uncond_prompt_embeds * scale).unsqueeze(0)
+                    ])
+                    total_scale += scale
+
+                image_prompt_embeds = image_prompt_embeds.mean(0) / total_scale
+                image_uncond_prompt_embeds = image_uncond_prompt_embeds.mean(0) / total_scale
+
+                if self.is_sdxl:
+                    negative_prompt_embeds = cast(torch.Tensor, negative_prompt_embeds)
+                    prompt_embeds = torch.cat([prompt_embeds, image_prompt_embeds], dim=1)
+                    negative_prompt_embeds = torch.cat([negative_prompt_embeds, image_uncond_prompt_embeds], dim=1)
+                else:
+                    if do_classifier_free_guidance:
+                        _negative_prompt_embeds, _prompt_embeds = prompt_embeds.chunk(2)
                     else:
-                        if do_classifier_free_guidance:
-                            _negative_prompt_embeds, _prompt_embeds = prompt_embeds.chunk(2)
-                        else:
-                            _negative_prompt_embeds, _prompt_embeds = negative_prompt_embeds, prompt_embeds # type: ignore
-                        prompt_embeds = torch.cat([_prompt_embeds, image_prompt_embeds], dim=1)
-                        negative_prompt_embeds = torch.cat([_negative_prompt_embeds, image_uncond_prompt_embeds], dim=1)
-                        if do_classifier_free_guidance:
-                            prompt_embeds = torch.cat([negative_prompt_embeds, prompt_embeds])
-                    if ip_adapter_image:
-                        del ip_adapter_image
-                
+                        _negative_prompt_embeds, _prompt_embeds = negative_prompt_embeds, prompt_embeds # type: ignore
+                    prompt_embeds = torch.cat([_prompt_embeds, image_prompt_embeds], dim=1)
+                    negative_prompt_embeds = torch.cat([_negative_prompt_embeds, image_uncond_prompt_embeds], dim=1)
+                    if do_classifier_free_guidance:
+                        prompt_embeds = torch.cat([negative_prompt_embeds, prompt_embeds])
+
+                if ip_adapter_images:
+                    del ip_adapter_images
+
             # Prepared added time IDs and embeddings (SDXL)
             if self.is_sdxl:
                 negative_prompt_embeds = cast(torch.Tensor, negative_prompt_embeds)

@@ -4,7 +4,7 @@ Tests automatic loading of ip adapter
 import os
 import PIL
 
-from enfugue.util import logger, image_from_uri
+from enfugue.util import logger, image_from_uri, fit_image
 from enfugue.diffusion.engine import DiffusionEngine
 from pibble.util.log import DebugUnifiedLoggingContext
 
@@ -24,8 +24,7 @@ def main() -> None:
             engine(
                 seed=12345,
                 prompt="A basketball game",
-                image=base_image,
-                ip_adapter_scale=0.5
+                ip_adapter_images=[(base_image, 0.5)]
             )["images"][0].save(output_path)
             logger.info(f"Wrote {output_path}")
 

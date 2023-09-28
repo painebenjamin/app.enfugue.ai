@@ -179,6 +179,8 @@ class DiffusionEngineProcess(Process):
         lora: Optional[Union[str, Tuple[str, float], List[Union[str, Tuple[str, float]]]]] = None,
         inversion: Optional[Union[str, List[str]]] = None,
         vae: Optional[str] = None,
+        refiner_vae: Optional[str] = None,
+        inpainter_vae: Optional[str] = None,
         control_images: Optional[List[Dict[str, Any]]] = None,
         seed: Optional[int] = None,
         image_callback_steps: Optional[int] = None,
@@ -219,6 +221,12 @@ class DiffusionEngineProcess(Process):
 
         if vae is not None:
             self.pipemanager.vae = vae  # type: ignore
+
+        if refiner_vae is not None:
+            self.pipemanager.refiner_vae = refiner_vae  # type: ignore
+
+        if inpainter_vae is not None:
+            self.pipemanager.inpainter_vae = inpainter_vae  # type: ignore
 
         if seed is not None:
             self.pipemanager.seed = seed

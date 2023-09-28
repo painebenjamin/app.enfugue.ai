@@ -21,13 +21,12 @@ def main() -> None:
         with DiffusionEngine.debug() as engine:
             base_image = image_from_uri(BASE_IMAGE)
             base_image.save(os.path.join(output_dir, "base.png"))
-            output_path = os.path.join(output_dir, f"sd15.png")
+            output_path = os.path.join(output_dir, f"sdxl.png")
             engine(
                 seed=12345,
                 model=DEFAULT_SDXL_MODEL,
                 prompt="A basketball game",
-                image=base_image,
-                ip_adapter_scale=0.5
+                ip_adapter_images=[(base_image, 0.5)]
             )["images"][0].save(output_path)
             logger.info(f"Wrote {output_path}")
 

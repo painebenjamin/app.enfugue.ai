@@ -16,6 +16,7 @@ if TYPE_CHECKING:
     import torch
     from PIL import Image
     from enfugue.diffusion.support.ip.projection import ImageProjectionModel
+    from enfugue.diffusion.support.ip.resampler import Resampler # type: ignore
     from diffusers.models import UNet2DConditionModel, ControlNetModel
 
 class IPAdapter(SupportModel):
@@ -24,14 +25,19 @@ class IPAdapter(SupportModel):
     """
     cross_attention_dim: int = 768
     is_sdxl: bool = False
+    use_fine_grained: bool = True
 
     DEFAULT_ENCODER_CONFIG_PATH = "https://huggingface.co/h94/IP-Adapter/resolve/main/models/image_encoder/config.json"
     DEFAULT_ENCODER_PATH = "https://huggingface.co/h94/IP-Adapter/resolve/main/models/image_encoder/pytorch_model.bin"
     DEFAULT_ADAPTER_PATH = "https://huggingface.co/h94/IP-Adapter/resolve/main/models/ip-adapter_sd15.bin"
+
+    FINE_GRAINED_ADAPTER_PATH = "https://huggingface.co/h94/IP-Adapter/resolve/main/models/ip-adapter-plus_sd15.bin"
     
     XL_ENCODER_CONFIG_PATH = "https://huggingface.co/h94/IP-Adapter/resolve/main/sdxl_models/image_encoder/config.json"
     XL_ENCODER_PATH = "https://huggingface.co/h94/IP-Adapter/resolve/main/sdxl_models/image_encoder/pytorch_model.bin"
     XL_ADAPTER_PATH = "https://huggingface.co/h94/IP-Adapter/resolve/main/sdxl_models/ip-adapter_sdxl.bin"
+
+    FINE_GRAINED_XL_ADAPTER_PATH = "https://huggingface.co/h94/IP-Adapter/resolve/main/sdxl_models/ip-adapter-plus_sdxl_vit-h.bin"
 
     def load(
         self,
@@ -205,8 +211,8 @@ class IPAdapter(SupportModel):
         Downloads if needed
         """
         return self.get_model_file(
-            self.DEFAULT_ADAPTER_PATH,
-            filename="ip-adapter_sd15.pth",
+            self.FINE_GRAINED_ADAPTER_PATH if self.use_fine_grained else self.DEFAULT_ADAPTER_PATH,
+            filename="ip-adapter-plus_sd15.pth" if self.use_fine_grained else "ip-adapter_sd15.pth",
             extensions=[".bin", ".pth", ".safetensors"]
         )
 
@@ -216,6 +222,8 @@ class IPAdapter(SupportModel):
         Gets the path to the IP model for 1.5
         Downloads if needed
         """
+        if self.use_fine_grained:
+            return self.default_encoder_model
         return self.get_model_file(
             self.XL_ENCODER_PATH,
             filename="ip-adapter_sdxl_encoder.pth",
@@ -228,6 +236,8 @@ class IPAdapter(SupportModel):
         Gets the path to the IP model for 1.5
         Downloads if needed
         """
+        if self.use_fine_grained:
+            return self.default_encoder_config
         return self.get_model_file(
             self.XL_ENCODER_CONFIG_PATH,
             filename="ip-adapter_sdxl_encoder_config.json"
@@ -240,8 +250,8 @@ class IPAdapter(SupportModel):
         Downloads if needed
         """
         return self.get_model_file(
-            self.XL_ADAPTER_PATH,
-            filename="ip-adapter_sdxl.pth",
+            self.FINE_GRAINED_XL_ADAPTER_PATH if self.use_fine_grained else self.XL_ADAPTER_PATH,
+            filename="ip-adapter-plus_sdxl_vit-h.pth" if self.use_fine_grained else "ip-adapter_sdxl.pth",
             extensions=[".bin", ".pth", ".safetensors"]
         )
 
@@ -250,7 +260,7 @@ class IPAdapter(SupportModel):
         """
         Gets the number of tokens for extra clip context
         """
-        return getattr(self, "_tokens", 4)
+        return getattr(self, "_tokens", 16 if self.use_fine_grained else 4)
 
     @tokens.setter
     def tokens(self, amount: int) -> None:
@@ -312,7 +322,7 @@ class IPAdapter(SupportModel):
         """
         Gets the state dict from the IP checkpoint
         """
-        if not hasattr(self, "_xl_tate_dict"):
+        if not hasattr(self, "_xl_state_dict"):
             import torch
             self._xl_state_dict = torch.load(self.xl_image_prompt_checkpoint, map_location="cpu")
         return self._xl_state_dict
@@ -326,18 +336,31 @@ class IPAdapter(SupportModel):
             del self._xl_state_dict
 
     @property
-    def projector(self) -> ImageProjectionModel:
+    def projector(self) -> Union[ImageProjectionModel, Resampler]:
         """
         Gets the projection model
         """
         if not hasattr(self, "_projector"):
-            from enfugue.diffusion.support.ip.projection import ImageProjectionModel
             logger.debug(f"Initializing ImageProjectionModel with cross-attention dimensions of {self.cross_attention_dim}")
-            self._projector = ImageProjectionModel(
-                clip_embeddings_dim=self.encoder.config.projection_dim,
-                cross_attention_dim=self.cross_attention_dim,
-                clip_extra_context_tokens=self.tokens
-            )
+            if self.use_fine_grained:
+                from enfugue.diffusion.support.ip.resampler import Resampler # type: ignore[attr-defined]
+                self._projector = Resampler(
+                    dim=1280 if self.is_sdxl else self.cross_attention_dim,
+                    depth=4,
+                    dim_head=64,
+                    heads=20 if self.is_sdxl else 12,
+                    num_queries=self.tokens,
+                    embedding_dim=self.encoder.config.hidden_size,
+                    output_dim=self.cross_attention_dim,
+                    ff_mult=4
+                )
+            else:
+                from enfugue.diffusion.support.ip.projection import ImageProjectionModel
+                self._projector = ImageProjectionModel(
+                    clip_embeddings_dim=self.encoder.config.projection_dim,
+                    cross_attention_dim=self.cross_attention_dim,
+                    clip_extra_context_tokens=self.tokens
+                )
         return self._projector
 
     @projector.deleter
@@ -404,14 +427,26 @@ class IPAdapter(SupportModel):
                 return_tensors="pt"
             ).pixel_values
 
-            clip_image_embeds = self.encoder(
-                clip_image.to(
-                    device=self.device,
-                    dtype=self.dtype
-                )
-            ).image_embeds
+            clip_image = clip_image.to(self.device, dtype=self.dtype)
+            clip_image_encoded = self.encoder(
+                clip_image,
+                output_hidden_states=self.use_fine_grained
+            )
+
+            if self.use_fine_grained:
+                clip_image_embeds = clip_image_encoded.hidden_states[-2]
+            else:
+                clip_image_embeds = clip_image_encoded.image_embeds
 
             image_prompt_embeds = self.projector(clip_image_embeds)
-            image_uncond_prompt_embeds = self.projector(torch.zeros_like(clip_image_embeds))
 
+            if self.use_fine_grained:
+                image_uncond_prompt_input = self.encoder(
+                    torch.zeros_like(clip_image),
+                    output_hidden_states=True
+                ).hidden_states[-2]
+            else:
+                image_uncond_prompt_input = torch.zeros_like(clip_image_embeds)
+
+            image_uncond_prompt_embeds = self.projector(image_uncond_prompt_input)
             return image_prompt_embeds, image_uncond_prompt_embeds

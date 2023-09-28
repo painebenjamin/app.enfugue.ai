@@ -443,6 +443,44 @@ class DiffusionPipelineManager:
             return VAE_XL16
         return vae
 
+    def find_vae_path(self, vae: str) -> str:
+        """
+        Finds a VAE path if there is one, otherwise returns a repo.
+        """
+        path = self.get_vae_path(vae)
+        if not path:
+            raise ValueError("find_vae_path requires an argument")
+        if not isinstance(path, tuple):
+            return path
+        repo, possible_files = path[0], path[1:]
+        for filename in possible_files:
+            possible_file = find_file_in_directory(
+                self.engine_cache_dir,
+                filename,
+                self.LOADABLE_EXTENSIONS
+            )
+            if possible_file is not None:
+                return possible_file
+        return repo
+    
+    def get_xl_vae(self, vae: str) -> AutoencoderKL:
+        """
+        Loads an XL VAE from file or dies trying
+        """
+        from diffusers.models import AutoencoderKL
+        from enfugue.diffusion.util.torch_util import load_state_dict
+
+        vae_config = os.path.join(self.engine_cache_dir, "sdxl-vae-config.json")
+        check_download(
+            "https://huggingface.co/stabilityai/sdxl-vae/raw/main/config.json",
+            vae_config
+        )
+        vae_model = AutoencoderKL.from_config(
+            AutoencoderKL._dict_from_json_file(vae_config)
+        )
+        vae_model.load_state_dict(load_state_dict(vae), strict=False)
+        return vae_model.to(self.device)
+
     def get_vae(self, vae: Optional[Union[str, Tuple[str, ...]]] = None) -> Optional[AutoencoderKL]:
         """
         Loads the VAE
@@ -472,12 +510,16 @@ class DiffusionPipelineManager:
         from diffusers.models import AutoencoderKL
 
         if os.path.exists(vae):
-            result = AutoencoderKL.from_single_file(
-                vae,
-                torch_dtype=self.dtype,
-                cache_dir=self.engine_cache_dir,
-                from_safetensors="safetensors" in vae
-            )
+            try:
+                result = AutoencoderKL.from_single_file(
+                    vae,
+                    torch_dtype=self.dtype,
+                    cache_dir=self.engine_cache_dir,
+                    from_safetensors="safetensors" in vae
+                )
+            except KeyError as ex:
+                logger.debug(f"Received KeyError on '{ex}' when instantiating VAE from single file, trying to use XL VAE loader fix.")
+                result = self.get_xl_vae(vae)
         else:
             expected_vae_location = os.path.join(self.engine_cache_dir, "models--" + vae.replace("/", "--"))
 
@@ -2460,7 +2502,8 @@ class DiffusionPipelineManager:
             else:
                 kwargs["load_safety_checker"] = self.safe
                 if self.vae_name is not None:
-                    kwargs["vae_path"] = self.get_vae_path(self.vae_name)
+                    kwargs["vae_path"] = self.find_vae_path(self.vae_name)
+
                 logger.debug(f"Initializing pipeline from checkpoint at {self.model}. Arguments are {redact(kwargs)}")
                 pipeline = self.pipeline_class.from_ckpt(self.model, **kwargs)
                 if pipeline.is_sdxl and (self.vae_name is None or "16" not in self.vae_name):
@@ -2585,7 +2628,8 @@ class DiffusionPipelineManager:
                 )
             else:
                 if self.refiner_vae_name is not None:
-                    kwargs["vae_path"] = self.get_vae_path(self.refiner_vae_name)
+                    kwargs["vae_path"] = self.find_vae_path(self.refiner_vae_name)
+
                 logger.debug(f"Initializing refiner pipeline from checkpoint at {self.refiner}. Arguments are {redact(kwargs)}")
                 refiner_pipeline = self.refiner_pipeline_class.from_ckpt(
                     self.refiner,
@@ -2727,7 +2771,7 @@ class DiffusionPipelineManager:
                 )
             else:
                 if self.inpainter_vae_name is not None:
-                    kwargs["vae_path"] = self.get_vae_path(self.inpainter_vae_name)
+                    kwargs["vae_path"] = self.find_vae_path(self.inpainter_vae_name)
                 
                 logger.debug(
                     f"Initializing inpainter pipeline from checkpoint at {self.inpainter}. Arguments are {redact(kwargs)}"
