@@ -122,16 +122,32 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         unet_config = os.path.join(unet_dir, "config.json")
         unet_weights = os.path.join(unet_dir, WEIGHTS_NAME)
         
-        if not os.path.exists(unet_config) or not os.path.exists(unet_weights):
-            raise IOError(f"Couldn't find UNet config or weights.")
+        if not os.path.exists(unet_config):
+            raise IOError(f"Couldn't find UNet config at {unet_config}")
+        if not os.path.exists(unet_weights):
+            # Check for safetensors version
+            safetensors_weights = os.path.join(unet_dir, "diffusion_pytorch_model.safetensors")
+            if os.path.exists(safetensors_weights):
+                unet_weights = safetensors_weights
+            else:
+                raise IOError(f"Couldn't find UNet weights at {unet_weights} or {safetensors_weights}")
 
         unet = cls.create_unet(
             load_json(unet_config),
             kwargs.get("cache_dir", DIFFUSERS_CACHE),
         )
-        unet.load_state_dict(torch.load(unet_weights), strict=False)
+
+        if unet_weights.endswith("safetensors"):
+            import safetensors.torch
+            state_dict = safetensors.torch.load_file(unet_weights, device="cpu")
+        else:
+            state_dict = torch.load(unet_weights, map_location="cpu")
+
+        unet.load_state_dict(state_dict, strict=False)
+
         if "torch_dtype" in kwargs:
             unet = unet.to(kwargs["torch_dtype"])
+
         pipe.unet = unet
         return pipe
 

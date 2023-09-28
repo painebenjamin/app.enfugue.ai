@@ -2,7 +2,7 @@ from typing import Dict, Any
 
 __all__ = [
     "noop",
-    "merge_into".
+    "merge_into",
     "replace_images",
     "redact_for_log"
 ]
