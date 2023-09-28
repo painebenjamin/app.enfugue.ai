@@ -25,7 +25,7 @@ class IPAdapter(SupportModel):
     """
     cross_attention_dim: int = 768
     is_sdxl: bool = False
-    use_fine_grained: bool = True
+    use_fine_grained: bool = False
 
     DEFAULT_ENCODER_CONFIG_PATH = "https://huggingface.co/h94/IP-Adapter/resolve/main/models/image_encoder/config.json"
     DEFAULT_ENCODER_PATH = "https://huggingface.co/h94/IP-Adapter/resolve/main/models/image_encoder/pytorch_model.bin"

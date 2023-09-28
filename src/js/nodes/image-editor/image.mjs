@@ -577,7 +577,7 @@ class ImageEditorImageNodeView extends ImageEditorNodeView {
         state.control = this.control || false;
         state.inpaint = this.inpaint || false;
         state.imagePrompt = this.imagePrompt || false;
-        state.imagePromptScale = this.imagePromptScale || 0.9;
+        state.imagePromptScale = this.imagePromptScale || 0.5;
         state.strength = this.strength || 0.8;
         state.controlnet = this.controlnet || null;
         state.cropInpaint = this.cropInpaint !== false;
@@ -631,7 +631,7 @@ class ImageEditorImageNodeView extends ImageEditorNodeView {
             "inpaintFeather": 32,
             "inferenceSteps": null,
             "guidanceScale": null,
-            "imagePromptScale": 0.9,
+            "imagePromptScale": 0.5,
             "strength": 0.8,
             "processControlImage": true,
             "invertControlImage": false,
