@@ -64,14 +64,7 @@ class EnfugueAPIInvocationController(EnfugueAPIControllerBase):
         """
         if os.path.exists(model):
             return model
-        check_model = os.path.abspath(
-            os.path.join(
-                self.configuration.get(
-                    f"enfugue.engine.{model_type}", os.path.join(self.engine_root, model_type)
-                ),
-                model
-            )
-        )
+        check_model = os.path.join(self.get_configured_directory(model_type), model)
         if os.path.exists(check_model):
             return check_model
         check_default_model = self.get_default_model(check_model)

@@ -36,9 +36,7 @@ class EnfugueAPIDownloadsController(EnfugueAPIControllerBase):
         """
         try:
             download_type = str(request.parsed["type"])
-            target_dir = self.configuration.get(
-                f"enfugue.engine.{download_type}", os.path.join(self.engine_root, download_type)
-            )
+            target_dir = self.get_configured_directory(download_type)
             target_file = os.path.join(target_dir, request.parsed["filename"])
 
             if os.path.exists(target_file) and not request.parsed.get("overwrite", False):

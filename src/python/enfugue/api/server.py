@@ -79,6 +79,18 @@ class EnfugueAPIServerBase(
         check_make_directory(root)
         return root
 
+    def get_configured_directory(self, model_type: str) -> str:
+        """
+        Gets the configured or default directory for a model type
+        """
+        dirname = self.configuration.get(
+            f"enfugue.engine.{model_type}",
+            os.path.join(self.engine_root, model_type),
+        )
+        if dirname.startswith("~"):
+            dirname = os.path.expanduser(dirname)
+        return os.path.realpath(dirname)
+
     def on_configure(self) -> None:
         """
         On configuration, we add all the API objects to the ORM, create the template loader,
@@ -177,102 +189,69 @@ class EnfugueAPIServerBase(
         if not diffusion_model:
             raise NotFoundError(f"Unknown diffusion model {model_name}")
 
-        model = os.path.abspath(
-            os.path.join(
-                self.configuration.get(
-                    "enfugue.engine.checkpoint",
-                    os.path.join(self.manager.engine_root_dir, "checkpoint"),
-                ),
-                diffusion_model.model,
-            )
-        )
+        checkpoint_dir = self.get_configured_directory("checkpoint")
+        lora_dir = self.get_configured_directory("lora")
+        lycoris_dir = self.get_configured_directory("lycoris")
+        inversion_dir = self.get_configured_directory("inversion")
+
+        model = os.path.join(checkpoint_dir, diffusion_model.model)
         size = diffusion_model.size
+
         refiner = diffusion_model.refiner
         if refiner:
             refiner_size = refiner[0].size
-            refiner = os.path.abspath(
-                os.path.join(
-                    self.configuration.get(
-                        "enfugue.engine.checkpoint",
-                        os.path.join(self.manager.engine_root_dir, "checkpoint"),
-                    ),
-                    refiner[0].model,
-                ),
-            )
+            refiner = os.path.join(checkpoint_dir, refiner[0].model)
         else:
             refiner, refiner_size = None, None
+
         inpainter = diffusion_model.inpainter
         if inpainter:
             inpainter_size = inpainter[0].size
-            inpainter = os.path.abspath(
-                os.path.join(
-                    self.configuration.get(
-                        "enfugue.engine.checkpoint",
-                        os.path.join(self.manager.engine_root_dir, "checkpoint"),
-                    ),
-                    inpainter[0].model,
-                ),
-            )
+            inpainter = os.path.join(checkpoint_dir, inpainter[0].model)
         else:
             inpainter, inpainter_size = None, None
+
         scheduler = diffusion_model.scheduler
         if scheduler:
             scheduler = scheduler[0].name
+
         vae = diffusion_model.vae
         if vae:
             vae = diffusion_model.vae[0].name
         else:
             vae = None
+
         refiner_vae = diffusion_model.refiner_vae
         if refiner_vae:
             refiner_vae = diffusion_model.refiner_vae[0].name
         else:
             refiner_vae = None
+
         inpainter_vae = diffusion_model.inpainter_vae
         if inpainter_vae:
             inpainter_vae = diffusion_model.inpainter_vae[0].name
         else:
             inpainter_vae = None
+
         lora = [
             (
-                os.path.abspath(
-                    os.path.join(
-                        self.configuration.get(
-                            "enfugue.engine.lora", os.path.join(self.manager.engine_root_dir, "lora")
-                        ),
-                        lora.model,
-                    )
-                ),
+                os.path.join(lora_dir, lora.model),
                 float(lora.weight),
             )
             for lora in diffusion_model.lora
         ]
         lycoris = [
             (
-                os.path.abspath(
-                    os.path.join(
-                        self.configuration.get(
-                            "enfugue.engine.lycoris", os.path.join(self.manager.engine_root_dir, "lycoris")
-                        ),
-                        lycoris.model,
-                    )
-                ),
+                os.path.join(lycoris_dir, lycoris.model),
                 float(lycoris.weight),
             )
             for lycoris in diffusion_model.lycoris
         ]
         inversion = [
-            os.path.abspath(
-                os.path.join(
-                    self.configuration.get(
-                        "enfugue.engine.inversion",
-                        os.path.join(self.manager.engine_root_dir, "inversion"),
-                    ),
-                    inversion.model,
-                )
-            )
+            os.path.join(inversion_dir, inversion.model)
             for inversion in diffusion_model.inversion
         ]
+
         model_prompt = diffusion_model.prompt
         model_negative_prompt = diffusion_model.negative_prompt
 

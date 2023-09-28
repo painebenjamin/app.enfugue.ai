@@ -311,7 +311,7 @@ class EnfugueAPISystemController(EnfugueAPIControllerBase):
         """
         sizes = {}
         for dirname in ["cache", "diffusers", "checkpoint", "lora", "lycoris", "inversion", "tensorrt", "other"]:
-            directory = self.configuration.get(f"enfugue.engine.{dirname}", os.path.join(self.engine_root, dirname))
+            directory = self.get_configured_directory(dirname)
             items, files, size = get_directory_size(directory)
             sizes[dirname] = {"items": items, "files": files, "bytes": size, "path": directory}
         return sizes
@@ -327,6 +327,8 @@ class EnfugueAPISystemController(EnfugueAPIControllerBase):
         not_created = []
         for dirname in request.parsed["directories"]:
             path = request.parsed["directories"][dirname]
+            if path.startswith("~"):
+                path = os.path.expanduser(path)
             exists = os.path.exists(path)
             if not exists:
                 if Path(path).is_relative_to(self.engine_root) or request.parsed.get("create", False):
@@ -352,7 +354,7 @@ class EnfugueAPISystemController(EnfugueAPIControllerBase):
         """
         Gets a summary of files and filesize in the installation
         """
-        directory = self.configuration.get(f"enfugue.engine.{dirname}", os.path.join(self.engine_root, dirname))
+        directory = self.get_configured_directory(dirname)
         if not os.path.isdir(directory):
             return []
         items = []
@@ -373,8 +375,10 @@ class EnfugueAPISystemController(EnfugueAPIControllerBase):
         """
         Deletes a file or directory from the installation
         """
-        directory = self.configuration.get(f"enfugue.engine.{dirname}", os.path.join(self.engine_root, dirname))
+        directory = self.get_configured_directory(dirname)
         path = os.path.join(directory, filename)
+        if path.startswith("~"):
+            path = os.path.expanduser(path)
         if not os.path.exists(path):
             raise BadRequestError(f"Unknown engine file/directory {dirname}/{filename}")
         if os.path.isdir(path):
@@ -396,6 +400,8 @@ class EnfugueAPISystemController(EnfugueAPIControllerBase):
 
         filename = request.POST["file"].filename
         directory = self.configuration.get(f"enfugue.engine.{dirname}", os.path.join(self.engine_root, dirname))
+        if directory.startswith("~"):
+            directory = os.path.expanduser(directory)
         if not os.path.exists(directory):
             raise BadRequestError(f"Unknown directory {dirname}")
 
@@ -413,6 +419,8 @@ class EnfugueAPISystemController(EnfugueAPIControllerBase):
         Changes the directory of a particular model folder.
         """
         path = os.path.realpath(os.path.abspath(request.parsed["directory"]))
+        if path.startswith("~"):
+            path = os.path.expanduser(path)
         if not os.path.exists(path):
             if Path(path).is_relative_to(self.engine_root) or request.parsed.get("create", False):
                 os.makedirs(path)

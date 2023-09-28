@@ -68,12 +68,8 @@ configuration:
         port: 45554
         domain: app.enfugue.ai
         driver: cherrypy
-        allowlist:
-            - 127.0.0.0/24
-            - 192.168.0.0/16
         classes:
             - enfugue.server.EnfugueServer
-            - pibble.api.middleware.webservice.screening.ScreeningWebServiceAPIMiddleware
         template:
             recurse: true
         cms:
