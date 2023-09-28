@@ -59,6 +59,7 @@ __all__ = [
     "CONTROLNET_LITERAL",
     "CONTROLNET_TEMPORAL",
     "CONTROLNET_TEMPORAL_XL",
+    "CONTROLNET_QR",
     "SCHEDULER_LITERAL",
     "DEVICE_LITERAL",
     "PIPELINE_SWITCH_MODE_LITERAL",
@@ -103,30 +104,6 @@ DEFAULT_INPAINTING_MODEL = "https://huggingface.co/runwayml/stable-diffusion-inp
 DEFAULT_SDXL_MODEL = "https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_base_1.0.safetensors"
 DEFAULT_SDXL_REFINER = "https://huggingface.co/stabilityai/stable-diffusion-xl-refiner-1.0/resolve/main/sd_xl_refiner_1.0.safetensors"
 
-VAE_EMA = "stabilityai/sd-vae-ft-ema"
-VAE_MSE = "stabilityai/sd-vae-ft-mse"
-VAE_XL = "stabilityai/sdxl-vae"
-VAE_XL16 = "madebyollin/sdxl-vae-fp16-fix"
-
-CONTROLNET_CANNY = "lllyasviel/sd-controlnet-canny"
-CONTROLNET_MLSD = "lllyasviel/control_v11p_sd15_mlsd"
-CONTROLNET_HED = "lllyasviel/sd-controlnet-hed"
-CONTROLNET_SCRIBBLE = "lllyasviel/control_v11p_sd15_scribble"
-CONTROLNET_TILE = "lllyasviel/control_v11f1e_sd15_tile"
-CONTROLNET_INPAINT = "lllyasviel/control_v11p_sd15_inpaint"
-CONTROLNET_DEPTH = "lllyasviel/sd-controlnet-depth"
-CONTROLNET_NORMAL = "lllyasviel/sd-controlnet-normal"
-CONTROLNET_POSE = "lllyasviel/control_v11p_sd15_openpose"
-CONTROLNET_PIDI = "lllyasviel/control_v11p_sd15_softedge"
-CONTROLNET_LINE = "ControlNet-1-1-preview/control_v11p_sd15_lineart"
-CONTROLNET_ANIME = "lllyasviel/control_v11p_sd15s2_lineart_anime"
-CONTROLNET_TEMPORAL = "CiaraRowles/TemporalNet"
-
-CONTROLNET_CANNY_XL = "diffusers/controlnet-canny-sdxl-1.0"
-CONTROLNET_DEPTH_XL = "diffusers/controlnet-depth-sdxl-1.0"
-CONTROLNET_POSE_XL = "thibaud/controlnet-openpose-sdxl-1.0"
-CONTROLNET_TEMPORAL_XL = "CiaraRowles/controlnet-temporalnet-sdxl-1.0"
-
 DEFAULT_CHECKPOINT_DIR = os.path.expanduser("~/.cache/enfugue/checkpoint")
 DEFAULT_INVERSION_DIR = os.path.expanduser("~/.cache/enfugue/inversion")
 DEFAULT_TENSORRT_DIR = os.path.expanduser("~/.cache/enfugue/tensorrt")
@@ -169,14 +146,6 @@ VAE_LITERAL = Literal["ema", "mse", "xl", "xl16"]
 DEVICE_LITERAL = Literal["cpu", "cuda", "dml", "mps"]
 PIPELINE_SWITCH_MODE_LITERAL = Literal["offload", "unload"]
 MASK_TYPE_LITERAL = Literal["constant", "multilinear", "gaussian"]
-
-CONTROLNET_LITERAL = Literal[
-    "canny", "mlsd", "hed",
-    "scribble", "tile", "inpaint",
-    "depth", "normal", "pose",
-    "pidi", "line", "anime",
-    "temporal"
-]
 SCHEDULER_LITERAL = Literal[
     "ddim", "ddpm", "deis",
     "dpmsm", "dpmsmk", "dpmsmka",
@@ -190,6 +159,121 @@ UPSCALE_LITERAL = Literal[
     "lanczos", "bilinear", "bicubic",
     "nearest"
 ]
+CONTROLNET_LITERAL = Literal[
+    "canny", "mlsd", "hed",
+    "scribble", "tile", "inpaint",
+    "depth", "normal", "pose",
+    "pidi", "line", "anime",
+    "temporal", "qr"
+]
+
+# VAE repos/files
+VAE_EMA = (
+    "stabilityai/sd-vae-ft-ema",
+    "vae-ft-ema-560000-ema-pruned",
+    "sd-vae-ft-ema-original",
+    "sd-vae-ft-ema",
+)
+VAE_MSE = (
+    "stabilityai/sd-vae-ft-mse",
+    "vae-ft-mse-840000-ema-pruned",
+    "sd-vae-ft-mse-original",
+    "sd-vae-ft-mse",
+)
+VAE_XL = (
+    "stabilityai/sdxl-vae",
+    "sdxl-vae",
+    "sdxl_vae"
+)
+VAE_XL16 = (
+    "madebyollin/sdxl-vae-fp16-fix",
+    "sdxl-vae-fp16-fix",
+    "sdxl-vae-fp16",
+    "sdxl_vae_fp16_fix",
+    "sdxl_vae_fp16"
+)
+# ControlNet repos/files
+CONTROLNET_CANNY = (
+    "lllyasviel/control_v11p_sd15_canny",
+    "control_v11p_sd15_canny",
+    "control_sd15_canny",
+)
+CONTROLNET_MLSD = (
+    "lllyasviel/control_v11p_sd15_mlsd",
+    "control_v11p_sd15_mlsd",
+    "control_sd15_mlsd",
+)
+CONTROLNET_HED = (
+    "lllyasviel/sd-controlnet-hed",
+    "control_sd15_hed",
+    "sd-controlnet-hed",
+)
+CONTROLNET_SCRIBBLE = (
+    "lllyasviel/control_v11p_sd15_scribble",
+    "control_v11p_sd15_scribble",
+    "control_sd15_scribble",
+)
+CONTROLNET_TILE = (
+    "lllyasviel/control_v11f1e_sd15_tile",
+    "control_v11f1e_sd15_tile",
+    "control_sd15_tile",
+)
+CONTROLNET_INPAINT = (
+    "lllyasviel/control_v11p_sd15_inpaint",
+    "control_v11p_sd15_inpaint",
+    "control_sd15_inpaint",
+)
+CONTROLNET_DEPTH = (
+    "lllyasviel/control_v11f1p_sd15_depth",
+    "control_v11f1p_sd15_depth",
+    "control_sd15_depth",
+)
+CONTROLNET_NORMAL = (
+    "lllyasviel/control_v11p_sd15_normalbae",
+    "control_v11p_sd15_normalbae",
+    "control_sd15_normal",
+)
+CONTROLNET_POSE = (
+    "lllyasviel/control_v11p_sd15_openpose",
+    "control_v11p_sd15_openpose",
+    "control_sd15_openpose",
+)
+CONTROLNET_PIDI = (
+    "lllyasviel/control_v11p_sd15_softedge",
+    "control_v11p_sd15_softedge",
+)
+CONTROLNET_LINE = (
+    "lllyasviel/control_v11p_sd15_lineart",
+    "control_v11p_sd15_lineart",
+)
+CONTROLNET_ANIME = (
+    "lllyasviel/control_v11p_sd15s2_lineart_anime",
+    "control_v11p_sd15s2_lineart_anime",
+)
+CONTROLNET_TEMPORAL = (
+    "CiaraRowles/TemporalNet",
+    "TemporalNet", # TODO
+)
+CONTROLNET_QR = (
+    "https://huggingface.co/monster-labs/control_v1p_sd15_qrcode_monster/resolve/main/v2/control_v1p_sd15_qrcode_monster_v2.safetensors",
+    "control_v1p_sd15_qrcode_monster_v2",
+    "control_v1p_sd15_qrcode_monster",
+)
+CONTROLNET_CANNY_XL = (
+    "diffusers/controlnet-canny-sdxl-1.0",
+    "diffusers_xl_canny_full",
+    "controlnet-canny-sdxl-1.0",
+)
+CONTROLNET_DEPTH_XL = (
+    "diffusers/controlnet-depth-sdxl-1.0",
+    "diffusers_xl_depth_full",
+    "controlnet-depth-sdxl-1.0",
+)
+CONTROLNET_POSE_XL = (
+    "thibaud/controlnet-openpose-sdxl-1.0",
+    "OpenPoseXL2",
+    "controlnet-openpose-sdxl-1.0",
+)
 
 MultiModelType = Union[str, List[str]]
 WeightedMultiModelType = Union[
@@ -216,6 +300,12 @@ class ControlImageDict(ImageDict):
     end: NotRequired[Optional[float]]
     process: NotRequired[bool]
     refiner: NotRequired[bool]
+
+class IPAdapterImageDict(ImageDict):
+    """
+    Extends the image dict additionally with IP adapter scale
+    """
+    scale: NotRequired[float]
 
 class PipelineDict(TypedDict):
     """
@@ -283,8 +373,7 @@ class InvocationDict(TypedDict):
     negative_prompt: NotRequired[Optional[str]]
     negative_prompt_2: NotRequired[Optional[str]]
     strength: NotRequired[float]
-    ip_adapter_image: NotRequired[Optional[Union[Image, List[Image], ImageDict]]]
-    ip_adapter_scale: NotRequired[Optional[float]]
+    ip_adapter_images: NotRequired[Optional[Union[Image, List[Image], IPAdapterImageDict]]]
 
 class NodeDict(InvocationDict):
     w: int

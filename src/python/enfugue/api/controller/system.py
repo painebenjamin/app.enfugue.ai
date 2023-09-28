@@ -66,7 +66,8 @@ class EnfugueAPISystemController(EnfugueAPIControllerBase):
     CONTROLNETS = [
         "canny", "hed", "pidi", "mlsd",
         "line", "anime", "scribble", "depth",
-        "normal", "pose", "tile", "inpaint"
+        "normal", "pose", "tile", "inpaint",
+        "qr"
     ]
 
     def get_default_controlnet_path(
@@ -79,34 +80,38 @@ class EnfugueAPISystemController(EnfugueAPIControllerBase):
         """
         if is_sdxl:
             if name == "canny":
-                return CONTROLNET_CANNY_XL
+                return CONTROLNET_CANNY_XL[0]
             elif name == "depth":
-                return CONTROLNET_DEPTH_XL
+                return CONTROLNET_DEPTH_XL[0]
+            elif name == "pose":
+                return CONTROLNET_POSE_XL[0]
         else:
             if name == "canny":
-                return CONTROLNET_CANNY
+                return CONTROLNET_CANNY[0]
             elif name == "mlsd":
-                return CONTROLNET_MLSD
+                return CONTROLNET_MLSD[0]
             elif name == "hed":
-                return CONTROLNET_HED
+                return CONTROLNET_HED[0]
             elif name == "tile":
-                return CONTROLNET_TILE
+                return CONTROLNET_TILE[0]
             elif name == "scribble":
-                return CONTROLNET_SCRIBBLE
+                return CONTROLNET_SCRIBBLE[0]
             elif name == "inpaint":
-                return CONTROLNET_INPAINT
+                return CONTROLNET_INPAINT[0]
             elif name == "depth":
-                return CONTROLNET_DEPTH
+                return CONTROLNET_DEPTH[0]
             elif name == "normal":
-                return CONTROLNET_NORMAL
+                return CONTROLNET_NORMAL[0]
             elif name == "pose":
-                return CONTROLNET_POSE
+                return CONTROLNET_POSE[0]
             elif name == "line":
-                return CONTROLNET_LINE
+                return CONTROLNET_LINE[0]
             elif name == "anime":
-                return CONTROLNET_ANIME
+                return CONTROLNET_ANIME[0]
             elif name == "pidi":
-                return CONTROLNET_PIDI
+                return CONTROLNET_PIDI[0]
+            elif name == "qr":
+                return CONTROLNET_QR[0]
         return None
 
     def get_controlnet_path(

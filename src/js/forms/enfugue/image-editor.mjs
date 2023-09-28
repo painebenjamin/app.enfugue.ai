@@ -158,13 +158,12 @@ class ImageEditorImageNodeOptionsFormView extends FormView {
         "Image Prompt": {
             "imagePromptScale": {
                 "label": "Image Prompt Scale",
-                "class": SliderPreciseInputView,
+                "class": FloatInputView,
                 "config": {
-                    "tooltip": "How closely to follow the image prompt, as opposed to your text prompt. A value of 1.0 represents full control given to the image prompt. The recommended value for general use is high but not complete; around 0.9 or 90% scale.",
+                    "tooltip": "How much strength to give to the image. A higher strength will reduce the effect of your prompt, and a lower strength will increase the effect of your prompt but reduce the effect of the image.",
                     "min": 0,
-                    "max": 1,
                     "step": 0.01,
-                    "value": 0.9
+                    "value": 0.5
                 }
             }
         },
@@ -249,13 +248,12 @@ class ImageEditorImageNodeOptionsFormView extends FormView {
             },
             "conditioningScale": {
                 "label": "Conditioning Scale",
-                "class": SliderPreciseInputView,
+                "class": FloatInputView,
                 "config": {
                     "min": 0.0,
-                    "max": 1.0,
                     "step": 0.01,
                     "value": 1.0,
-                    "tooltip": "How closely to follow ControlNet's influence."
+                    "tooltip": "How closely to follow ControlNet's influence. Typical values vary, usually values between 0.5 and 1.0 produce good conditioning with balanced randomness, but other values may produce something closer to the desired result."
                 }
             },
             "conditioningStart": {

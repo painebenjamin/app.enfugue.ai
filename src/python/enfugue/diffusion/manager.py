@@ -33,7 +33,7 @@ if TYPE_CHECKING:
     from diffusers.models import ControlNetModel, AutoencoderKL
     from diffusers.schedulers.scheduling_utils import KarrasDiffusionSchedulers
     from enfugue.diffusion.pipeline import EnfugueStableDiffusionPipeline
-    from enfugue.diffusion.support import ControlImageProcessor, Upscaler, IPAdapter, Interpolator
+    from enfugue.diffusion.support import ControlImageProcessor, Upscaler, IPAdapter, BackgroundRemover, Interpolator
     from enfugue.diffusion.animate.pipeline import EnfugueAnimateStableDiffusionPipeline
 
 def noop(*args: Any) -> None:
@@ -107,6 +107,7 @@ class KeepaliveThread(threading.Thread):
 class DiffusionPipelineManager:
     TENSORRT_STAGES = ["unet"]  # TODO: Get others to work with multidiff (clip works but isnt worth it right now)
     TENSORRT_ALWAYS_USE_CONTROLLED_UNET = False  # TODO: Figure out if this is possible
+    LOADABLE_EXTENSIONS = [".safetensors", ".ckpt", ".pt", ".pth", ".pb", ".caffemodel", ".bin"] # AI models
 
     DEFAULT_CHUNK = 64
     DEFAULT_SIZE = 512
@@ -152,7 +153,21 @@ class DiffusionPipelineManager:
         Returns if the path is a known format for loadable models.
         """
         _, ext = os.path.splitext(path)
-        return ext in [".safetensors", ".ckpt", ".pt", ".pth", ".pb", ".caffemodel", ".bin"]
+        return ext in cls.LOADABLE_EXTENSIONS
+
+    @property
+    def offline(self) -> bool:
+        """
+        True if this should be running in offline (local files only) mode.
+        """
+        return getattr(self, "_offline", self.configuration.get("enfugue.offline", False))
+
+    @offline.setter
+    def offline(self, new_offline: bool) -> None:
+        """
+        Enables/disables offline mode.
+        """
+        self._offline = new_offline
 
     @property
     def safe(self) -> bool:
@@ -426,7 +441,7 @@ class DiffusionPipelineManager:
             logger.debug(f"Hot-swapping animator pipeline scheduler.")
             self._animator_pipeline.scheduler = self.scheduler.from_config({**self._animator_pipeline.scheduler_config, **self.scheduler_config})  # type: ignore
 
-    def get_vae_path(self, vae: Optional[str] = None) -> Optional[str]:
+    def get_vae_path(self, vae: Optional[str] = None) -> Optional[Union[str, Tuple[str, ...]]]:
         """
         Gets the path to the VAE repository based on the passed path or key
         """
@@ -440,23 +455,97 @@ class DiffusionPipelineManager:
             return VAE_XL16
         return vae
 
-    def get_vae(self, vae: Optional[str] = None) -> Optional[AutoencoderKL]:
+    def find_vae_path(self, vae: str) -> str:
+        """
+        Finds a VAE path if there is one, otherwise returns a repo.
+        """
+        path = self.get_vae_path(vae)
+        if not path:
+            raise ValueError("find_vae_path requires an argument")
+        if not isinstance(path, tuple):
+            return path
+        repo, possible_files = path[0], path[1:]
+        for filename in possible_files:
+            possible_file = find_file_in_directory(
+                self.engine_cache_dir,
+                filename,
+                self.LOADABLE_EXTENSIONS
+            )
+            if possible_file is not None:
+                return possible_file
+        return repo
+    
+    def get_xl_vae(self, vae: str) -> AutoencoderKL:
+        """
+        Loads an XL VAE from file or dies trying
+        """
+        from diffusers.models import AutoencoderKL
+        from enfugue.diffusion.util.torch_util import load_state_dict
+
+        vae_config = os.path.join(self.engine_cache_dir, "sdxl-vae-config.json")
+        check_download(
+            "https://huggingface.co/stabilityai/sdxl-vae/raw/main/config.json",
+            vae_config
+        )
+        vae_model = AutoencoderKL.from_config(
+            AutoencoderKL._dict_from_json_file(vae_config)
+        )
+        vae_model.load_state_dict(load_state_dict(vae), strict=False)
+        return vae_model.to(self.device)
+
+    def get_vae(self, vae: Optional[Union[str, Tuple[str, ...]]] = None) -> Optional[AutoencoderKL]:
         """
         Loads the VAE
         """
         if vae is None:
             return None
+
+        if isinstance(vae, tuple):
+            vae, possible_files = vae[0], vae[1:]
+            for filename in possible_files:
+                possible_file = find_file_in_directory(
+                    self.engine_cache_dir,
+                    filename,
+                    self.LOADABLE_EXTENSIONS
+                )
+                if possible_file is not None:
+                    vae = possible_file
+                    break
+
+        if vae.startswith("http"):
+            target_path = os.path.join(self.engine_cache_dir, os.path.basename(vae))
+            if not os.path.exists(target_path) and self.offline:
+                raise IOError(f"Offline mode enabled, cannot find requested VAE at {target_path}")
+            check_download(vae, target_path)
+            vae = target_path
+
         from diffusers.models import AutoencoderKL
 
-        expected_vae_location = os.path.join(self.engine_cache_dir, "models--" + vae.replace("/", "--"))
+        if os.path.exists(vae):
+            try:
+                result = AutoencoderKL.from_single_file(
+                    vae,
+                    torch_dtype=self.dtype,
+                    cache_dir=self.engine_cache_dir,
+                    from_safetensors="safetensors" in vae
+                )
+            except KeyError as ex:
+                logger.debug(f"Received KeyError on '{ex}' when instantiating VAE from single file, trying to use XL VAE loader fix.")
+                result = self.get_xl_vae(vae)
+        else:
+            expected_vae_location = os.path.join(self.engine_cache_dir, "models--" + vae.replace("/", "--"))
 
-        if not os.path.exists(expected_vae_location):
-            logger.info(f"VAE {vae} does not exist in cache directory {self.engine_cache_dir}, it will be downloaded.")
-        result = AutoencoderKL.from_pretrained(
-            vae,
-            torch_dtype=self.dtype,
-            cache_dir=self.engine_cache_dir,
-        )
+            if not os.path.exists(expected_vae_location):
+                if self.offline:
+                    raise IOError(f"Offline mode enabled, cannot download {vae} to {expected_vae_location}")
+                logger.info(f"VAE {vae} does not exist in cache directory {self.engine_cache_dir}, it will be downloaded.")
+            result = AutoencoderKL.from_pretrained(
+                vae,
+                torch_dtype=self.dtype,
+                cache_dir=self.engine_cache_dir,
+                local_files_only=self.offline
+            )
+
         return result.to(device=self.device)
 
     @property
@@ -498,7 +587,7 @@ class DiffusionPipelineManager:
                     self._pipeline.vae = self._vae
                     if self.is_sdxl:
                         self._pipeline.register_to_config(
-                            force_full_precision_vae = new_vae in ["xl", "stabilityai/sdxl-vae"]
+                            force_full_precision_vae = new_vae in ["xl", "stabilityai/sdxl-vae"] or (new_vae.endswith("sdxl_vae.safetensors") and "16" not in new_vae)
                         )
 
     @property
@@ -549,7 +638,7 @@ class DiffusionPipelineManager:
                     self._refiner_pipeline.vae = self._vae
                     if self.refiner_is_sdxl:
                         self._refiner_pipeline.register_to_config(
-                            force_full_precision_vae = new_vae in ["xl", VAE_XL]
+                            force_full_precision_vae = new_vae in ["xl", "stabilityai/sdxl-vae"] or (new_vae.endswith("sdxl_vae.safetensors") and "16" not in new_vae)
                         )
 
     @property
@@ -600,7 +689,7 @@ class DiffusionPipelineManager:
                     self._inpainter_pipeline.vae = self._vae
                     if self.inpainter_is_sdxl:
                         self._inpainter_pipeline.register_to_config(
-                            force_full_precision_vae = new_vae in ["xl", "stabilityai/sdxl-vae"]
+                            force_full_precision_vae = new_vae in ["xl", "stabilityai/sdxl-vae"] or (new_vae.endswith("sdxl_vae.safetensors") and "16" not in new_vae)
                         )
 
     @property
@@ -2607,27 +2696,10 @@ class DiffusionPipelineManager:
         """
         return self.animator_diffusers_cache_dir is not None
 
-    @property
-    def caching(self) -> bool:
-        """
-        Returns if caching is enabled (default true.)
-        """
-        return getattr(self, "_caching", True)
-
-    @caching.setter
-    def caching(self, value: bool) -> None:
-        """
-        Enables/disables caching
-        """
-        self._caching = value
-
-    @property
     def should_cache(self) -> bool:
         """
         Returns true if the model should always be cached.
         """
-        if not self.caching:
-            return False
         configured = self.configuration.get("enfugue.pipeline.cache", None)
         if configured == "xl":
             return self.is_sdxl
@@ -2638,8 +2710,6 @@ class DiffusionPipelineManager:
         """
         Returns true if the inpainter model should always be cached.
         """
-        if not self.caching:
-            return False
         configured = self.configuration.get("enfugue.pipeline.cache", None)
         if configured == "xl":
             return self.inpainter_is_sdxl
@@ -2662,8 +2732,6 @@ class DiffusionPipelineManager:
         """
         Returns true if the refiner model should always be cached.
         """
-        if not self.caching:
-            return False
         configured = self.configuration.get("enfugue.pipeline.cache", None)
         if configured == "xl":
             return self.refiner_is_sdxl
@@ -2842,7 +2910,7 @@ class DiffusionPipelineManager:
                 "requires_safety_checker": self.safe,
                 "torch_dtype": self.dtype,
                 "cache_dir": self.engine_cache_dir,
-                "force_full_precision_vae": self.is_sdxl and self.vae_name not in ["xl16", VAE_XL16],
+                "force_full_precision_vae": self.is_sdxl and (self.vae_name is None or "16" not in self.vae_name),
                 "controlnets": self.controlnets,
                 "ip_adapter": self.ip_adapter
             }
@@ -2877,7 +2945,11 @@ class DiffusionPipelineManager:
                 logger.debug(
                     f"Initializing TensorRT pipeline from diffusers cache directory at {self.model_diffusers_cache_dir}. Arguments are {redact(kwargs)}"
                 )
-                pipeline = self.pipeline_class.from_pretrained(self.model_diffusers_cache_dir, **kwargs)
+                pipeline = self.pipeline_class.from_pretrained(
+                    self.model_diffusers_cache_dir,
+                    local_files_only=self.offline,
+                    **kwargs
+                )
             elif self.model_diffusers_cache_dir is not None:
                 if not self.safe:
                     kwargs["safety_checker"] = None
@@ -2889,14 +2961,19 @@ class DiffusionPipelineManager:
                 logger.debug(
                     f"Initializing pipeline from diffusers cache directory at {self.model_diffusers_cache_dir}. Arguments are {redact(kwargs)}"
                 )
-                pipeline = self.pipeline_class.from_pretrained(self.model_diffusers_cache_dir, **kwargs)
+                pipeline = self.pipeline_class.from_pretrained(
+                    self.model_diffusers_cache_dir,
+                    local_files_only=self.offline,
+                    **kwargs
+                )
             else:
                 kwargs["load_safety_checker"] = self.safe
                 if self.vae_name is not None:
-                    kwargs["vae_path"] = self.get_vae_path(self.vae_name)
+                    kwargs["vae_path"] = self.find_vae_path(self.vae_name)
+
                 logger.debug(f"Initializing pipeline from checkpoint at {self.model}. Arguments are {redact(kwargs)}")
                 pipeline = self.pipeline_class.from_ckpt(self.model, **kwargs)
-                if pipeline.is_sdxl and self.vae_name not in ["xl16", VAE_XL16]:
+                if pipeline.is_sdxl and (self.vae_name is None or "16" not in self.vae_name):
                     # We may have made an incorrect guess earlier if 'xl' wasn't in the filename.
                     # We can fix that here, though, by forcing full precision VAE
                     pipeline.register_to_config(force_full_precision_vae=True)
@@ -2951,7 +3028,9 @@ class DiffusionPipelineManager:
                 "chunking_size": self.chunking_size,
                 "torch_dtype": self.dtype,
                 "requires_safety_checker": False,
-                "force_full_precision_vae": self.refiner_is_sdxl and self.refiner_vae_name not in ["xl16", VAE_XL16],
+                "force_full_precision_vae": self.refiner_is_sdxl and (
+                    self.refiner_vae_name is None or "16" not in self.refiner_vae_name
+                ),
                 "controlnets": self.refiner_controlnets,
                 "ip_adapter": self.ip_adapter
             }
@@ -2991,6 +3070,7 @@ class DiffusionPipelineManager:
                 refiner_pipeline = self.refiner_pipeline_class.from_pretrained(
                     self.refiner_diffusers_cache_dir,
                     safety_checker=None,
+                    local_files_only=self.offline,
                     **kwargs,
                 )
             elif self.refiner_engine_cache_exists:
@@ -3010,18 +3090,20 @@ class DiffusionPipelineManager:
                 refiner_pipeline = self.refiner_pipeline_class.from_pretrained(
                     self.refiner_diffusers_cache_dir,
                     safety_checker=None,
+                    local_files_only=self.offline,
                     **kwargs,
                 )
             else:
                 if self.refiner_vae_name is not None:
-                    kwargs["vae_path"] = self.get_vae_path(self.refiner_vae_name)
+                    kwargs["vae_path"] = self.find_vae_path(self.refiner_vae_name)
+
                 logger.debug(f"Initializing refiner pipeline from checkpoint at {self.refiner}. Arguments are {redact(kwargs)}")
                 refiner_pipeline = self.refiner_pipeline_class.from_ckpt(
                     self.refiner,
                     load_safety_checker=False,
                     **kwargs,
                 )
-                if refiner_pipeline.is_sdxl and self.refiner_vae_name not in ["xl16", VAE_XL16]:
+                if refiner_pipeline.is_sdxl and (self.refiner_vae_name is None or "16" not in self.refiner_vae_name):
                     refiner_pipeline.register_to_config(force_full_precision_vae=True)
                 if self.should_cache_refiner:
                     logger.debug("Saving pipeline to pretrained.")
@@ -3091,7 +3173,9 @@ class DiffusionPipelineManager:
                 "requires_safety_checker": self.safe,
                 "requires_aesthetic_score": False,
                 "controlnets": self.inpainter_controlnets,
-                "force_full_precision_vae": self.inpainter_is_sdxl and self.inpainter_vae_name not in ["xl16", VAE_XL16],
+                "force_full_precision_vae": self.inpainter_is_sdxl and (
+                    self.inpainter_vae_name is None or "16" not in self.inpainter_vae_name
+                ),
                 "ip_adapter": self.ip_adapter
             }
 
@@ -3128,7 +3212,9 @@ class DiffusionPipelineManager:
                 )
 
                 inpainter_pipeline = self.inpainter_pipeline_class.from_pretrained(
-                    self.inpainter_diffusers_cache_dir, **kwargs
+                    self.inpainter_diffusers_cache_dir,
+                    local_files_only=self.offline,
+                    **kwargs
                 )
             elif self.inpainter_engine_cache_exists:
                 if not self.safe:
@@ -3146,11 +3232,13 @@ class DiffusionPipelineManager:
                 )
 
                 inpainter_pipeline = self.inpainter_pipeline_class.from_pretrained(
-                    self.inpainter_diffusers_cache_dir, **kwargs
+                    self.inpainter_diffusers_cache_dir,
+                    local_files_only=self.offline,
+                    **kwargs
                 )
             else:
                 if self.inpainter_vae_name is not None:
-                    kwargs["vae_path"] = self.get_vae_path(self.inpainter_vae_name)
+                    kwargs["vae_path"] = self.find_vae_path(self.inpainter_vae_name)
                 
                 logger.debug(
                     f"Initializing inpainter pipeline from checkpoint at {self.inpainter}. Arguments are {redact(kwargs)}"
@@ -3159,7 +3247,7 @@ class DiffusionPipelineManager:
                 inpainter_pipeline = self.inpainter_pipeline_class.from_ckpt(
                     self.inpainter, load_safety_checker=self.safe, **kwargs
                 )
-                if inpainter_pipeline.is_sdxl and self.inpainter_vae_name not in ["xl16", VAE_XL16]:
+                if inpainter_pipeline.is_sdxl and (self.inpainter_vae_name is None or "16" not in self.inpainter_vae_name):
                     inpainter_pipeline.register_to_config(force_full_precision_vae=True)
                 if self.should_cache_inpainter:
                     logger.debug("Saving inpainter pipeline to pretrained cache.")
@@ -3479,8 +3567,12 @@ class DiffusionPipelineManager:
         """
         if not hasattr(self, "_upscaler"):
             from enfugue.diffusion.support.upscale import Upscaler
-
-            self._upscaler = Upscaler(self.engine_other_dir, self.device, self.dtype)
+            self._upscaler = Upscaler(
+                self.engine_other_dir,
+                device=self.device,
+                dtype=self.dtype,
+                offline=self.offline
+            )
         return self._upscaler
 
     @property
@@ -3490,8 +3582,28 @@ class DiffusionPipelineManager:
         """
         if not hasattr(self, "_control_image_processor"):
             from enfugue.diffusion.support import ControlImageProcessor
-            self._control_image_processor = ControlImageProcessor(self.engine_other_dir, self.device, self.dtype)
+            self._control_image_processor = ControlImageProcessor(
+                self.engine_other_dir,
+                device=self.device,
+                dtype=self.dtype,
+                offline=self.offline
+            )
         return self._control_image_processor
+
+    @property
+    def background_remover(self) -> BackgroundRemover:
+        """
+        Gets the processor for removing backgrounds
+        """
+        if not hasattr(self, "_background_remover"):
+            from enfugue.diffusion.support import BackgroundRemover
+            self._background_remover = BackgroundRemover(
+                self.engine_other_dir,
+                device=self.device,
+                dtype=self.dtype,
+                offline=self.offline
+            )
+        return self._background_remover
 
     @property
     def ip_adapter(self) -> IPAdapter:
@@ -3500,18 +3612,31 @@ class DiffusionPipelineManager:
         """
         if not hasattr(self, "_ip_adapter"):
             from enfugue.diffusion.support.ip import IPAdapter
-            self._ip_adapter = IPAdapter(self.engine_other_dir, self.device, self.dtype)
+            self._ip_adapter = IPAdapter(
+                self.engine_other_dir,
+                device=self.device,
+                dtype=self.dtype,
+                offline=self.offline
+            )
         return self._ip_adapter
 
-    @property
-    def interpolator(self) -> Interpolator:
+    def get_xl_controlnet(self, controlnet: str) -> ControlNetModel:
         """
-        Gets the interpolator (FILM)
+        Loads an XL ControlNet from file or dies trying
         """
-        if not hasattr(self, "_interpolator"):
-            from enfugue.diffusion.support import Interpolator
-            self._interpolator = Interpolator(self.engine_other_dir, self.device, self.dtype)
-        return self._interpolator
+        from diffusers.models import ControlNetModel
+        from enfugue.diffusion.util.torch_util import load_state_dict
+
+        controlnet_config = os.path.join(self.engine_cache_dir, "controlnet-xl-config.json")
+        check_download(
+            "https://huggingface.co/diffusers/controlnet-canny-sdxl-1.0/raw/main/config.json",
+            controlnet_config
+        )
+        controlnet_model = ControlNetModel.from_config(
+            ControlNetModel._dict_from_json_file(controlnet_config)
+        )
+        controlnet_model.load_state_dict(load_state_dict(controlnet), strict=False)
+        return controlnet_model.to(self.device, self.dtype)
 
     def get_controlnet(self, controlnet: Optional[str] = None) -> Optional[ControlNetModel]:
         """
@@ -3527,20 +3652,27 @@ class DiffusionPipelineManager:
             elif controlnet.startswith("http"):
                 expected_controlnet_location = os.path.join(self.engine_cache_dir, os.path.basename(controlnet))
                 if not os.path.exists(expected_controlnet_location):
+                    if self.offline:
+                        raise IOError(f"Offline mode enabled, cannot find requested ControlNet at {expected_controlnet_location}")
                     logger.info(
                         f"Controlnet {controlnet} does not exist in cache directory {self.engine_cache_dir}, it will be downloaded."
                     )
                 check_download(controlnet, expected_controlnet_location)
             else:
                 raise ValueError(f"ControlNet path {controlnet} is not a file that can be accessed, a URL that can be downloaded or a repository that can be cloned.")
-            return ControlNetModel.from_single_file(
-                expected_controlnet_location,
-                torch_dtype=torch.half,
-                cache_dir=self.engine_cache_dir,
-            )
+            try:
+                return ControlNetModel.from_single_file(
+                    expected_controlnet_location,
+                    cache_dir=self.engine_cache_dir,
+                ).to(torch.half)
+            except KeyError as ex:
+                logger.debug(f"Received KeyError on '{ex}' when instantiating controlnet from single file, trying to use XL ControlNet loader fix.")
+                return self.get_xl_controlnet(expected_controlnet_location)
         else:
             expected_controlnet_location = os.path.join(self.engine_cache_dir, "models--" + controlnet.replace("/", "--"))
             if not os.path.exists(expected_controlnet_location):
+                if self.offline:
+                    raise IOError(f"Offline mode enabled, cannot find requested ControlNet at {expected_controlnet_location}")
                 logger.info(
                     f"Controlnet {controlnet} does not exist in cache directory {self.engine_cache_dir}, it will be downloaded."
                 )
@@ -3548,6 +3680,7 @@ class DiffusionPipelineManager:
                 controlnet,
                 torch_dtype=torch.half,
                 cache_dir=self.engine_cache_dir,
+                local_files_only=self.offline,
             )
 
         return result
@@ -3556,7 +3689,7 @@ class DiffusionPipelineManager:
         self,
         name: CONTROLNET_LITERAL,
         is_sdxl: bool
-    ) -> str:
+    ) -> Tuple[str, ...]:
         """
         Gets the default controlnet path based on pipeline type
         """
@@ -3596,6 +3729,8 @@ class DiffusionPipelineManager:
                 return CONTROLNET_PIDI
             elif name == "temporal":
                 return CONTROLNET_TEMPORAL
+            elif name == "qr":
+                return CONTROLNET_QR
         raise ValueError(f"Unknown or unsupported ControlNet {name}")
 
     def get_controlnet_path_by_name(self, name: CONTROLNET_LITERAL, is_sdxl: bool) -> str:
@@ -3608,7 +3743,17 @@ class DiffusionPipelineManager:
         key_parts += [name]
         configured_path = self.configuration.get(".".join(key_parts), None)
         if not configured_path:
-            return self.get_default_controlnet_path_by_name(name, is_sdxl)
+            defaults = self.get_default_controlnet_path_by_name(name, is_sdxl)
+            default_path, possible_files = defaults[0], defaults[1:]
+            for file in possible_files:
+                possible_file = find_file_in_directory(
+                    self.engine_cache_dir,
+                    os.path.basename(file),
+                    self.LOADABLE_EXTENSIONS
+                )
+                if possible_file is not None:
+                    return possible_file
+            return default_path
         return configured_path
 
     @property
@@ -3921,6 +4066,7 @@ class DiffusionPipelineManager:
             return found_path
         check_download(remote_url, output_path)
         return output_path
+
     def write_model_metadata(self, path: str) -> None:
         """
         Writes metadata for TensorRT to a json file

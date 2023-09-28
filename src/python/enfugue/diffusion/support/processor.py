@@ -27,10 +27,17 @@ class ControlImageProcessor:
     Amalgamates all controlnet processors.
     Allows multiple contexts at once
     """
-    def __init__(self, model_dir: str, device: torch.device, dtype: torch.dtype) -> None:
+    def __init__(
+        self,
+        model_dir: str,
+        device: torch.device,
+        dtype: torch.dtype,
+        offline: bool = False
+    ) -> None:
         self.model_dir = model_dir
         self.device = device
         self.dtype = dtype
+        self.offline = offline
 
     @contextmanager
     def processors(self, *controlnets: CONTROLNET_LITERAL) -> Iterator[Tuple[SupportModelImageProcessor, ...]]:
@@ -89,7 +96,12 @@ class ControlImageProcessor:
         """
         if not hasattr(self, "_edge_detector"):
             from enfugue.diffusion.support.edge import EdgeDetector
-            self._edge_detector = EdgeDetector(self.model_dir, self.device, self.dtype)
+            self._edge_detector = EdgeDetector(
+                self.model_dir,
+                device=self.device,
+                dtype=self.dtype,
+                offline=self.offline
+            )
         return self._edge_detector
 
     @property
@@ -99,7 +111,12 @@ class ControlImageProcessor:
         """
         if not hasattr(self, "_line_detector"):
             from enfugue.diffusion.support.line import LineDetector
-            self._line_detector = LineDetector(self.model_dir, self.device, self.dtype)
+            self._line_detector = LineDetector(
+                self.model_dir,
+                device=self.device,
+                dtype=self.dtype,
+                offline=self.offline
+            )
         return self._line_detector
 
     @property
@@ -109,7 +126,12 @@ class ControlImageProcessor:
         """
         if not hasattr(self, "_depth_detector"):
             from enfugue.diffusion.support.depth import DepthDetector
-            self._depth_detector = DepthDetector(self.model_dir, self.device, self.dtype)
+            self._depth_detector = DepthDetector(
+                self.model_dir,
+                device=self.device, 
+                dtype=self.dtype,
+                offline=self.offline
+            )
         return self._depth_detector
 
     @property
@@ -119,7 +141,12 @@ class ControlImageProcessor:
         """
         if not hasattr(self, "_pose_detector"):
             from enfugue.diffusion.support.pose import PoseDetector
-            self._pose_detector = PoseDetector(self.model_dir, self.device, self.dtype)
+            self._pose_detector = PoseDetector(
+                self.model_dir,
+                device=self.device,
+                dtype=self.dtype,
+                offline=self.offline
+            )
         return self._pose_detector
 
     def __call__(self, controlnet: CONTROLNET_LITERAL, image: Image) -> Image:

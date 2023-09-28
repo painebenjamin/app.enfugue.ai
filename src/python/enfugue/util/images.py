@@ -14,7 +14,6 @@ __all__ = [
     "fit_image",
     "feather_mask",
     "tile_image",
-    "remove_background",
     "image_from_uri",
     "images_are_equal",
     "IMAGE_FIT_LITERAL",
@@ -187,20 +186,6 @@ def tile_image(image: PIL.Image.Image, tiles: Union[int, Tuple[int, int]]) -> PI
         for j in range(height_tiles):
             tiled.paste(image, (i * width, j * height))
     return tiled
-
-def remove_background(image: PIL.Image.Image) -> PIL.Image.Image:
-    """
-    Remove the background from an image.
-    """
-    import backgroundremover.utilities
-
-    # We have to import this in this order for backgroundremover to work
-    backgroundremover.utilities  # silence importchecker
-    import backgroundremover.bg
-
-    buf = io.BytesIO()
-    image.save(buf, "PNG")
-    return PIL.Image.open(io.BytesIO(backgroundremover.bg.remove(buf.getvalue())))
 
 def image_from_uri(uri: str) -> PIL.Image.Image:
     """

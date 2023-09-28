@@ -169,20 +169,24 @@ def get_pending_versions() -> List[VersionDict]:
     current_version = get_version()
     return [version for version in get_versions() if version["version"] > current_version]
 
-def find_file_in_directory(directory: str, file: str) -> Optional[str]:
+def find_file_in_directory(directory: str, file: str, extensions: Optional[List[str]] = None) -> Optional[str]:
     """
     Finds a file in a directory and returns it.
     Uses breadth-first search.
     """
     if not os.path.isdir(directory):
         return None
-    check_file = os.path.join(directory, file)
-    if os.path.exists(check_file):
-        return check_file
+    if extensions is None:
+        file, current_ext = os.path.splitext(file)
+        extensions = [current_ext]
+    for ext in extensions:
+        check_file = os.path.join(directory, f"{file}{ext}")
+        if os.path.exists(check_file):
+            return check_file
     for filename in os.listdir(directory):
         check_path = os.path.join(directory, filename)
         if os.path.isdir(check_path):
-            check_recursed = find_file_in_directory(check_path, file)
+            check_recursed = find_file_in_directory(check_path, file, extensions=extensions)
             if check_recursed is not None:
                 return os.path.abspath(check_recursed)
     return None

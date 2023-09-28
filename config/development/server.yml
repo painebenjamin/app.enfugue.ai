@@ -2,6 +2,7 @@
 name: Enfugue
 configuration:
     environment_prefix: ENFUGUE
+    sandboxed: false
     logging: !include ./logging.yml
     orm: !include ./database.yml
     enfugue: !include ./enfugue.yml

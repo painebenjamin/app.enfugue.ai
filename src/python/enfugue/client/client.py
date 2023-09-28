@@ -171,7 +171,7 @@ class EnfugueClient(UserExtensionClientBase, JSONWebServiceAPIClient):
         seed: Optional[int] = None,
         image: Optional[Union[str, Image]] = None,
         mask: Optional[Union[str, Image]] = None,
-        ip_adapter_image: Optional[Union[str, Image]] = None,
+        ip_adapter_image: Optional[Union[str, Image, List[Image]]] = None,
         ip_adapter_scale: Optional[float] = None,
         ip_adapter_image_fit: Optional[IMAGE_FIT_LITERAL] = None,
         ip_adapter_image_anchor: Optional[IMAGE_ANCHOR_LITERAL] = None,

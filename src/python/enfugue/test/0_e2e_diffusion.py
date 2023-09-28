@@ -163,8 +163,10 @@ def main() -> None:
         # IP Adapter
         invoke(
             "ip-adapter",
-            image=inpaint_image,
-            ip_adapter_scale=0.3
+            ip_adapter_images=[{
+                "image": inpaint_image, 
+                "scale": 0.3
+            }]
         )
         
         # Sizing, fitting and outpaint
@@ -239,7 +241,10 @@ def main() -> None:
                 prompt=prompt,
                 image=base,
                 strength=0.8,
-                ip_adapter_scale=0.5,
+                ip_adapter_images=[{
+                    "image": base,
+                    "scale": 0.5
+                }],
                 control_images=[{
                     "controlnet": controlnet,
                     "image": base,
@@ -396,7 +401,10 @@ def main() -> None:
                     ],
                     image=control,
                     strength=0.8,
-                    ip_adapter_scale=0.5,
+                    ip_adapter_images=[{
+                        "image": control,
+                        "scale": 0.5
+                    }],
                     prompt="A bride and groom on their wedding day",
                     refiner_start=0.85,
                     guidance_scale=6

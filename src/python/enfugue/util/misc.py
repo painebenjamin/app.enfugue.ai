@@ -19,8 +19,7 @@ def merge_into(source: Dict[str, Any], dest: Dict[str, Any]) -> Dict[str, Any]:
     >>> from enfugue.util.misc import merge_into
     >>> x = {"a": 1}
     >>> merge_into({"b": 2}, x)
-    >>> x["b"]
-    2
+    {'a': 1, 'b': 2}
     """
     for key, value in source.items():
         if isinstance(value, dict) and isinstance(dest.get(key, None), dict):

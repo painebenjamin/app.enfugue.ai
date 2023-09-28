@@ -92,17 +92,21 @@ class InvokeButtonController extends Controller {
                     if (datum.infer) {
                         formattedState["strength"] = datum.strength;
                     }
-                    if (datum.imagePrompt) {
-                        formattedState["ip_adapter_scale"] = datum.imagePromptScale;
-                        formattedState["ip_adapter_image"] = datum.src;
-                        formattedState["ip_adapter_image_fit"] = datum.fit;
-                        formattedState["ip_adapter_image_anchor"] = datum.anchor;
-                    }
                     if (datum.inpaint) {
                         formattedState["mask"] = datum.scribbleSrc;
                         formattedState["invert_mask"] = true; // The UI is inversed
                         formattedState["crop_inpaint"] = datum.cropInpaint;
                         formattedState["inpaint_feather"] = datum.inpaintFeather;
+                    }
+                    if (datum.imagePrompt) {
+                        formattedState["ip_adapter_images"] = [
+                            {
+                                "image": datum.src,
+                                "scale": datum.imagePromptScale,
+                                "fit": datum.fit,
+                                "anchor": datum.anchor
+                            }
+                        ];
                     }
                     if (datum.control) {
                         formattedState["control_images"] = [
@@ -144,15 +148,17 @@ class InvokeButtonController extends Controller {
                             formattedState["inpaint_feather"] = child.inpaintFeather;
                         }
                         if (child.imagePrompt) {
-                            if (!isEmpty(promptImageNodeIndex)) {
-                                messages.push(`Node {i+1}: Image prompt image set in image {promptImageNodeIndex+1}, ignoring additional set in {j+1}`);
-                            } else {
-                                promptImageNodeIndex = j;
-                                formattedState["ip_adapter_image"] = child.src;
-                                formattedState["ip_adapter_scale"] = child.imagePromptScale;
-                                formattedState["ip_adapter_image_fit"] = child.fit;
-                                formattedState["ip_adapter_image_anchor"] = child.anchor;
+                            if (isEmpty(formattedState["ip_adapter_images"])) {
+                                formattedState["ip_adapter_images"] = [];
                             }
+                            formattedState["ip_adapter_images"].push(
+                                {
+                                    "image": child.src,
+                                    "scale": child.imagePromptScale,
+                                    "fit": child.fit,
+                                    "anchor": child.anchor
+                                }
+                            );
                         }
                         if (child.control) {
                             if (isEmpty(formattedState["control_images"])) {

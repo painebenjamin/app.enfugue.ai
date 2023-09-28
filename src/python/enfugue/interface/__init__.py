@@ -175,7 +175,8 @@ class EnfugueInterfaceServer(
             "orm": self.orm,
             "database": self.database,
             "paths": self.configuration["server.cms.path"],
-            "version": self.version
+            "version": self.version,
+            "sandboxed": self.configuration.get("sandboxed", False)
         }
 
         if hasattr(request, "token"):
