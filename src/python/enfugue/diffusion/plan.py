@@ -242,7 +242,7 @@ class DiffusionStep:
         }
 
         serialize_children: List[DiffusionStep] = []
-        for key in ["image"]:
+        for key in ["image", "mask"]:
             child = getattr(self, key)
             if isinstance(child, DiffusionStep):
                 if child in serialize_children:
@@ -256,6 +256,7 @@ class DiffusionStep:
                 serialized[key] = path
             else:
                 serialized[key] = child
+
         if self.ip_adapter_images:
             adapter_images = []
             for adapter_image in self.ip_adapter_images:
@@ -278,6 +279,7 @@ class DiffusionStep:
                     image_dict["image"] = adapter_image["image"]
                 adapter_images.append(image_dict)
             serialized["ip_adapter_images"] = adapter_images
+
         if self.control_images:
             control_images = []
             for control_image in self.control_images:
@@ -530,6 +532,7 @@ class DiffusionStep:
                     mask = image_mask
             image_width, image_height = image.size
             invocation_kwargs["image"] = image
+
         if mask is not None:
             mask_width, mask_height = mask.size
             if (
@@ -583,6 +586,7 @@ class DiffusionStep:
                 pipeline.inpainter_controlnets = list(control_images.keys())
             else:
                 pipeline.controlnets = list(control_images.keys())
+
         if ip_adapter_images is not None:
             invocation_kwargs["ip_adapter_images"] = ip_adapter_images
 
@@ -607,7 +611,7 @@ class DiffusionStep:
 
         if image_scale > 1:
             # scale input images up
-            for key in ["image", "mask", "image_mask_image"]:
+            for key in ["image", "mask"]:
                 if invocation_kwargs.get(key, None) is not None:
                     invocation_kwargs[key] = self.scale_image(invocation_kwargs[key], image_scale)
             for controlnet_name in invocation_kwargs.get("control_images", {}):
@@ -1274,7 +1278,8 @@ class DiffusionPlan:
                     image_callback(images)
 
         # Determine if there's anything left to outpaint
-        image_r_min, image_r_max = outpaint_mask.getextrema()[1]
+        outpaint_mask = outpaint_mask.convert("L")
+        image_r_min, image_r_max = outpaint_mask.getextrema()
         if image_r_max > 0 and self.prompt and self.outpaint:
             # Outpaint
             del invocation_kwargs["num_images_per_prompt"]
@@ -2096,6 +2101,7 @@ class DiffusionPlan:
             node_negative_prompt_2_str = str(node_negative_prompt_2_tokens)
 
             if node_inpaint_mask:
+                node_inpaint_mask = node_inpaint_mask.convert("L")
                 node_inpaint_mask_r_min, node_inpaint_mask_r_max = node_inpaint_mask.getextrema()
                 image_needs_inpainting = node_inpaint_mask_r_max > 0
             else:
