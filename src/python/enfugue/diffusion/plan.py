@@ -2030,13 +2030,23 @@ class DiffusionPlan:
                     return step, None
                 return fitted_image, image_mask
 
-            will_infer = node_strength is not None or node_inpaint_mask is not None
+            will_infer = (node_image is not None and node_strength is not None) or node_inpaint_mask is not None
             node_fill_background = node_remove_background and will_infer
 
             if node_inpaint_mask:
                 node_inpaint_mask = node_inpaint_mask.convert("L")
                 if node_invert_mask:
                     node_inpaint_mask = PIL.ImageOps.invert(node_inpaint_mask)
+
+            if node_image:
+                node_image, new_inpaint_mask = prepare_image(
+                    node_image,
+                    mask=node_inpaint_mask,
+                    fit=node_fit,
+                    anchor=node_anchor
+                )
+                if node_inpaint_mask:
+                    node_inpaint_mask = new_inpaint_mask
 
             if node_ip_adapter_images:
                 node_ip_adapter_images = [
@@ -2120,6 +2130,8 @@ class DiffusionPlan:
 
             step = DiffusionStep(
                 name=f"{name} Node {i+1}",
+                width=node_width,
+                height=node_height,
                 image=node_image,
                 mask=node_inpaint_mask,
                 prompt=node_prompt_str,
