@@ -635,6 +635,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         self,
         device: Union[str, torch.device],
         scale: float = 1.0,
+        use_fine_grained: bool = False,
         keepalive_callback: Optional[Callable[[], None]] = None
     ) -> None:
         """
@@ -643,10 +644,24 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         if getattr(self, "ip_adapter", None) is None:
             raise RuntimeError("Pipeline does not have an IP adapter")
         if self.ip_adapter_loaded:
-            altered = self.ip_adapter.set_scale(self.unet, scale) # type: ignore[union-attr]
+            altered = self.ip_adapter.set_scale( # type: ignore[union-attr]
+                unet=self.unet,
+                new_scale=scale,
+                use_fine_grained=use_fine_grained,
+                keepalive_callback=keepalive_callback,
+                is_sdxl=self.is_sdxl,
+                controlnets=self.controlnets
+            )
             if altered == 0:
                 logger.error("IP adapter appeared loaded, but setting scale did not modify it.")
-                self.ip_adapter.load(self.unet, self.is_sdxl, scale) # type: ignore[union-attr]
+                self.ip_adapter.load( # type: ignore[union-attr]
+                    unet=self.unet,
+                    is_sdxl=self.is_sdxl,
+                    scale=scale,
+                    use_fined_grained=use_fine_grained,
+                    keepalive_callback=keepalive_callback,
+                    controlnets=self.controlnets
+                )
         else:
             logger.debug("Loading IP adapter")
             self.ip_adapter.load( # type: ignore[union-attr]
@@ -654,6 +669,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 is_sdxl=self.is_sdxl,
                 scale=scale,
                 keepalive_callback=keepalive_callback,
+                use_fine_grained=use_fine_grained,
                 controlnets=self.controlnets
             )
             self.ip_adapter_loaded = True
@@ -870,6 +886,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         animation_frames: Optional[int],
         device: Union[str, torch.device],
         ip_adapter_scale: Optional[Union[List[float], float]] = None,
+        ip_adapter_plus: bool = False,
         step_complete: Optional[Callable[[bool], None]] = None
     ) -> Iterator[None]:
         """
@@ -885,9 +902,10 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             self.text_encoder_2.to(device)
         if ip_adapter_scale is not None:
             self.load_ip_adapter(
-                device,
-                max(ip_adapter_scale) if isinstance(ip_adapter_scale, list) else ip_adapter_scale,
-                None if step_complete is None else lambda: step_complete(False) # type: ignore[misc]
+                device=device,
+                scale=max(ip_adapter_scale) if isinstance(ip_adapter_scale, list) else ip_adapter_scale,
+                use_fine_grained=ip_adapter_plus,
+                keepalive_callback=None if step_complete is None else lambda: step_complete(False) # type: ignore[misc]
             )
         else:
             self.unload_ip_adapter()
@@ -2547,6 +2565,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         mask: Optional[Union[List[PIL.Image.Image], PIL.Image.Image, torch.Tensor, str]] = None,
         control_images: ControlImageArgType = None,
         ip_adapter_images: ImagePromptArgType = None,
+        ip_adapter_plus: bool = False,
         height: Optional[int] = None,
         width: Optional[int] = None,
         chunking_size: Optional[int] = None,
@@ -2711,8 +2730,6 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             image = self.open_image(image)
         if isinstance(mask, str):
             mask = self.open_image(mask)
-        if isinstance(ip_adapter_image, str):
-            ip_adapter_image = self.open_image(ip_adapter_image)
 
         if image is not None and type(image) is not torch.Tensor:
             if isinstance(image, list):
@@ -2754,7 +2771,13 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             logger.debug(f"Configuration indicates VAE may operate in half precision")
             self.vae.to(dtype=torch.float16)
 
-        with self.get_runtime_context(batch_size, animation_frames, device, ip_adapter_scale, step_complete):
+        with self.get_runtime_context(
+            batch_size=batch_size,
+            device=device,
+            ip_adapter_scale=ip_adapter_scale,
+            ip_adapter_plus=ip_adapter_plus,
+            step_complete=step_complete
+        ):
             # First standardize to list of prompts
             if prompts is None:
                 prompts = [
@@ -2823,30 +2846,23 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 image_uncond_prompt_embeds=None # Will be set later
             )
 
-<<<<<<< HEAD
             # Normalize to lists of images
             if isinstance(image, PIL.Image.Image):
                 image = [image]
             if isinstance(mask, PIL.Image.Image):
                 mask = [mask]
-            if isinstance(ip_adapter_image, PIL.Image.Image):
-                ip_adapter_image = [ip_adapter_image]
 
             # Scale images if requested
             if scale_image and image is not None and not isinstance(image, torch.Tensor):
                 image = self.scale_image(width=width, height=height, image=image)
             if scale_image and mask is not None:
                 mask = self.scale_image(width=width, height=height, image=mask)
-            if scale_image and ip_adapter_image is not None:
-                ip_adapter_image = self.scale_image(width=width, height=height, image=ip_adapter_image)
 
             # Remove any alpha mask on image, convert mask to grayscale
             if image is not None:
                 image = [img.convert("RGB") for img in image]
             if mask is not None:
                 mask = [img.convert("L") for img in mask]
-            if ip_adapter_image is not None:
-                ip_adapter_image = [img.convert("RGB") for img in ip_adapter_image]
 
             # Repeat images as necessary to get the same size
             image_length = max([
@@ -2854,6 +2870,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 0 if mask is None else len(mask),
                 0 if ip_adapter_image is None else len(ip_adapter_image)
             ])
+
             if image is not None:
                 l = len(image)
                 for i in range(image_length - l):
@@ -2862,13 +2879,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 l = len(mask)
                 for i in range(image_length - l):
                     mask.append(mask[-1])
-            if ip_adapter_image is not None:
-                l = len(ip_adapter_image)
-                for i in range(image_length - l):
-                    ip_adapter_image.append(ip_adapter_image[-1])
 
             # Process image and mask or image
-            prepared_ip_adapter_image: Optional[torch.Tensor] = None
             prepared_image: Optional[torch.Tensor] = None
             prepared_mask: Optional[torch.Tensor] = None
             init_image: Optional[torch.Tensor] = None
@@ -2876,29 +2888,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             if image is not None and mask is not None:
                 prepared_image = torch.Tensor()
                 prepared_mask = torch.Tensor()
-            
-            if isinstance(mask, str):
-                mask = PIL.Image.open(mask)
 
-            # Scale images if requested
-            if scale_image and isinstance(image, PIL.Image.Image):
-                image_width, image_height = image.size
-                if image_width != width or image_height != height:
-                    logger.debug(f"Resizing input image from {image_width}x{image_height} to {width}x{height}")
-                    image = image.resize((width, height), resample=PIL_INTERPOLATION["lanczos"])
-
-            if scale_image and mask:
-                mask_width, mask_height = mask.size
-                if mask_width != width or mask_height != height:
-                    logger.debug(f"Resizing input mask from {mask_width}x{mask_height} to {width}x{height}")
-                    mask = mask.resize((width, height), resample=PIL_INTERPOLATION["lanczos"])
-
-            # Remove any alpha mask on image, convert mask to grayscale
-            if isinstance(image, PIL.Image.Image):
-                image = image.convert("RGB")
-            if isinstance(mask, PIL.Image.Image):
-                mask = mask.convert("L")
-            if isinstance(image, PIL.Image.Image) and isinstance(mask, PIL.Image.Image):
                 if is_inpainting_unet:
                     for m, i in zip(mask, image):
                         p_m, p_i = self.prepare_mask_and_image(m, i, False) # type: ignore

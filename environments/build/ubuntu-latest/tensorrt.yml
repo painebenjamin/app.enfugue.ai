@@ -3,12 +3,12 @@ channels:
   - pytorch
   - defaults
   - nvidia
-  - nvidia/label/cuda-11.7
+  - nvidia/label/cuda-11.7.1
   - conda-forge
 dependencies:
   - python=3.10.11
   - pip=23.1.2
-  - cudatoolkit=11.7
+  - cudatoolkit=11.7.1
   - numpy=1.24.3
   - make=4.3
   - nodejs=18.16.0
@@ -63,6 +63,7 @@ dependencies:
     - certifi>=2023.5.7
     - lycoris-lora==1.7.2
     - protobuf==3.20.1
+    - openmim>=0.3.9,<0.4
     - git+https://github.com/CompVis/taming-transformers.git@master#egg=taming-transformers
     - git+https://github.com/openai/CLIP.git@main#egg=clip
     - git+https://github.com/CompVis/stable-diffusion.git@main#egg=latent-diffusion

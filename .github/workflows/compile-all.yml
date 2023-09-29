@@ -19,12 +19,18 @@ jobs:
             api: tensorrt
           - os: ubuntu-latest
             api: cuda
+          - os: ubuntu-latest
+            api: cuda-latest
           - os: windows-latest
             api: tensorrt
           - os: windows-latest
             api: cuda
+          - os: windows-latest
+            api: cuda-latest
           - os: macos-13
             api: mps
+          - os: macos-13
+            api: mps-latest
     uses: painebenjamin/app.enfugue.ai/.github/workflows/compile.yml@main
     with:
       os: ${{ matrix.os }}

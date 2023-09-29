@@ -184,6 +184,7 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         animation_frames: Optional[int],
         device: Union[str, torch.device],
         ip_adapter_scale: Optional[Union[float, List[float]]] = None,
+        ip_adapter_plus: bool = False,
         step_complete_callback: Optional[Callable[[bool], None]] = None
     ) -> Iterator[None]:
         """

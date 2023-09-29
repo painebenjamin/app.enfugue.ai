@@ -171,10 +171,8 @@ class EnfugueClient(UserExtensionClientBase, JSONWebServiceAPIClient):
         seed: Optional[int] = None,
         image: Optional[Union[str, Image]] = None,
         mask: Optional[Union[str, Image]] = None,
-        ip_adapter_image: Optional[Union[str, Image, List[Image]]] = None,
-        ip_adapter_scale: Optional[float] = None,
-        ip_adapter_image_fit: Optional[IMAGE_FIT_LITERAL] = None,
-        ip_adapter_image_anchor: Optional[IMAGE_ANCHOR_LITERAL] = None,
+        ip_adapter_images: Optional[List[Dict[str, Any]]] = None,
+        ip_adapter_plus: bool = False,
         control_images: Optional[List[Dict[str, Any]]] = None,
         strength: Optional[float] = None,
         fit: Optional[IMAGE_FIT_LITERAL] = None,
@@ -297,14 +295,9 @@ class EnfugueClient(UserExtensionClientBase, JSONWebServiceAPIClient):
             kwargs["crop_inpaint"] = crop_inpaint
         if inpaint_feather is not None:
             kwargs["inpaint_feather"] = inpaint_feather
-        if ip_adapter_scale is not None:
-            kwargs["ip_adapter_scale"] = ip_adapter_scale
-        if ip_adapter_image is not None:
-            kwargs["ip_adapter_image"] = ip_adapter_image
-        if ip_adapter_image_fit is not None:
-            kwargs["ip_adapter_image_fit"] = ip_adapter_image_fit
-        if ip_adapter_image_anchor is not None:
-            kwargs["ip_adapter_image_anchor"] = ip_adapter_image_anchor
+        if ip_adapter_images is not None:
+            kwargs["ip_adapter_images"] = ip_adapter_images
+            kwargs["ip_adapter_plus"] = ip_adapter_plus
         if upscale_steps is not None:
             kwargs["upscale_steps"] = upscale_steps
 

@@ -66,9 +66,7 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         """
         Gets installed checkpoints.
         """
-        checkpoints_dir = self.configuration.get(
-            "enfugue.engine.checkpoint", os.path.join(self.engine_root, "checkpoint")
-        )
+        checkpoints_dir = self.get_configured_directory("checkpoint")
         checkpoints = [
             os.path.basename(filename)
             for filename in find_files_in_directory(checkpoints_dir)
@@ -86,7 +84,7 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         """
         Gets installed lora.
         """
-        lora_dir = self.configuration.get("enfugue.engine.lora", os.path.join(self.engine_root, "lora"))
+        lora_dir = self.get_configured_directory("lora")
         lora = [
             os.path.basename(filename)
             for filename in find_files_in_directory(lora_dir)
@@ -101,8 +99,7 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         """
         Gets installed lycoris/locon
         """
-        lycoris = []
-        lycoris_dir = self.configuration.get("enfugue.engine.lycoris", os.path.join(self.engine_root, "lycoris"))
+        lycoris_dir = self.get_configured_directory("lycoris")
         lycoris = [
             os.path.basename(filename)
             for filename in find_files_in_directory(lycoris_dir)
@@ -117,7 +114,7 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         """
         Gets installed textual inversions.
         """
-        inversions_dir = self.configuration.get("enfugue.engine.inversion", os.path.join(self.engine_root, "inversion"))
+        inversions_dir = self.get_configured_directory("inversion")
         inversions = [
             os.path.basename(filename)
             for filename in find_files_in_directory(inversions_dir)
@@ -133,7 +130,8 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         Finds engines in the model directory and determines their metadata and status.
         """
         engines = []
-        for engine in glob.glob(f"{self.engine_root}/tensorrt/**/engine.plan", recursive=True):
+        tensorrt_dir = self.get_configured_directory("tensorrt")
+        for engine in glob.glob(f"{tensorrt_dir}/**/engine.plan", recursive=True):
             engine_dir = os.path.abspath(os.path.dirname(engine))
             engine_type = os.path.basename(os.path.dirname(engine_dir))
             engine_key = os.path.basename(os.path.dirname(engine))
@@ -240,7 +238,8 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         """
         Removes an individual tensorrt engine.
         """
-        engine_dir = os.path.join(self.engine_root, "tensorrt", model_name, engine_type, engine_key)
+        tensorrt_dir = self.get_configured_directory("tensorrt")
+        engine_dir = os.path.join(tensorrt_dir, model_name, engine_type, engine_key)
         if not os.path.exists(engine_dir):
             raise NotFoundError(f"Couldn't find {engine_type} TensorRT engine for {model_name} with key {engine_key}")
         shutil.rmtree(engine_dir)
@@ -620,17 +619,7 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         """
         Gets all checkpoints and model names for the picker.
         """
-        checkpoints_dir = self.configuration.get(
-            "enfugue.engine.checkpoint", os.path.join(self.engine_root, "checkpoint")
-        )
-        if not os.path.exists(checkpoints_dir):
-            checkpoints = []
-        else:
-            checkpoints = os.listdir(checkpoints_dir)
-        
-        checkpoints_dir = self.configuration.get(
-            "enfugue.engine.checkpoint", os.path.join(self.engine_root, "checkpoint")
-        )
+        checkpoints_dir = self.get_configured_directory("checkpoint")
         checkpoints = list(find_files_in_directory(checkpoints_dir))
         checkpoints.sort(key=lambda item: os.path.getmtime(os.path.join(checkpoints_dir, item)))
         checkpoints = [
@@ -657,9 +646,7 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         Merges 2-3 models together.
         """
         try:
-            checkpoints_dir = self.configuration.get(
-                "enfugue.engine.checkpoint", os.path.join(self.engine_root, "checkpoint")
-            )
+            checkpoints_dir = self.get_configured_directory("checkpoint")
             output_filename = request.parsed["filename"]
             if not output_filename.endswith(".safetensors"):
                 output_filename = f"{output_filename}.safetensors"

@@ -48,36 +48,6 @@ if TYPE_CHECKING:
 
 __all__ = ["NodeDict", "DiffusionStep", "DiffusionPlan"]
 
-<<<<<<< HEAD
-=======
-class UpscaleStepDict(TypedDict):
-    method: UPSCALE_LITERAL
-    amount: Union[int, float]
-    strength: NotRequired[float]
-    num_inference_steps: NotRequired[int]
-    scheduler: NotRequired[SCHEDULER_LITERAL]
-    guidance_scale: NotRequired[float]
-    controlnets: NotRequired[List[Union[CONTROLNET_LITERAL, Tuple[CONTROLNET_LITERAL, float]]]]
-    prompt: NotRequired[str]
-    prompt_2: NotRequired[str]
-    negative_prompt: NotRequired[str]
-    negative_prompt_2: NotRequired[str]
-    chunking_size: NotRequired[int]
-    chunking_mask_type: NotRequired[MASK_TYPE_LITERAL]
-    chunking_mask_kwargs: NotRequired[Dict[str, Any]]
-
-class ControlImageDict(TypedDict):
-    controlnet: CONTROLNET_LITERAL
-    image: PIL.Image.Image
-    fit: NotRequired[IMAGE_FIT_LITERAL]
-    anchor: NotRequired[IMAGE_ANCHOR_LITERAL]
-    scale: NotRequired[float]
-    start: NotRequired[Optional[float]]
-    end: NotRequired[Optional[float]]
-    process: NotRequired[bool]
-    invert: NotRequired[bool]
-    refiner: NotRequired[bool]
-
 class DiffusionStep:
     """
     A step represents most of the inputs to describe what the image is and how to control inference
@@ -98,6 +68,7 @@ class DiffusionStep:
         mask: Optional[Union[DiffusionStep, PIL.Image.Image, str]] = None,
         control_images: Optional[List[ControlImageDict]] = None,
         ip_adapter_images: Optional[List[IPAdapterImageDict]] = None,
+        ip_adapter_plus: bool = False,
         strength: Optional[float] = None,
         num_inference_steps: Optional[int] = DEFAULT_INFERENCE_STEPS,
         guidance_scale: Optional[float] = DEFAULT_GUIDANCE_SCALE,
@@ -126,6 +97,7 @@ class DiffusionStep:
         self.image = image
         self.mask = mask
         self.ip_adapter_images = ip_adapter_images
+        self.ip_adapter_plus = ip_adapter_plus
         self.control_images = control_images
         self.strength = strength
         self.refiner_start = refiner_start
@@ -182,10 +154,11 @@ class DiffusionStep:
             "scale_to_model_size": self.scale_to_model_size,
             "crop_inpaint": self.crop_inpaint,
             "inpaint_feather": self.inpaint_feather,
+            "ip_adapter_plus": self.ip_adapter_plus,
         }
 
         serialize_children: List[DiffusionStep] = []
-        for key in ["image"]:
+        for key in ["image", "mask"]:
             child = getattr(self, key)
             if isinstance(child, DiffusionStep):
                 if child in serialize_children:
@@ -199,6 +172,7 @@ class DiffusionStep:
                 serialized[key] = path
             else:
                 serialized[key] = child
+
         if self.ip_adapter_images:
             adapter_images = []
             for adapter_image in self.ip_adapter_images:
@@ -221,6 +195,7 @@ class DiffusionStep:
                     image_dict["image"] = adapter_image["image"]
                 adapter_images.append(image_dict)
             serialized["ip_adapter_images"] = adapter_images
+
         if self.control_images:
             control_images = []
             for control_image in self.control_images:
@@ -279,6 +254,7 @@ class DiffusionStep:
             "refiner_prompt_2": self.refiner_prompt_2,
             "refiner_negative_prompt": self.refiner_negative_prompt,
             "refiner_negative_prompt_2": self.refiner_negative_prompt_2,
+            "ip_adapter_plus": self.ip_adapter_plus,
         }
 
     def get_inpaint_bounding_box(self, pipeline_size: int) -> List[Tuple[int, int]]:
@@ -477,6 +453,7 @@ class DiffusionStep:
                     mask = image_mask
             image_width, image_height = image.size
             invocation_kwargs["image"] = image
+
         if mask is not None:
             mask_width, mask_height = mask.size
             if (
@@ -530,6 +507,7 @@ class DiffusionStep:
                 pipeline.inpainter_controlnets = list(control_images.keys())
             else:
                 pipeline.controlnets = list(control_images.keys())
+
         if ip_adapter_images is not None:
             invocation_kwargs["ip_adapter_images"] = ip_adapter_images
 
@@ -554,7 +532,7 @@ class DiffusionStep:
 
         if image_scale > 1:
             # scale input images up
-            for key in ["image", "mask", "image_mask_image"]:
+            for key in ["image", "mask"]:
                 if invocation_kwargs.get(key, None) is not None:
                     invocation_kwargs[key] = self.scale_image(invocation_kwargs[key], image_scale)
             for controlnet_name in invocation_kwargs.get("control_images", {}):
@@ -634,7 +612,8 @@ class DiffusionStep:
             "remove_background",
             "scale_to_model_size",
             "crop_inpaint",
-            "inpaint_feather"
+            "inpaint_feather",
+            "ip_adapter_plus"
         ]:
             if key in step_dict:
                 kwargs[key] = step_dict[key]
@@ -1225,7 +1204,8 @@ class DiffusionPlan:
                     image_callback(images)
 
         # Determine if there's anything left to outpaint
-        image_r_min, image_r_max = outpaint_mask.getextrema()[1]
+        outpaint_mask = outpaint_mask.convert("L")
+        image_r_min, image_r_max = outpaint_mask.getextrema()
         if image_r_max > 0 and self.prompt and self.outpaint:
             # Outpaint
             del invocation_kwargs["num_results_per_prompt"]
@@ -1491,6 +1471,7 @@ class DiffusionPlan:
         anchor: Optional[IMAGE_ANCHOR_LITERAL] = None,
         strength: Optional[float] = None,
         ip_adapter_images: Optional[List[IPAdapterImageDict]] = None,
+        ip_adapter_plus: bool = False,
         control_images: Optional[List[ControlImageDict]] = None,
         remove_background: bool = False,
         fill_background: bool = False,
@@ -1790,6 +1771,7 @@ class DiffusionPlan:
                 remove_background=remove_background,
                 fill_background=fill_background,
                 scale_to_model_size=scale_to_model_size,
+                ip_adapter_plus=ip_adapter_plus,
                 ip_adapter_images=ip_adapter_images,
                 control_images=control_images
             )
@@ -1842,6 +1824,7 @@ class DiffusionPlan:
             node_scale_to_model_size = bool(node_dict.get("scale_to_model_size", False))
             node_remove_background = bool(node_dict.get("remove_background", False))
 
+            node_ip_adapter_plus = node_dict.get("ip_adapter_plus", False)
             node_ip_adapter_images: Optional[List[IPAdapterImageDict]] = node_dict.get("ip_adapter_images", None)
             node_control_images: Optional[List[ControlImageDict]] = node_dict.get("control_images", None)
 
@@ -2044,6 +2027,7 @@ class DiffusionPlan:
             node_negative_prompt_2_str = str(node_negative_prompt_2_tokens)
 
             if node_inpaint_mask:
+                node_inpaint_mask = node_inpaint_mask.convert("L")
                 node_inpaint_mask_r_min, node_inpaint_mask_r_max = node_inpaint_mask.getextrema()
                 image_needs_inpainting = node_inpaint_mask_r_max > 0
             else:
@@ -2101,6 +2085,7 @@ class DiffusionPlan:
                 guidance_scale=guidance_scale,
                 num_inference_steps=node_inference_steps if node_inference_steps else num_inference_steps,
                 ip_adapter_images=node_ip_adapter_images,
+                ip_adapter_plus=node_ip_adapter_plus,
                 control_images=node_control_images,
                 refiner_start=refiner_start,
                 refiner_strength=refiner_strength,

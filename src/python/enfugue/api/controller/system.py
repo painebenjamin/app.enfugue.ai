@@ -70,50 +70,6 @@ class EnfugueAPISystemController(EnfugueAPIControllerBase):
         "qr"
     ]
 
-    def get_default_controlnet_path(
-        self,
-        name: CONTROLNET_LITERAL,
-        is_sdxl: bool = False
-    ) -> Optional[str]:
-        """
-        Gets the default controlnet path based on pipeline type
-        """
-        if is_sdxl:
-            if name == "canny":
-                return CONTROLNET_CANNY_XL[0]
-            elif name == "depth":
-                return CONTROLNET_DEPTH_XL[0]
-            elif name == "pose":
-                return CONTROLNET_POSE_XL[0]
-        else:
-            if name == "canny":
-                return CONTROLNET_CANNY[0]
-            elif name == "mlsd":
-                return CONTROLNET_MLSD[0]
-            elif name == "hed":
-                return CONTROLNET_HED[0]
-            elif name == "tile":
-                return CONTROLNET_TILE[0]
-            elif name == "scribble":
-                return CONTROLNET_SCRIBBLE[0]
-            elif name == "inpaint":
-                return CONTROLNET_INPAINT[0]
-            elif name == "depth":
-                return CONTROLNET_DEPTH[0]
-            elif name == "normal":
-                return CONTROLNET_NORMAL[0]
-            elif name == "pose":
-                return CONTROLNET_POSE[0]
-            elif name == "line":
-                return CONTROLNET_LINE[0]
-            elif name == "anime":
-                return CONTROLNET_ANIME[0]
-            elif name == "pidi":
-                return CONTROLNET_PIDI[0]
-            elif name == "qr":
-                return CONTROLNET_QR[0]
-        return None
-
     def get_controlnet_path(
         self,
         name: CONTROLNET_LITERAL,
@@ -126,10 +82,7 @@ class EnfugueAPISystemController(EnfugueAPIControllerBase):
         if is_sdxl:
             key_parts += ["xl"]
         key_parts += [name]
-        configured_path = self.configuration.get(".".join(key_parts), None)
-        if not configured_path:
-            return self.get_default_controlnet_path(name, is_sdxl)
-        return configured_path
+        return self.configuration.get(".".join(key_parts), None)
 
     @handlers.path("^/api/settings$")
     @handlers.methods("GET")
@@ -224,8 +177,12 @@ class EnfugueAPISystemController(EnfugueAPIControllerBase):
         for controlnet in self.CONTROLNETS:
             if controlnet in request.parsed:
                 self.user_config[f"enfugue.controlnet.{controlnet}"] = request.parsed[controlnet]
+            else:
+                del self.user_config[f"enfugue.controlnet.{controlnet}"]
             if f"{controlnet}_xl" in request.parsed:
                 self.user_config[f"enfugue.controlnet.xl.{controlnet}"] = request.parsed[f"{controlnet}_xl"]
+            else:
+                del self.user_config[f"enfugue.controlnet.xl.{controlnet}"]
 
         self.configuration.update(**self.user_config.dict())
         return self.get_settings(request, response)
@@ -354,7 +311,7 @@ class EnfugueAPISystemController(EnfugueAPIControllerBase):
         """
         sizes = {}
         for dirname in ["cache", "diffusers", "checkpoint", "lora", "lycoris", "inversion", "tensorrt", "other"]:
-            directory = self.configuration.get(f"enfugue.engine.{dirname}", os.path.join(self.engine_root, dirname))
+            directory = self.get_configured_directory(dirname)
             items, files, size = get_directory_size(directory)
             sizes[dirname] = {"items": items, "files": files, "bytes": size, "path": directory}
         return sizes
@@ -370,6 +327,8 @@ class EnfugueAPISystemController(EnfugueAPIControllerBase):
         not_created = []
         for dirname in request.parsed["directories"]:
             path = request.parsed["directories"][dirname]
+            if path.startswith("~"):
+                path = os.path.expanduser(path)
             exists = os.path.exists(path)
             if not exists:
                 if Path(path).is_relative_to(self.engine_root) or request.parsed.get("create", False):
@@ -395,7 +354,7 @@ class EnfugueAPISystemController(EnfugueAPIControllerBase):
         """
         Gets a summary of files and filesize in the installation
         """
-        directory = self.configuration.get(f"enfugue.engine.{dirname}", os.path.join(self.engine_root, dirname))
+        directory = self.get_configured_directory(dirname)
         if not os.path.isdir(directory):
             return []
         items = []
@@ -416,8 +375,10 @@ class EnfugueAPISystemController(EnfugueAPIControllerBase):
         """
         Deletes a file or directory from the installation
         """
-        directory = self.configuration.get(f"enfugue.engine.{dirname}", os.path.join(self.engine_root, dirname))
+        directory = self.get_configured_directory(dirname)
         path = os.path.join(directory, filename)
+        if path.startswith("~"):
+            path = os.path.expanduser(path)
         if not os.path.exists(path):
             raise BadRequestError(f"Unknown engine file/directory {dirname}/{filename}")
         if os.path.isdir(path):
@@ -439,6 +400,8 @@ class EnfugueAPISystemController(EnfugueAPIControllerBase):
 
         filename = request.POST["file"].filename
         directory = self.configuration.get(f"enfugue.engine.{dirname}", os.path.join(self.engine_root, dirname))
+        if directory.startswith("~"):
+            directory = os.path.expanduser(directory)
         if not os.path.exists(directory):
             raise BadRequestError(f"Unknown directory {dirname}")
 
@@ -456,6 +419,8 @@ class EnfugueAPISystemController(EnfugueAPIControllerBase):
         Changes the directory of a particular model folder.
         """
         path = os.path.realpath(os.path.abspath(request.parsed["directory"]))
+        if path.startswith("~"):
+            path = os.path.expanduser(path)
         if not os.path.exists(path):
             if Path(path).is_relative_to(self.engine_root) or request.parsed.get("create", False):
                 os.makedirs(path)

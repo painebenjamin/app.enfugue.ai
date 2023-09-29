@@ -805,6 +805,20 @@ fieldset.field-set-additional-models .vae-input-view-inpainter-vae
     display: none;
 }
 
+fieldset.field-set-image-prompt
+{
+    flex-flow: row nowrap;
+}
+
+fieldset.field-set-image-prompt .field-container
+{
+    flex-basis: 100% !important;
+}
+
+fieldset.field-set-image-prompt .field-container.checkbox-input-view-image-prompt-plus {
+    margin-top: 14px;
+}
+
 fieldset.field-set-control-nets .field-container,
 enfugue-node-editor.image-editor enfugue-node form fieldset.field-set-control .field-container
 {

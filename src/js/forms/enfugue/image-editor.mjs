@@ -165,6 +165,13 @@ class ImageEditorImageNodeOptionsFormView extends FormView {
                     "step": 0.01,
                     "value": 0.5
                 }
+            },
+            "imagePromptPlus": {
+                "label": "Use Fine-Grained Model",
+                "class": CheckboxInputView,
+                "config": {
+                    "tooltip": "Use this to enable fine-grained feature inspection on the source image. This can improve details in the resulting image, but can also make the overall image less similar.<br /><br />Note that when using multiple source images for image prompting, enabling fine-grained feature inspection on any image enables it for all images."
+                }
             }
         },
         "Prompts": {
