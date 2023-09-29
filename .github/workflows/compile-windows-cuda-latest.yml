@@ -1,4 +1,4 @@
-name: Compile Windows CUDA Portable Distribution
+name: Compile Windows CUDA Latest Portable Distribution
 on:
   workflow_dispatch:
     inputs:
