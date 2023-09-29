@@ -21,6 +21,7 @@ import {
     PromptInputView,
     SliderPreciseInputView,
     FloatInputView,
+    MaskTypeInputView
 } from "../input.mjs";
 
 let defaultEngineSize = 512;
@@ -176,16 +177,9 @@ class ModelFormView extends FormView {
                     "value": null
                 }
             },
-            "chunking_blur": {
-                "label": "Chunk Blur",
-                "class": NumberInputView,
-                "config": {
-                    "tooltip": "The number of pixels to feather along the edge of the frame when blending chunked diffusions together. Low numbers can produce less blurry but more noisy results, and can potentially result in visible breaks in the frame. High numbers can help blend frames, but produce blurrier results. The recommended value is set by default.",
-                    "min": 0,
-                    "max": 2048,
-                    "step": 8,
-                    "value": null
-                }
+            "chunking_mask_type": {
+                "label": "Chunking Mask",
+                "class": MaskTypeInputView
             },
             "num_inference_steps": {
                 "label": "Inference Steps",
