@@ -183,7 +183,7 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         device: Union[str, torch.device],
         ip_adapter_scale: Optional[Union[float, List[float]]] = None,
         ip_adapter_plus: bool = False,
-        step_complete_callback: Optional[Callable[[bool], None]] = None
+        step_complete: Optional[Callable[[bool], None]] = None
     ) -> Iterator[None]:
         """
         We initialize the TensorRT runtime here.
