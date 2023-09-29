@@ -252,7 +252,7 @@ def main() -> None:
             )
         
         # Schedulers
-        for scheduler in ["ddim", "ddpm", "dpmsm", "dpmss", "heun", "dpmd", "adpmd", "dpmsde", "unipc", "lmsd", "pndm", "eds", "eads"]:
+        for scheduler in ["ddim", "ddpm", "deis", "dpmsm", "dpmss", "dpmsmk", "dpmsmka", "heun", "dpmd", "adpmd", "dpmsde", "unipc", "lmsd", "pndm", "eds", "eads"]:
             invoke(
                 f"txt2img-scheduler-{scheduler}",
                 prompt=prompt,

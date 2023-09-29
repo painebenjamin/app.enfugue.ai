@@ -296,7 +296,7 @@ class EnfugueClient(UserExtensionClientBase, JSONWebServiceAPIClient):
         if inpaint_feather is not None:
             kwargs["inpaint_feather"] = inpaint_feather
         if ip_adapter_images is not None:
-            kwargs["ip_adapter_image"] = ip_adapter_images
+            kwargs["ip_adapter_images"] = ip_adapter_images
             kwargs["ip_adapter_plus"] = ip_adapter_plus
         if upscale_steps is not None:
             kwargs["upscale_steps"] = upscale_steps
