@@ -60,8 +60,8 @@ class TweaksController extends Controller {
                 if (!isEmpty(defaultConfig.inference_steps)) {
                     tweaksConfig.inferenceSteps = defaultConfig.inference_steps;
                 }
-                if (!isEmpty(defaultConfig.scheduler)) {
-                    tweaksConfig.scheduler = defaultConfig.scheduler;
+                if (!isEmpty(newModel.scheduler)) {
+                    tweaksConfig.scheduler = newModel.scheduler[0].name;
                 }
                 if (!isEmpty(tweaksConfig)) {
                     this.tweaksForm.setValues(tweaksConfig);

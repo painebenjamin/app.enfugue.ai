@@ -11,6 +11,7 @@ class UpscaleController extends Controller {
      * When asked for state, return values from form.
      */
     getState(includeImages = true) {
+        this.upscaleForm.submit();
         return { "upscale": this.upscaleForm.values.steps };
     }
 
