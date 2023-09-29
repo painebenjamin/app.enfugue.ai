@@ -1,4 +1,4 @@
-name: Compile MacOS MPS Portable Distribution
+name: Compile MacOS MPS Portable Distribution (Latest)
 on:
   workflow_dispatch:
     inputs:
