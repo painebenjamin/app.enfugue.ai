@@ -138,6 +138,20 @@ class DiffusionPipelineManager:
             self.configuration["enfugue.pipeline.cache"] = None
             self.configuration["enfugue.pipeline.switch"] = "unload"
 
+    def check_download_model(self, local_dir: str, remote_url: str) -> str:
+        """
+        Downloads a model directly to the model folder if enabled.
+        """
+        output_file = os.path.basename(remote_url)
+        output_path = os.path.join(local_dir, output_file)
+        found_path = find_file_in_directory(local_dir, output_file)
+        if found_path:
+            return found_path
+        if self.offline:
+            raise ValueError(f"File {output_file} does not exist in {local_dir} and offline mode is enabled, refusing to download from {remote_url}")
+        check_download(remote_url, output_path)
+        return output_path
+
     @classmethod
     def is_loadable_model_file(cls, path: str) -> bool:
         """
@@ -501,11 +515,7 @@ class DiffusionPipelineManager:
                     break
 
         if vae.startswith("http"):
-            target_path = os.path.join(self.engine_cache_dir, os.path.basename(vae))
-            if not os.path.exists(target_path) and self.offline:
-                raise IOError(f"Offline mode enabled, cannot find requested VAE at {target_path}")
-            check_download(vae, target_path)
-            vae = target_path
+            vae = self.check_download_model(self.engine_cache_dir, vae)
 
         from diffusers.models import AutoencoderKL
 
@@ -1893,7 +1903,7 @@ class DiffusionPipelineManager:
             model = new_model
         model = self.check_get_default_model(model)
         if model.startswith("http"):
-            model = self.check_download_checkpoint(model)
+            model = self.check_download_model(self.engine_checkpoints_dir, model)
         elif not os.path.isabs(model):
             model = find_file_in_directory(self.engine_checkpoints_dir, model)
         if not model:
@@ -1936,7 +1946,7 @@ class DiffusionPipelineManager:
             return
         refiner = self.check_get_default_model(new_refiner)
         if refiner.startswith("http"):
-            refiner = self.check_download_checkpoint(refiner)
+            refiner = self.check_download_model(self.engine_checkpoints_dir, refiner)
         elif not os.path.isabs(refiner):
             refiner = find_file_in_directory(self.engine_checkpoints_dir, refiner) # type: ignore[assignment]
         if not refiner:
@@ -1981,7 +1991,7 @@ class DiffusionPipelineManager:
             return
         inpainter = self.check_get_default_model(new_inpainter)
         if inpainter.startswith("http"):
-            inpainter = self.check_download_checkpoint(inpainter)
+            inpainter = self.check_download_model(self.engine_checkpoints_dir, inpainter)
         elif not os.path.isabs(inpainter):
             inpainter = find_file_in_directory(self.engine_checkpoints_dir, inpainter) # type: ignore[assignment]
         if not inpainter:
@@ -2095,7 +2105,9 @@ class DiffusionPipelineManager:
             lora = [(new_lora, 1)]
 
         for i, (model, weight) in enumerate(lora):
-            if not os.path.isabs(model):
+            if model.startswith("http"):
+                model = self.check_download_model(self.engine_lora_dir, model)
+            elif not os.path.isabs(model):
                 model = find_file_in_directory(self.engine_lora_dir, model) # type: ignore[assignment]
             if not model:
                 raise ValueError(f"Cannot find LoRA model {model}")
@@ -2145,7 +2157,9 @@ class DiffusionPipelineManager:
             lycoris = [(new_lycoris, 1)]
 
         for i, (model, weight) in enumerate(lycoris):
-            if not os.path.isabs(model):
+            if model.startswith("http"):
+                model = self.check_download_model(self.engine_lycoris_dir, model)
+            elif not os.path.isabs(model):
                 model = find_file_in_directory(self.engine_lycoris_dir, model) # type: ignore[assignment]
             if not model:
                 raise ValueError(f"Cannot find LyCORIS model {model}")
@@ -2183,7 +2197,9 @@ class DiffusionPipelineManager:
         if not isinstance(new_inversion, list):
             new_inversion = [new_inversion]
         for i, model in enumerate(new_inversion):
-            if not os.path.isabs(model):
+            if model.startswith("http"):
+                model = self.check_download_model(self.engine_inversion_dir, model)
+            elif not os.path.isabs(model):
                 model = find_file_in_directory(self.engine_inversion_dir, model) # type: ignore[assignment]
             if not model:
                 raise ValueError(f"Cannot find inversion model {model}")
@@ -2414,7 +2430,7 @@ class DiffusionPipelineManager:
         if not hasattr(self, "_pipeline"):
             if self.model.startswith("http"):
                 # Base model, make sure it's downloaded here
-                self.model = self.check_download_checkpoint(self.model)
+                self.model = self.check_download_model(self.engine_checkpoints_dir, self.model)
 
             kwargs = {
                 "cache_dir": self.engine_cache_dir,
@@ -2533,7 +2549,7 @@ class DiffusionPipelineManager:
         if not hasattr(self, "_refiner_pipeline"):
             if self.refiner.startswith("http"):
                 # Base refiner, make sure it's downloaded here
-                self.refiner = self.check_download_checkpoint(self.refiner)
+                self.refiner = self.check_download_model(self.engine_checkpoints_dir, self.refiner)
 
             kwargs = {
                 "cache_dir": self.engine_cache_dir,
@@ -2666,7 +2682,7 @@ class DiffusionPipelineManager:
             if not self.inpainter:
                 target_checkpoint_path = self.default_inpainter_path
                 if target_checkpoint_path.startswith("http"):
-                    target_checkpoint_path = self.check_download_checkpoint(target_checkpoint_path)
+                    target_checkpoint_path = self.check_download_model(self.engine_checkpoints_dir, target_checkpoint_path)
                 if not os.path.exists(target_checkpoint_path):
                     if self.create_inpainter:
                         logger.info(f"Creating inpainting checkpoint from {self.model}")
@@ -2676,7 +2692,7 @@ class DiffusionPipelineManager:
                 self.inpainter = target_checkpoint_path
 
             if self.inpainter.startswith("http"):
-                self.inpainter = self.check_download_checkpoint(self.inpainter)
+                self.inpainter = self.check_download_model(self.engine_checkpoints_dir, self.inpainter)
 
             kwargs = {
                 "cache_dir": self.engine_cache_dir,
@@ -2998,14 +3014,7 @@ class DiffusionPipelineManager:
             if os.path.exists(controlnet):
                 expected_controlnet_location = controlnet
             elif controlnet.startswith("http"):
-                expected_controlnet_location = os.path.join(self.engine_cache_dir, os.path.basename(controlnet))
-                if not os.path.exists(expected_controlnet_location):
-                    if self.offline:
-                        raise IOError(f"Offline mode enabled, cannot find requested ControlNet at {expected_controlnet_location}")
-                    logger.info(
-                        f"Controlnet {controlnet} does not exist in cache directory {self.engine_cache_dir}, it will be downloaded."
-                    )
-                check_download(controlnet, expected_controlnet_location)
+                expected_controlnet_location = self.check_download_model(self.engine_cache_dir, controlnet)
             else:
                 raise ValueError(f"ControlNet path {controlnet} is not a file that can be accessed, a URL that can be downloaded or a repository that can be cloned.")
             try:
@@ -3329,18 +3338,6 @@ class DiffusionPipelineManager:
         """
         return getattr(self, "_refiner_controlnet_names", set())
 
-    def check_download_checkpoint(self, remote_url: str) -> str:
-        """
-        Downloads a checkpoint directly to the checkpoints folder.
-        """
-        output_file = os.path.basename(remote_url)
-        output_path = os.path.join(self.engine_checkpoints_dir, output_file)
-        found_path = find_file_in_directory(self.engine_checkpoints_dir, output_file)
-        if found_path:
-            return found_path
-        check_download(remote_url, output_path)
-        return output_path
-
     def __call__(
         self,
         refiner_start: Optional[float] = None,
@@ -3383,7 +3380,7 @@ class DiffusionPipelineManager:
             refining = (
                 kwargs.get("image", None) is not None and
                 kwargs.get("strength", 0) in [0, None] and
-                kwargs.get("ip_adapter_scale", None) is None and
+                kwargs.get("ip_adapter_images", None) is None and
                 refiner_strength != 0 and
                 refiner_start != 1 and
                 self.refiner is not None
@@ -3700,9 +3697,9 @@ class DiffusionPipelineManager:
 
         try:
             merger = ModelMerger(
-                self.check_download_checkpoint(DEFAULT_INPAINTING_MODEL),
+                self.check_download_model(self.engine_checkpoints_dir, DEFAULT_INPAINTING_MODEL),
                 source_checkpoint_path,
-                self.check_download_checkpoint(DEFAULT_MODEL),
+                self.check_download_model(self.engine_checkpoints_dir, DEFAULT_MODEL),
                 interpolation="add-difference",
             )
             merger.save(target_checkpoint_path)
