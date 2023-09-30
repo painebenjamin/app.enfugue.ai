@@ -41,7 +41,7 @@ class CivitAITimePeriodInputView extends SelectInputView {
     /**
      * @var string The default value
      */
-    static defaultValue = "Month";
+    static defaultValue = "Year";
 };
 
 export {
