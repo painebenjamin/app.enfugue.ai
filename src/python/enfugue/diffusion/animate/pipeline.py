@@ -206,6 +206,22 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
 
         return model
 
+    def load_lora_weights(
+        self,
+        model: str,
+        multiplier: float = 1.0,
+        dtype: torch.dtype = torch.float32,
+        **kwargs: Any
+    ) -> None:
+        """
+        Always use flexible loader
+        """
+        return self.load_flexible_lora_weights(
+            model,
+            multiplier,
+            dtype
+        )
+
     def decode_latents(
         self,
         latents: torch.Tensor,

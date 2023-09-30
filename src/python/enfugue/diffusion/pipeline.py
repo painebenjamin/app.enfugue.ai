@@ -962,7 +962,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             pretrained_model_name_or_path_or_dict.endswith(".safetensors")
         ):
             # Call safetensors fix
-            return self.load_safetensors_lora_weights(
+            return self.load_flexible_lora_weights(
                 pretrained_model_name_or_path_or_dict,
                 multiplier=multiplier,
                 dtype=dtype,
@@ -1009,7 +1009,33 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 lora_scale=multiplier,
             )
 
-    def load_safetensors_lora_weights(
+    def load_motion_lora_weights(
+        self,
+        state_dict: Dict[str, torch.Tensor],
+        multiplier: float = 1.0,
+        dtype: torch.dtype = torch.float32
+    ) -> None:
+        """
+        Loads motion LoRA checkpoint into the unet
+        """
+        for key in state_dict:
+            if "up." in key:
+                continue
+            up_key = key.replace(".down.", ".up.")
+            model_key = key.replace("processor.", "").replace("_lora", "").replace("down.", "").replace("up.", "")
+            model_key = model_key.replace("to_out.", "to_out.0.")
+            layer_infos = model_key.split(".")[:-1]
+
+            curr_layer = self.unet
+            while len(layer_infos) > 0:
+                temp_name = layer_infos.pop(0)
+                curr_layer = curr_layer.__getattr__(temp_name)
+
+            weight_down = state_dict[key].to(dtype)
+            weight_up   = state_dict[up_key].to(dtype)
+            curr_layer.weight.data += multiplier * torch.mm(weight_up, weight_down).to(curr_layer.weight.data.device)
+
+    def load_flexible_lora_weights(
         self,
         pretrained_model_name_or_path_or_dict: Union[str, Dict[str, torch.Tensor]],
         multiplier: float = 1.0,
@@ -1022,14 +1048,21 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         LORA_PREFIX_UNET = "lora_unet"
         LORA_PREFIX_TEXT_ENCODER = "lora_te"
 
-        # load LoRA weight from .safetensors
-        state_dict = safetensors.torch.load_file(pretrained_model_name_or_path_or_dict, device="cpu")
+        state_dict = load_state_dict(pretrained_model_name_or_path_or_dict)
+        while "state_dict" in state_dict:
+            state_dict = state_dict["state_dict"]
+
+        if any(["motion_module" in key for key in state_dict.keys()]):
+            return self.load_motion_lora_weights(
+                state_dict,
+                multiplier=multiplier,
+                dtype=dtype
+            )
 
         updates: Mapping[str, Any] = defaultdict(dict)
         for key, value in state_dict.items():
             # it is suggested to print out the key, it usually will be something like below
             # "lora_te_text_model_encoder_layers_0_self_attn_k_proj.lora_down.weight"
-
             layer, elem = key.split(".", 1)
             updates[layer][elem] = value
 
