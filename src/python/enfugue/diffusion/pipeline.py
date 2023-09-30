@@ -493,8 +493,14 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             vae = AutoencoderKL.from_pretrained(vae_path, cache_dir=cache_dir)
 
         if load_safety_checker:
-            safety_checker = StableDiffusionSafetyChecker.from_pretrained("CompVis/stable-diffusion-safety-checker")
-            feature_extractor = AutoFeatureExtractor.from_pretrained("CompVis/stable-diffusion-safety-checker")
+            safety_checker = StableDiffusionSafetyChecker.from_pretrained(
+                "CompVis/stable-diffusion-safety-checker",
+                cache_dir=cache_dir
+            )
+            feature_extractor = AutoFeatureExtractor.from_pretrained(
+                "CompVis/stable-diffusion-safety-checker",
+                cache_dir=cache_dir
+            )
         else:
             safety_checker = None
             feature_extractor = None
@@ -503,7 +509,10 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         if model_type == "FrozenCLIPEmbedder":
             logger.debug("Using Stable Diffusion v1 pipeline.")
             text_model = convert_ldm_clip_checkpoint(checkpoint)
-            tokenizer = CLIPTokenizer.from_pretrained("openai/clip-vit-large-patch14")
+            tokenizer = CLIPTokenizer.from_pretrained(
+                "openai/clip-vit-large-patch14",
+                cache_dir=cache_dir
+            )
             kwargs["text_encoder_2"] = None
             kwargs["tokenizer_2"] = None
             pipe = cls(
@@ -518,9 +527,16 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             )
         elif model_type == "SDXL":
             logger.debug("Using Stable Diffusion XL pipeline.")
-            tokenizer = CLIPTokenizer.from_pretrained("openai/clip-vit-large-patch14")
+            tokenizer = CLIPTokenizer.from_pretrained(
+                "openai/clip-vit-large-patch14",
+                cache_dir=cache_dir
+            )
             text_encoder = convert_ldm_clip_checkpoint(checkpoint)
-            tokenizer_2 = CLIPTokenizer.from_pretrained("laion/CLIP-ViT-bigG-14-laion2B-39B-b160k", pad_token="!")
+            tokenizer_2 = CLIPTokenizer.from_pretrained(
+                "laion/CLIP-ViT-bigG-14-laion2B-39B-b160k",
+                cache_dir=cache_dir,
+                pad_token="!"
+            )
 
             text_encoder_2 = convert_open_clip_checkpoint(
                 checkpoint,
@@ -544,7 +560,11 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             )
         elif model_type == "SDXL-Refiner":
             logger.debug("Using Stable Diffusion XL refiner pipeline.")
-            tokenizer_2 = CLIPTokenizer.from_pretrained("laion/CLIP-ViT-bigG-14-laion2B-39B-b160k", pad_token="!")
+            tokenizer_2 = CLIPTokenizer.from_pretrained(
+                "laion/CLIP-ViT-bigG-14-laion2B-39B-b160k",
+                cache_dir=cache_dir,
+                pad_token="!"
+            )
             text_encoder_2 = convert_open_clip_checkpoint(
                 checkpoint,
                 "laion/CLIP-ViT-bigG-14-laion2B-39B-b160k",
