@@ -2720,8 +2720,6 @@ class DiffusionPipelineManager:
         """
         Returns true if the animator model should always be cached.
         """
-        if not self.caching:
-            return False
         configured = self.configuration.get("enfugue.pipeline.cache", None)
         if configured == "xl":
             return self.animator_is_sdxl
@@ -3360,7 +3358,7 @@ class DiffusionPipelineManager:
                 )
             else:
                 if self.animator_vae_name is not None:
-                    kwargs["vae_path"] = self.get_vae_path(self.animator_vae_name)
+                    kwargs["vae_path"] = self.find_vae_path(self.animator_vae_name)
                 
                 logger.debug(
                     f"Initializing animator pipeline from checkpoint at {self.animator}. Arguments are {redact(kwargs)}"

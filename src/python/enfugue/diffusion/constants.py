@@ -56,10 +56,18 @@ __all__ = [
     "CONTROLNET_PIDI",
     "CONTROLNET_LINE",
     "CONTROLNET_ANIME",
-    "CONTROLNET_LITERAL",
     "CONTROLNET_TEMPORAL",
-    "CONTROLNET_TEMPORAL_XL",
     "CONTROLNET_QR",
+    "CONTROLNET_LITERAL",
+    "MOTION_LORA_ZOOM_IN",
+    "MOTION_LORA_ZOOM_OUT",
+    "MOTION_LORA_PAN_LEFT",
+    "MOTION_LORA_PAN_RIGHT",
+    "MOTION_LORA_ROLL_CLOCKWISE",
+    "MOTION_LORA_ROLL_ANTI_CLOCKWISE",
+    "MOTION_LORA_TILT_UP",
+    "MOTION_LORA_TILT_DOWN",
+    "MOTION_LORA_LITERAL",
     "SCHEDULER_LITERAL",
     "DEVICE_LITERAL",
     "PIPELINE_SWITCH_MODE_LITERAL",
@@ -165,6 +173,12 @@ CONTROLNET_LITERAL = Literal[
     "depth", "normal", "pose",
     "pidi", "line", "anime",
     "temporal", "qr"
+]
+MOTION_LORA_LITERAL = [
+    "pan-left", "pan-right",
+    "roll-clockwise", "roll-anti-clockwise",
+    "tilt-up", "tilt-down",
+    "zoom-in", "zoom-out"
 ]
 
 # VAE repos/files
@@ -274,6 +288,14 @@ CONTROLNET_POSE_XL = (
     "OpenPoseXL2",
     "controlnet-openpose-sdxl-1.0",
 )
+MOTION_LORA_PAN_LEFT = "https://huggingface.co/guoyww/animatediff/resolve/main/v2_lora_PanLeft.ckpt"
+MOTION_LORA_PAN_RIGHT = "https://huggingface.co/guoyww/animatediff/resolve/main/v2_lora_PanRight.ckpt"
+MOTION_LORA_ROLL_CLOCKWISE = "https://huggingface.co/guoyww/animatediff/resolve/main/v2_lora_RollingClockwise.ckpt"
+MOTION_LORA_ROLL_ANTI_CLOCKWISE = "https://huggingface.co/guoyww/animatediff/resolve/main/v2_lora_RollingAnticlockwise.ckpt"
+MOTION_LORA_TILT_UP = "https://huggingface.co/guoyww/animatediff/resolve/main/v2_lora_TiltUp.ckpt"
+MOTION_LORA_TILT_DOWN = "https://huggingface.co/guoyww/animatediff/resolve/main/v2_lora_TiltDown.ckpt"
+MOTION_LORA_ZOOM_IN = "https://huggingface.co/guoyww/animatediff/resolve/main/v2_lora_ZoomIn.ckpt"
+MOTION_LORA_ZOOM_OUT = "https://huggingface.co/guoyww/animatediff/resolve/main/v2_lora_ZoomOut.ckpt"
 
 MultiModelType = Union[str, List[str]]
 WeightedMultiModelType = Union[

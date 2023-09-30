@@ -2647,6 +2647,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             ip_adapter_scale = max([scale for img, scale in ip_adapter_tuples])
         else:
             ip_adapter_tuples = None
+            ip_adapter_scale = None
 
         # Convenient bool for later
         decode_intermediates = latent_callback_steps is not None and latent_callback is not None
@@ -2773,6 +2774,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
         with self.get_runtime_context(
             batch_size=batch_size,
+            animation_frames=animation_frames,
             device=device,
             ip_adapter_scale=ip_adapter_scale,
             ip_adapter_plus=ip_adapter_plus,
@@ -2868,7 +2870,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             image_length = max([
                 0 if image is None else len(image),
                 0 if mask is None else len(mask),
-                0 if ip_adapter_image is None else len(ip_adapter_image)
+                0 if ip_adapter_images is None else len(ip_adapter_images)
             ])
 
             if image is not None:
