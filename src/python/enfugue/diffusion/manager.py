@@ -3634,6 +3634,21 @@ class DiffusionPipelineManager:
             )
         return self._ip_adapter
 
+    @property
+    def interpolator(self) -> Interpolator:
+        """
+        Gets the frame interpolator.
+        """
+        if not hasattr(self, "_interpolator"):
+            from enfugue.diffusion.support.interpolate import Interpolator
+            self._interpolator = Interpolator(
+                self.engine_other_dir,
+                device=self.device,
+                dtype=self.dtype,
+                offline=self.offline
+            )
+        return self._interpolator
+
     def get_xl_controlnet(self, controlnet: str) -> ControlNetModel:
         """
         Loads an XL ControlNet from file or dies trying

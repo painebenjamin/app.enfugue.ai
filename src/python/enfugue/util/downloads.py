@@ -1,12 +1,19 @@
 import os
 import requests
 
+from typing import Optional
+
 from enfugue.util.log import logger
 
 __all__ = ["check_download", "check_download_to_dir"]
 
 
-def check_download(remote_url: str, local_path: str, chunk_size: int = 8192, check_size: bool = True) -> None:
+def check_download(
+    remote_url: str,
+    local_path: str,
+    chunk_size: int = 8192,
+    check_size: bool = True
+) -> None:
     """
     Checks if a file exists.
     If it does, checks the size and matches against the remote URL.
@@ -29,13 +36,19 @@ def check_download(remote_url: str, local_path: str, chunk_size: int = 8192, che
                 fh.write(chunk)
 
 
-def check_download_to_dir(remote_url: str, local_dir: str, chunk_size: int = 8192, check_size: bool = True) -> str:
+def check_download_to_dir(
+    remote_url: str,
+    local_dir: str,
+    chunk_size: int = 8192,
+    check_size: bool = True,
+    filename: Optional[str] = None
+) -> str:
     """
     Checks if a file exists in a directory based on a remote path.
     If it does, checks the size and matches against the remote URL.
     If it doesn't, or the size doesn't match, download it.
     """
-    file_name = os.path.basename(remote_url)
-    local_path = os.path.join(local_dir, file_name)
+    filename = os.path.basename(remote_url) if filename is None else filename
+    local_path = os.path.join(local_dir, filename)
     check_download(remote_url, local_path, chunk_size=chunk_size, check_size=check_size)
     return local_path
