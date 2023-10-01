@@ -617,6 +617,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     is_sdxl=self.is_sdxl,
                     scale=scale,
                     use_fined_grained=use_fine_grained,
+                    use_face_model=use_face_model,
                     keepalive_callback=keepalive_callback,
                     controlnets=self.controlnets
                 )
@@ -628,6 +629,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 scale=scale,
                 keepalive_callback=keepalive_callback,
                 use_fine_grained=use_fine_grained,
+                use_face_model=use_face_model,
                 controlnets=self.controlnets
             )
             self.ip_adapter_loaded = True
@@ -2671,25 +2673,21 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     device=device,
                     dtype=prompt_embeds.dtype
                 )
-                total_scale = 0.0
-                
                 for img, scale in ip_adapter_tuples:
                     these_prompt_embeds, these_uncond_prompt_embeds = self.get_image_embeds(
                         img,
                         num_images_per_prompt
                     )
+
                     image_prompt_embeds = torch.cat([
                         image_prompt_embeds,
-                        (these_prompt_embeds * scale).unsqueeze(0)
-                    ])
+                        (these_prompt_embeds * scale)
+                    ], dim=1)
+
                     image_uncond_prompt_embeds = torch.cat([
                         image_uncond_prompt_embeds,
-                        (these_uncond_prompt_embeds * scale).unsqueeze(0)
-                    ])
-                    total_scale += scale
-
-                image_prompt_embeds = image_prompt_embeds.mean(0) / total_scale
-                image_uncond_prompt_embeds = image_uncond_prompt_embeds.mean(0) / total_scale
+                        (these_uncond_prompt_embeds * scale)
+                    ], dim=1)
 
                 if self.is_sdxl:
                     negative_prompt_embeds = cast(torch.Tensor, negative_prompt_embeds)
