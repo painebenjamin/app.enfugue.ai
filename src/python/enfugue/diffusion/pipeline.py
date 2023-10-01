@@ -656,6 +656,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         device: Union[str, torch.device],
         scale: float = 1.0,
         use_fine_grained: bool = False,
+        use_face_model: bool = False,
         keepalive_callback: Optional[Callable[[], None]] = None
     ) -> None:
         """
@@ -668,6 +669,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 unet=self.unet,
                 new_scale=scale,
                 use_fine_grained=use_fine_grained,
+                use_face_model=use_face_model,
                 keepalive_callback=keepalive_callback,
                 is_sdxl=self.is_sdxl,
                 controlnets=self.controlnets
@@ -679,6 +681,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     is_sdxl=self.is_sdxl,
                     scale=scale,
                     use_fined_grained=use_fine_grained,
+                    use_face_model=use_face_model,
                     keepalive_callback=keepalive_callback,
                     controlnets=self.controlnets
                 )
@@ -690,6 +693,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 scale=scale,
                 keepalive_callback=keepalive_callback,
                 use_fine_grained=use_fine_grained,
+                use_face_model=use_face_model,
                 controlnets=self.controlnets
             )
             self.ip_adapter_loaded = True
@@ -907,6 +911,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         device: Union[str, torch.device],
         ip_adapter_scale: Optional[Union[List[float], float]] = None,
         ip_adapter_plus: bool = False,
+        ip_adapter_face: bool = False,
         step_complete: Optional[Callable[[bool], None]] = None
     ) -> Iterator[None]:
         """
@@ -925,6 +930,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 device=device,
                 scale=max(ip_adapter_scale) if isinstance(ip_adapter_scale, list) else ip_adapter_scale,
                 use_fine_grained=ip_adapter_plus,
+                use_face_model=ip_adapter_face,
                 keepalive_callback=None if step_complete is None else lambda: step_complete(False) # type: ignore[misc]
             )
         else:
@@ -2619,6 +2625,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         control_images: ControlImageArgType = None,
         ip_adapter_images: ImagePromptArgType = None,
         ip_adapter_plus: bool = False,
+        ip_adapter_face: bool = False,
         height: Optional[int] = None,
         width: Optional[int] = None,
         chunking_size: Optional[int] = None,
@@ -2831,6 +2838,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             device=device,
             ip_adapter_scale=ip_adapter_scale,
             ip_adapter_plus=ip_adapter_plus,
+            ip_adapter_face=ip_adapter_face,
             step_complete=step_complete
         ):
             # First standardize to list of prompts
@@ -3121,25 +3129,21 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     device=device,
                     dtype=prompt_embeds.dtype
                 )
-                total_scale = 0.0
-                
                 for img, scale in ip_adapter_tuples:
                     these_prompt_embeds, these_uncond_prompt_embeds = self.get_image_embeds(
                         img,
                         num_images_per_prompt
                     )
+
                     image_prompt_embeds = torch.cat([
                         image_prompt_embeds,
-                        (these_prompt_embeds * scale).unsqueeze(0)
-                    ])
+                        (these_prompt_embeds * scale)
+                    ], dim=1)
+
                     image_uncond_prompt_embeds = torch.cat([
                         image_uncond_prompt_embeds,
-                        (these_uncond_prompt_embeds * scale).unsqueeze(0)
-                    ])
-                    total_scale += scale
-
-                image_prompt_embeds = image_prompt_embeds.mean(0) / total_scale
-                image_uncond_prompt_embeds = image_uncond_prompt_embeds.mean(0) / total_scale
+                        (these_uncond_prompt_embeds * scale)
+                    ], dim=1)
 
                 if self.is_sdxl:
                     negative_prompt_embeds = cast(torch.Tensor, negative_prompt_embeds)

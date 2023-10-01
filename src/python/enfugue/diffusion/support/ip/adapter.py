@@ -26,12 +26,14 @@ class IPAdapter(SupportModel):
     cross_attention_dim: int = 768
     is_sdxl: bool = False
     use_fine_grained: bool = False
+    use_face_model: bool = False
 
     DEFAULT_ENCODER_CONFIG_PATH = "https://huggingface.co/h94/IP-Adapter/resolve/main/models/image_encoder/config.json"
     DEFAULT_ENCODER_PATH = "https://huggingface.co/h94/IP-Adapter/resolve/main/models/image_encoder/pytorch_model.bin"
     DEFAULT_ADAPTER_PATH = "https://huggingface.co/h94/IP-Adapter/resolve/main/models/ip-adapter_sd15.bin"
 
     FINE_GRAINED_ADAPTER_PATH = "https://huggingface.co/h94/IP-Adapter/resolve/main/models/ip-adapter-plus_sd15.bin"
+    FACE_ADAPTER_PATH = "https://huggingface.co/h94/IP-Adapter/resolve/main/models/ip-adapter-plus-face_sd15.bin"
     
     XL_ENCODER_CONFIG_PATH = "https://huggingface.co/h94/IP-Adapter/resolve/main/sdxl_models/image_encoder/config.json"
     XL_ENCODER_PATH = "https://huggingface.co/h94/IP-Adapter/resolve/main/sdxl_models/image_encoder/pytorch_model.bin"
@@ -44,6 +46,7 @@ class IPAdapter(SupportModel):
         unet: UNet2DConditionModel,
         is_sdxl: bool = False,
         use_fine_grained: bool = False,
+        use_face_model: bool = False,
         scale: float = 1.0,
         keepalive_callback: Optional[Callable[[],None]] = None,
         controlnets: Optional[Dict[str, ControlNetModel]] = None,
@@ -68,12 +71,18 @@ class IPAdapter(SupportModel):
             AttentionProcessor2_0,
         )
 
-        if self.cross_attention_dim != unet.config.cross_attention_dim or self.is_sdxl != is_sdxl or self.use_fine_grained != use_fine_grained:
+        if (
+            self.cross_attention_dim != unet.config.cross_attention_dim or
+            self.is_sdxl != is_sdxl or 
+            self.use_fine_grained != use_fine_grained or
+            self.use_face_model != use_face_model
+        ):
             del self.projector
             del self.encoder
 
         self.is_sdxl = is_sdxl
         self.use_fine_grained = use_fine_grained
+        self.use_face_model = use_face_model
         self.cross_attention_dim = unet.config.cross_attention_dim
 
         self._default_unet_attention_processors: Dict[str, Any] = {}
@@ -158,13 +167,18 @@ class IPAdapter(SupportModel):
         new_scale: float,
         is_sdxl: bool = False,
         use_fine_grained: bool = False,
+        use_face_model: bool = False,
         keepalive_callback: Optional[Callable[[],None]] = None,
         controlnets: Optional[Dict[str, ControlNetModel]] = None,
     ) -> int:
         """
         Sets the scale on attention processors.
         """
-        if self.is_sdxl != is_sdxl or self.use_fine_grained != use_fine_grained:
+        if (
+            self.is_sdxl != is_sdxl or
+            self.use_fine_grained != use_fine_grained or
+            self.use_face_model != use_face_model
+        ):
             # Completely reload adapter
             self.unload(unet, controlnets)
             self.load(
@@ -172,6 +186,7 @@ class IPAdapter(SupportModel):
                 is_sdxl=is_sdxl,
                 scale=new_scale,
                 use_fine_grained=use_fine_grained,
+                use_face_model=use_face_model,
                 keepalive_callback=keepalive_callback,
                 controlnets=controlnets
             )
@@ -236,9 +251,19 @@ class IPAdapter(SupportModel):
         Gets the path to the IP checkpoint for 1.5
         Downloads if needed
         """
+        if self.use_fine_grained and self.use_face_model:
+            model_url = self.FACE_ADAPTER_PATH
+            filename = "ip-adapter-plus-face_sd15.pth"
+        elif self.use_fine_grained:
+            model_url = self.FINE_GRAINED_ADAPTER_PATH
+            filename = "ip-adapter-plus_sd15.pth"
+        else:
+            model_url = self.DEFAULT_ADAPTER_PATH
+            filename = "ip-adapter_sd15.pth"
+
         return self.get_model_file(
-            self.FINE_GRAINED_ADAPTER_PATH if self.use_fine_grained else self.DEFAULT_ADAPTER_PATH,
-            filename="ip-adapter-plus_sd15.pth" if self.use_fine_grained else "ip-adapter_sd15.pth",
+            model_url,
+            filename=filename,
             extensions=[".bin", ".pth", ".safetensors"]
         )
 

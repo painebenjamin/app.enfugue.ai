@@ -441,6 +441,7 @@ class ImageEditorImageNodeView extends ImageEditorNodeView {
         this.strength = newOptions.strength;
         this.imagePromptScale = newOptions.imagePromptScale;
         this.imagePromptPlus = newOptions.imagePromptPlus;
+        this.imagePromptFace = newOptions.imagePromptFace;
         this.controlnet = newOptions.controlnet;
         this.conditioningScale = newOptions.conditioningScale;
         this.conditioningStart = newOptions.conditioningStart;
@@ -579,6 +580,7 @@ class ImageEditorImageNodeView extends ImageEditorNodeView {
         state.inpaint = this.inpaint || false;
         state.imagePrompt = this.imagePrompt || false;
         state.imagePromptPlus = this.imagePromptPlus || false;
+        state.imagePromptFace = this.imagePromptFace || false;
         state.imagePromptScale = this.imagePromptScale || 0.5;
         state.strength = this.strength || 0.8;
         state.controlnet = this.controlnet || null;
@@ -630,6 +632,7 @@ class ImageEditorImageNodeView extends ImageEditorNodeView {
             "inpaint": false,
             "imagePrompt": false,
             "imagePromptPlus": false,
+            "imagePromptFace": false,
             "cropInpaint": true,
             "inpaintFeather": 32,
             "inferenceSteps": null,

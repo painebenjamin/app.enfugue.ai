@@ -173,6 +173,7 @@ class EnfugueClient(UserExtensionClientBase, JSONWebServiceAPIClient):
         mask: Optional[Union[str, Image]] = None,
         ip_adapter_images: Optional[List[Dict[str, Any]]] = None,
         ip_adapter_plus: bool = False,
+        ip_adapter_face: bool = False,
         control_images: Optional[List[Dict[str, Any]]] = None,
         strength: Optional[float] = None,
         fit: Optional[IMAGE_FIT_LITERAL] = None,
@@ -298,6 +299,7 @@ class EnfugueClient(UserExtensionClientBase, JSONWebServiceAPIClient):
         if ip_adapter_images is not None:
             kwargs["ip_adapter_images"] = ip_adapter_images
             kwargs["ip_adapter_plus"] = ip_adapter_plus
+            kwargs["ip_adapter_face"] = ip_adapter_face
         if upscale_steps is not None:
             kwargs["upscale_steps"] = upscale_steps
 
