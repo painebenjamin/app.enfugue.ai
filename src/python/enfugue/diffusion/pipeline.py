@@ -1644,7 +1644,6 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         """
         if not controlnet_conds or not self.controlnets:
             return None, None
-
         down_blocks, mid_block = None, None
         for name in controlnet_conds:
             if self.controlnets.get(name, None) is None:
@@ -1969,7 +1968,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                                     conditioning_end
                                 ) in control_images[controlnet_name]:
                                     if (
-                                        (conditioning_start is None or denoising_ratio <= conditioning_start) and
+                                        (conditioning_start is None or conditioning_start <= denoising_ratio) and
                                         (conditioning_end is None or denoising_ratio <= conditioning_end)
                                     ):
                                         if controlnet_name not in controlnet_conds:
