@@ -2681,12 +2681,12 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
                     image_prompt_embeds = torch.cat([
                         image_prompt_embeds,
-                        (these_prompt_embeds * scale)
+                        (these_prompt_embeds * scale / ip_adapter_scale)
                     ], dim=1)
 
                     image_uncond_prompt_embeds = torch.cat([
                         image_uncond_prompt_embeds,
-                        (these_uncond_prompt_embeds * scale)
+                        (these_uncond_prompt_embeds * scale / ip_adapter_scale)
                     ], dim=1)
 
                 if self.is_sdxl:
