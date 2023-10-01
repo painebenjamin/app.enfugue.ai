@@ -183,6 +183,7 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         device: Union[str, torch.device],
         ip_adapter_scale: Optional[Union[float, List[float]]] = None,
         ip_adapter_plus: bool = False,
+        ip_adapter_face: bool = False,
         step_complete: Optional[Callable[[bool], None]] = None
     ) -> Iterator[None]:
         """

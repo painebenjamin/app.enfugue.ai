@@ -172,6 +172,13 @@ class ImageEditorImageNodeOptionsFormView extends FormView {
                 "config": {
                     "tooltip": "Use this to enable fine-grained feature inspection on the source image. This can improve details in the resulting image, but can also make the overall image less similar.<br /><br />Note that when using multiple source images for image prompting, enabling fine-grained feature inspection on any image enables it for all images."
                 }
+            },
+            "imagePromptFace": {
+                "label": "Use Face-Specific Model",
+                "class": CheckboxInputView,
+                "config": {
+                    "tooltip": "Use this to focus strongly on a face in the input image. This can work very well to copy a face from one image to another in a natural way, instead of needing a separate face-fixing step.<br /><br />Note that at present moment, this feature is only available for Stable Diffusion 1.5 models. This checkbox does nothing for SDXL models."
+                }
             }
         },
         "Prompts": {
@@ -351,6 +358,13 @@ class ImageEditorImageNodeOptionsFormView extends FormView {
                 this.addClass("no-process");
             }
         }
+        if (fieldName === "imagePromptPlus") {
+            if (inputView.getValue()) {
+                this.addClass("prompt-plus");
+            } else {
+                this.removeClass("prompt-plus");
+            }
+        }
         return super.inputChanged.call(this, fieldName, inputView);
     }
 
@@ -363,6 +377,18 @@ class ImageEditorImageNodeOptionsFormView extends FormView {
             this.addClass("no-process");
         } else {
             this.removeClass("no-process");
+        }
+        if (this.values.imagePromptPlus) {
+            this.addClass("prompt-plus");
+        } else {
+            this.removeClass("prompt-plus");
+        }
+        let inference = await this.getInputView("infer");
+        if (this.values.inpaint) {
+            inference.setValue(true, false);
+            inference.disable();
+        } else {
+            inference.enable();
         }
     }
 };

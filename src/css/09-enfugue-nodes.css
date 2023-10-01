@@ -804,18 +804,17 @@ fieldset.field-set-additional-models .vae-input-view-inpainter-vae
     display: none;
 }
 
-fieldset.field-set-image-prompt
-{
-    flex-flow: row nowrap;
-}
-
-fieldset.field-set-image-prompt .field-container
+fieldset.field-set-image-prompt .field-container.float-input-view
 {
     flex-basis: 100% !important;
 }
 
-fieldset.field-set-image-prompt .field-container.checkbox-input-view-image-prompt-plus {
-    margin-top: 14px;
+form fieldset.field-set-image-prompt .field-container.checkbox-input-view-image-prompt-face {
+    display: none;
+}
+
+form.prompt-plus fieldset.field-set-image-prompt .field-container.checkbox-input-view-image-prompt-face {
+    display: flex;
 }
 
 fieldset.field-set-control-nets .field-container,
