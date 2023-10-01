@@ -159,6 +159,9 @@ class InvokeButtonController extends Controller {
                             }
                             if (child.imagePromptPlus) {
                                 formattedState["ip_adapter_plus"] = true;
+                                if (child.imagePromptFace) {
+                                    formattedState["ip_adapter_face"] = true;
+                                }
                             }
                             formattedState["ip_adapter_images"].push(
                                 {
