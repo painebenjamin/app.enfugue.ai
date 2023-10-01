@@ -3478,7 +3478,7 @@ class DiffusionPipelineManager:
                 kwargs.pop("image", None)  # Remove any previous image
                 kwargs.pop("mask", None)  # Remove any previous mask
                 kwargs.pop("control_images", None) # Remove previous ControlNet images
-                kwargs.pop("ip_adapter_scale", None) # IP adapter seems to absolutely explode with refiner
+                kwargs.pop("ip_adapter_images", None) # IP adapter seems to absolutely explode with refiner
                 kwargs["latent_callback"] = latent_callback # Revert to original callback, we'll wrap later if needed
                 kwargs["output_type"] = "pil"
                 kwargs["latent_callback_type"] = "pil"
