@@ -58,6 +58,17 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         os.path.basename(DEFAULT_SDXL_REFINER),
     ]
 
+    def get_models_in_directory(self, directory: str) -> List[str]:
+        """
+        Gets stored AI model networks in a directory (.safetensors, .ckpt, etc.)
+        """
+        return list(
+            find_files_in_directory(
+                directory,
+                pattern = r"^.+\.(safetensors|pt|pth|bin|ckpt)$"
+            )
+        )
+
     @handlers.path("^/api/checkpoints$")
     @handlers.methods("GET")
     @handlers.format()
@@ -69,7 +80,7 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         checkpoints_dir = self.get_configured_directory("checkpoint")
         checkpoints = [
             os.path.basename(filename)
-            for filename in find_files_in_directory(checkpoints_dir)
+            for filename in self.get_models_in_directory(checkpoints_dir)
         ]
         for checkpoint in self.DEFAULT_CHECKPOINTS:
             if checkpoint not in checkpoints:
@@ -87,7 +98,7 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         lora_dir = self.get_configured_directory("lora")
         lora = [
             os.path.basename(filename)
-            for filename in find_files_in_directory(lora_dir)
+            for filename in self.get_models_in_directory(lora_dir)
         ]
         return lora
 
@@ -102,7 +113,7 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         lycoris_dir = self.get_configured_directory("lycoris")
         lycoris = [
             os.path.basename(filename)
-            for filename in find_files_in_directory(lycoris_dir)
+            for filename in self.get_models_in_directory(lycoris_dir)
         ]
         return lycoris
 
@@ -117,7 +128,7 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         inversions_dir = self.get_configured_directory("inversion")
         inversions = [
             os.path.basename(filename)
-            for filename in find_files_in_directory(inversions_dir)
+            for filename in self.get_models_in_directory(inversions_dir)
         ]
         return inversions
 
@@ -620,7 +631,7 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         Gets all checkpoints and model names for the picker.
         """
         checkpoints_dir = self.get_configured_directory("checkpoint")
-        checkpoints = list(find_files_in_directory(checkpoints_dir))
+        checkpoints = self.get_models_in_directory(checkpoints_dir)
         checkpoints.sort(key=lambda item: os.path.getmtime(os.path.join(checkpoints_dir, item)))
         checkpoints = [
             os.path.basename(checkpoint)
