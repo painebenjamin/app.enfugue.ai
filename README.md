@@ -226,7 +226,15 @@ As there are numerous varying architectures used by Nvidia that support this tec
 
 This is **only** available for modern 30xx and 40xx Nvidia GPU's.
 
-After selecting a model, you will see a small icon next to the model name with a number. This is the number of TensorRT engines that are prepared. Each engine is used in a different portion of the inference process. Click the icon to see a small window that allows you to begin the engine build process. You will receive a notification in this window (and any others) when the build is complete, and the engine will automatically be used when it is able to be used. Build all engines to ensure you are using the fastest possible inference method for all image generation techniques.
+To use TensorRT, first **create a pre-configured model as detailed above.** TensorRT requires all weights be "frozen" prior to engine compilation - which means that certain parameters must be made static and unchanging (or else you must re-compile the engine.) These are:
+
+1. The checkpoint (base model)
+2. The size of the TensorRT engine (default 512px)
+3. LoRA and their scales
+4. LyCORIS and their scales
+5. Textual Inversion
+
+Since this is the case, you **must** use model configuration sets to compile TensorRT engines. After creating a configuration set and selecting a model, you will see a small icon next to the model name with a number. This is the number of TensorRT engines that are prepared. Each engine is used in a different portion of the inference process. Click the icon to see a small window that allows you to begin the engine build process. You will receive a notification in this window (and any others) when the build is complete, and the engine will automatically be used when it is able to be used. Build all engines to ensure you are using the fastest possible inference method for all image generation techniques.
 
 <p align="center">
     <img src="https://github.com/painebenjamin/app.enfugue.ai/blob/main/docs/tensorrt-build.png?raw=true" alt="A window in the ENFUGUE interface offering to build TensorRT engines." />
