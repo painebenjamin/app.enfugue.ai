@@ -269,7 +269,7 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
             "temporal_attention_dim_div": 1
         }
 
-        model = AnimationDiffUNet.from_config(config, **unet_additional_kwargs)
+        model = AnimateDiffUNet.from_config(config, **unet_additional_kwargs)
         motion_module = cls.MOTION_MODULE_V2 if use_mm_v2 else cls.MOTION_MODULE
 
         model_file = check_download_to_dir(motion_module, cache_dir)

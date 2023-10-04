@@ -4307,6 +4307,7 @@ class DiffusionPipelineManager:
                     self.unload_pipeline("unloading for upscaling")
                 self.offload_refiner(intention if next_intention is None else next_intention) # type: ignore
             if interpolate_frames is not None:
+                self.offload_animator("interpolation")
                 from enfugue.diffusion.util.video_util import Video
                 with self.interpolator.interpolate() as process:
                     interpolated_images = [
