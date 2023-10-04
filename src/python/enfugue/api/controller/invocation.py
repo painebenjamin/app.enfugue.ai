@@ -23,6 +23,7 @@ from enfugue.diffusion.constants import (
     DEFAULT_SDXL_MODEL,
     DEFAULT_SDXL_REFINER,
 )
+from enfugue.util import find_file_in_directory
 from enfugue.api.controller.base import EnfugueAPIControllerBase
 
 __all__ = ["EnfugueAPIInvocationController"]
@@ -64,13 +65,19 @@ class EnfugueAPIInvocationController(EnfugueAPIControllerBase):
         """
         if os.path.exists(model):
             return model
-        check_model = os.path.join(self.get_configured_directory(model_type), model)
-        if os.path.exists(check_model):
-            return check_model
-        check_default_model = self.get_default_model(check_model)
+        model_basename = os.path.splitext(os.path.basename(model))[0]
+        model_dir = self.get_configured_directory(model_type)
+        existing_model = find_file_in_directory(
+            model_dir,
+            model_basename,
+            extensions = [".ckpt", ".bin", ".pt", ".pth", ".safetensors"]
+        )
+        if existing_model:
+            return existing_model
+        check_default_model = self.get_default_model(model)
         if check_default_model:
             return check_default_model
-        raise BadRequestError(f"Cannot find or access {model} (tried {check_model})")
+        raise BadRequestError(f"Cannot find or access {model} (looked recursively for AI model checkpoint formats named {model_basename} in {model_dir})")
 
     def check_find_adaptations(
         self,

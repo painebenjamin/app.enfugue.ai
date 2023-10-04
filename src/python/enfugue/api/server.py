@@ -1,3 +1,4 @@
+from __future__ import annotations
 import os
 import PIL
 import signal
@@ -5,7 +6,7 @@ import requests
 import datetime
 import webbrowser
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 from webob import Request, Response
 
@@ -37,6 +38,9 @@ from enfugue.util import (
     get_local_static_directory,
     logger,
 )
+
+if TYPE_CHECKING:
+    from enfugue.util import GPUStatusDict
 
 # Auto-register some REST handlers
 EnfugueAPIRESTConfiguration = {
@@ -333,7 +337,19 @@ class EnfugueAPIServerBase(
         Add a __del__ in case this gets deleted before on_destroy is called
         """
         self.on_destroy()
-    
+
+    def get_gpu_status(self) -> Optional[GPUStatusDict]:
+        """
+        Gets the GPU status, optionally hiding details
+        """
+        status = get_gpu_status()
+        if status is None:
+            return None
+        for key in list(status.keys()):
+            if self.configuration.get(f"enfugue.gpu.{key}", True) in [False, 0, "0"]: # must be falsey, not null/none
+                status.pop(key) # type: ignore[misc]
+        return status
+
     @handlers.path("^/api(/?)$")
     @handlers.methods("GET")
     @handlers.format()
@@ -345,7 +361,7 @@ class EnfugueAPIServerBase(
         return {
             "status": self.manager.engine_status,
             "system": self.manager.status,
-            "gpu": get_gpu_status(),
+            "gpu": self.get_gpu_status(),
             "version": get_version(),
             "uptime": (datetime.datetime.now() - self.start_time).total_seconds(),
         }

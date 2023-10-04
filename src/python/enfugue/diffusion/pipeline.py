@@ -2238,7 +2238,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                                     conditioning_end
                                 ) in control_images[controlnet_name]:
                                     if (
-                                        (conditioning_start is None or denoising_ratio <= conditioning_start) and
+                                        (conditioning_start is None or conditioning_start <= denoising_ratio) and
                                         (conditioning_end is None or denoising_ratio <= conditioning_end)
                                     ):
                                         if controlnet_name not in controlnet_conds:
@@ -3137,12 +3137,12 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
                     image_prompt_embeds = torch.cat([
                         image_prompt_embeds,
-                        (these_prompt_embeds * scale)
+                        (these_prompt_embeds * scale / ip_adapter_scale)
                     ], dim=1)
 
                     image_uncond_prompt_embeds = torch.cat([
                         image_uncond_prompt_embeds,
-                        (these_uncond_prompt_embeds * scale)
+                        (these_uncond_prompt_embeds * scale / ip_adapter_scale)
                     ], dim=1)
 
                 if self.is_sdxl:
