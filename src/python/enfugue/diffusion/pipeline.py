@@ -1875,6 +1875,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     raise IOError("No embeds and no text encoder.")
             embeds = embeds.to(device=device)
 
+            # Get added embeds
             add_text_embeds = encoded_prompts.get_add_text_embeds()
             if add_text_embeds is not None:
                 if not added_cond_kwargs:
@@ -2231,6 +2232,13 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                                 embeds = torch.zeros(samples, 77, self.text_encoder_2.config.hidden_size)
                             else:
                                 raise IOError("No embeds and no text encoder.")
+
+                        # Get added embeds
+                        add_text_embeds = encoded_prompts.get_add_text_embeds(frame_indexes)
+                        if add_text_embeds is not None:
+                            if not added_cond_kwargs:
+                                raise ValueError(f"Added condition arguments is empty, but received add text embeds. There should be time IDs prior to this point.")
+                            added_cond_kwargs["text_embeds"] = add_text_embeds.to(device=device, dtype=embeds.dtype)
 
                         # Get controlnet input(s) if configured
                         if control_images is not None:
