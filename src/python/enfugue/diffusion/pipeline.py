@@ -142,7 +142,6 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
     5. ip adapter
     6. animatediff
     """
-
     controlnets: Optional[Dict[str, ControlNetModel]]
     text_encoder: Optional[CLIPTextModel]
     text_encoder_2: Optional[CLIPTextModelWithProjection]
@@ -1875,6 +1874,13 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 else:
                     raise IOError("No embeds and no text encoder.")
             embeds = embeds.to(device=device)
+
+            add_text_embeds = encoded_prompts.get_add_text_embeds()
+            if add_text_embeds is not None:
+                if not added_cond_kwargs:
+                    raise ValueError(f"Added condition arguments is empty, but received add text embeds. There should be time IDs prior to this point.")
+                added_cond_kwargs["text_embeds"] = add_text_embeds.to(device=device, dtype=embeds.dtype)
+
             # Get controlnet input(s) if configured
             if control_images is not None:
                 # Find which control image(s) to use
@@ -3162,17 +3168,10 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 if ip_adapter_images:
                     del ip_adapter_images
 
-            # Prepared added time IDs and embeddings (SDXL)
+            # Prepared added time IDs (SDXL)
+            added_cond_kwargs: Optional[Dict[str, Any]] = None
             if self.is_sdxl:
-                negative_prompt_embeds = cast(torch.Tensor, encoded_prompts.get_negative_embeds())
-                pooled_prompt_embeds = cast(torch.Tensor, encoded_prompts.get_pooled_embeds())
-                negative_pooled_prompt_embeds = cast(torch.Tensor, encoded_prompts.get_negative_pooled_embeds())
-                add_text_embeds = encoded_prompts.get_pooled_embeds()
-
-                if do_classifier_free_guidance:
-                    prompt_embeds = torch.cat([negative_prompt_embeds, prompt_embeds], dim=0) # type: ignore[list-item]
-                    add_text_embeds = torch.cat([negative_pooled_prompt_embeds, add_text_embeds], dim=0) # type: ignore[list-item]
-
+                added_cond_kwargs = {}
                 if self.config.requires_aesthetic_score:
                     add_time_ids, add_neg_time_ids = self.get_add_time_ids(
                         original_size=original_size,
@@ -3192,13 +3191,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                         dtype=encoded_prompts.dtype,
                     )
                     add_time_ids = torch.cat([add_time_ids, add_time_ids], dim=0)
-
-                if add_text_embeds is not None:
-                    add_text_embeds = add_text_embeds.to(device)
-                    add_time_ids = add_time_ids.to(device).repeat(batch_size, 1)
-                    added_cond_kwargs = {"text_embeds": add_text_embeds, "time_ids": add_time_ids}
-            else:
-                added_cond_kwargs = None
+                added_cond_kwargs["time_ids"] = add_time_ids.to(device)
 
             # Make sure controlnet on device
             if self.controlnets is not None:

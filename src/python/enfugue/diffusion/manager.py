@@ -2408,7 +2408,7 @@ class DiffusionPipelineManager:
             return
         animator = self.check_get_default_model(new_animator)
         if animator.startswith("http"):
-            animator = self.check_download_checkpoint(animator)
+            animator = self.check_download_model(self.engine_checkpoints_dir, animator)
         elif not os.path.isabs(animator):
             animator = find_file_in_directory(self.engine_checkpoints_dir, animator) # type: ignore[assignment]
         if not animator:

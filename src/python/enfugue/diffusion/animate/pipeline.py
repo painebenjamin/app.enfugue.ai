@@ -15,7 +15,9 @@ from einops import rearrange
 
 from enfugue.util import check_download_to_dir
 from enfugue.diffusion.pipeline import EnfugueStableDiffusionPipeline
-from enfugue.diffusion.animate.unet import UNet3DConditionModel # type: ignore[attr-defined]
+
+from enfugue.diffusion.animate.diff.unet import UNet3DConditionModel as AnimateDiffUNet # type: ignore[attr-defined]
+from enfugue.diffusion.animate.hotshot.unet import UNet3DConditionModel as HotshotUNet # type: ignore[attr-defined]
 
 if TYPE_CHECKING:
     from transformers import (
@@ -38,7 +40,7 @@ if TYPE_CHECKING:
     from enfugue.diffusers.constants import MASK_TYPE_LITERAL
 
 class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
-    unet_3d: Optional[UNet3DConditionModel]
+    unet_3d: Optional[Union[AnimateDiffUNet, HotshotUNet]]
     vae: AutoencoderKL
 
     STATIC_SCHEDULER_KWARGS = {
@@ -48,6 +50,7 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         "beta_schedule": "linear"
     }
 
+    HOTSHOT_XL_PATH = "hotshotco/Hotshot-XL"
     MOTION_MODULE_V2 = "https://huggingface.co/guoyww/animatediff/resolve/main/mm_sd_v15_v2.ckpt"
     MOTION_MODULE = "https://huggingface.co/guoyww/animatediff/resolve/main/mm_sd_v15.ckpt"
 
@@ -162,6 +165,74 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         """
         Creates the 3D Unet
         """
+        if config.get("sample_size", 64) == 128:
+            # SDXL, instantiate Hotshot XL UNet
+            return cls.create_hotshot_unet(
+                config=config,
+                cache_dir=cache_dir,
+                **unet_additional_kwargs
+            )
+        return cls.create_diff_unet(
+            config=config,
+            cache_dir=cache_dir,
+            use_mm_v2=use_mm_v2,
+            **unet_additional_kwargs
+        )
+
+    @classmethod
+    def create_hotshot_unet(
+        cls,
+        config: Dict[str, Any],
+        cache_dir: str,
+        **unet_additional_kwargs: Any
+    ) -> ModelMixin:
+        """
+        Creates a UNet3DConditionModel then loads hotshot into it
+        """
+        config["_class_name"] = "UNet3DConditionModel"
+        config["down_block_types"] = [
+            "DownBlock3D",
+            "CrossAttnDownBlock3D",
+            "CrossAttnDownBlock3D",
+        ]
+        config["up_block_types"] = [
+            "CrossAttnUpBlock3D",
+            "CrossAttnUpBlock3D",
+            "UpBlock3D"
+        ]
+        config["mid_block_type"] = "UNetMidBlock3DCrossAttn"
+
+        # Instantiate from 2D model config
+        model = HotshotUNet.from_config(config)
+
+        # Get base model
+        hotshot_unet = HotshotUNet.from_pretrained(
+            cls.HOTSHOT_XL_PATH,
+            subfolder="unet",
+            cache_dir=cache_dir
+        )
+
+        # Load base model into transformed 2d
+        hotshot_state_dict = hotshot_unet.state_dict()
+        for key in list(hotshot_state_dict.keys()):
+            if "temporal" not in key:
+                hotshot_state_dict.pop(key)
+
+        model.load_state_dict(hotshot_state_dict, strict=False)
+        del hotshot_state_dict
+        return model
+
+    @classmethod
+    def create_diff_unet(
+        cls,
+        config: Dict[str, Any],
+        cache_dir: str,
+        use_mm_v2: bool = True,
+        **unet_additional_kwargs: Any
+    ) -> ModelMixin:
+        """
+        Creates a UNet3DConditionModel then loads MM into it
+        """
         config["_class_name"] = "UNet3DConditionModel"
         config["down_block_types"] = [
             "CrossAttnDownBlock3D",
@@ -198,8 +269,9 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
             "temporal_attention_dim_div": 1
         }
 
-        model = UNet3DConditionModel.from_config(config, **unet_additional_kwargs)
+        model = AnimationDiffUNet.from_config(config, **unet_additional_kwargs)
         motion_module = cls.MOTION_MODULE_V2 if use_mm_v2 else cls.MOTION_MODULE
+
         model_file = check_download_to_dir(motion_module, cache_dir)
         state_dict = torch.load(model_file, map_location="cpu")
         model.load_state_dict(state_dict, strict=False)
