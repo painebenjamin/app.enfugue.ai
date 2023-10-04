@@ -15,7 +15,7 @@ from diffusers.configuration_utils import ConfigMixin, register_to_config
 from diffusers.models.modeling_utils import ModelMixin
 from diffusers.utils import BaseOutput, logging
 from diffusers.models.embeddings import TimestepEmbedding, Timesteps
-from enfugue.diffusion.animate.unet_blocks import (
+from enfugue.diffusion.animate.diff.unet_blocks import (
     CrossAttnDownBlock3D,
     CrossAttnUpBlock3D,
     DownBlock3D,
@@ -24,7 +24,7 @@ from enfugue.diffusion.animate.unet_blocks import (
     get_down_block,
     get_up_block,
 )
-from enfugue.diffusion.animate.resnet import InflatedConv3d, InflatedGroupNorm
+from enfugue.diffusion.animate.diff.resnet import InflatedConv3d, InflatedGroupNorm
 
 
 logger = logging.get_logger(__name__)  # pylint: disable=invalid-name

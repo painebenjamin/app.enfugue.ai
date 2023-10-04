@@ -5,9 +5,9 @@
 import torch
 from torch import nn
 
-from enfugue.diffusion.animate.attention import Transformer3DModel
-from enfugue.diffusion.animate.resnet import Downsample3D, ResnetBlock3D, Upsample3D
-from enfugue.diffusion.animate.motion_module import get_motion_module
+from enfugue.diffusion.animate.diff.attention import Transformer3DModel
+from enfugue.diffusion.animate.diff.resnet import Downsample3D, ResnetBlock3D, Upsample3D
+from enfugue.diffusion.animate.diff.motion_module import get_motion_module
 
 def get_down_block(
     down_block_type,

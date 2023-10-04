@@ -165,9 +165,14 @@ class EncodedPrompts:
         result = self.get_prompt_tensor(frames, get_embeds)
         if result is None:
             return None
+        if self.is_sdxl and self.do_classifier_free_guidance:
+            negative_result = self.get_negative_embeds(frames)
+            if negative_result is None:
+                negative_result = torch.zeros_like(result)
+            result = torch.cat([negative_result, result], dim=0)
         if self.is_sdxl and self.image_prompt_embeds is not None:
             return torch.cat([result, self.image_prompt_embeds], dim=1)
-        elif self.image_prompt_embeds is not None and result is not None:
+        elif not self.is_sdxl and self.image_prompt_embeds is not None and result is not None:
             if self.do_classifier_free_guidance:
                 negative, positive = result.chunk(2)
             else:
@@ -211,6 +216,21 @@ class EncodedPrompts:
         """
         get_embeds: PromptGetterCallable = lambda prompt, frames: prompt.get_negative_pooled_embeds(frames)
         return self.get_prompt_tensor(frames, get_embeds)
+
+    def get_add_text_embeds(self, frames: Options[List[int]] = None) -> Optional[Tensor]:
+        """
+        Gets added text embeds for SDXL.
+        """
+        import torch
+        if not self.is_sdxl:
+            return None
+        pooled_embeds = self.get_pooled_embeds(frames)
+        if self.do_classifier_free_guidance and pooled_embeds is not None:
+            negative_pooled_embeds = self.get_negative_pooled_embeds()
+            if negative_pooled_embeds is None:
+                negative_pooled_embeds = torch.zeros_like(pooled_embeds)
+            pooled_embeds = torch.cat([negative_pooled_embeds, pooled_embeds], dim=0)
+        return pooled_embeds
 
     @property
     def dtype(self) -> dtype:
