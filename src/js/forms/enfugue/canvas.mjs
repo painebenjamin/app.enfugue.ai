@@ -1,4 +1,5 @@
 /** @module forms/enfugue/canvas */
+import { isEmpty } from "../../base/helpers.mjs";
 import { FormView } from "../base.mjs";
 import {
     NumberInputView,
@@ -8,8 +9,25 @@ import {
 
 let defaultWidth = 512,
     defaultHeight = 512,
-    defaultChunkingSize = 64,
-    defaultChunkingBlur = 64;
+    defaultChunkingSize = 64;
+
+if (
+    !isEmpty(window.enfugue) &&
+    !isEmpty(window.enfugue.config) &&
+    !isEmpty(window.enfugue.config.model) &&
+    !isEmpty(window.enfugue.config.model.invocation)
+) {
+    let invocationConfig = window.enfugue.config.model.invocation;
+    if (!isEmpty(invocationConfig.width)) {
+        defaultWidth = invocationConfig.width;
+    }
+    if (!isEmpty(invocationConfig.height)) {
+        defaultHeight = invocationConfig.height;
+    }
+    if (!isEmpty(invocationConfig.chunkingSize)) {
+        defaultChunkingSize = invocationConfig.chunkingSize;
+    }
+}
 
 /**
  * This controls dimensions of the canvas and multidiffusion step

@@ -90,6 +90,7 @@ class CanvasController extends Controller {
                 }
             }
         });
+        this.subscribe("applicationReady", () => this.canvasForm.submit());
     }
 }
 

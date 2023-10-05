@@ -216,6 +216,7 @@ class Application {
         document.addEventListener("keypress", (e) => this.onKeyPress(e));
         document.addEventListener("keyup", (e) => this.onKeyUp(e));
         document.addEventListener("keydown", (e) => this.onKeyDown(e));
+        this.publish("applicationReady");
         this.container.classList.remove("loading");
     }
 

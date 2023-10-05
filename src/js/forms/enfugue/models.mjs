@@ -24,8 +24,6 @@ import {
     MaskTypeInputView
 } from "../input.mjs";
 
-let defaultEngineSize = 512;
-
 /**
  * The model form pulls it all together for making/editing models
  */

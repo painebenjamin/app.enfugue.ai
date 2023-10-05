@@ -11,7 +11,7 @@ from pibble.api.exceptions import BadRequestError, NotFoundError
 from pibble.util.files import load_json
 from pibble.ext.user.server.base import UserExtensionHandlerRegistry
 
-from enfugue.util import find_files_in_directory
+from enfugue.util import find_files_in_directory, find_file_in_directory
 from enfugue.api.controller.base import EnfugueAPIControllerBase
 from enfugue.database.models import DiffusionModel
 from enfugue.diffusion.manager import DiffusionPipelineManager
@@ -663,11 +663,19 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
                 output_filename = f"{output_filename}.safetensors"
 
             output_path = os.path.join(checkpoints_dir, output_filename)
-            primary_model = os.path.join(checkpoints_dir, request.parsed["primary"])
-            secondary_model = os.path.join(checkpoints_dir, request.parsed["secondary"])
+
+            primary_model = find_file_in_directory(checkpoints_dir, request.parsed["primary"])
+            if not primary_model:
+                raise IOError(f"Cannot find {request.parsed['primary']} in {checkpoints_dir}")
+            secondary_model = find_file_in_directory(checkpoints_dir, request.parsed["secondary"])
+            if not secondary_model:
+                raise IOError(f"Cannot find {request.parsed['secondary']} in {checkpoints_dir}")
+
             tertiary_model = request.parsed.get("tertiary", None)
             if tertiary_model is not None:
-                tertiary_model = os.path.join(checkpoints_dir, tertiary_model)
+                tertiary_model = find_file_in_directory(checkpoints_dir, tertiary_model)
+                if not tertiary_model:
+                    raise IOError(f"Cannot find {tertiary_model} in {checkpoints_dir}")
 
             from enfugue.diffusion.util import ModelMerger
 
