@@ -42,7 +42,7 @@ Configuration.model = {
     invocation: {
         width: 512,
         height: 512,
-        engineSize: 512,
+        engineSize: null,
         chunkingSize: 64,
         chunkingMaskType: "bilinear",
         guidanceScale: 7,

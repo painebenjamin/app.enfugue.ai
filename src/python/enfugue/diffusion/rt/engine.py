@@ -8,7 +8,7 @@ import logging
 import tensorrt as trt
 
 from copy import copy
-from typing import Dict, Optional, Tuple, Any, List
+from typing import Dict, Optional, Tuple, Any, List, Union
 
 from polygraphy import cuda
 from collections import OrderedDict
@@ -112,7 +112,7 @@ class Engine:
         """
         self.context = self.engine.create_execution_context()
 
-    def allocate_buffers(self, shape_dict: Optional[Dict[str, Tuple]] = None, device: str = "cuda"):
+    def allocate_buffers(self, shape_dict: Optional[Dict[str, Tuple]] = None, device: Union[str, torch.device] = "cuda"):
         """
         Allocates TRT buffers.
         """

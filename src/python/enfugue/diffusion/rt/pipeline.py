@@ -4,7 +4,6 @@ import torch
 import tensorrt as trt
 
 from typing import Optional, List, Dict, Iterator, Any, Union, Tuple, Callable, TYPE_CHECKING
-from typing_extensions import Self
 
 from contextlib import contextmanager
 
@@ -66,6 +65,7 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         build_static_batch: bool = False,
         build_dynamic_shape: bool = False,
         build_preview_features: bool = False,
+        build_half: bool = False,
         onnx_opset: int = 17,
     ) -> None:
         super(EnfugueTensorRTStableDiffusionPipeline, self).__init__(
@@ -100,6 +100,7 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         self.clip_engine_dir = clip_engine_dir
         self.unet_engine_dir = unet_engine_dir
         self.controlled_unet_engine_dir = controlled_unet_engine_dir
+        self.build_half = build_half
         self.build_static_batch = build_static_batch
         self.build_dynamic_shape = build_dynamic_shape
         self.build_preview_features = build_preview_features
@@ -189,46 +190,43 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         """
         We initialize the TensorRT runtime here.
         """
+        self.torch_device = device
+        self.prepare_engines(device)
         self.load_resources(self.engine_size, self.engine_size, batch_size)
         with (
             torch.inference_mode(),
             torch.autocast(device.type if isinstance(device, torch.device) else device),
             trt.Runtime(trt.Logger(trt.Logger.ERROR)),
         ):
-            if self.vae is not None and self.vae_engine_dir is None:
-                self.vae.to(device)
-            if self.text_encoder is not None and self.clip_engine_dir is None:
-                self.text_encoder.to(device)
-            if self.unet_engine_dir is not None or self.controlled_unet_engine_dir is not None:
-                logger.info("TensorRT unloading UNET")
-                self.unet = self.unet.to("cpu")
             yield
-            if self.unet_engine_dir is not None or self.controlled_unet_engine_dir is not None:
-                logger.info("TensorRT reloading UNET")
-                self.unet = self.unet.to(device)
 
-    def to(
+    def align_unet(self, device: torch.device, offload_models: bool = False) -> None:
+        """
+        TRT skips.
+        """
+        engine_name = "controlledunet"
+        if engine_name not in self.engine:
+            engine_name = "unet"
+        if engine_name not in self.engine:
+            return super(EnfugueTensorRTStableDiffusionPipeline, self).align_unet(device, offload_models)
+
+    def prepare_engines(
         self,
-        torch_device: Optional[Union[str, torch.device]] = None,
-        silence_dtype_warnings: bool = False,
-        torch_dtype: torch.dtype = torch.float16,
-    ) -> Self:
+        torch_device: Optional[Union[str, torch.device]] = None
+    ) -> None:
         """
-        First follow the parent to(), then load engines.
+        Prepares engines.
         """
-        super().to(torch_device, silence_dtype_warnings=silence_dtype_warnings)
-
-        if torch_device == "cpu" or isinstance(torch_device, torch.device) and torch_device.type == "cpu":
-            return self
+        if torch_device == "cpu" or (isinstance(torch_device, torch.device) and torch_device.type == "cpu"):
+            return
         elif getattr(self, "_built", False):
-            return self
+            return
 
         # set device
-        self.torch_device = self._execution_device
+        self.torch_device = self.torch_device
 
         # load models
-        use_fp16 = torch_dtype is torch.float16
-        self.load_models(use_fp16)
+        self.load_models(self.build_half)
 
         # build engines
         engines_to_build: Dict[str, BaseModel] = {}
@@ -244,7 +242,7 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         self.engine = Engine.build_all(
             engines_to_build,
             self.onnx_opset,
-            use_fp16=use_fp16,
+            use_fp16=self.build_half,
             opt_image_height=self.engine_size,
             opt_image_width=self.engine_size,
             force_engine_rebuild=self.force_engine_rebuild,
@@ -254,7 +252,6 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         )
 
         self._built = True
-        return self
 
     def create_latents(
         self,

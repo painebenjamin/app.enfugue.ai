@@ -168,6 +168,10 @@ class EnfugueInterfaceServer(
         This is the function called by the TemplateServer to get the context available
         in templates.
         """
+        ui_config = self.configuration.get("enfugue.ui.app", {})
+        if not isinstance(ui_config, dict):
+            ui_config = {}
+
         context = {
             "current_path": request.path,
             "current_url": request.url,
@@ -176,7 +180,8 @@ class EnfugueInterfaceServer(
             "database": self.database,
             "paths": self.configuration["server.cms.path"],
             "version": self.version,
-            "sandboxed": self.configuration.get("sandboxed", False)
+            "sandboxed": self.configuration.get("sandboxed", False),
+            "ui_config": ui_config
         }
 
         if hasattr(request, "token"):

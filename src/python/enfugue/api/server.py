@@ -36,6 +36,7 @@ from enfugue.util import (
     get_pending_versions,
     get_gpu_status,
     get_local_static_directory,
+    find_file_in_directory,
     logger,
 )
 
@@ -198,20 +199,29 @@ class EnfugueAPIServerBase(
         lycoris_dir = self.get_configured_directory("lycoris")
         inversion_dir = self.get_configured_directory("inversion")
 
-        model = os.path.join(checkpoint_dir, diffusion_model.model)
+        model = find_file_in_directory(checkpoint_dir, diffusion_model.model)
+        if not model:
+            raise ValueError(f"Could not find {diffusion_model.model} in {checkpoint_dir}")
+
         size = diffusion_model.size
 
         refiner = diffusion_model.refiner
         if refiner:
             refiner_size = refiner[0].size
-            refiner = os.path.join(checkpoint_dir, refiner[0].model)
+            refiner_model = find_file_in_directory(checkpoint_dir, refiner[0].model)
+            if not refiner_model:
+                raise ValueError(f"Could not find {refiner[0].model} in {checkpoint_dir}")
+            refiner = refiner_model
         else:
             refiner, refiner_size = None, None
 
         inpainter = diffusion_model.inpainter
         if inpainter:
             inpainter_size = inpainter[0].size
-            inpainter = os.path.join(checkpoint_dir, inpainter[0].model)
+            inpainter_model = os.path.join(checkpoint_dir, inpainter[0].model)
+            if not inpainter_model:
+                raise ValueError(f"Could not find {inpainter[0].model} in {checkpoint_dir}")
+            inpainter = inpainter_model
         else:
             inpainter, inpainter_size = None, None
 
@@ -237,24 +247,26 @@ class EnfugueAPIServerBase(
         else:
             inpainter_vae = None
 
-        lora = [
-            (
-                os.path.join(lora_dir, lora.model),
-                float(lora.weight),
-            )
-            for lora in diffusion_model.lora
-        ]
-        lycoris = [
-            (
-                os.path.join(lycoris_dir, lycoris.model),
-                float(lycoris.weight),
-            )
-            for lycoris in diffusion_model.lycoris
-        ]
-        inversion = [
-            os.path.join(inversion_dir, inversion.model)
-            for inversion in diffusion_model.inversion
-        ]
+        lora = []
+        for lora_model in diffusion_model.lora:
+            lora_model_path = find_file_in_directory(lora_dir, lora_model.model)
+            if not lora_model_path:
+                raise ValueError(f"Could not find {lora_model.model} in {lora_dir}")
+            lora.append((lora_model_path, float(lora_model.weight)))
+
+        lycoris = []
+        for lycoris_model in diffusion_model.lycoris:
+            lycoris_model_path = find_file_in_directory(lycoris_dir, lycoris_model.model)
+            if not lycoris_model_path:
+                raise ValueError(f"Could not find {lycoris_model.model} in {lycoris_dir}")
+            lycoris.append((lycoris_model_path, float(lycoris_model.weight)))
+
+        inversion = []
+        for inversion_model in diffusion_model.inversion:
+            inversion_model_path = find_file_in_directory(inversion_dir, inversion_model.model)
+            if not inversion_model_path:
+                raise ValueError(f"Could not find {inversion_model.model} in {inversion_dir}")
+            inversion.append(inversion_model_path)
 
         model_prompt = diffusion_model.prompt
         model_negative_prompt = diffusion_model.negative_prompt

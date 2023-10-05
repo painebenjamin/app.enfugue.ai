@@ -5,6 +5,7 @@ import {
     getDataParameters,
     waitFor,
     createEvent,
+    merge,
     sleep
 } from "../base/helpers.mjs";
 import { Session } from "../base/session.mjs";
@@ -157,6 +158,9 @@ class Application {
      * @param {object} The configuration, an object of key-value pairs.
      */
     constructor(config) {
+        if (!isEmpty(window.enfugue) && !isEmpty(window.enfugue.config)) {
+            config = merge(config, window.enfugue.config);
+        }
         this.config = config;
         this.publisher = new Publisher();
     }

@@ -76,8 +76,11 @@ from diffusers.utils.torch_utils import randn_tensor
 from diffusers.image_processor import VaeImageProcessor
 
 from enfugue.util import logger, check_download, check_download_to_dir, TokenMerger
-from enfugue.diffusion.util import load_state_dict, MaskWeightBuilder
-
+from enfugue.diffusion.util import (
+    load_state_dict,
+    empty_cache,
+    MaskWeightBuilder
+)
 if TYPE_CHECKING:
     from enfugue.diffusers.support.ip import IPAdapter
     from enfugue.diffusion.constants import MASK_TYPE_LITERAL
@@ -225,6 +228,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         torch_dtype: Optional[torch.dtype] = None,
         upcast_attention: Optional[bool] = None,
         extract_ema: Optional[bool] = None,
+        offload_models: bool = False,
         **kwargs: Any,
     ) -> EnfugueStableDiffusionPipeline:
         """
@@ -385,6 +389,10 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
         unet.load_state_dict(converted_unet_checkpoint)
 
+        if offload_models:
+            unet.to("cpu")
+            empty_cache()
+
         # Convert the VAE model.
         if vae_path is None:
             try:
@@ -428,11 +436,18 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         else:
             vae = AutoencoderKL.from_pretrained(vae_path, cache_dir=cache_dir)
 
+        if offload_models:
+            vae.to("cpu")
+            empty_cache()
+
         if load_safety_checker:
             safety_checker = StableDiffusionSafetyChecker.from_pretrained(
                 "CompVis/stable-diffusion-safety-checker",
                 cache_dir=cache_dir
             )
+            if offload_models:
+                safety_checker.to("cpu")
+                empty_cache()
             feature_extractor = AutoFeatureExtractor.from_pretrained(
                 "CompVis/stable-diffusion-safety-checker",
                 cache_dir=cache_dir
@@ -445,6 +460,9 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         if model_type == "FrozenCLIPEmbedder":
             logger.debug("Using Stable Diffusion v1 pipeline.")
             text_model = convert_ldm_clip_checkpoint(checkpoint)
+            if offload_models:
+                text_model.to("cpu")
+                empty_cache()
             tokenizer = CLIPTokenizer.from_pretrained(
                 "openai/clip-vit-large-patch14",
                 cache_dir=cache_dir
@@ -473,7 +491,6 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 cache_dir=cache_dir,
                 pad_token="!"
             )
-
             text_encoder_2 = convert_open_clip_checkpoint(
                 checkpoint,
                 "laion/CLIP-ViT-bigG-14-laion2B-39B-b160k",
@@ -481,6 +498,12 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 has_projection=True,
                 projection_dim=1280,
             )
+
+            if offload_models:
+                text_encoder.to("cpu")
+                text_encoder_2.to("cpu")
+                empty_cache()
+
             pipe = cls(
                 vae=vae,
                 text_encoder=text_encoder,
@@ -508,6 +531,11 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 has_projection=True,
                 projection_dim=1280,
             )
+
+            if offload_models:
+                text_encoder_2.to("cpu")
+                empty_cache()
+
             pipe = cls(
                 vae=vae,
                 text_encoder=None,
@@ -586,6 +614,31 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 modules.append(module)
         modules.sort(key = lambda item: self.get_size_from_module(item), reverse=True)
         return modules
+
+    def align_unet(self, device: torch.device, offload_models: bool = False) -> None:
+        """
+        Makes sure the unet is on the device and text encoders are off.
+        """
+        if offload_models:
+            if self.text_encoder:
+                self.text_encoder.to("cpu")
+            if self.text_encoder_2:
+                self.text_encoder_2.to("cpu")
+            empty_cache()
+        self.unet.to(device)
+
+    def run_safety_checker(
+        self,
+        output: np.ndarray,
+        device: torch.device,
+        dtype: torch.dtype
+    ) -> Tuple[np.ndarray, List[bool]]:
+        """
+        Override parent run_safety_checker to make sure safety checker is aligned
+        """
+        if self.safety_checker is not None:
+            self.safety_checker.to(device)
+        return super(EnfugueStableDiffusionPipeline, self).run_safety_checker(output, device, dtype)
 
     def load_ip_adapter(
         self,
@@ -718,7 +771,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         if prompt_embeds is None:
             prompt_embeds_list = []
             for tokenizer, text_encoder, prompt in zip(tokenizers, text_encoders, prompts):
-                if not tokenizer or not text_encoder:
+                if tokenizer is None or text_encoder is None:
                     continue
                 text_inputs = tokenizer(
                     prompt,
@@ -749,6 +802,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     attention_mask = None
 
                 text_input_ids = text_input_ids.to(device=device)
+                # Align device and encode
+                text_encoder.to(device=device)
                 prompt_embeds = text_encoder(
                     text_input_ids, output_hidden_states=self.is_sdxl, attention_mask=attention_mask
                 )
@@ -854,8 +909,6 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         """
         if isinstance(device, str):
             device = torch.device(device)
-        self.unet.to(device)
-        self.vae.to(device)
         if self.text_encoder is not None:
             self.text_encoder.to(device)
         if self.text_encoder_2 is not None:
@@ -1223,6 +1276,9 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         chunks = self.get_chunks(height, width)
         total_steps = len(chunks)
 
+        # Align device
+        self.vae.to(device)
+
         if total_steps == 1:
             result = self.encode_image_unchunked(image, dtype, generator)
             if progress_callback is not None:
@@ -1381,7 +1437,6 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         self,
         num_inference_steps: int,
         strength: Optional[float],
-        device: str,
         denoising_start: Optional[float] = None
     ) -> Tuple[torch.Tensor, int]:
         """
@@ -1497,7 +1552,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         height: int,
         batch_size: int,
         num_images_per_prompt: int,
-        device: Union[str, torch.Tensor],
+        device: Union[str, torch.device],
         dtype: torch.dtype,
         do_classifier_free_guidance=False,
     ):
@@ -2257,6 +2312,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
     @torch.no_grad()
     def __call__(
         self,
+        device: Optional[Union[str, torch.device]] = None,
+        offload_models: bool = False,
         prompt: Optional[str] = None,
         prompt_2: Optional[str] = None,
         negative_prompt: Optional[str] = None,
@@ -2319,8 +2376,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         if chunking_mask_kwargs is not None:
             self.chunking_mask_kwargs = chunking_mask_kwargs
         
-        # Check latent callback steps, disable if 0
-        if latent_callback_steps == 0:
+        # Check latent callback steps, disable if 0 or maximum offloading set
+        if latent_callback_steps == 0 or (offload_models and self.is_sdxl):
             latent_callback_steps = None
 
         # Standardize IP adapter tuples
@@ -2370,7 +2427,11 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 logger.warning("No mask present, but using inpainting model. Adding blank mask.")
                 mask = PIL.Image.new("RGB", (width, height), (255, 255, 255))
 
-        device = self._execution_device
+        if device is None:
+            device = torch.device("cpu")
+        elif isinstance(device, str):
+            device = torch.device(device)
+
         do_classifier_free_guidance = guidance_scale > 1.0
 
         # Calculate chunks
@@ -2382,7 +2443,6 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             timesteps, num_inference_steps = self.get_timesteps(
                 num_inference_steps,
                 strength,
-                device,
                 denoising_start=denoising_start
             )
         else:
@@ -2657,11 +2717,6 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             # Prepare extra step kwargs
             extra_step_kwargs = self.prepare_extra_step_kwargs(generator, eta)
 
-            # Swap out VAE here if not needed for mostly free VRAM
-            if not decode_intermediates:
-                logger.debug("Intermediates are disabled, sending VAE to CPU during denoising")
-                self.vae.to("cpu")
-
             # Get prompt embeds here if using ip adapter
             if ip_adapter_tuples is not None:
                 image_prompt_embeds = torch.Tensor().to(
@@ -2742,11 +2797,22 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 added_cond_kwargs = {"text_embeds": add_text_embeds, "time_ids": add_time_ids}
             else:
                 added_cond_kwargs = None
-            
+
+            # Swap out VAE here if not needed for mostly free VRAM
+            if not decode_intermediates:
+                logger.debug("Intermediates are disabled, sending VAE to CPU during denoising")
+                self.vae.to("cpu")
+                empty_cache()
+            else:
+                self.vae.to(device)
+
             # Make sure controlnet on device
             if self.controlnets is not None:
                 for name in self.controlnets:
                     self.controlnets[name].to(device=device)
+
+            # Make sure unet is on device
+            self.align_unet(device, offload_models) # May be overridden by RT
 
             # Denoising loop
             prepared_latents = self.denoise(
@@ -2782,7 +2848,14 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 for name in self.controlnets:
                     self.controlnets[name].to("cpu")
                 del prepared_control_images
-            
+
+            # Unload UNet to free memory
+            if offload_models:
+                self.unet.to("cpu")
+
+            # Empty caches for more memory
+            empty_cache()
+
             if output_type != "latent":
                 if not decode_intermediates:
                     self.vae.to(
@@ -2813,13 +2886,19 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
                 if self.config.force_full_precision_vae:
                     self.vae.to(dtype=prepared_latents.dtype)
+
+        # Unload VAE again if requested
+        if offload_models:
+            self.vae.to("cpu")
+            empty_cache()
+
         if output_type == "latent":
             output = prepared_latents
         else:
             output = self.denormalize_latents(prepared_latents)
             if output_type != "pt":
                 output = self.image_processor.pt_to_numpy(output)
-                output_nsfw = self.run_safety_checker(output, device, prompt_embeds.dtype)[1]
+                output_nsfw = self.run_safety_checker(output, device, prompt_embeds.dtype)[1]# type: ignore[arg-type]
                 if output_type == "pil":
                     output = self.image_processor.numpy_to_pil(output)
 

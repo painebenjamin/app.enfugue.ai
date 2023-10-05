@@ -15,6 +15,7 @@ __all__ = [
     "tensorrt_available",
     "mps_available",
     "directml_available",
+    "empty_cache",
     "get_optimal_device",
     "load_ckpt_state_dict",
     "load_safetensor_state_dict",
@@ -70,6 +71,21 @@ def get_optimal_device() -> torch.device:
     elif mps_available():
         return torch.device("mps")
     return torch.device("cpu")
+        
+def empty_cache() -> None:
+    """
+    Empties caches to clear memory.
+    """
+    if cuda_available():
+        import torch
+        import torch.cuda
+        torch.cuda.empty_cache()
+    elif mps_available():
+        import torch
+        import torch.mps
+        torch.mps.empty_cache()
+    import gc
+    gc.collect()
 
 def get_ram_info() -> Tuple[int, int]:
     """

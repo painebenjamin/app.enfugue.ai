@@ -11,8 +11,6 @@ import {
     SearchListInputListView
 } from "../enumerable.mjs";
 
-let defaultEngineSize = 512;
-
 /**
  * Engine size input
  */
@@ -32,11 +30,6 @@ class EngineSizeInputView extends NumberInputView {
      */
     static step = 8;
 
-    /**
-     * @var int The default value
-     */
-    static defaultValue = defaultEngineSize;
-    
     /**
      * @var string The tooltip to display to the user
      */

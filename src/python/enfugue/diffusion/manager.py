@@ -134,9 +134,11 @@ class DiffusionPipelineManager:
         """
         vram_free, vram_total = get_vram_info()
         if self.device.type == "cpu" or vram_total < 16 * 10 ** 9:
-            # Maximum optimization
             self.configuration["enfugue.pipeline.cache"] = None
             self.configuration["enfugue.pipeline.switch"] = "unload"
+            if vram_total < 12 * 10 ** 9:
+                # Maximum optimization
+                self.configuration["enfugue.pipeline.sequential"] = True
 
     def check_download_model(self, local_dir: str, remote_url: str) -> str:
         """
@@ -544,7 +546,7 @@ class DiffusionPipelineManager:
                 local_files_only=self.offline
             )
 
-        return result.to(device=self.device)
+        return result
 
     @property
     def vae(self) -> Optional[AutoencoderKL]:
@@ -1734,6 +1736,22 @@ class DiffusionPipelineManager:
         self._pipeline_switch_mode = mode
 
     @property
+    def pipeline_sequential_onload(self) -> bool:
+        """
+        Defines how pipelines are loaded into memory.
+        """
+        if not hasattr(self, "_pipeline_sequential_onload"):
+            self._pipeline_sequential_onload = self.configuration.get("enfugue.pipeline.sequential", False) in [1, True, "1"]
+        return self._pipeline_sequential_onload
+
+    @pipeline_sequential_onload.setter
+    def pipeline_sequential_onload(self, new_onload: bool) -> None:
+        """
+        Defines how pipelines are loaded into memory.
+        """
+        self._pipeline_sequential_onload = new_onload
+
+    @property
     def create_inpainter(self) -> bool:
         """
         Defines how to switch to inpainting.
@@ -2471,6 +2489,8 @@ class DiffusionPipelineManager:
                 if not self.is_sdxl:
                     kwargs["tokenizer_2"] = None
                     kwargs["text_encoder_2"] = None
+
+                kwargs["build_half"] = "16" in str(self.dtype)
                 logger.debug(
                     f"Initializing TensorRT pipeline from diffusers cache directory at {self.model_diffusers_cache_dir}. Arguments are {redact(kwargs)}"
                 )
@@ -2496,11 +2516,13 @@ class DiffusionPipelineManager:
                     **kwargs
                 )
             else:
+                kwargs["offload_models"] = self.pipeline_sequential_onload
                 kwargs["load_safety_checker"] = self.safe
                 if self.vae_name is not None:
                     kwargs["vae_path"] = self.find_vae_path(self.vae_name)
 
                 logger.debug(f"Initializing pipeline from checkpoint at {self.model}. Arguments are {redact(kwargs)}")
+
                 pipeline = self.pipeline_class.from_ckpt(self.model, **kwargs)
                 if pipeline.is_sdxl and (self.vae_name is None or "16" not in self.vae_name):
                     # We may have made an incorrect guess earlier if 'xl' wasn't in the filename.
@@ -2524,7 +2546,7 @@ class DiffusionPipelineManager:
             if self.scheduler is not None:
                 logger.debug(f"Setting scheduler to {self.scheduler.__name__}")
                 pipeline.scheduler = self.scheduler.from_config({**pipeline.scheduler_config, **self.scheduler_config})
-            self._pipeline = pipeline.to(self.device)
+            self._pipeline = pipeline
         return self._pipeline
 
     @pipeline.deleter
@@ -2592,6 +2614,7 @@ class DiffusionPipelineManager:
                     kwargs["text_encoder_2"] = None
                     kwargs["tokenizer_2"] = None
 
+                kwargs["build_half"] = "16" in str(self.dtype)
                 logger.debug(
                     f"Initializing refiner TensorRT pipeline from diffusers cache directory at {self.refiner_diffusers_cache_dir}. Arguments are {redact(kwargs)}"
                 )
@@ -2623,10 +2646,12 @@ class DiffusionPipelineManager:
                     **kwargs,
                 )
             else:
+                kwargs["offload_models"] = self.pipeline_sequential_onload
                 if self.refiner_vae_name is not None:
                     kwargs["vae_path"] = self.find_vae_path(self.refiner_vae_name)
 
                 logger.debug(f"Initializing refiner pipeline from checkpoint at {self.refiner}. Arguments are {redact(kwargs)}")
+
                 refiner_pipeline = self.refiner_pipeline_class.from_ckpt(
                     self.refiner,
                     load_safety_checker=False,
@@ -2641,7 +2666,7 @@ class DiffusionPipelineManager:
             if self.scheduler is not None:
                 logger.debug(f"Setting refiner scheduler to {self.scheduler.__name__}")
                 refiner_pipeline.scheduler = self.scheduler.from_config({**refiner_pipeline.scheduler_config, **self.scheduler_config})
-            self._refiner_pipeline = refiner_pipeline.to(self.device)
+            self._refiner_pipeline = refiner_pipeline
         return self._refiner_pipeline
 
     @refiner_pipeline.deleter
@@ -2669,9 +2694,7 @@ class DiffusionPipelineManager:
             return DEFAULT_INPAINTING_MODEL
         else:
             target_checkpoint_name = f"{checkpoint_name}-inpainting"
-            return os.path.join(
-                os.path.dirname(current_checkpoint_path), f"{target_checkpoint_name}{ext}"
-            )
+            return os.path.join(self.engine_checkpoints_dir, f"{target_checkpoint_name}{ext}")
 
     @property
     def inpainter_pipeline(self) -> EnfugueStableDiffusionPipeline:
@@ -2736,6 +2759,7 @@ class DiffusionPipelineManager:
                     kwargs["text_encoder_2"] = None
                     kwargs["tokenizer_2"] = None
 
+                kwargs["build_half"] = "16" in str(self.dtype)
                 logger.debug(
                     f"Initializing inpainter TensorRT pipeline from diffusers cache directory at {self.inpainter_diffusers_cache_dir}. Arguments are {redact(kwargs)}"
                 )
@@ -2766,6 +2790,7 @@ class DiffusionPipelineManager:
                     **kwargs
                 )
             else:
+                kwargs["offload_models"] = self.pipeline_sequential_onload
                 if self.inpainter_vae_name is not None:
                     kwargs["vae_path"] = self.find_vae_path(self.inpainter_vae_name)
                 
@@ -2795,7 +2820,7 @@ class DiffusionPipelineManager:
             if self.scheduler is not None:
                 logger.debug(f"Setting inpainter scheduler to {self.scheduler.__name__}")
                 inpainter_pipeline.scheduler = self.scheduler.from_config({**inpainter_pipeline.scheduler_config, **self.scheduler_config})
-            self._inpainter_pipeline = inpainter_pipeline.to(self.device)
+            self._inpainter_pipeline = inpainter_pipeline
         return self._inpainter_pipeline
 
     @inpainter_pipeline.deleter
@@ -2838,14 +2863,6 @@ class DiffusionPipelineManager:
                 self._pipeline = self._pipeline.to("cpu", torch_dtype=torch.float32)
             self.clear_memory()
 
-    def reload_pipeline(self) -> None:
-        """
-        Reloads the pipeline to the device if present.
-        """
-        if hasattr(self, "_pipeline") and self.pipeline_switch_mode == "offload":
-            logger.debug("Reloading pipeline from CPU")
-            self._pipeline = self._pipeline.to(self.device, torch_dtype=self.dtype)
-
     def unload_refiner(self, reason: str = "none") -> None:
         """
         Calls the refiner deleter.
@@ -2875,14 +2892,6 @@ class DiffusionPipelineManager:
                 logger.debug("Offloading refiner to CPU")
                 self._refiner_pipeline = self._refiner_pipeline.to("cpu", torch_dtype=torch.float32)
             self.clear_memory()
-
-    def reload_refiner(self) -> None:
-        """
-        Reloads the pipeline to the device if present.
-        """
-        if hasattr(self, "_refiner_pipeline") and self.pipeline_switch_mode == "offload":
-            logger.debug("Reloading refiner from CPU")
-            self._refiner_pipeline = self._refiner_pipeline.to(self.device, torch_dtype=self.dtype)
 
     def unload_inpainter(self, reason: str = "none") -> None:
         """
@@ -2915,14 +2924,6 @@ class DiffusionPipelineManager:
                 logger.debug("Offloading inpainter to CPU")
                 self._inpainter_pipeline = self._inpainter_pipeline.to("cpu", torch_dtype=torch.float32)
             self.clear_memory()
-
-    def reload_inpainter(self) -> None:
-        """
-        Reloads the pipeline to the device if present.
-        """
-        if hasattr(self, "_inpainter_pipeline") and self.pipeline_switch_mode == "offload":
-            logger.debug("Reloading inpainter from CPU")
-            self._inpainter_pipeline = self._inpainter_pipeline.to(self.device, torch_dtype=self.dtype)
 
     @property
     def upscaler(self) -> Upscaler:
@@ -3430,12 +3431,10 @@ class DiffusionPipelineManager:
                 if inpainting and (self.has_inpainter or self.create_inpainter):
                     self.offload_pipeline(intention) # type: ignore
                     self.offload_refiner(intention) # type: ignore
-                    self.reload_inpainter()
                     pipe = self.inpainter_pipeline
                 else:
                     self.offload_refiner(intention) # type: ignore
                     self.offload_inpainter(intention) # type: ignore
-                    self.reload_pipeline()
                     pipe = self.pipeline
 
                 # Check refining settings
@@ -3452,7 +3451,12 @@ class DiffusionPipelineManager:
                 self.stop_keepalive()
                 task_callback("Executing Inference")
                 logger.debug(f"Calling pipeline with arguments {redact(kwargs)}")
-                result = pipe(generator=self.generator, **kwargs)
+                result = pipe(
+                    generator=self.generator,
+                    device=self.device,
+                    offload_models=self.pipeline_sequential_onload,
+                    **kwargs
+                )
 
             if will_refine:
                 self.start_keepalive()
@@ -3474,7 +3478,6 @@ class DiffusionPipelineManager:
                 else:
                     self.offload_pipeline("refining")
 
-                self.reload_refiner()
                 kwargs.pop("image", None)  # Remove any previous image
                 kwargs.pop("mask", None)  # Remove any previous mask
                 kwargs.pop("control_images", None) # Remove previous ControlNet images
@@ -3520,7 +3523,11 @@ class DiffusionPipelineManager:
                 task_callback(f"Refining")
 
                 refiner_result = pipe(  # type: ignore
-                    generator=self.generator, image=result["images"], **kwargs
+                    generator=self.generator,
+                    device=self.device,
+                    offload_models=self.pipeline_sequential_onload,
+                    image=result["images"],
+                    **kwargs
                 )
 
                 # Callback with the result

@@ -990,7 +990,6 @@ class DiffusionPlan:
                     logger.debug("Using refiner for upscaling.")
                     re_enable_safety = False
                     chunking_size = min(chunking_size, pipeline.refiner_size // 2)
-                    pipeline.reload_refiner()
                 else:
                     # Disable pipeline safety here, it gives many false positives when upscaling.
                     # We'll re-enable it after.
@@ -1046,12 +1045,10 @@ class DiffusionPlan:
 
                         if refiner:
                             pipeline.refiner_controlnets = controlnet_names
-                            pipeline.reload_refiner()
                             upscale_pipline = pipeline.refiner_pipeline
                             is_sdxl = pipeline.refiner_is_sdxl
                         else:
                             pipeline.controlnets = controlnet_names
-                            pipeline.reload_pipeline()
                             upscale_pipeline = pipeline.pipeline
                             is_sdxl = pipeline.is_sdxl
 
@@ -1070,13 +1067,17 @@ class DiffusionPlan:
                         upscale_pipeline = pipeline.refiner_pipeline
                     else:
                         pipeline.controlnets = None
-                        pipeline.reload_pipeline()  # If we didn't change controlnet, then pipeline is still on CPU
                         upscale_pipeline = pipeline.pipeline
 
                     logger.debug(f"Upscaling sample {i} with arguments {kwargs}")
                     pipeline.stop_keepalive() # Stop here to kill during upscale diffusion
                     task_callback(f"Re-diffusing Upscaled Sample {i+1}")
-                    image = upscale_pipeline(**kwargs).images[0]
+                    image = upscale_pipeline(
+                        generator=pipeline.generator,
+                        device=pipeline.device,
+                        offload_models=pipeline.pipeline_sequential_onload,
+                        **kwargs
+                    ).images[0]
                     pipeline.start_keepalive() # Return keepalive between iterations
                     images[i] = image
                     if image_callback is not None:
