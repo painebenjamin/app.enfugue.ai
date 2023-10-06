@@ -2856,6 +2856,9 @@ class DiffusionPipelineManager:
                 self.unload_pipeline("switching modes" if not intention else f"switching to {intention}")
             elif self.pipeline_switch_mode is None:
                 logger.debug("Offloading is disabled, keeping pipeline in memory.")
+            elif self.tensorrt_is_ready:
+                logger.debug("Cannot offload TensorRT pipeline, unloading instead.")
+                self.unload_pipeline("switching modes" if not intention else f"switching to {intention}")
             elif intention == "inpainting" and hasattr(self, "_inpainter_pipeline"):
                 logger.debug("Swapping inpainter out of CPU and pipeline into CPU")
                 self.swap_pipelines(self._inpainter_pipeline, self._pipeline)
@@ -2886,6 +2889,9 @@ class DiffusionPipelineManager:
                 self.unload_refiner("switching modes" if not intention else f"switching to {intention}")
             elif self.pipeline_switch_mode is None:
                 logger.debug("Offloading is disabled, keeping refiner pipeline in memory.")
+            elif self.refiner_tensorrt_is_ready:
+                logger.debug("Cannot offload TensorRT refiner pipeline, unloading instead.")
+                self.unload_refiner("switching modes" if not intention else f"switching to {intention}")
             elif intention == "inference" and hasattr(self, "_pipeline"):
                 logger.debug("Swapping pipeline out of CPU and refiner into CPU")
                 self.swap_pipelines(self._pipeline, self._refiner_pipeline)
@@ -2918,6 +2924,9 @@ class DiffusionPipelineManager:
                 self.unload_inpainter("switching modes" if not intention else f"switching to {intention}")
             elif self.pipeline_switch_mode is None:
                 logger.debug("Offloading is disabled, keeping inpainter pipeline in memory.")
+            elif self.inpainter_tensorrt_is_ready:
+                logger.debug("Cannot offload TensorRT inpainter pipeline, unloading instead.")
+                self.unload_inpainter("switching modes" if not intention else f"switching to {intention}")
             elif intention == "inference" and hasattr(self, "_pipeline"):
                 logger.debug("Swapping pipeline out of CPU and inpainter into CPU")
                 self.swap_pipelines(self._pipeline, self._inpainter_pipeline)

@@ -230,13 +230,17 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
 
         # build engines
         engines_to_build: Dict[str, BaseModel] = {}
-        if self.clip_engine_dir is not None:
+        if self.clip_engine_dir is not None and self.text_encoder is not None:
+            self.text_encoder.to(torch_device)
             engines_to_build[self.clip_engine_dir] = self.models["clip"]
         if self.unet_engine_dir is not None:
+            self.unet.to(torch_device)
             engines_to_build[self.unet_engine_dir] = self.models["unet"]
         if self.controlled_unet_engine_dir is not None:
+            self.unet.to(torch_device)
             engines_to_build[self.controlled_unet_engine_dir] = self.models["controlledunet"]
         if self.vae_engine_dir is not None:
+            self.vae.to(torch_device)
             engines_to_build[self.vae_engine_dir] = self.models["vae"]
 
         self.engine = Engine.build_all(
