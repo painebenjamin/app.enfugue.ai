@@ -1,8 +1,8 @@
 <p align="center">
-    <img src="https://github.com/painebenjamin/app.enfugue.ai/blob/main/docs/github-header.png?raw=true" alt="ENFUGUE">
+    <img src="https://github.com/painebenjamin/app.enfugue.ai/assets/57536852/5953edad-0150-4271-ac56-e86a94495ef1" alt="ENFUGUE is now available on rundiffusion.com">
 </p>
 <h2 align="center">
-Enfugue is a feature-rich Stable Diffusion web app for desktop or server.
+Enfugue is a feature-rich Stable Diffusion web app for desktop or server
 </h2>
 <p align="center">
 <em>Forever open source and totally free.</em>
