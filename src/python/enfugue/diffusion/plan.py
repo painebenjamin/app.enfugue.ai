@@ -817,11 +817,11 @@ class DiffusionPlan:
 
     def __init__(
         self,
+        size: int, # Required
         prompt: Optional[str] = None,  # Global
         prompt_2: Optional[str] = None, # Global
         negative_prompt: Optional[str] = None,  # Global
         negative_prompt_2: Optional[str] = None, # Global
-        size: Optional[int] = None,
         refiner_size: Optional[int] = None,
         inpainter_size: Optional[int] = None,
         model: Optional[str] = None,
@@ -848,7 +848,7 @@ class DiffusionPlan:
         outpaint: bool = True,
         upscale_steps: Optional[Union[UpscaleStepDict, List[UpscaleStepDict]]] = None,
     ) -> None:
-        self.size = size if size is not None else (1024 if model is not None and "xl" in model.lower() else 512)
+        self.size = size
         self.inpainter_size = inpainter_size
         self.refiner_size = refiner_size
         self.prompt = prompt
@@ -1458,9 +1458,9 @@ class DiffusionPlan:
 
     @staticmethod
     def upscale_image(
+        size: int,
         image: PIL.Image,
         upscale_steps: Union[UpscaleStepDict, List[UpscaleStepDict]],
-        size: Optional[int] = None,
         refiner_size: Optional[int] = None,
         inpainter_size: Optional[int] = None,
         model: Optional[str] = None,
@@ -1514,7 +1514,7 @@ class DiffusionPlan:
 
     @staticmethod
     def assemble(
-        size: Optional[int] = None,
+        size: int,
         refiner_size: Optional[int] = None,
         inpainter_size: Optional[int] = None,
         model: Optional[str] = None,

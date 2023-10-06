@@ -707,14 +707,24 @@ class DiffusionPipelineManager:
         Gets the base engine size in pixels when chunking (default always.)
         """
         if not hasattr(self, "_size"):
-            return int(self.configuration.get("enfugue.size", 1024 if self.is_sdxl else 512))
+            return 1024 if self.is_sdxl else 512
         return self._size
 
     @size.setter
-    def size(self, new_size: int) -> None:
+    def size(self, new_size: Optional[int]) -> None:
         """
         Sets the base engine size in pixels.
         """
+        if new_size is None:
+            if hasattr(self, "_size"):
+                check_reload_size = self._size
+                delattr(self, "_size")
+                if check_reload_size != self.size and self.tensorrt_is_ready:
+                    self.unload_pipeline("engine size changing")
+                elif hasattr(self, "_pipeline"):
+                    logger.debug("setting pipeline engine size in place.")
+                    self._pipeline.engine_size = self.size
+            return
         if hasattr(self, "_size") and self._size != new_size:
             if self.tensorrt_is_ready:
                 self.unload_pipeline("engine size changing")
@@ -729,11 +739,7 @@ class DiffusionPipelineManager:
         Gets the refiner engine size in pixels when chunking (default always.)
         """
         if not hasattr(self, "_refiner_size"):
-            if self.is_sdxl and not self.refiner_is_sdxl:
-                return 512
-            elif not self.is_sdxl and self.refiner_is_sdxl:
-                return 1024
-            return self.size
+            return 1024 if self.refiner_is_sdxl else 512
         return self._refiner_size
 
     @refiner_size.setter
@@ -2449,7 +2455,6 @@ class DiffusionPipelineManager:
             if self.model.startswith("http"):
                 # Base model, make sure it's downloaded here
                 self.model = self.check_download_model(self.engine_checkpoints_dir, self.model)
-
             kwargs = {
                 "cache_dir": self.engine_cache_dir,
                 "engine_size": self.size,

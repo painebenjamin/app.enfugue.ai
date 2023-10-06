@@ -33,6 +33,7 @@ def main() -> None:
             prompt, negative_prompt = PROMPTS[size]
             
             plan = DiffusionPlan.assemble(
+                size = 512,
                 prompt = prompt,
                 negative_prompt = negative_prompt,
                 num_inference_steps = 20,

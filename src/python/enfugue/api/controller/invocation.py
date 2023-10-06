@@ -58,6 +58,23 @@ class EnfugueAPIInvocationController(EnfugueAPIControllerBase):
             return DEFAULT_SDXL_REFINER
         return None
 
+    def get_default_size_for_model(self, model: Optional[str]) -> int:
+        """
+        Gets the default size for the model.
+        """
+        if model is None:
+            model = self.configuration.get("enfugue.model", DEFAULT_MODEL)
+        model_name = os.path.splitext(os.path.basename(model))[0]
+        diffusers_path = os.path.join(
+            self.configuration.get("enfugue.engine.diffusers", "~/.cache/enfugue/diffusers"),
+            model_name
+        )
+        if diffusers_path.startswith("~"):
+            diffusers_path = os.path.expanduser(diffusers_path)
+        if os.path.exists(diffusers_path) and os.path.exists(os.path.join(diffusers_path, "text_encoder_2")):
+            return 1024
+        return 1024 if "xl" in model_name.lower() else 512
+
     def check_find_model(self, model_type: str, model: str) -> str:
         """
         Tries to find a model in a configured directory, if the
@@ -169,6 +186,7 @@ class EnfugueAPIInvocationController(EnfugueAPIControllerBase):
 
             inversion = request.parsed.pop("inversion", [])
             plan_kwargs["inversion"] = self.check_find_adaptations("inversion", False, inversion) if inversion else None
+
         # Always take passed scheduler
         scheduler = request.parsed.pop("scheduler", None)
         if scheduler:
@@ -180,7 +198,12 @@ class EnfugueAPIInvocationController(EnfugueAPIControllerBase):
                 ui_state = value
             elif value is not None:
                 plan_kwargs[key] = value
+
+        if not plan_kwargs.get("size", None):
+            plan_kwargs["size"] = self.get_default_size_for_model(plan_kwargs.get("model", None))
+
         plan = DiffusionPlan.assemble(**plan_kwargs)
+
         return self.invoke(
             request.token.user.id,
             plan,

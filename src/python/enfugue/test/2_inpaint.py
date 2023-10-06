@@ -28,6 +28,7 @@ def main() -> None:
         negative_prompt = "tree, skyline, buildings"
         
         plan = DiffusionPlan.assemble(
+            size=512,
             prompt = prompt,
             negative_prompt = negative_prompt,
             num_inference_steps = 20,
@@ -39,6 +40,7 @@ def main() -> None:
         plan.execute(manager)["images"][0].save(os.path.join(save_dir, f"result.png"))
         
         plan = DiffusionPlan.assemble(
+            size=512,
             inpainter = "v1-5-pruned.ckpt", # Force 4-dim inpainting
             prompt = "blue sky and green grass",
             negative_prompt = negative_prompt,
