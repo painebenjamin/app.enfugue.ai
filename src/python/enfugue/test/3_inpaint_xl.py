@@ -28,6 +28,7 @@ def main() -> None:
         prompt = "a huge cactus standing in the desert"
         
         plan = DiffusionPlan.assemble(
+            size = 1024,
             prompt = prompt,
             model = "sd_xl_base_1.0.safetensors",
             num_inference_steps = 50,
