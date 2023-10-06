@@ -13,6 +13,7 @@ def main() -> None:
             os.makedirs(save_dir)
 
         kwargs = {
+            "size": 1024,
             "model": "sd_xl_base_1.0.safetensors",
             "refiner": "sd_xl_refiner_1.0.safetensors",
             "prompt": "A happy looking puppy",
@@ -51,7 +52,7 @@ def main() -> None:
         
         # Upscale again alone
         plan = DiffusionPlan.upscale_image(
-            result,
+            image=result,
             upscale_steps=[{
                 "amount": 2,
                 "method": "esrgan",

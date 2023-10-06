@@ -14,7 +14,7 @@ def main() -> None:
         manager = DiffusionPipelineManager()
         # Base plan
         manager.seed = 123456
-        plan = DiffusionPlan.assemble(prompt="A happy looking puppy")
+        plan = DiffusionPlan.assemble(size=512, prompt="A happy looking puppy")
         """
         plan.execute(manager)["images"][0].save(os.path.join(save_dir, "./puppy-plan.png"))
 
@@ -62,13 +62,14 @@ def main() -> None:
 
         # Upscale again just from the image
         plan = DiffusionPlan.upscale_image(
-            result,
-            {
+            size=512,
+            image=result,
+            upscale_steps=[{
                 "method": "esrgan",
                 "amount": 2,
                 "strength": 0.2,
                 "chunking_size": 256,
-            }
+            }]
         )
         plan.execute(manager)["images"][0].save(os.path.join(save_dir, "./puppy-plan-upscale-solo.png"))
 

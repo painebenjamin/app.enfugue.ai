@@ -99,10 +99,11 @@ class EnfugueAPISystemController(EnfugueAPIControllerBase):
             "max_queued_downloads": self.manager.max_queued_downloads,
             "max_concurrent_downloads": self.manager.max_concurrent_downloads,
             "switch_mode": self.configuration.get("enfugue.pipeline.switch", "offload"),
+            "sequential": self.configuration.get("enfugue.pipeline.sequential", False),
             "cache_mode": self.configuration.get("enfugue.pipeline.cache", None),
             "precision": self.configuration.get("enfugue.dtype", None),
             "inpainting": "never" if self.configuration.get("enfugue.pipeline.inpainter", None) == False else None,
-            "intermediate_steps": self.configuration.get("enfugue.engine.intermediates", 10)
+            "intermediate_steps": self.configuration.get("enfugue.engine.intermediates", 10),
         }
 
         for controlnet in self.CONTROLNETS:
@@ -129,6 +130,10 @@ class EnfugueAPISystemController(EnfugueAPIControllerBase):
 
         if "safe" in request.parsed:
             self.user_config["enfugue.safe"] = request.parsed["safe"]
+            self.manager.stop_engine()
+
+        if "sequential" in request.parsed:
+            self.user_config["enfugue.pipeline.sequential"] = request.parsed["sequential"]
             self.manager.stop_engine()
 
         if "intermediate_steps" in request.parsed:
@@ -165,6 +170,7 @@ class EnfugueAPISystemController(EnfugueAPIControllerBase):
                 self.configuration["enfugue.pipeline.inpainter"] = None
             else:
                 self.user_config["enfugue.pipeline.inpainter"] = False
+            
 
         for key in [
             "max_queued_invocation",

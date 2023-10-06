@@ -53,6 +53,13 @@ class SystemSettingsFormView extends FormView {
             }
         },
         "Diffusion": {
+            "sequential": {
+                "label": "Use Sequential Model Loading",
+                "class": CheckboxInputView,
+                "config": {
+                    "tooltip": "When checked, the individuals components that make up a diffusion pipeline will be loaded when they are needed and unloaded afterwards. This provides the lowest memory footprint available by Enfugue, but individual images can take longer to generate."
+                }
+            },
             "switch_mode": {
                 "label": "Pipeline Switch Mode",
                 "class": PipelineSwitchModeInputView
@@ -229,6 +236,44 @@ class SystemSettingsFormView extends FormView {
      * Collapse ControlNets by default
      */
     static collapseFieldSets = ["ControlNets"];
+
+    /**
+     * Check if fields need to be enabled/disabled
+     */
+    async inputChanged(fieldName, inputView) {
+        await super.inputChanged(fieldName, inputView);
+        if (fieldName === "sequential") {
+            let switchMode = await this.getInputView("switch_mode"),
+                steps = await this.getInputView("intermediate_steps");
+            if (inputView.getValue()) {
+                switchMode.setValue("unload", false);
+                switchMode.disable();
+                steps.setValue(0, false);
+                steps.disable();
+            } else {
+                switchMode.enable();
+                steps.enable();
+            }
+        }
+    }
+
+    /**
+     * On set values, enable/disable inputs
+     */
+    async setValues() {
+        await super.setValues.apply(this, Array.from(arguments));
+        let switchMode = await this.getInputView("switch_mode"),
+            steps = await this.getInputView("intermediate_steps");
+        if (this.values.sequential) {
+            switchMode.setValue("unload", false);
+            switchMode.disable();
+            steps.setValue(0, false);
+            steps.disable();
+        } else {
+            switchMode.enable();
+            steps.enable();
+        }
+    }
 };
 
 export { SystemSettingsFormView };
