@@ -23,7 +23,11 @@ Enfugue is a feature-rich Stable Diffusion web app for desktop or server.
 <strong>Now available in the cloud at <a href="https://www.rundiffusion.com/">RunDiffusion.com!</a></strong>
 </p>
 <p align="center">
-    <img src="https://github.com/painebenjamin/app.enfugue.ai/assets/57536852/6f6c6df9-dbb2-40d7-bd8c-834de9c22b20" alt="The ENFUGUE interface" />
+<img src="https://github.com/painebenjamin/app.enfugue.ai/assets/57536852/2fdacbe5-a863-43c7-82d9-1b3f5a07dc1b" width="500" height="260" />
+<img src="https://github.com/painebenjamin/app.enfugue.ai/assets/57536852/ce5ec222-3892-4fd9-88e5-d0303a1eadfb" width="500" height="260" /><br />
+<img src="https://github.com/painebenjamin/app.enfugue.ai/assets/57536852/da7b358d-ba59-4726-848c-041668214f62" width="500" height="260" />
+<img src="https://github.com/painebenjamin/app.enfugue.ai/assets/57536852/79fbd447-8f4b-4725-94ce-71ab0523a672" width="500" height="260" /><br />
+<em>Views of the ENFUGUE user interface, click to view full-size.</em>
 </p>
 
 # Feature Summary
