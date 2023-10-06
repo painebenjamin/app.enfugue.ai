@@ -1,11 +1,11 @@
 <p align="center">
-    <img src="https://github.com/painebenjamin/app.enfugue.ai/blob/main/docs/github-header.png?raw=true" alt="ENFUGUE">
+    <img src="https://github.com/painebenjamin/app.enfugue.ai/assets/57536852/5953edad-0150-4271-ac56-e86a94495ef1" alt="ENFUGUE is now available on rundiffusion.com">
 </p>
 <h2 align="center">
 Enfugue is a feature-rich Stable Diffusion web app for desktop or server.
 </h2>
 <p align="center">
-<em>Forever open source and totally free.</em>
+<em>Forever open source and totally free.</em><br />
 </p>
 
 <p align="center">
@@ -19,9 +19,15 @@ Enfugue is a feature-rich Stable Diffusion web app for desktop or server.
     <a href="https://github.com/painebenjamin/app.enfugue.ai/releases/"><img alt="GitHub all releases" src="https://img.shields.io/github/downloads/painebenjamin/app.enfugue.ai/total?logo=github&color=ff3366"></a>
     <a href="https://pypi.org/project/enfugue"><img alt="PyPI - Downloads" src="https://img.shields.io/pypi/dm/enfugue?logo=python&logoColor=white&color=ff3366"></a>
 </p>
-
 <p align="center">
-    <img src="https://github.com/painebenjamin/app.enfugue.ai/assets/57536852/6f6c6df9-dbb2-40d7-bd8c-834de9c22b20" alt="The ENFUGUE interface" />
+<strong>Now available in the cloud at <a href="https://www.rundiffusion.com/">RunDiffusion.com!</a></strong>
+</p>
+<p align="center">
+<img src="https://github.com/painebenjamin/app.enfugue.ai/assets/57536852/2fdacbe5-a863-43c7-82d9-1b3f5a07dc1b" width="500" height="260" />
+<img src="https://github.com/painebenjamin/app.enfugue.ai/assets/57536852/ce5ec222-3892-4fd9-88e5-d0303a1eadfb" width="500" height="260" /><br />
+<img src="https://github.com/painebenjamin/app.enfugue.ai/assets/57536852/da7b358d-ba59-4726-848c-041668214f62" width="500" height="260" />
+<img src="https://github.com/painebenjamin/app.enfugue.ai/assets/57536852/79fbd447-8f4b-4725-94ce-71ab0523a672" width="500" height="260" /><br />
+<em>Views of the ENFUGUE user interface, click to view full-size.</em>
 </p>
 
 # Feature Summary
