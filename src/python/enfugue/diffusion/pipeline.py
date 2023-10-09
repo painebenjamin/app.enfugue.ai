@@ -641,7 +641,12 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         modules.sort(key = lambda item: self.get_size_from_module(item), reverse=True)
         return modules
 
-    def align_unet(self, device: torch.device, offload_models: bool = False) -> None:
+    def align_unet(
+        self,
+        device: torch.device,
+        dtype: torch.dtype,
+        offload_models: bool = False
+    ) -> None:
         """
         Makes sure the unet is on the device and text encoders are off.
         """
@@ -651,7 +656,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             if self.text_encoder_2:
                 self.text_encoder_2.to("cpu")
             empty_cache()
-        self.unet.to(device)
+        self.unet.to(device=device, dtype=dtype)
 
     def run_safety_checker(
         self,
@@ -2867,7 +2872,11 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     self.controlnets[name].to(device=device)
 
             # Make sure unet is on device
-            self.align_unet(device, offload_models) # May be overridden by RT
+            self.align_unet(
+                device=device,
+                dtype=prompt_embeds.dtype,
+                offload_models=offload_models
+            ) # May be overridden by RT
 
             # Denoising loop
             prepared_latents = self.denoise(

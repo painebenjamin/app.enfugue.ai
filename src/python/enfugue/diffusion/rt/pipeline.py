@@ -206,7 +206,12 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         ):
             yield
 
-    def align_unet(self, device: torch.device, offload_models: bool = False) -> None:
+    def align_unet(
+        self,
+        device: torch.device,
+        dtype: torch.dtype,
+        offload_models: bool = False
+    ) -> None:
         """
         TRT skips.
         """
@@ -214,7 +219,11 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         if engine_name not in self.engine:
             engine_name = "unet"
         if engine_name not in self.engine:
-            return super(EnfugueTensorRTStableDiffusionPipeline, self).align_unet(device, offload_models)
+            return super(EnfugueTensorRTStableDiffusionPipeline, self).align_unet(
+                device=device,
+                dtype=dtype,
+                offload_models=offload_models
+            )
 
     def prepare_engines(
         self,

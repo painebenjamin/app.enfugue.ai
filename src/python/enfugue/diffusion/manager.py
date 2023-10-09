@@ -2474,7 +2474,7 @@ class DiffusionPipelineManager:
             if i < len(modules_to_gpu):
                 modules_to_gpu[i].to(self.device, dtype=self.dtype)
             if i < len(modules_to_cpu):
-                modules_to_cpu[i].to(torch.device("cpu"), dtype=torch.float32)
+                modules_to_cpu[i].to(torch.device("cpu"))
             self.clear_memory()
     
     @property
@@ -2902,7 +2902,7 @@ class DiffusionPipelineManager:
             else:
                 import torch
                 logger.debug("Offloading pipeline to CPU.")
-                self._pipeline = self._pipeline.to("cpu", torch_dtype=torch.float32)
+                self._pipeline = self._pipeline.to("cpu")
             self.clear_memory()
 
     def unload_refiner(self, reason: str = "none") -> None:
@@ -2932,7 +2932,7 @@ class DiffusionPipelineManager:
             else:
                 import torch
                 logger.debug("Offloading refiner to CPU")
-                self._refiner_pipeline = self._refiner_pipeline.to("cpu", torch_dtype=torch.float32)
+                self._refiner_pipeline = self._refiner_pipeline.to("cpu")
             self.clear_memory()
 
     def unload_inpainter(self, reason: str = "none") -> None:
@@ -2964,7 +2964,7 @@ class DiffusionPipelineManager:
             else:
                 import torch
                 logger.debug("Offloading inpainter to CPU")
-                self._inpainter_pipeline = self._inpainter_pipeline.to("cpu", torch_dtype=torch.float32)
+                self._inpainter_pipeline = self._inpainter_pipeline.to("cpu")
             self.clear_memory()
 
     @property
