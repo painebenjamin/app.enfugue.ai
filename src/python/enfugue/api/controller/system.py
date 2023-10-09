@@ -103,7 +103,7 @@ class EnfugueAPISystemController(EnfugueAPIControllerBase):
             "cache_mode": self.configuration.get("enfugue.pipeline.cache", None),
             "precision": self.configuration.get("enfugue.dtype", None),
             "inpainting": "never" if self.configuration.get("enfugue.pipeline.inpainter", None) == False else None,
-            "intermediate_steps": self.configuration.get("enfugue.engine.intermediates", 10),
+            "intermediate_steps": self.configuration.get("enfugue.engine.intermediates", 5),
         }
 
         for controlnet in self.CONTROLNETS:

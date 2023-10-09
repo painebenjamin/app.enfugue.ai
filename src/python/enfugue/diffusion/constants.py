@@ -32,7 +32,9 @@ __all__ = [
     "DEVICE_LITERAL",
     "PIPELINE_SWITCH_MODE_LITERAL",
     "UPSCALE_LITERAL",
-    "MASK_TYPE_LITERAL"
+    "MASK_TYPE_LITERAL",
+    "LATENT_BLEND_METHOD_LITERAL",
+    "NOISE_METHOD_LITERAL"
 ]
 
 DEFAULT_MODEL = "https://huggingface.co/runwayml/stable-diffusion-v1-5/resolve/main/v1-5-pruned.ckpt"
@@ -166,3 +168,18 @@ PIPELINE_SWITCH_MODE_LITERAL = Literal["offload", "unload"]
 UPSCALE_LITERAL = Literal["esrgan", "esrganime", "gfpgan", "lanczos", "bilinear", "bicubic", "nearest"]
 
 MASK_TYPE_LITERAL = Literal["constant", "bilinear", "gaussian"]
+
+LATENT_BLEND_METHOD_LITERAL = Literal[
+    "add", "bislerp", "cosine", "cubic",
+    "difference", "inject", "lerp", "slerp",
+    "exclusion", "subtract", "multiply", "overlay",
+    "screen", "color_dodge", "linear_dodge", "glow",
+    "pin_light", "hard_light", "linear_light", "vivid_light"
+]
+
+NOISE_METHOD_LITERAL = Literal[
+    "default", "crosshatch", "simplex",
+    "perlin", "brownian_fractal", "white",
+    "grey", "pink", "blue", "green",
+    "velvet", "violet", "random_mix"
+]

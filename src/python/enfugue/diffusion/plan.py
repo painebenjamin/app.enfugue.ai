@@ -1023,6 +1023,9 @@ class DiffusionPlan:
                         "chunking_mask_type": chunking_mask_type,
                         "chunking_mask_kwargs": chunking_mask_kwargs,
                         "progress_callback": progress_callback,
+                        "latent_callback": image_callback,
+                        "latent_callback_type": "pil",
+                        "latent_callback_steps": image_callback_steps
                     }
 
                     if controlnets is not None:

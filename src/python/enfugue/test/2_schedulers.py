@@ -14,15 +14,18 @@ SCHEDULERS = [
     "ddpm",
     "deis",
     "dpmsm",
+    "dpmsmk",
+    "dpmsmka",
     "dpmss",
     "heun",
     "dpmd",
+    "adpmd",
     "dpmsde",
     "unipc",
     "lmsd",
     "pndm",
     "eds",
-    "eads"
+    "eads",
 ]
 
 def main() -> None:
@@ -42,6 +45,7 @@ def main() -> None:
             "width": 768,
             "chunking_size": 128,
         }
+
         def run_and_save(filename: str, **other_kwargs: Any) -> None:
             steps = kwargs["num_inference_steps"]
             basename, ext = os.path.splitext(filename)

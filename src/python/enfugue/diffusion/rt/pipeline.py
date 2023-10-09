@@ -16,8 +16,12 @@ from transformers import (
 )
 
 from diffusers.schedulers import KarrasDiffusionSchedulers, DDIMScheduler
-from diffusers.models import AutoencoderKL, UNet2DConditionModel, ControlNetModel
-
+from diffusers.models import (
+    AutoencoderKL,
+    AutoencoderTiny,
+    UNet2DConditionModel,
+    ControlNetModel
+)
 from diffusers.pipelines.stable_diffusion import StableDiffusionSafetyChecker
 
 from enfugue.util import logger, TokenMerger
@@ -37,6 +41,7 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
     def __init__(
         self,
         vae: AutoencoderKL,
+        vae_preview: AutoencoderTiny,
         text_encoder: Optional[CLIPTextModel],
         text_encoder_2: Optional[CLIPTextModelWithProjection],
         tokenizer: Optional[CLIPTokenizer],
@@ -70,6 +75,7 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
     ) -> None:
         super(EnfugueTensorRTStableDiffusionPipeline, self).__init__(
             vae=vae,
+            vae_preview=vae_preview,
             text_encoder=text_encoder,
             text_encoder_2=text_encoder_2,
             tokenizer=tokenizer,
@@ -230,17 +236,13 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
 
         # build engines
         engines_to_build: Dict[str, BaseModel] = {}
-        if self.clip_engine_dir is not None and self.text_encoder is not None:
-            self.text_encoder.to(torch_device)
+        if self.clip_engine_dir is not None:
             engines_to_build[self.clip_engine_dir] = self.models["clip"]
         if self.unet_engine_dir is not None:
-            self.unet.to(torch_device)
             engines_to_build[self.unet_engine_dir] = self.models["unet"]
         if self.controlled_unet_engine_dir is not None:
-            self.unet.to(torch_device)
             engines_to_build[self.controlled_unet_engine_dir] = self.models["controlledunet"]
         if self.vae_engine_dir is not None:
-            self.vae.to(torch_device)
             engines_to_build[self.vae_engine_dir] = self.models["vae"]
 
         self.engine = Engine.build_all(

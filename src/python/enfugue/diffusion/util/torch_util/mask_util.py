@@ -1,206 +1,20 @@
-from typing import Dict, Type, Union, Any, Optional, Tuple
-from typing_extensions import Self
+from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-import torch
-import numpy as np
-
-from numpy import pi, exp, sqrt
+from typing import Any, Union, Dict, TYPE_CHECKING
+from typing_extensions import Self
 
 from enfugue.diffusion.constants import MASK_TYPE_LITERAL
 
-__all__ = [
-    "cuda_available",
-    "tensorrt_available",
-    "mps_available",
-    "directml_available",
-    "empty_cache",
-    "get_optimal_device",
-    "load_ckpt_state_dict",
-    "load_safetensor_state_dict",
-    "load_state_dict",
-    "get_ram_info",
-    "get_vram_info",
-    "DTypeConverter",
-    "MaskWeightBuilder",
-]
+if TYPE_CHECKING:
+    from torch import (
+        Tensor,
+        dtype as DType,
+        device as Device
+    )
 
-def tensorrt_available() -> bool:
-    """
-    Returns true if TensorRT is available.
-    """
-    try:
-        import tensorrt
-        tensorrt  # silence importchecker
-        return True
-    except:
-        return False
-
-def cuda_available() -> bool:
-    """
-    Returns true if CUDA is available.
-    """
-    return torch.cuda.is_available() and torch.backends.cuda.is_built()
-
-def mps_available() -> bool:
-    """
-    Returns true if MPS is available.
-    """
-    return torch.backends.mps.is_available() and torch.backends.mps.is_built()
-
-def directml_available() -> bool:
-    """
-    Returns true if directml is available.
-    """
-    try:
-        import torch_directml
-        return True
-    except:
-        return False
-
-def get_optimal_device() -> torch.device:
-    """
-    Gets the optimal device based on availability.
-    """
-    if cuda_available():
-        return torch.device("cuda")
-    elif directml_available():
-        import torch_directml
-        return torch_directml.device()
-    elif mps_available():
-        return torch.device("mps")
-    return torch.device("cpu")
-        
-def empty_cache() -> None:
-    """
-    Empties caches to clear memory.
-    """
-    if cuda_available():
-        import torch
-        import torch.cuda
-        torch.cuda.empty_cache()
-    elif mps_available():
-        import torch
-        import torch.mps
-        torch.mps.empty_cache()
-    import gc
-    gc.collect()
-
-def get_ram_info() -> Tuple[int, int]:
-    """
-    Returns RAM amount in bytes as [free, total]
-    """
-    import psutil
-    mem = psutil.virtual_memory()
-    return (mem.free, mem.total)
-
-def get_vram_info() -> Tuple[int, int]:
-    """
-    Returns VRAM amount in bytes as [free, total]
-    If no GPU is found, returns RAM info.
-    """
-    if not cuda_available():
-        return get_ram_info()
-    return torch.cuda.mem_get_info()
-
-def load_ckpt_state_dict(path: str) -> Dict[str, Union[torch.Tensor, Dict[str, torch.Tensor]]]:
-    """
-    Loads a state dictionary from a .ckpt (old-style) file
-    """
-    return torch.load(path, map_location="cpu")
-
-def load_safetensor_state_dict(path: str) -> Dict[str, Union[torch.Tensor, Dict[str, torch.Tensor]]]:
-    """
-    Loads a state dictionary from a .safetensor(s) (new-style) file
-    """
-    from safetensors import safe_open
-
-    checkpoint = {}
-    with safe_open(path, framework="pt", device="cpu") as f:
-        for key in f.keys():
-            checkpoint[key] = f.get_tensor(key)
-    return checkpoint
-
-def load_state_dict(path: str) -> Dict[str, Union[torch.Tensor, Dict[str, torch.Tensor]]]:
-    """
-    Loads a state dictionary from file.
-    Tries to correct issues with incorrrect formats.
-    """
-    load_order = [load_safetensor_state_dict, load_ckpt_state_dict]
-    if "safetensor" not in path:
-        load_order = [load_ckpt_state_dict, load_safetensor_state_dict]
-
-    first_error: Optional[Exception] = None
-
-    for i, loader in enumerate(load_order):
-        try:
-            return loader(path)
-        except Exception as ex:
-            if first_error is None:
-                first_error = ex
-
-    if first_error is not None:
-        raise IOError(f"Recevied exception reading checkpoint {path}, please ensure file integrity.\n{type(first_error).__name__}: {first_error}")
-    raise IOError(f"No data read from path {path}")
-
-class DTypeConverter:
-    """
-    This class converts between numpy and torch types.
-    """
-
-    numpy_to_torch: Dict[Type, torch.dtype] = {
-        np.uint8: torch.uint8,
-        np.int8: torch.int8,
-        np.int16: torch.int16,
-        np.int32: torch.int32,
-        np.int64: torch.int64,
-        np.float16: torch.float16,
-        np.float32: torch.float32,
-        np.float64: torch.float64,
-        np.complex64: torch.complex64,
-        np.complex128: torch.complex128,
-        np.bool_: torch.bool,
-    }
-
-    torch_to_numpy: Dict[torch.dtype, Type] = {
-        torch.uint8: np.uint8,
-        torch.int8: np.int8,
-        torch.int16: np.int16,
-        torch.int32: np.int32,
-        torch.int64: np.int64,
-        torch.float16: np.float16,
-        torch.float32: np.float32,
-        torch.float64: np.float64,
-        torch.complex64: np.complex64,
-        torch.complex128: np.complex128,
-        torch.bool: np.bool_,
-    }
-
-    @staticmethod
-    def from_torch(torch_type: torch.dtype) -> Type:
-        """
-        Gets the numpy type from torch.
-        :raises: KeyError When type is unknown.
-        """
-        return DTypeConverter.torch_to_numpy[torch_type]
-
-    @staticmethod
-    def from_numpy(numpy_type: Type) -> torch.dtype:
-        """
-        Gets the torch type from nump.
-        :raises: KeyError When type is unknown.
-        """
-        return DTypeConverter.numpy_to_torch[numpy_type]
-
-    @staticmethod
-    def __call__(type_to_convert: Union[torch.dtype, Type]) -> Union[torch.dtype, Type]:
-        """
-        Converts from one type to the other, inferring based on the type passed.
-        """
-        if isinstance(type_to_convert, torch.dtype):
-            return DTypeConverter.from_torch(type_to_convert)
-        return DTypeConverter.from_numpy(type_to_convert)
+__all__ = ["MaskWeightBuilder"]
 
 @dataclass(frozen=True)
 class DiffusionMask:
@@ -216,11 +30,12 @@ class DiffusionMask:
     unfeather_right: bool = False
     unfeather_bottom: bool = False
 
-    def unfeather(self, tensor: torch.Tensor, feather_ratio: float) -> torch.Tensor:
+    def unfeather(self, tensor: Tensor, feather_ratio: float) -> Tensor:
         """
         Unfeathers the edges of a tensor if requested.
         This ensures the edges of images are not blurred.
         """
+        import torch
         feather_length = int(feather_ratio * self.width)
         for i in range(feather_length):
             unfeathered = torch.tensor((feather_length - i) / feather_length).to(dtype=tensor.dtype, device=tensor.device)
@@ -240,10 +55,11 @@ class DiffusionMask:
                 )
         return tensor
 
-    def calculate(self, feather_ratio: float = 0.125) -> torch.Tensor:
+    def calculate(self, feather_ratio: float = 0.125) -> Tensor:
         """
         These weights are always 1.
         """
+        import torch
         return torch.ones(self.batch, self.dim, self.height, self.width)
 
 @dataclass(frozen=True)
@@ -253,10 +69,11 @@ class BilinearDiffusionMask(DiffusionMask):
     """
     ratio: float = 1 / 8
 
-    def calculate(self, feather_ratio: float = 0.125) -> torch.Tensor:
+    def calculate(self, feather_ratio: float = 0.125) -> Tensor:
         """
         Calculates weights in linear gradients.
         """
+        import torch
         tensor = super(BilinearDiffusionMask, self).calculate(feather_ratio)
         latent_length = int(self.ratio * self.width)
         for i in range(latent_length):
@@ -284,18 +101,20 @@ class GaussianDiffusionMask(DiffusionMask):
     """
     deviation: float = 0.01
 
-    def calculate(self, feather_ratio: float = 0.125) -> torch.Tensor:
+    def calculate(self, feather_ratio: float = 0.125) -> Tensor:
         """
         Calculates weights with a gaussian distribution
         """
+        import torch
+        import numpy as np
         midpoint = (self.width - 1) / 2
         x_probabilities = [
-            exp(-(x - midpoint) * (x - midpoint) / (self.width * self.width) / (2 * self.deviation)) / sqrt(2 * pi * self.deviation)
+            np.exp(-(x - midpoint) * (x - midpoint) / (self.width * self.width) / (2 * self.deviation)) / np.sqrt(2 * np.pi * self.deviation)
             for x in range(self.width)
         ]
         midpoint = (self.height - 1) / 2
         y_probabilities = [
-            exp(-(y - midpoint) * (y - midpoint) / (self.height * self.height) / (2 * self.deviation)) / sqrt(2 * pi * self.deviation)
+            np.exp(-(y - midpoint) * (y - midpoint) / (self.height * self.height) / (2 * self.deviation)) / np.sqrt(2 * np.pi * self.deviation)
             for y in range(self.height)
         ]
 
@@ -311,12 +130,12 @@ class MaskWeightBuilder:
 
     Stores masks on the device for speed. Be sure to free memory when no longer needed.
     """
-    device: Union[str, torch.device]
-    dtype: torch.dtype
+    device: Union[str, Device]
+    dtype: DType
 
-    constant_weights: Dict[DiffusionMask, torch.Tensor] = field(default_factory=dict)
-    bilinear_weights: Dict[BilinearDiffusionMask, torch.Tensor] = field(default_factory=dict)
-    gaussian_weights: Dict[GaussianDiffusionMask, torch.Tensor] = field(default_factory=dict)
+    constant_weights: Dict[DiffusionMask, Tensor] = field(default_factory=dict)
+    bilinear_weights: Dict[BilinearDiffusionMask, Tensor] = field(default_factory=dict)
+    gaussian_weights: Dict[GaussianDiffusionMask, Tensor] = field(default_factory=dict)
     unfeather_ratio: float = 1 / 8
 
     def clear(self) -> None:
@@ -349,7 +168,7 @@ class MaskWeightBuilder:
         width: int,
         height: int,
         **kwargs: Any
-    ) -> torch.Tensor:
+    ) -> Tensor:
         """
         Calculates the constant mask. No feathering.
         """
@@ -378,7 +197,7 @@ class MaskWeightBuilder:
         unfeather_bottom: bool = False,
         ratio: float = 0.125,
         **kwargs: Any
-    ) -> torch.Tensor:
+    ) -> Tensor:
         """
         Calculates the bilinear mask.
         """
@@ -412,7 +231,7 @@ class MaskWeightBuilder:
         unfeather_bottom: bool = False,
         deviation: float = 0.01,
         **kwargs: Any
-    ) -> torch.Tensor:
+    ) -> Tensor:
         """
         Calculates the gaussian mask, optionally unfeathered.
         """
@@ -446,7 +265,7 @@ class MaskWeightBuilder:
         unfeather_right: bool = False,
         unfeather_bottom: bool = False,
         **kwargs: Any
-    ) -> torch.Tensor:
+    ) -> Tensor:
         """
         Calculates a mask depending on the method requested.
         """

@@ -157,10 +157,10 @@ class SystemManager:
     def engine_intermediate_steps(self) -> int:
         """
         Gets the number of steps to wait before decoding an intermediate
-        Default to 10; set to 1 to decode every intermediate (not recommended,)
+        Default to 5; set to 1 to decode every intermediate (not recommended,)
         or set to 0 to disable intermediate.
         """
-        return self.configuration.get("enfugue.engine.intermediates", 10)
+        return self.configuration.get("enfugue.engine.intermediates", 5)
 
     @property
     def engine_tensorrt_dir(self) -> str:

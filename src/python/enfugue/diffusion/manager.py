@@ -30,7 +30,7 @@ DEFAULT_SDXL_REFINER_FILE = os.path.basename(DEFAULT_SDXL_REFINER)
 
 if TYPE_CHECKING:
     from diffusers.pipelines.stable_diffusion import StableDiffusionPipelineOutput
-    from diffusers.models import ControlNetModel, AutoencoderKL
+    from diffusers.models import ControlNetModel, AutoencoderKL, AutoencoderTiny
     from diffusers.schedulers.scheduling_utils import KarrasDiffusionSchedulers
     from enfugue.diffusion.pipeline import EnfugueStableDiffusionPipeline
     from enfugue.diffusion.support import ControlImageProcessor, Upscaler, IPAdapter, BackgroundRemover
@@ -256,6 +256,7 @@ class DiffusionPipelineManager:
         """
         self._seed = new_seed
         del self.generator
+        del self.noise_generator
 
     @property
     def keepalive_callback(self) -> Callable[[], None]:
@@ -323,6 +324,25 @@ class DiffusionPipelineManager:
         """
         if hasattr(self, "_generator"):
             delattr(self, "_generator")
+
+    @property
+    def noise_generator(self) -> torch.Generator:
+        """
+        Creates the noise generator once, otherwise returns it.
+        This is kept on the CPU as it creates better noise.
+        """
+        if not hasattr(self, "_noise_generator"):
+            self._noise_generator = torch.Generator()
+            self._noise_generator.manual_seed(self.seed)
+        return self._noise_generator
+
+    @noise_generator.deleter
+    def noise_generator(self) -> None:
+        """
+        Removes an existing noise generator.
+        """
+        if hasattr(self, "_noise_generator"):
+            delattr(self, "_noise_generator")
 
     def get_scheduler_class(
         self,
@@ -547,6 +567,17 @@ class DiffusionPipelineManager:
             )
 
         return result
+
+    def get_vae_preview(self, use_xl: bool) -> AutoencoderTiny:
+        """
+        Gets a previewer VAE (tiny)
+        """
+        from diffusers.models import AutoencoderTiny
+        return AutoencoderTiny.from_pretrained(
+            "madebyollin/taesdxl" if use_xl else "madebyollin/taesd",
+            cache_dir=self.engine_cache_dir,
+            torch_dtype=self.dtype
+        )
 
     @property
     def vae(self) -> Optional[AutoencoderKL]:
@@ -2502,6 +2533,7 @@ class DiffusionPipelineManager:
                 pipeline = self.pipeline_class.from_pretrained(
                     self.model_diffusers_cache_dir,
                     local_files_only=self.offline,
+                    vae_preview=self.get_vae_preview(self.is_sdxl),
                     **kwargs
                 )
             elif self.model_diffusers_cache_dir is not None:
@@ -2518,6 +2550,7 @@ class DiffusionPipelineManager:
                 pipeline = self.pipeline_class.from_pretrained(
                     self.model_diffusers_cache_dir,
                     local_files_only=self.offline,
+                    vae_preview=self.get_vae_preview(self.is_sdxl),
                     **kwargs
                 )
             else:
@@ -2627,6 +2660,7 @@ class DiffusionPipelineManager:
                 refiner_pipeline = self.refiner_pipeline_class.from_pretrained(
                     self.refiner_diffusers_cache_dir,
                     safety_checker=None,
+                    vae_preview=self.get_vae_preview(self.refiner_is_sdxl),
                     local_files_only=self.offline,
                     **kwargs,
                 )
@@ -2647,6 +2681,7 @@ class DiffusionPipelineManager:
                 refiner_pipeline = self.refiner_pipeline_class.from_pretrained(
                     self.refiner_diffusers_cache_dir,
                     safety_checker=None,
+                    vae_preview=self.get_vae_preview(self.refiner_is_sdxl),
                     local_files_only=self.offline,
                     **kwargs,
                 )
@@ -2772,6 +2807,7 @@ class DiffusionPipelineManager:
                 inpainter_pipeline = self.inpainter_pipeline_class.from_pretrained(
                     self.inpainter_diffusers_cache_dir,
                     local_files_only=self.offline,
+                    vae_preview=self.get_vae_preview(self.inpainter_is_sdxl),
                     **kwargs
                 )
             elif self.inpainter_engine_cache_exists:
@@ -2792,6 +2828,7 @@ class DiffusionPipelineManager:
                 inpainter_pipeline = self.inpainter_pipeline_class.from_pretrained(
                     self.inpainter_diffusers_cache_dir,
                     local_files_only=self.offline,
+                    vae_preview=self.get_vae_preview(self.inpainter_is_sdxl),
                     **kwargs
                 )
             else:
@@ -2856,9 +2893,6 @@ class DiffusionPipelineManager:
                 self.unload_pipeline("switching modes" if not intention else f"switching to {intention}")
             elif self.pipeline_switch_mode is None:
                 logger.debug("Offloading is disabled, keeping pipeline in memory.")
-            elif self.tensorrt_is_ready:
-                logger.debug("Cannot offload TensorRT pipeline, unloading instead.")
-                self.unload_pipeline("switching modes" if not intention else f"switching to {intention}")
             elif intention == "inpainting" and hasattr(self, "_inpainter_pipeline"):
                 logger.debug("Swapping inpainter out of CPU and pipeline into CPU")
                 self.swap_pipelines(self._inpainter_pipeline, self._pipeline)
@@ -2889,9 +2923,6 @@ class DiffusionPipelineManager:
                 self.unload_refiner("switching modes" if not intention else f"switching to {intention}")
             elif self.pipeline_switch_mode is None:
                 logger.debug("Offloading is disabled, keeping refiner pipeline in memory.")
-            elif self.refiner_tensorrt_is_ready:
-                logger.debug("Cannot offload TensorRT refiner pipeline, unloading instead.")
-                self.unload_refiner("switching modes" if not intention else f"switching to {intention}")
             elif intention == "inference" and hasattr(self, "_pipeline"):
                 logger.debug("Swapping pipeline out of CPU and refiner into CPU")
                 self.swap_pipelines(self._pipeline, self._refiner_pipeline)
@@ -2924,9 +2955,6 @@ class DiffusionPipelineManager:
                 self.unload_inpainter("switching modes" if not intention else f"switching to {intention}")
             elif self.pipeline_switch_mode is None:
                 logger.debug("Offloading is disabled, keeping inpainter pipeline in memory.")
-            elif self.inpainter_tensorrt_is_ready:
-                logger.debug("Cannot offload TensorRT inpainter pipeline, unloading instead.")
-                self.unload_inpainter("switching modes" if not intention else f"switching to {intention}")
             elif intention == "inference" and hasattr(self, "_pipeline"):
                 logger.debug("Swapping pipeline out of CPU and inpainter into CPU")
                 self.swap_pipelines(self._pipeline, self._inpainter_pipeline)
@@ -3469,6 +3497,7 @@ class DiffusionPipelineManager:
                     generator=self.generator,
                     device=self.device,
                     offload_models=self.pipeline_sequential_onload,
+                    noise_generator=self.noise_generator,
                     **kwargs
                 )
 
@@ -3540,6 +3569,7 @@ class DiffusionPipelineManager:
                     generator=self.generator,
                     device=self.device,
                     offload_models=self.pipeline_sequential_onload,
+                    noise_generator=self.noise_generator,
                     image=result["images"],
                     **kwargs
                 )
