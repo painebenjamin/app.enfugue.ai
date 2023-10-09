@@ -107,7 +107,7 @@ class OptionalDownloadAnnouncementHeaderView extends View {
         node.content(
             E.h2().content("Optional Downloads"),
             E.p().content("The following downloads are optional. They are newer, more powerful versions of Stable Diffusion that can be used in Enfugue."),
-            E.p().content("For Stable Diffusion XL, you will require a GPU with at least 12 GB of VRAM."),
+            E.p().content("For Stable Diffusion XL, you will require a GPU with at least 8 GB of VRAM. If you have exactly 8 GB, it is recommended to enable 'Sequential Model Loading' in the settings menu for best performance."),
             E.p().content("Click the icon in each row to being downloading them. You can also select the appropriate checkpoint from the checkpoint picker at any time, and the file will be downloaded if it has not yet been.")
         );
         return node;
