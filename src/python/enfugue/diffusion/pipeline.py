@@ -2919,7 +2919,6 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
             # Empty caches for more memory
             empty_cache()
-
             if output_type != "latent":
                 self.vae.to(
                     dtype=torch.float32 if self.config.force_full_precision_vae else prepared_latents.dtype,
@@ -2953,6 +2952,11 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         if output_type == "latent":
             output = prepared_latents
         else:
+            if offload_models:
+                # Offload VAE again
+                self.vae.to("cpu")
+                self.vae_preview.to("cpu")
+                empty_cache()
             output = self.denormalize_latents(prepared_latents)
             if output_type != "pt":
                 output = self.image_processor.pt_to_numpy(output)
