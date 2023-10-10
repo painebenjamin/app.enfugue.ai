@@ -77,12 +77,7 @@ from diffusers.utils import PIL_INTERPOLATION
 from diffusers.utils.torch_utils import randn_tensor
 from diffusers.image_processor import VaeImageProcessor
 
-from enfugue.util import (
-    logger,
-    check_download,
-    check_download_to_dir,
-    TokenMerger,
-)
+from enfugue.diffusion.constants import *
 from enfugue.diffusion.util import (
     MaskWeightBuilder,
     Prompt,
@@ -92,24 +87,47 @@ from enfugue.diffusion.util import (
     Video,
     load_state_dict
 )
+from enfugue.util import (
+    logger,
+    check_download,
+    check_download_to_dir,
+    TokenMerger,
+)
 
 from einops import rearrange
 
 if TYPE_CHECKING:
     from enfugue.diffusers.support.ip import IPAdapter
-    from enfugue.diffusion.constants import MASK_TYPE_LITERAL
 
 # This is ~64k×64k. Absurd, but I don't judge
 PIL.Image.MAX_IMAGE_PIXELS = 2**32
 
+# Init image accepted arguments
+class ImageArgDict(TypedDict):
+    image: Union[str, PIL.Image.Image, List[PIL.Image.Image]]
+    start_frame: NotRequired[int]
+    end_frame: NotRequired[int]
+
+ImageType = Union[
+    Union[str, PIL.Image.Image, List[PIL.Image.Image]], # Image
+    Tuple[Union[str, PIL.Image.Image, List[PIL.Image.Image]], int], # Image, Start Frame
+    Tuple[Union[str, PIL.Image.Image, List[PIL.Image.Image]], int, int], # Image, Start Frame, End Frame
+    ImageArgDict
+]
+ImageArgType = Optional[Union[ImageType, List[ImageType]]]
+
 # IP image accepted arguments
 class ImagePromptArgDict(TypedDict):
-    image: Union[str, PIL.Image.Image]
+    image: Union[str, PIL.Image.Image, List[PIL.Image.Image]]
     scale: NotRequired[float]
+    start_frame: NotRequired[int]
+    end_frame: NotRequired[int]
 
 ImagePromptType = Union[
-    Union[str, PIL.Image.Image], # Image
-    Tuple[Union[str, PIL.Image.Image], float], # Image, Scale
+    Union[str, PIL.Image.Image, List[PIL.Image.Image]], # Image
+    Tuple[Union[str, PIL.Image.Image, List[PIL.Image.Image]], float], # Image, Scale
+    Tuple[Union[str, PIL.Image.Image, List[PIL.Image.Image]], float, int], # Image, Scale, Start Frame
+    Tuple[Union[str, PIL.Image.Image, List[PIL.Image.Image]], float, int, int], # Image, Scale, Start Frame, End Frame
     ImagePromptArgDict
 ]
 ImagePromptArgType = Optional[Union[ImagePromptType, List[ImagePromptType]]]
@@ -118,14 +136,18 @@ ImagePromptArgType = Optional[Union[ImagePromptType, List[ImagePromptType]]]
 class ControlImageArgDict(TypedDict):
     image: Union[str, PIL.Image.Image, List[PIL.Image.Image]]
     scale: NotRequired[float]
-    start: NotRequired[float]
-    end: NotRequired[float]
+    start_denoising: NotRequired[float]
+    end_denoising: NotRequired[float]
+    start_frame: NotRequired[int]
+    end_frame: NotRequired[int]
 
 ControlImageType = Union[
     Union[str, PIL.Image.Image, List[PIL.Image.Image]], # Image(s)
     Tuple[Union[str, PIL.Image.Image, List[PIL.Image.Image]], float], # Image(s), Scale
-    Tuple[Union[str, PIL.Image.Image, List[PIL.Image.Image]], float, float], # Image(s), Scale, End
-    Tuple[Union[str, PIL.Image.Image, List[PIL.Image.Image]], float, float, float], # Image(s), Scale, Start, End
+    Tuple[Union[str, PIL.Image.Image, List[PIL.Image.Image]], float, float], # Image(s), Scale, End Denoising
+    Tuple[Union[str, PIL.Image.Image, List[PIL.Image.Image]], float, float, float], # Image(s), Scale, Start Denoising, End Denoising
+    Tuple[Union[str, PIL.Image.Image, List[PIL.Image.Image]], float, float, float, int], # Image(s), Scale, Start Denoising, End Denoising, Start Frame
+    Tuple[Union[str, PIL.Image.Image, List[PIL.Image.Image]], float, float, float, int, int], # Image(s), Scale, Start Denoising, End Denoising, Start Frame, End Frame
     ControlImageArgDict
 ]
 
@@ -286,6 +308,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         torch_dtype: Optional[torch.dtype] = None,
         upcast_attention: Optional[bool] = None,
         extract_ema: Optional[bool] = None,
+        motion_module: Optional[str] = None,
         unet_kwargs: Dict[str, Any] = {},
         **kwargs: Any,
     ) -> EnfugueStableDiffusionPipeline:
@@ -437,7 +460,12 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         unet_config = create_unet_diffusers_config(original_config, image_size=image_size)
         unet_config["upcast_attention"] = upcast_attention
         
-        unet = cls.create_unet(unet_config, cache_dir=cache_dir, **unet_kwargs)
+        unet = cls.create_unet(
+            unet_config,
+            cache_dir=cache_dir,
+            motion_module=motion_module,
+            **unet_kwargs
+        )
 
         converted_unet_checkpoint = convert_ldm_unet_checkpoint(
             checkpoint,
@@ -2697,7 +2725,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             self.chunking_mask_kwargs = chunking_mask_kwargs
         if temporal_chunking_size is not None:
             self.temporal_chunking_size = temporal_chunking_size
-        
+
         # Check latent callback steps, disable if 0
         if latent_callback_steps == 0:
             latent_callback_steps = None

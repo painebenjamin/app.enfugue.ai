@@ -133,7 +133,26 @@ class EncodedPrompts:
     image_prompt_embeds: Optional[Tensor]
     image_uncond_prompt_embeds: Optional[Tensor]
 
-    def get_prompt_tensor(
+    def get_stacked_tensor(
+        self,
+        frames: Optional[List[int]],
+        getter: PromptGetterCallable
+    ) -> Optional[Tensor]:
+        """
+        Gets a tensor from prompts using a callable.
+        """
+        import torch
+        return_tensor = None
+        for prompt in self.prompts:
+            tensor, weight = getter(prompt, frames)
+            if tensor is not None and weight is not None and weight > 0:
+                if return_tensor is None:
+                    return_tensor = tensor * weight
+                else:
+                    return_tensor = torch.cat([return_tensor, tensor * weight], dim=1) # type: ignore[unreachable]
+        return return_tensor
+
+    def get_mean_tensor(
         self,
         frames: Optional[List[int]],
         getter: PromptGetterCallable
@@ -146,12 +165,12 @@ class EncodedPrompts:
         total_weight = 0.0
         for prompt in self.prompts:
             tensor, weight = getter(prompt, frames)
-            if tensor is not None:
+            if tensor is not None and weight is not None and weight > 0:
                 total_weight += weight
                 if return_tensor is None:
-                    return_tensor = tensor.unsqueeze(0)
+                    return_tensor = (tensor * weight).unsqueeze(0)
                 else:
-                    return_tensor = torch.cat([return_tensor, tensor.unsqueeze(0)], dim=0) # type: ignore[unreachable]
+                    return_tensor = torch.cat([return_tensor, (tensor * weight).unsqueeze(0)]) # type: ignore[unreachable]
         if return_tensor is not None:
             return torch.sum(return_tensor, 0) / total_weight
         return None
@@ -162,14 +181,15 @@ class EncodedPrompts:
         """
         import torch
         get_embeds: PromptGetterCallable = lambda prompt, frames: prompt.get_embeds(frames)
-        result = self.get_prompt_tensor(frames, get_embeds)
+        method = self.get_mean_tensor if self.is_sdxl else self.get_stacked_tensor
+        result = method(frames, get_embeds)
         if result is None:
             return None
         if self.is_sdxl and self.do_classifier_free_guidance:
             negative_result = self.get_negative_embeds(frames)
             if negative_result is None:
                 negative_result = torch.zeros_like(result)
-            result = torch.cat([negative_result, result], dim=0)
+            result = torch.cat([negative_result, result])
         if self.is_sdxl and self.image_prompt_embeds is not None:
             return torch.cat([result, self.image_prompt_embeds], dim=1)
         elif not self.is_sdxl and self.image_prompt_embeds is not None and result is not None:
@@ -189,9 +209,12 @@ class EncodedPrompts:
         """
         Gets the encoded negative embeds.
         """
+        if not self.is_sdxl:
+            return None
         import torch
         get_embeds: PromptGetterCallable = lambda prompt, frames: prompt.get_negative_embeds(frames)
-        result = self.get_prompt_tensor(frames, get_embeds)
+        method = self.get_mean_tensor if self.is_sdxl else self.get_stacked_tensor
+        result = method(frames, get_embeds)
         if self.is_sdxl and self.image_uncond_prompt_embeds is not None and result is not None:
             return torch.cat([result, self.image_uncond_prompt_embeds], dim=1)
         elif self.image_uncond_prompt_embeds is not None and result is not None:
@@ -207,23 +230,27 @@ class EncodedPrompts:
         """
         Gets the encoded pooled embeds.
         """
+        if not self.is_sdxl:
+            return None
         get_embeds: PromptGetterCallable = lambda prompt, frames: prompt.get_pooled_embeds(frames)
-        return self.get_prompt_tensor(frames, get_embeds)
+        return self.get_mean_tensor(frames, get_embeds)
 
     def get_negative_pooled_embeds(self, frames: Optional[List[int]] = None) -> Optional[Tensor]:
         """
         Gets the encoded negative pooled embeds.
         """
+        if not self.is_sdxl:
+            return None
         get_embeds: PromptGetterCallable = lambda prompt, frames: prompt.get_negative_pooled_embeds(frames)
-        return self.get_prompt_tensor(frames, get_embeds)
+        return self.get_mean_tensor(frames, get_embeds)
 
     def get_add_text_embeds(self, frames: Options[List[int]] = None) -> Optional[Tensor]:
         """
         Gets added text embeds for SDXL.
         """
-        import torch
         if not self.is_sdxl:
             return None
+        import torch
         pooled_embeds = self.get_pooled_embeds(frames)
         if self.do_classifier_free_guidance and pooled_embeds is not None:
             negative_pooled_embeds = self.get_negative_pooled_embeds()

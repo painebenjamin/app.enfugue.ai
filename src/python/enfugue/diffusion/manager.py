@@ -2641,6 +2641,34 @@ class DiffusionPipelineManager:
         return [os.path.splitext(os.path.basename(inversion))[0] for inversion in self.inversion]
 
     @property
+    def motion_module(self) -> Optional[str]:
+        """
+        Gets optional configured non-default motion module.
+        """
+        return getattr(self, "_motion_module", None)
+
+    @motion_module.setter
+    def motion_module(self, new_module: Optional[str]) -> None:
+        """
+        Sets a new motion module or reverts to default.
+        """
+        if (
+            self.motion_module is None and new_module is not None or
+            self.motion_module is not None and new_module is None or
+            (
+                self.motion_module is not None and
+                new_module is not None and
+                self.motion_module != new_module
+            )
+        ):
+            self.unload_animator("Motion module changing")
+        if new_module is not None and not os.path.isabs(new_module):
+            new_module = os.path.join(self.engine_other_dir, new_module)
+        if new_module is not None and not os.path.exists(new_module):
+            raise IOError(f"Cannot find or access motion module at {new_module}")
+        self._motion_module = new_module
+
+    @property
     def model_diffusers_cache_dir(self) -> Optional[str]:
         """
         Ggets where the diffusers cache directory is saved for this model, if there is any.
@@ -3316,7 +3344,8 @@ class DiffusionPipelineManager:
                 "requires_aesthetic_score": False,
                 "controlnets": self.animator_controlnets,
                 "force_full_precision_vae": self.animator_is_sdxl and self.animator_vae_name not in ["xl16", VAE_XL16],
-                "ip_adapter": self.ip_adapter
+                "ip_adapter": self.ip_adapter,
+                "motion_module": self.motion_module
             }
 
             vae = self.animator_vae
@@ -4307,16 +4336,22 @@ class DiffusionPipelineManager:
                     self.unload_pipeline("unloading for upscaling")
                 self.offload_refiner(intention if next_intention is None else next_intention) # type: ignore
             if interpolate_frames is not None:
-                self.offload_animator("interpolation")
+                self.unload_animator("unloading for interpolation")
                 from enfugue.diffusion.util.video_util import Video
+                if kwargs.get("loop", False):
+                    # Append copy of first frame
+                    result["images"].append(result["images"][0].copy())
                 with self.interpolator.interpolate() as process:
                     interpolated_images = [
                         image for image in Video(result["images"]).interpolate(
                             multiplier=interpolate_frames,
-                            interpolate=process
+                            interpolate=process,
                         )
                     ]
                     result["images"] = interpolated_images
+                if kwargs.get("loop", False):
+                    # Remove copy of first frame
+                    result["images"] = result["images"][:-1]
             return result
         finally:
             self.tensorrt_is_enabled = True

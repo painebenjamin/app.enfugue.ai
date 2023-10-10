@@ -46,7 +46,7 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
     STATIC_SCHEDULER_KWARGS = {
         "num_train_timesteps": 1000,
         "beta_start": 0.00085,
-        "beta_end": 0.011,
+        "beta_end": 0.012,
         "beta_schedule": "linear"
     }
 
@@ -115,6 +115,7 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
     def from_pretrained(
         cls,
         pretrained_model_name_or_path: Optional[Union[str, os.PathLike]],
+        motion_module: Optional[str] = None,
         **kwargs: Any
     ) -> EnfugueAnimateStableDiffusionPipeline:
         """
@@ -124,7 +125,7 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         unet_dir = os.path.join(pretrained_model_name_or_path, "unet") # type: ignore[arg-type]
         unet_config = os.path.join(unet_dir, "config.json")
         unet_weights = os.path.join(unet_dir, WEIGHTS_NAME)
-        
+
         if not os.path.exists(unet_config):
             raise IOError(f"Couldn't find UNet config at {unet_config}")
         if not os.path.exists(unet_weights):
@@ -135,17 +136,14 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
             else:
                 raise IOError(f"Couldn't find UNet weights at {unet_weights} or {safetensors_weights}")
 
+        from enfugue.diffusion.util.torch_util import load_state_dict
         unet = cls.create_unet(
             load_json(unet_config),
             kwargs.get("cache_dir", DIFFUSERS_CACHE),
+            motion_module=motion_module
         )
 
-        if unet_weights.endswith("safetensors"):
-            import safetensors.torch
-            state_dict = safetensors.torch.load_file(unet_weights, device="cpu")
-        else:
-            state_dict = torch.load(unet_weights, map_location="cpu")
-
+        state_dict = load_state_dict(unet_weights)
         unet.load_state_dict(state_dict, strict=False)
 
         if "torch_dtype" in kwargs:
@@ -160,6 +158,7 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         config: Dict[str, Any],
         cache_dir: str,
         use_mm_v2: bool = True,
+        motion_module: Optional[str] = None,
         **unet_additional_kwargs: Any
     ) -> ModelMixin:
         """
@@ -176,6 +175,7 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
             config=config,
             cache_dir=cache_dir,
             use_mm_v2=use_mm_v2,
+            motion_module=motion_module,
             **unet_additional_kwargs
         )
 
@@ -220,6 +220,7 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
 
         model.load_state_dict(hotshot_state_dict, strict=False)
         del hotshot_state_dict
+        del hotshot_unet
         return model
 
     @classmethod
@@ -228,6 +229,7 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         config: Dict[str, Any],
         cache_dir: str,
         use_mm_v2: bool = True,
+        motion_module: Optional[str] = None,
         **unet_additional_kwargs: Any
     ) -> ModelMixin:
         """
@@ -270,10 +272,12 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         }
 
         model = AnimateDiffUNet.from_config(config, **unet_additional_kwargs)
-        motion_module = cls.MOTION_MODULE_V2 if use_mm_v2 else cls.MOTION_MODULE
+        if not motion_module:
+            motion_module = cls.MOTION_MODULE_V2 if use_mm_v2 else cls.MOTION_MODULE
+            motion_module = check_download_to_dir(motion_module, cache_dir)
 
-        model_file = check_download_to_dir(motion_module, cache_dir)
-        state_dict = torch.load(model_file, map_location="cpu")
+        from enfugue.diffusion.util.torch_util import load_state_dict
+        state_dict = load_state_dict(motion_module)
         model.load_state_dict(state_dict, strict=False)
 
         return model
