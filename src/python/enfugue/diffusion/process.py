@@ -35,9 +35,9 @@ if TYPE_CHECKING:
     # since we don't want torch to initialize itself.
     from enfugue.diffusion.manager import DiffusionPipelineManager
     from enfugue.diffusion.plan import DiffusionPlan
+    from diffusers.pipelines.stable_diffusion import StableDiffusionPipelineOutput
 
 __all__ = ["DiffusionEngineProcess"]
-
 
 class DiffusionEngineProcess(Process):
     """
@@ -96,11 +96,10 @@ class DiffusionEngineProcess(Process):
         plan: DiffusionPlan,
         intermediate_dir: Optional[str] = None,
         intermediate_steps: Optional[int] = None,
-    ) -> List[PIL.Image.Image]:
+    ) -> StableDiffusionPipelineOutput:
         """
         Executes the plan, getting callbacks first.
         """
-
         progress_callback = self.create_progress_callback(instruction_id)
         task_callback = self.create_task_callback(instruction_id)
         if intermediate_dir is not None:

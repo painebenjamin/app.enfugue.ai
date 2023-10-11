@@ -31,6 +31,8 @@ import safetensors.torch
 
 from contextlib import contextmanager
 from collections import defaultdict
+from omegaconf import OmegaConf
+
 
 from transformers import (
     AutoFeatureExtractor,
@@ -135,10 +137,17 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
     """
 
     controlnets: Optional[Dict[str, ControlNetModel]]
-    text_encoder: Optional[CLIPTextModel]
-    text_encoder_2: Optional[CLIPTextModelWithProjection]
     unet: UNet2DConditionModel
     scheduler: KarrasDiffusionSchedulers
+    vae: AutoencoderKL
+    vae_preview: AutoencoderTiny
+    tokenizer: Optional[CLIPTokenizer]
+    tokenizer_2: Optional[CLIPTokenizer]
+    text_encoder: Optional[CLIPTextModel]
+    text_encoder_2: Optional[CLIPTextModelWithProjection]
+    vae_scale_factor: int
+    safety_checker: StableDiffusionSafetyChecker
+    config: OmegaConf
 
     def __init__(
         self,
@@ -175,7 +184,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         )
 
         # Save scheduler config for hotswapping
-        self.scheduler_config = {**dict(scheduler.config)}
+        self.scheduler_config = {**dict(scheduler.config)} # type: ignore[attr-defined]
 
         # Enfugue engine settings
         self.engine_size = engine_size
@@ -184,10 +193,10 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         self.chunking_mask_kwargs = chunking_mask_kwargs
 
         # Hide tqdm
-        self.set_progress_bar_config(disable=True)
+        self.set_progress_bar_config(disable=True) # type: ignore[attr-defined]
 
         # Add config for xl
-        self.register_to_config(
+        self.register_to_config( # type: ignore[attr-defined]
             force_full_precision_vae=force_full_precision_vae,
             requires_aesthetic_score=requires_aesthetic_score,
             force_zeros_for_empty_prompt=force_zeros_for_empty_prompt
@@ -197,7 +206,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         self.image_processor = VaeImageProcessor(vae_scale_factor=self.vae_scale_factor)
 
         # Register other networks
-        self.register_modules(
+        self.register_modules( # type: ignore[attr-defined]
             text_encoder_2=text_encoder_2,
             tokenizer_2=tokenizer_2,
             vae_preview=vae_preview
@@ -291,8 +300,6 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             config_url = "https://raw.githubusercontent.com/Stability-AI/generative-models/main/configs/inference/sd_xl_refiner.yaml"
 
         original_config_file = check_download_to_dir(config_url, cache_dir, check_size=False)
-        from omegaconf import OmegaConf
-
         original_config = OmegaConf.load(original_config_file)
 
         num_in_channels = 9 if "inpaint" in os.path.basename(checkpoint_path).lower() else 4
@@ -579,7 +586,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         else:
             raise ValueError(f"Unsupported model type {model_type}")
         if torch_dtype is not None:
-            return pipe.to(torch_dtype=torch_dtype)
+            return pipe.to(torch_dtype=torch_dtype) # type: ignore[attr-defined]
         return pipe
 
     @property
@@ -633,7 +640,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         Gets modules in this pipeline ordered in decreasing size.
         """
         modules = []
-        module_names, _ = self._get_signature_keys(self)
+        module_names, _ = self._get_signature_keys(self) # type: ignore[attr-defined]
         for name in module_names:
             module = getattr(self, name, None)
             if isinstance(module, torch.nn.Module):
@@ -669,7 +676,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         """
         if self.safety_checker is not None:
             self.safety_checker.to(device)
-        return super(EnfugueStableDiffusionPipeline, self).run_safety_checker(output, device, dtype)
+        return super(EnfugueStableDiffusionPipeline, self).run_safety_checker(output, device, dtype) # type: ignore[misc]
 
     def load_ip_adapter(
         self,
@@ -766,8 +773,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         """
         # set lora scale so that monkey patched LoRA
         # function of text encoder can correctly access it
-        if lora_scale is not None and isinstance(self, LoraLoaderMixin):
-            self._lora_scale = lora_scale
+        if lora_scale is not None and isinstance(self, LoraLoaderMixin): # type: ignore[unreachable]
+            self._lora_scale = lora_scale # type: ignore[unreachable]
 
         if self.is_sdxl_base:
             prompts = [
@@ -861,7 +868,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 prompt_embeds = torch.concat(prompt_embeds_list, dim=-1)
 
         # get unconditional embeddings for classifier free guidance
-        zero_out_negative_prompt = negative_prompt is None and self.config.force_zeros_for_empty_prompt
+        zero_out_negative_prompt = negative_prompt is None and self.config.force_zeros_for_empty_prompt # type: ignore[attr-defined]
         if self.is_sdxl and do_classifier_free_guidance and negative_prompt_embeds is None and zero_out_negative_prompt:
             negative_prompt_embeds = torch.zeros_like(prompt_embeds)  # type: ignore
             negative_pooled_prompt_embeds = torch.zeros_like(pooled_prompt_embeds)
@@ -983,7 +990,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             state_dict = torch.load(weights_path, map_location="cpu")
 
         while "state_dict" in state_dict:
-            state_dict = state_dict["state_dict"]
+            state_dict = state_dict["state_dict"] # type: ignore[assignment]
 
         from lycoris.utils import merge
 
@@ -1019,7 +1026,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 **kwargs
             )
         # Return parent
-        return super(EnfugueStableDiffusionPipeline, self).load_lora_weights(
+        return super(EnfugueStableDiffusionPipeline, self).load_lora_weights( # type: ignore[misc]
             pretrained_model_name_or_path_or_dict, **kwargs
         )
 
@@ -1032,16 +1039,16 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         """
         Fix adapted from https://github.com/huggingface/diffusers/blob/4a4cdd6b07a36bbf58643e96c9a16d3851ca5bc5/src/diffusers/pipelines/stable_diffusion_xl/pipeline_stable_diffusion_xl.py
         """
-        state_dict, network_alphas = self.lora_state_dict(
+        state_dict, network_alphas = self.lora_state_dict( # type: ignore[attr-defined]
             pretrained_model_name_or_path_or_dict,
             unet_config=self.unet.config,
             **kwargs,
         )
-        self.load_lora_into_unet(state_dict, network_alphas=network_alphas, unet=self.unet)
+        self.load_lora_into_unet(state_dict, network_alphas=network_alphas, unet=self.unet) # type: ignore[attr-defined]
 
         text_encoder_state_dict = {k: v for k, v in state_dict.items() if "text_encoder." in k}
         if len(text_encoder_state_dict) > 0:
-            self.load_lora_into_text_encoder(
+            self.load_lora_into_text_encoder( # type: ignore[attr-defined]
                 text_encoder_state_dict,
                 network_alphas=network_alphas,
                 text_encoder=self.text_encoder,
@@ -1051,7 +1058,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
         text_encoder_2_state_dict = {k: v for k, v in state_dict.items() if "text_encoder_2." in k}
         if len(text_encoder_2_state_dict) > 0:
-            self.load_lora_into_text_encoder(
+            self.load_lora_into_text_encoder( # type: ignore[attr-defined]
                 text_encoder_2_state_dict,
                 network_alphas=network_alphas,
                 text_encoder=self.text_encoder_2,
@@ -1073,7 +1080,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         LORA_PREFIX_TEXT_ENCODER = "lora_te"
 
         # load LoRA weight from .safetensors
-        state_dict = safetensors.torch.load_file(pretrained_model_name_or_path_or_dict, device="cpu")
+        state_dict = safetensors.torch.load_file(pretrained_model_name_or_path_or_dict, device="cpu") # type: ignore[arg-type]
 
         updates: Mapping[str, Any] = defaultdict(dict)
         for key, value in state_dict.items():
@@ -1139,14 +1146,14 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         Temporary implementation from https://github.com/huggingface/diffusers/issues/4405
         """
         if not self.is_sdxl:
-            return super(EnfugueStableDiffusionPipeline, self).load_textual_inversion(inversion_path, **kwargs)
+            return super(EnfugueStableDiffusionPipeline, self).load_textual_inversion(inversion_path, **kwargs) # type: ignore[misc]
 
         logger.debug(f"Using SDXL adaptation for textual inversion - Loading {inversion_path}")
         if inversion_path.endswith("safetensors"):
             from safetensors import safe_open
 
             inversion = {}
-            with safe_open(inversion_path, framework="pt", device="cpu") as f:
+            with safe_open(inversion_path, framework="pt", device="cpu") as f: # type: ignore[attr-defined]
                 for key in f.keys():
                     inversion[key] = f.get_tensor(key)
         else:
@@ -1154,14 +1161,23 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
         for i, (embedding_1, embedding_2) in enumerate(zip(inversion["clip_l"], inversion["clip_g"])):
             token = f"sksd{chr(i+65)}"
-            self.tokenizer.add_tokens(token)
-            token_id = self.tokenizer.convert_tokens_to_ids(token)
-            if self.text_encoder is not None:
+            if self.tokenizer is not None:
+                self.tokenizer.add_tokens(token)
+            if self.tokenizer_2 is not None:
+                self.tokenizer_2.add_tokens(token)
+            if self.text_encoder is not None and self.tokenizer is not None:
+                token_id = self.tokenizer.convert_tokens_to_ids(token)
                 self.text_encoder.resize_token_embeddings(len(self.tokenizer))
                 self.text_encoder.get_input_embeddings().weight.data[token_id] = embedding_1
             if self.text_encoder_2 is not None:
+                if self.tokenizer_2 is not None:
+                    token_id_2 = self.tokenizer_2.convert_tokens_to_ids(token)
+                elif self.tokenizer is not None:
+                    token_id_2 = self.tokenizer.convert_tokens_to_ids(token)
+                else:
+                    raise ValueError("No tokenizer, cannot add inversion to encoder")
                 self.text_encoder_2.resize_token_embeddings(len(self.tokenizer))
-                self.text_encoder_2.get_input_embeddings().weight.data[token_id] = embedding_2
+                self.text_encoder_2.get_input_embeddings().weight.data[token_id_2] = embedding_2
 
     def denormalize_latents(self, latents: torch.Tensor) -> torch.Tensor:
         """
@@ -1278,9 +1294,14 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             width // self.vae_scale_factor,
         )
         logger.debug(f"Creating random latents of shape {shape} and type {dtype}")
-        random_latents = randn_tensor(shape, generator=generator, device=device, dtype=dtype)
+        random_latents = randn_tensor(
+            shape,
+            generator=generator,
+            device=torch.device(device) if isinstance(device, str) else device,
+            dtype=dtype
+        )
 
-        return random_latents * self.scheduler.init_noise_sigma
+        return random_latents * self.scheduler.init_noise_sigma # type: ignore[attr-defined]
 
     def encode_image_unchunked(
         self, image: torch.Tensor, dtype: torch.dtype, generator: Optional[torch.Generator] = None
@@ -1289,11 +1310,11 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         Encodes an image without chunking using the VAE.
         """
         logger.debug("Encoding image (unchunked).")
-        if self.config.force_full_precision_vae:
+        if self.config.force_full_precision_vae: # type: ignore[attr-defined]
             self.vae.to(dtype=torch.float32)
             image = image.float()
-        latents = self.vae.encode(image).latent_dist.sample(generator) * self.vae.config.scaling_factor
-        if self.config.force_full_precision_vae:
+        latents = self.vae.encode(image).latent_dist.sample(generator) * self.vae.config.scaling_factor # type: ignore[attr-defined]
+        if self.config.force_full_precision_vae: # type: ignore[attr-defined]
             self.vae.to(dtype=dtype)
         return latents.to(dtype=dtype)
 
@@ -1327,13 +1348,13 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         latent_width = width // self.vae_scale_factor
 
         engine_latent_size = self.engine_size // self.vae_scale_factor
-        num_channels = self.vae.config.latent_channels
+        num_channels = self.vae.config.latent_channels # type: ignore[attr-defined]
 
         count = torch.zeros((1, num_channels, latent_height, latent_width)).to(device=device)
         value = torch.zeros_like(count)
 
         weight_builder = MaskWeightBuilder(device=device, dtype=image.dtype)
-        if self.config.force_full_precision_vae:
+        if self.config.force_full_precision_vae: # type: ignore[attr-defined]
             self.vae.to(dtype=torch.float32)
             weight_builder.dtype = torch.float32
             image = image.float()
@@ -1371,9 +1392,9 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 if progress_callback is not None:
                     progress_callback(True)
 
-        if self.config.force_full_precision_vae:
+        if self.config.force_full_precision_vae: # type: ignore[attr-defined]
             self.vae.to(dtype=dtype)
-        return (torch.where(count > 0, value / count, value) * self.vae.config.scaling_factor).to(dtype=dtype)
+        return (torch.where(count > 0, value / count, value) * self.vae.config.scaling_factor).to(dtype=dtype) # type: ignore[attr-defined]
 
     def prepare_image_latents(
         self,
@@ -1411,8 +1432,13 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         # add noise in accordance with timesteps
         if add_noise:
             shape = init_latents.shape
-            noise = randn_tensor(shape, generator=generator, device=device, dtype=dtype)
-            return self.scheduler.add_noise(init_latents, noise, timestep)
+            noise = randn_tensor(
+                shape,
+                generator=generator,
+                device=torch.device(device) if isinstance(device, str) else device,
+                dtype=dtype
+            )
+            return self.scheduler.add_noise(init_latents, noise, timestep) # type: ignore[attr-defined]
         else:
             logger.debug("Not adding noise; starting from noised image.")
             return init_latents
@@ -1486,13 +1512,13 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         else:
             t_start = 0
 
-        timesteps = self.scheduler.timesteps[t_start * self.scheduler.order :]
+        timesteps = self.scheduler.timesteps[t_start * self.scheduler.order :] # type: ignore[attr-defined]
 
         if denoising_start is not None:
             discrete_timestep_cutoff = int(
                 round(
-                    self.scheduler.config.num_train_timesteps
-                    - (denoising_start * self.scheduler.config.num_train_timesteps)
+                    self.scheduler.config.num_train_timesteps # type: ignore[attr-defined]
+                    - (denoising_start * self.scheduler.config.num_train_timesteps) # type: ignore[attr-defined]
                 )
             )
             timesteps = list(filter(lambda ts: ts < discrete_timestep_cutoff, timesteps))
@@ -1516,7 +1542,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         if (
             aesthetic_score is not None
             and negative_aesthetic_score is not None
-            and self.config.requires_aesthetic_score
+            and self.config.requires_aesthetic_score # type: ignore[attr-defined]
         ):
             add_time_ids = list(original_size + crops_coords_top_left + (aesthetic_score,))
             add_neg_time_ids = list(original_size + crops_coords_top_left + (negative_aesthetic_score,))
@@ -1525,20 +1551,20 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             add_neg_time_ids = None
 
         passed_add_embed_dim = (
-            self.unet.config.addition_time_embed_dim * len(add_time_ids) + self.text_encoder_2.config.projection_dim
+            self.unet.config.addition_time_embed_dim * len(add_time_ids) + self.text_encoder_2.config.projection_dim # type: ignore[attr-defined]
         )
         expected_add_embed_dim = self.unet.add_embedding.linear_1.in_features
 
         if (
             expected_add_embed_dim > passed_add_embed_dim
-            and (expected_add_embed_dim - passed_add_embed_dim) == self.unet.config.addition_time_embed_dim
+            and (expected_add_embed_dim - passed_add_embed_dim) == self.unet.config.addition_time_embed_dim # type: ignore[attr-defined]
         ):
             raise ValueError(
                 f"Model expects an added time embedding vector of length {expected_add_embed_dim}, but a vector of {passed_add_embed_dim} was created. Please make sure to enable `requires_aesthetic_score` with `pipe.register_to_config(requires_aesthetic_score=True)` to make sure `aesthetic_score` {aesthetic_score} and `negative_aesthetic_score` {negative_aesthetic_score} is correctly used by the model."
             )
         elif (
             expected_add_embed_dim < passed_add_embed_dim
-            and (passed_add_embed_dim - expected_add_embed_dim) == self.unet.config.addition_time_embed_dim
+            and (passed_add_embed_dim - expected_add_embed_dim) == self.unet.config.addition_time_embed_dim # type: ignore[attr-defined]
         ):
             raise ValueError(
                 f"Model expects an added time embedding vector of length {expected_add_embed_dim}, but a vector of {passed_add_embed_dim} was created. Please make sure to disable `requires_aesthetic_score` with `pipe.register_to_config(requires_aesthetic_score=False)` to make sure `target_size` {target_size} is correctly used by the model."
@@ -1790,11 +1816,11 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             extra_step_kwargs = {}
 
         num_steps = len(timesteps)
-        num_warmup_steps = num_steps - num_inference_steps * self.scheduler.order
+        num_warmup_steps = num_steps - num_inference_steps * self.scheduler.order # type: ignore[attr-defined]
         
         noise = None
         if mask is not None and mask_image is not None and not is_inpainting_unet:
-            noise = latents.detach().clone() / self.scheduler.init_noise_sigma
+            noise = latents.detach().clone() / self.scheduler.init_noise_sigma # type: ignore[attr-defined]
             noise = noise.to(device=device)
 
         logger.debug(f"Denoising image in {num_steps} steps on {device} (unchunked)")
@@ -1806,7 +1832,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
             # expand the latents if we are doing classifier free guidance
             latent_model_input = torch.cat([latents] * 2) if do_classifier_free_guidance else latents
-            latent_model_input = self.scheduler.scale_model_input(latent_model_input, t)
+            latent_model_input = self.scheduler.scale_model_input(latent_model_input, t) # type: ignore[attr-defined]
 
             # Get controlnet input(s) if configured
             if control_images is not None:
@@ -1865,7 +1891,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 noise_pred = noise_pred_uncond + guidance_scale * (noise_pred_text - noise_pred_uncond)
 
             # Compute previous noisy sample
-            latents = self.scheduler.step(
+            latents = self.scheduler.step( # type: ignore[attr-defined]
                 noise_pred,
                 t,
                 latents,
@@ -1881,7 +1907,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
                 if i < len(timesteps) - 1:
                     noise_timestep = timesteps[i + 1]
-                    init_latents = self.scheduler.add_noise(
+                    init_latents = self.scheduler.add_noise( # type: ignore[attr-defined]
                         init_latents,
                         noise,
                         torch.tensor([noise_timestep])
@@ -1898,7 +1924,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 latent_callback is not None
                 and latent_callback_steps is not None
                 and steps_since_last_callback >= latent_callback_steps
-                and (i == num_steps - 1 or ((i + 1) > num_warmup_steps and (i + 1) % self.scheduler.order == 0))
+                and (i == num_steps - 1 or ((i + 1) > num_warmup_steps and (i + 1) % self.scheduler.order == 0)) # type: ignore[attr-defined]
             ):
                 steps_since_last_callback = 0
                 latent_callback_value = latents
@@ -1991,7 +2017,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
         chunk_scheduler_status = [self.get_scheduler_state()] * num_chunks
         num_steps = len(timesteps)
-        num_warmup_steps = num_steps - num_inference_steps * self.scheduler.order
+        num_warmup_steps = num_steps - num_inference_steps * self.scheduler.order # type: ignore[attr-defined]
 
         latent_width = width // self.vae_scale_factor
         latent_height = height // self.vae_scale_factor
@@ -2009,7 +2035,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
         noise = None
         if mask is not None and mask_image is not None and not is_inpainting_unet:
-            noise = latents.detach().clone() / self.scheduler.init_noise_sigma
+            noise = latents.detach().clone() / self.scheduler.init_noise_sigma # type: ignore[attr-defined]
             noise = noise.to(device=device)
 
         steps_since_last_callback = 0
@@ -2044,7 +2070,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                         self.scheduler.__dict__.update(chunk_scheduler_status[j])
 
                         # Scale model input
-                        latent_model_input = self.scheduler.scale_model_input(latent_model_input, t)
+                        latent_model_input = self.scheduler.scale_model_input(latent_model_input, t) # type: ignore[attr-defined]
 
                         # Get controlnet input(s) if configured
                         if control_images is not None:
@@ -2111,7 +2137,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                             noise_pred = noise_pred_uncond + guidance_scale * (noise_pred_text - noise_pred_uncond)
 
                         # compute the previous noisy sample x_t -> x_t-1
-                        denoised_latents = self.scheduler.step(
+                        denoised_latents = self.scheduler.step( # type: ignore[attr-defined]
                             noise_pred,
                             t,
                             latents_for_view,
@@ -2132,7 +2158,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
                         if i < len(timesteps) - 1:
                             noise_timestep = timesteps[i + 1]
-                            init_latents = self.scheduler.add_noise(
+                            init_latents = self.scheduler.add_noise( # type: ignore[attr-defined]
                                 init_latents,
                                 noise[:, :, top:bottom, left:right],
                                 torch.tensor([noise_timestep])
@@ -2170,7 +2196,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     latent_callback is not None
                     and latent_callback_steps is not None
                     and steps_since_last_callback >= latent_callback_steps
-                    and (i == num_steps - 1 or ((i + 1) > num_warmup_steps and (i + 1) % self.scheduler.order == 0))
+                    and (i == num_steps - 1 or ((i + 1) > num_warmup_steps and (i + 1) % self.scheduler.order == 0)) # type: ignore[attr-defined]
                 ):
                     steps_since_last_callback = 0
                     latent_callback_value = latents
@@ -2224,7 +2250,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         height *= self.vae_scale_factor
         width *= self.vae_scale_factor
 
-        latents = 1 / self.vae.config.scaling_factor * latents
+        latents = 1 / self.vae.config.scaling_factor * latents # type: ignore[attr-defined]
 
         chunks = self.get_chunks(height, width)
         total_steps = len(chunks)
@@ -2232,7 +2258,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         revert_dtype = None
 
         weight_builder = MaskWeightBuilder(device=device, dtype=latents.dtype)
-        if self.config.force_full_precision_vae:
+        if self.config.force_full_precision_vae: # type: ignore[attr-defined]
             # Resist overflow
             revert_dtype = latents.dtype
             self.vae.to(dtype=torch.float32)
@@ -2243,7 +2269,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             result = self.decode_latents_unchunked(latents, device)
             if progress_callback is not None:
                 progress_callback(True)
-            if self.config.force_full_precision_vae:
+            if self.config.force_full_precision_vae: # type: ignore[attr-defined]
                 self.vae.to(dtype=latents.dtype)
             return result
 
@@ -2304,13 +2330,13 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         """
         Prepares arguments to add during denoising
         """
-        accepts_eta = "eta" in set(inspect.signature(self.scheduler.step).parameters.keys())
+        accepts_eta = "eta" in set(inspect.signature(self.scheduler.step).parameters.keys()) # type: ignore[attr-defined]
         extra_step_kwargs: Dict[str, Any] = {}
         if accepts_eta:
             extra_step_kwargs["eta"] = eta
 
         # check if the scheduler accepts generator
-        accepts_generator = "generator" in set(inspect.signature(self.scheduler.step).parameters.keys())
+        accepts_generator = "generator" in set(inspect.signature(self.scheduler.step).parameters.keys()) # type: ignore[attr-defined]
         if accepts_generator:
             extra_step_kwargs["generator"] = generator
         return extra_step_kwargs
@@ -2415,7 +2441,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 else:
                     height = image.shape[-2] * self.vae_scale_factor
             else:
-                height = self.unet.config.sample_size * self.vae_scale_factor
+                height = self.unet.config.sample_size * self.vae_scale_factor # type: ignore[attr-defined]
 
         if not width:
             if image is not None:
@@ -2426,7 +2452,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 else:
                     width = image.shape[-1] * self.vae_scale_factor
             else:
-                width = self.unet.config.sample_size * self.vae_scale_factor
+                width = self.unet.config.sample_size * self.vae_scale_factor # type: ignore[attr-defined]
         height = cast(int, height)
         width = cast(int, width)
         # Training details
@@ -2474,7 +2500,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         output_nsfw: Optional[List[bool]] = None
 
         # Determine dimensionality
-        is_inpainting_unet = self.unet.config.in_channels == 9
+        is_inpainting_unet = self.unet.config.in_channels == 9 # type: ignore[attr-defined]
 
         # Define call parameters
         if prompt is not None:
@@ -2501,7 +2527,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
         # Calculate chunks
         num_chunks = max(1, len(self.get_chunks(height, width)))
-        self.scheduler.set_timesteps(num_inference_steps, device=device)
+        self.scheduler.set_timesteps(num_inference_steps, device=device) # type: ignore[attr-defined]
 
         if image is not None and mask is None and (strength is not None or denoising_start is not None):
             # Scale timesteps by strength
@@ -2511,7 +2537,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 denoising_start=denoising_start
             )
         else:
-            timesteps = self.scheduler.timesteps
+            timesteps = self.scheduler.timesteps # type: ignore[attr-defined]
 
         batch_size *= num_images_per_prompt
         num_scheduled_inference_steps = len(timesteps)
@@ -2520,8 +2546,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         if denoising_end is not None and type(denoising_end) == float and denoising_end > 0 and denoising_end < 1:
             discrete_timestep_cutoff = int(
                 round(
-                    self.scheduler.config.num_train_timesteps
-                    - (denoising_end * self.scheduler.config.num_train_timesteps)
+                    self.scheduler.config.num_train_timesteps # type: ignore[attr-defined]
+                    - (denoising_end * self.scheduler.config.num_train_timesteps) # type: ignore[attr-defined]
                 )
             )
             num_inference_steps = len(list(filter(lambda ts: ts >= discrete_timestep_cutoff, timesteps)))
@@ -2553,7 +2579,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         )
         step_complete = self.get_step_complete_callback(overall_num_steps, progress_callback)
                 
-        if self.config.force_full_precision_vae:
+        if self.config.force_full_precision_vae: # type: ignore[attr-defined]
             logger.debug(f"Configuration indicates VAE must be used in full precision")
             # make sure the VAE is in float32 mode, as it overflows in float16
             self.vae.to(dtype=torch.float32)
@@ -2648,10 +2674,10 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             prompt_embeds = cast(torch.Tensor, prompt_embeds)
             if prepared_image is not None and prepared_mask is not None:
                 # Inpainting
-                num_channels_latents = self.vae.config.latent_channels
+                num_channels_latents = self.vae.config.latent_channels # type: ignore[attr-defined]
 
                 if latents:
-                    prepared_latents = latents.to(device) * self.schedule.init_noise_sigma
+                    prepared_latents = latents.to(device) * self.scheduler.init_noise_sigma # type: ignore[attr-defined]
                 else:
                     prepared_latents = self.create_latents(
                         batch_size,
@@ -2703,13 +2729,13 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 )
                 # prepared_latents = img + noise
             elif latents:
-                prepared_latents = latents.to(device) * self.scheduler.init_noise_sigma
+                prepared_latents = latents.to(device) * self.scheduler.init_noise_sigma # type: ignore[attr-defined]
                 # prepared_latents = passed latents + noise
             else:
                 # txt2img
                 prepared_latents = self.create_latents(
                     batch_size,
-                    self.unet.config.in_channels,
+                    self.unet.config.in_channels, # type: ignore[attr-defined]
                     height,
                     width,
                     prompt_embeds.dtype,
@@ -2834,7 +2860,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     prompt_embeds = torch.cat([negative_prompt_embeds, prompt_embeds], dim=0)
                     add_text_embeds = torch.cat([negative_pooled_prompt_embeds, add_text_embeds], dim=0)
 
-                if self.config.requires_aesthetic_score:
+                if self.config.requires_aesthetic_score: # type: ignore[attr-defined]
                     add_time_ids, add_neg_time_ids = self.get_add_time_ids(
                         original_size=original_size,
                         crops_coords_top_left=crops_coords_top_left,
@@ -2921,7 +2947,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             empty_cache()
             if output_type != "latent":
                 self.vae.to(
-                    dtype=torch.float32 if self.config.force_full_precision_vae else prepared_latents.dtype,
+                    dtype=torch.float32 if self.config.force_full_precision_vae else prepared_latents.dtype, # type: ignore[attr-defined]
                     device=device
                 )
                 if self.is_sdxl:
@@ -2946,7 +2972,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     progress_callback=step_complete,
                 )
 
-                if self.config.force_full_precision_vae:
+                if self.config.force_full_precision_vae: # type: ignore[attr-defined]
                     self.vae.to(dtype=prepared_latents.dtype)
 
         if output_type == "latent":
@@ -2970,4 +2996,4 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         if not return_dict:
             return (output, output_nsfw)
 
-        return StableDiffusionPipelineOutput(images=output, nsfw_content_detected=output_nsfw)
+        return StableDiffusionPipelineOutput(images=output, nsfw_content_detected=output_nsfw) # type: ignore[arg-type]

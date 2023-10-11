@@ -98,8 +98,8 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
 
         if self.controlnets:
             # Hijack forward
-            self.unet.forward = self.controlled_unet_forward
-        self.vae.forward = self.vae.decode
+            self.unet.forward = self.controlled_unet_forward # type: ignore[method-assign]
+        self.vae.forward = self.vae.decode # type: ignore[method-assign]
         self.onnx_opset = onnx_opset
         self.force_engine_rebuild = force_engine_rebuild
         self.vae_engine_dir = vae_engine_dir
@@ -162,10 +162,16 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         if self.clip_engine_dir is not None:
             self.models["clip"] = CLIP(self.text_encoder, **models_args)
         if self.unet_engine_dir is not None:
-            self.models["unet"] = UNet(self.unet, unet_dim=self.unet.config.in_channels, **models_args)
+            self.models["unet"] = UNet(
+                self.unet,
+                unet_dim=self.unet.config.in_channels, # type: ignore[attr-defined]
+                **models_args
+            )
         if self.controlled_unet_engine_dir is not None:
             self.models["controlledunet"] = ControlledUNet(
-                self.unet, unet_dim=self.unet.config.in_channels, **models_args
+                self.unet,
+                unet_dim=self.unet.config.in_channels, # type: ignore[attr-defined]
+                **models_args
             )
         if self.vae_engine_dir is not None:
             self.models["vae"] = VAE(self.vae, **models_args)
@@ -320,7 +326,8 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
                 prompt_2=prompt_2,
                 negative_prompt_2=negative_prompt_2
             )
-        
+        if self.tokenizer is None:
+            raise ValueError("No tokenizer available in TensorRT pipeline.")
         if prompt and prompt_2:
             logger.debug("Merging prompt and prompt_2")
             prompt = str(TokenMerger(prompt, prompt_2))

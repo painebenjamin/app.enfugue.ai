@@ -25,7 +25,7 @@ def load_safetensor_state_dict(path: str) -> Dict[str, Union[Tensor, Dict[str, T
     from safetensors import safe_open
 
     checkpoint = {}
-    with safe_open(path, framework="pt", device="cpu") as f:
+    with safe_open(path, framework="pt", device="cpu") as f: # type: ignore[attr-defined]
         for key in f.keys():
             checkpoint[key] = f.get_tensor(key)
     return checkpoint

@@ -72,7 +72,7 @@ class IPAdapter(SupportModel):
         )
 
         if (
-            self.cross_attention_dim != unet.config.cross_attention_dim or
+            self.cross_attention_dim != unet.config.cross_attention_dim or # type: ignore[attr-defined]
             self.is_sdxl != is_sdxl or 
             self.use_fine_grained != use_fine_grained or
             self.use_face_model != use_face_model
@@ -83,7 +83,7 @@ class IPAdapter(SupportModel):
         self.is_sdxl = is_sdxl
         self.use_fine_grained = use_fine_grained
         self.use_face_model = use_face_model
-        self.cross_attention_dim = unet.config.cross_attention_dim
+        self.cross_attention_dim = unet.config.cross_attention_dim # type: ignore[attr-defined]
 
         self._default_unet_attention_processors: Dict[str, Any] = {}
         self._default_controlnet_attention_processors: Dict[str, Dict[str, Any]] = {}
@@ -94,13 +94,13 @@ class IPAdapter(SupportModel):
             current_processor = unet.attn_processors[name]
             cross_attention_dim = None if name.endswith("attn1.processor") else self.cross_attention_dim
             if name.startswith("mid_block"):
-                hidden_size = unet.config.block_out_channels[-1]
+                hidden_size = unet.config.block_out_channels[-1] # type: ignore[attr-defined]
             elif name.startswith("up_blocks"):
                 block_id = int(name[len("up_blocks.")])
-                hidden_size = list(reversed(unet.config.block_out_channels))[block_id]
+                hidden_size = list(reversed(unet.config.block_out_channels))[block_id] # type: ignore[attr-defined]
             elif name.startswith("down_blocks"):
                 block_id = int(name[len("down_blocks.")])
-                hidden_size = unet.config.block_out_channels[block_id]
+                hidden_size = unet.config.block_out_channels[block_id] # type: ignore[attr-defined]
 
             self._default_unet_attention_processors[name] = current_processor
 
@@ -124,7 +124,7 @@ class IPAdapter(SupportModel):
 
         keepalive_callback()
         unet.set_attn_processor(new_attention_processors)
-        layers = torch.nn.ModuleList(unet.attn_processors.values())
+        layers = torch.nn.ModuleList(unet.attn_processors.values()) # type: ignore[arg-type]
 
         state_dict = self.xl_state_dict if is_sdxl else self.default_state_dict
 

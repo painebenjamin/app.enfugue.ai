@@ -347,9 +347,11 @@ class DiffusionPipelineManager:
     def get_scheduler_class(
         self,
         scheduler: Optional[SCHEDULER_LITERAL]
-    ) -> Union[
-        KarrasDiffusionSchedulers,
-        Tuple[KarrasDiffusionSchedulers, Dict[str, Any]]
+    ) -> Optional[
+        Union[
+            Type,
+            Tuple[Type, Dict[str, Any]]
+        ]
     ]:
         """
         Sets the scheduler class
@@ -450,8 +452,8 @@ class DiffusionPipelineManager:
         if isinstance(scheduler_class, tuple):
             scheduler_class, scheduler_config = scheduler_class
         if not hasattr(self, "_scheduler") or self._scheduler is not scheduler_class or self.scheduler_config != scheduler_config:
-            logger.debug(f"Changing to scheduler {scheduler_class.__name__} ({new_scheduler})")
-            self._scheduler = scheduler_class
+            logger.debug(f"Changing to scheduler {scheduler_class.__name__} ({new_scheduler})") # type: ignore[union-attr]
+            self._scheduler = scheduler_class # type: ignore[assignment]
             self._scheduler_config = scheduler_config
         else:
             return
@@ -615,9 +617,9 @@ class DiffusionPipelineManager:
                     self.unload_pipeline("VAE changing")
                 elif hasattr(self, "_pipeline"):
                     logger.debug(f"Hot-swapping pipeline VAE to {new_vae}")
-                    self._pipeline.vae = self._vae
+                    self._pipeline.vae = self._vae # type: ignore[assignment]
                     if self.is_sdxl:
-                        self._pipeline.register_to_config(
+                        self._pipeline.register_to_config( # type: ignore[attr-defined]
                             force_full_precision_vae = new_vae in ["xl", "stabilityai/sdxl-vae"] or (new_vae.endswith("sdxl_vae.safetensors") and "16" not in new_vae)
                         )
 
@@ -666,9 +668,9 @@ class DiffusionPipelineManager:
                     self.unload_refiner("VAE changing")
                 elif hasattr(self, "_refiner_pipeline"):
                     logger.debug(f"Hot-swapping refiner pipeline VAE to {new_vae}")
-                    self._refiner_pipeline.vae = self._vae
+                    self._refiner_pipeline.vae = self._vae # type: ignore[assignment]
                     if self.refiner_is_sdxl:
-                        self._refiner_pipeline.register_to_config(
+                        self._refiner_pipeline.register_to_config( # type: ignore[attr-defined]
                             force_full_precision_vae = new_vae in ["xl", "stabilityai/sdxl-vae"] or (new_vae.endswith("sdxl_vae.safetensors") and "16" not in new_vae)
                         )
 
@@ -717,9 +719,9 @@ class DiffusionPipelineManager:
                     self.unload_inpainter("VAE changing")
                 elif hasattr(self, "_inpainter_pipeline"):
                     logger.debug(f"Hot-swapping inpainter pipeline VAE to {new_vae}")
-                    self._inpainter_pipeline.vae = self._vae
+                    self._inpainter_pipeline.vae = self._vae # type: ignore[assignment]
                     if self.inpainter_is_sdxl:
-                        self._inpainter_pipeline.register_to_config(
+                        self._inpainter_pipeline.register_to_config( # type: ignore[attr-defined]
                             force_full_precision_vae = new_vae in ["xl", "stabilityai/sdxl-vae"] or (new_vae.endswith("sdxl_vae.safetensors") and "16" not in new_vae)
                         )
 
@@ -2575,8 +2577,8 @@ class DiffusionPipelineManager:
 
             # load scheduler
             if self.scheduler is not None:
-                logger.debug(f"Setting scheduler to {self.scheduler.__name__}")
-                pipeline.scheduler = self.scheduler.from_config({**pipeline.scheduler_config, **self.scheduler_config})
+                logger.debug(f"Setting scheduler to {self.scheduler.__name__}") # type: ignore[attr-defined]
+                pipeline.scheduler = self.scheduler.from_config({**pipeline.scheduler_config, **self.scheduler_config}) # type: ignore[attr-defined]
             self._pipeline = pipeline
         return self._pipeline
 
@@ -2697,8 +2699,8 @@ class DiffusionPipelineManager:
                     refiner_pipeline.save_pretrained(self.refiner_diffusers_dir)
             # load scheduler
             if self.scheduler is not None:
-                logger.debug(f"Setting refiner scheduler to {self.scheduler.__name__}")
-                refiner_pipeline.scheduler = self.scheduler.from_config({**refiner_pipeline.scheduler_config, **self.scheduler_config})
+                logger.debug(f"Setting refiner scheduler to {self.scheduler.__name__}") # type: ignore[attr-defined]
+                refiner_pipeline.scheduler = self.scheduler.from_config({**refiner_pipeline.scheduler_config, **self.scheduler_config}) # type: ignore[attr-defined]
             self._refiner_pipeline = refiner_pipeline
         return self._refiner_pipeline
 
@@ -2853,8 +2855,8 @@ class DiffusionPipelineManager:
                     inpainter_pipeline.load_textual_inversion(inversion)
             # load scheduler
             if self.scheduler is not None:
-                logger.debug(f"Setting inpainter scheduler to {self.scheduler.__name__}")
-                inpainter_pipeline.scheduler = self.scheduler.from_config({**inpainter_pipeline.scheduler_config, **self.scheduler_config})
+                logger.debug(f"Setting inpainter scheduler to {self.scheduler.__name__}") # type: ignore[attr-defined]
+                inpainter_pipeline.scheduler = self.scheduler.from_config({**inpainter_pipeline.scheduler_config, **self.scheduler_config}) # type: ignore[attr-defined]
             self._inpainter_pipeline = inpainter_pipeline
         return self._inpainter_pipeline
 
@@ -2895,7 +2897,7 @@ class DiffusionPipelineManager:
             else:
                 import torch
                 logger.debug("Offloading pipeline to CPU.")
-                self._pipeline = self._pipeline.to("cpu")
+                self._pipeline = self._pipeline.to("cpu") # type: ignore[attr-defined]
             self.clear_memory()
 
     def unload_refiner(self, reason: str = "none") -> None:
@@ -2925,7 +2927,7 @@ class DiffusionPipelineManager:
             else:
                 import torch
                 logger.debug("Offloading refiner to CPU")
-                self._refiner_pipeline = self._refiner_pipeline.to("cpu")
+                self._refiner_pipeline = self._refiner_pipeline.to("cpu") # type: ignore[attr-defined]
             self.clear_memory()
 
     def unload_inpainter(self, reason: str = "none") -> None:
@@ -2957,7 +2959,7 @@ class DiffusionPipelineManager:
             else:
                 import torch
                 logger.debug("Offloading inpainter to CPU")
-                self._inpainter_pipeline = self._inpainter_pipeline.to("cpu")
+                self._inpainter_pipeline = self._inpainter_pipeline.to("cpu") # type: ignore[attr-defined]
             self.clear_memory()
 
     @property
@@ -3486,7 +3488,7 @@ class DiffusionPipelineManager:
                 self.stop_keepalive()
                 task_callback("Executing Inference")
                 logger.debug(f"Calling pipeline with arguments {redact(kwargs)}")
-                result = pipe(
+                result = pipe( # type: ignore[assignment]
                     generator=self.generator,
                     device=self.device,
                     offload_models=self.pipeline_sequential_onload,
@@ -3568,7 +3570,7 @@ class DiffusionPipelineManager:
                 )
 
                 # Callback with the result
-                result = refiner_result
+                result = refiner_result # type: ignore[assignment]
                 if next_intention == "refining":
                     logger.debug("Next intention is refining, leaving refiner in memory")
                 elif next_intention == "upscaling":
