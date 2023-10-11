@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional, Union, Tuple, Callable, List, Any, Literal, Dict, TYPE_CHECKING
+from typing import Optional, Union, Tuple, Callable, Any, Literal, Dict, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from torch import (
@@ -11,7 +11,6 @@ if TYPE_CHECKING:
         dtype as DType
     )
     from enfugue.diffusion.constants import NOISE_METHOD_LITERAL
-    from PIL.Image import Image
 
 __all__ = ["NoiseMaker", "make_noise"]
 
