@@ -1,6 +1,7 @@
 /** @module common/tooltip */
-import { isEmpty } from "../base/helpers.mjs";
+import { SimpleNotification } from "./notify.mjs";
 import { ElementBuilder } from "../base/builder.mjs";
+import { isEmpty, stripHTML } from "../base/helpers.mjs";
 
 const E = new ElementBuilder();
 
@@ -44,6 +45,7 @@ class TooltipHelper {
         window.addEventListener("mousemove", (e) => this.onMouseMove(e), true);
         window.addEventListener("mouseout", (e) => this.onMouseOut(e), true);
         window.addEventListener("touch", (e) => this.onTouch(e), true);
+        window.addEventListener("contextmenu", (e) => this.onContextmenu(e), true);
 
         document.body.appendChild(this.tooltipContainer.render());
     }
@@ -100,15 +102,40 @@ class TooltipHelper {
     }
 
     /**
+     * On click, perform check to see if this is a copy.
+     */
+    onContextmenu(e) {
+        if (!e.ctrlKey || !!!navigator.clipboard) return;
+        let tooltipTarget = e.target;
+        while (!tooltipTarget.hasAttribute("data-tooltip")) {
+            tooltipTarget = tooltipTarget.parentElement;
+            if (isEmpty(tooltipTarget)) {
+                break;
+            }
+        }
+        if (isEmpty(tooltipTarget)) {
+            this.deactivate();
+            return;
+        }
+        navigator.clipboard.writeText(stripHTML(tooltipTarget.getAttribute("data-tooltip")));
+        SimpleNotification.notify("Copied to Clipboard", 1000);
+        e.preventDefault();
+        e.stopPropagation();
+    }
+
+    /**
      * Sets the tooltip content and activates it.
      * The ElementBuilder checks, so we can call this all we need.
      */
     setTooltip(tooltipText) {
-        if (tooltipText.startsWith("{")) {
+        if (tooltipText.indexOf("{") !== -1 && tooltipText.indexOf("}") !== -1) {
             // JSON, break all
             this.tooltipContainer.addClass("json");
         } else {
             this.tooltipContainer.removeClass("json");
+        }
+        if (!!navigator.clipboard) {
+            tooltipText += "<br /><em class='note'>Ctrl+Right-Click to Copy Text</em>";
         }
         this.tooltipContainer.content(tooltipText);
         this.tooltipContainer.addClass("active");

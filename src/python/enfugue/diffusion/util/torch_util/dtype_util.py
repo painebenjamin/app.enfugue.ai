@@ -3,9 +3,27 @@ from __future__ import annotations
 from typing import Dict, Type, Union, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from torch import dtype as DType
+    from PIL.Image import Image
+    from torch import Tensor, dtype as DType
 
-__all__ = ["DTypeConverter"]
+__all__ = ["DTypeConverter", "tensor_to_image"]
+
+def tensor_to_image(latents: Tensor) -> Image:
+    """
+    Converts tensor to pixels using torchvision.
+    """
+    import torch
+    from torchvision.utils import make_grid
+    from PIL import Image
+    grid = make_grid(latents)
+    return Image.fromarray(
+        grid.mul(255)
+            .add_(0.5)
+            .clamp_(0, 255)
+            .permute(1, 2, 0)
+            .to("cpu", torch.uint8)
+            .numpy()
+    )
 
 class DTypeConverter:
     """

@@ -6,8 +6,8 @@ import {
     SchedulerInputView,
 } from "../input.mjs";
 
-let defaultGuidanceScale = 7,
-    defaultInferenceSteps = 40;
+let defaultGuidanceScale = 6.5,
+    defaultInferenceSteps = 20;
 
 /**
  * The forms that allow for tweak inputs

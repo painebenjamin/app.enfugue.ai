@@ -4,7 +4,7 @@ import torch
 
 from pibble.util.log import DebugUnifiedLoggingContext
 from enfugue.diffusion.manager import DiffusionPipelineManager
-from enfugue.diffusion.util import NoiseMaker, Noiser, make_noise
+from enfugue.diffusion.util import make_noise, tensor_to_image
 
 SOURCE = "https://worldtoptop.com/wp-content/uploads/2014/04/cheam_field_tulips_agassiz1.jpg"
 
@@ -36,7 +36,7 @@ def main() -> None:
                 device=manager.device,
                 dtype=manager.dtype,
             )
-            NoiseMaker.to_image(noise_latents).save(os.path.join(save_dir, f"./{noise_method}.png"))
+            tensor_to_image(noise_latents).save(os.path.join(save_dir, f"./{noise_method}.png"))
 
 if __name__ == "__main__":
     main()

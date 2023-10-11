@@ -1314,3 +1314,15 @@ enfugue-image-browser span {
     top: 0;
     pointer-events: none;
 }
+
+.controls-helper-view {
+    position: fixed;
+    bottom: 85px;
+    left: 40px;
+    color: var(--theme-color-primary);
+    font-weight: bold;
+    font-size: 14px;
+    z-index: 4;
+    cursor: pointer;
+    padding-left: 5px;
+}

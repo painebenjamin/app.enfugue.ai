@@ -136,7 +136,7 @@ class MaskWeightBuilder:
     constant_weights: Dict[DiffusionMask, Tensor] = field(default_factory=dict)
     bilinear_weights: Dict[BilinearDiffusionMask, Tensor] = field(default_factory=dict)
     gaussian_weights: Dict[GaussianDiffusionMask, Tensor] = field(default_factory=dict)
-    unfeather_ratio: float = 1 / 8
+    unfeather_ratio: float = 1 / 4
 
     def clear(self) -> None:
         """
@@ -229,7 +229,7 @@ class MaskWeightBuilder:
         unfeather_top: bool = False,
         unfeather_right: bool = False,
         unfeather_bottom: bool = False,
-        deviation: float = 0.01,
+        deviation: float = 0.04,
         **kwargs: Any
     ) -> Tensor:
         """

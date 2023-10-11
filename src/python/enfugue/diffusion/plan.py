@@ -976,7 +976,7 @@ class DiffusionPlan:
                     )
                 else:
                     logger.error(f"Unknown upscaler {method}")
-                    return images
+                    return self.format_output(images, nsfw)
 
                 images[i] = image
                 if image_callback is not None:

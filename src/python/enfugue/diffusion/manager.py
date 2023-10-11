@@ -1594,15 +1594,8 @@ class DiffusionPipelineManager:
         Tries to import tensorrt to see if it's supported.
         """
         if not hasattr(self, "_tensorrt_is_supported"):
-            try:
-                import tensorrt
-
-                tensorrt.__version__  # quiet importchecker
-                self._tensorrt_is_supported = True
-            except Exception as ex:
-                logger.info("TensorRT is disabled.")
-                logger.debug("{0}: {1}".format(type(ex).__name__, ex))
-                self._tensorrt_is_supported = False
+            from enfugue.diffusion.util import tensorrt_available
+            self._tensorrt_is_supported = tensorrt_available()
         return self._tensorrt_is_supported
 
     @property

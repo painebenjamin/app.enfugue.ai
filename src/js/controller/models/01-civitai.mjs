@@ -67,20 +67,7 @@ class CivitAIItemView extends View {
                                 "max-width": `${((1/versionImages.length)*100).toFixed(2)}%`
                             });
                             if (!isEmpty(image.meta) && !isEmpty(image.meta.prompt)) {
-                                if (!!navigator.clipboard) {
-                                    // We can copy, bind clipboard write
-                                    node.data("tooltip", `${cleanHTML(image.meta.prompt)}<br /><em class='note'>Ctrl+Right Click to copy prompt.</em>`);
-                                    node.on("contextmenu", (e) => {
-                                        if (e.ctrlKey) {
-                                            e.preventDefault();
-                                            e.stopPropagation();
-                                            navigator.clipboard.writeText(image.meta.prompt);
-                                            SimpleNotification.notify("Copied to Clipboard", 1000);
-                                        }
-                                    });
-                                } else {
-                                    node.data("tooltip", cleanHTML(image.meta.prompt));
-                                }
+                                node.data("tooltip", cleanHTML(image.meta.prompt));
                             }
                             return node;
                         }

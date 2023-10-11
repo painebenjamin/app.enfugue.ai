@@ -18,6 +18,7 @@ import { WindowsView } from "../nodes/windows.mjs";
 import { ImageView } from "../view/image.mjs";
 import { Model } from "../model/enfugue.mjs";
 import { View } from "../view/base.mjs";
+import { ControlsHelperView } from "../view/controls.mjs";
 import { FileNameFormView } from "../forms/enfugue/files.mjs";
 import { StringInputView } from "../forms/input.mjs";
 import { InvocationController } from "../controller/common/invocation.mjs";
@@ -186,6 +187,7 @@ class Application {
         this.notifications = new NotificationCenterView(this.config);
         this.history = new HistoryDatabase(this.config.history.size, this.config.debug);
         this.images = new ImageEditorView(this);
+        this.controlsHelper = new ControlsHelperView(this.config);
 
         this.container.appendChild(await this.menu.render());
         this.container.appendChild(await this.sidebar.render());
@@ -193,6 +195,7 @@ class Application {
         this.container.appendChild(await this.images.render());
         this.container.appendChild(await this.windows.render());
         this.container.appendChild(await this.notifications.render());
+        this.container.appendChild(await this.controlsHelper.render());
         
         await this.startAnimations();
         await this.registerDynamicInputs();

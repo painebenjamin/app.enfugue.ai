@@ -945,10 +945,6 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         """
         if isinstance(device, str):
             device = torch.device(device)
-        if self.text_encoder is not None:
-            self.text_encoder.to(device)
-        if self.text_encoder_2 is not None:
-            self.text_encoder_2.to(device)
         if ip_adapter_scale is not None:
             self.load_ip_adapter(
                 device=device,
@@ -959,6 +955,10 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             )
         else:
             self.unload_ip_adapter()
+        if self.text_encoder is not None:
+            self.text_encoder.to(device)
+        if self.text_encoder_2 is not None:
+            self.text_encoder_2.to(device)
 
         if device.type == "cpu":
             with torch.autocast("cpu"):

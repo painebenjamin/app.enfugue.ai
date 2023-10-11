@@ -282,24 +282,6 @@ class NoiseMaker:
             method_kwargs["noise_type"] = method
         return method_kwargs
 
-    @staticmethod
-    def to_image(latent: Tensor) -> List[Image]:
-        """
-        Converts tensor to pixels using torchvision.
-        """
-        import torch
-        from torchvision.utils import make_grid
-        from PIL import Image
-        grid = make_grid(latent)
-        return Image.fromarray(
-            grid.mul(255)
-                .add_(0.5)
-                .clamp_(0, 255)
-                .permute(1, 2, 0)
-                .to("cpu", torch.uint8)
-                .numpy()
-        )
-
 def make_noise(
     batch_size: int,
     channels: int,

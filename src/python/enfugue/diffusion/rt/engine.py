@@ -263,6 +263,7 @@ class Engine:
                     if force_engine_rebuild or not os.path.exists(onnx_path):
                         logger.debug(f"Exporting model to {onnx_path}")
                         model = model_obj.get_model()
+                        model.to("cuda")
                         with torch.inference_mode(), torch.autocast("cuda"):
                             inputs = model_obj.get_sample_input(opt_batch_size, opt_image_height, opt_image_width)
                             torch.onnx.export(
