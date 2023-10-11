@@ -1304,7 +1304,10 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         return random_latents * self.scheduler.init_noise_sigma # type: ignore[attr-defined]
 
     def encode_image_unchunked(
-        self, image: torch.Tensor, dtype: torch.dtype, generator: Optional[torch.Generator] = None
+        self,
+        image: torch.Tensor,
+        dtype: torch.dtype,
+        generator: Optional[torch.Generator] = None
     ) -> torch.Tensor:
         """
         Encodes an image without chunking using the VAE.
@@ -1323,6 +1326,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         image: torch.Tensor,
         device: Union[str, torch.device],
         dtype: torch.dtype,
+        weight_builder: MaskWeightBuilder,
         generator: Optional[torch.Generator] = None,
         progress_callback: Optional[Callable[[bool], None]] = None,
     ) -> torch.Tensor:
@@ -1353,7 +1357,6 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         count = torch.zeros((1, num_channels, latent_height, latent_width)).to(device=device)
         value = torch.zeros_like(count)
 
-        weight_builder = MaskWeightBuilder(device=device, dtype=image.dtype)
         if self.config.force_full_precision_vae: # type: ignore[attr-defined]
             self.vae.to(dtype=torch.float32)
             weight_builder.dtype = torch.float32
@@ -1361,39 +1364,39 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         else:
             self.vae.to(dtype=image.dtype)
 
-        with weight_builder:
-            for i, (top, bottom, left, right) in enumerate(chunks):
-                top_px = top * self.vae_scale_factor
-                bottom_px = bottom * self.vae_scale_factor
-                left_px = left * self.vae_scale_factor
-                right_px = right * self.vae_scale_factor
+        for i, (top, bottom, left, right) in enumerate(chunks):
+            top_px = top * self.vae_scale_factor
+            bottom_px = bottom * self.vae_scale_factor
+            left_px = left * self.vae_scale_factor
+            right_px = right * self.vae_scale_factor
 
-                image_view = image[:, :, top_px:bottom_px, left_px:right_px]
+            image_view = image[:, :, top_px:bottom_px, left_px:right_px]
 
-                encoded_image = self.vae.encode(image_view).latent_dist.sample(generator).to(device)
+            encoded_image = self.vae.encode(image_view).latent_dist.sample(generator).to(device)
 
-                # Build weights
-                multiplier = weight_builder(
-                    mask_type=self.chunking_mask_type,
-                    batch=1,
-                    dim=num_channels,
-                    width=engine_latent_size,
-                    height=engine_latent_size,
-                    unfeather_left=left==0,
-                    unfeather_top=top==0,
-                    unfeather_right=right==latent_width,
-                    unfeather_bottom=bottom==latent_height,
-                    **self.chunking_mask_kwargs
-                )
+            # Build weights
+            multiplier = weight_builder(
+                mask_type=self.chunking_mask_type,
+                batch=1,
+                dim=num_channels,
+                width=engine_latent_size,
+                height=engine_latent_size,
+                unfeather_left=left==0,
+                unfeather_top=top==0,
+                unfeather_right=right==latent_width,
+                unfeather_bottom=bottom==latent_height,
+                **self.chunking_mask_kwargs
+            )
 
-                value[:, :, top:bottom, left:right] += encoded_image * multiplier
-                count[:, :, top:bottom, left:right] += multiplier
+            value[:, :, top:bottom, left:right] += encoded_image * multiplier
+            count[:, :, top:bottom, left:right] += multiplier
 
-                if progress_callback is not None:
-                    progress_callback(True)
+            if progress_callback is not None:
+                progress_callback(True)
 
         if self.config.force_full_precision_vae: # type: ignore[attr-defined]
             self.vae.to(dtype=dtype)
+            weight_builder.dtype = dtype
         return (torch.where(count > 0, value / count, value) * self.vae.config.scaling_factor).to(dtype=dtype) # type: ignore[attr-defined]
 
     def prepare_image_latents(
@@ -1403,6 +1406,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         batch_size: int,
         dtype: torch.dtype,
         device: Union[str, torch.device],
+        weight_builder: MaskWeightBuilder,
         generator: Optional[torch.Generator] = None,
         progress_callback: Optional[Callable[[bool], None]] = None,
         add_noise: bool = True,
@@ -1415,7 +1419,12 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             init_latents = image
         else:
             init_latents = self.encode_image(
-                image, device=device, generator=generator, dtype=dtype, progress_callback=progress_callback
+                image,
+                device=device,
+                generator=generator,
+                dtype=dtype,
+                weight_builder=weight_builder,
+                progress_callback=progress_callback
             )
 
         if batch_size > init_latents.shape[0] and batch_size % init_latents.shape[0] == 0:
@@ -1452,6 +1461,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         width: int,
         dtype: torch.dtype,
         device: Union[str, torch.device],
+        weight_builder: MaskWeightBuilder,
         generator: Optional[torch.Generator] = None,
         do_classifier_free_guidance: bool = False,
         progress_callback: Optional[Callable[[bool], None]] = None,
@@ -1467,7 +1477,12 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         image = image.to(device=device, dtype=dtype)
 
         latents = self.encode_image(
-            image, device=device, generator=generator, dtype=dtype, progress_callback=progress_callback
+            image,
+            device=device,
+            generator=generator,
+            dtype=dtype,
+            weight_builder=weight_builder,
+            progress_callback=progress_callback,
         ).to(device=device)
 
         # duplicate mask and latents for each generation per prompt, using mps friendly method
@@ -1966,6 +1981,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         timesteps: torch.Tensor,
         latents: torch.Tensor,
         prompt_embeds: torch.Tensor,
+        weight_builder: MaskWeightBuilder,
         guidance_scale: float,
         do_classifier_free_guidance: bool = False,
         is_inpainting_unet: bool = False,
@@ -2039,179 +2055,178 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             noise = noise.to(device=device)
 
         steps_since_last_callback = 0
-        with MaskWeightBuilder(device=device, dtype=latents.dtype) as weight_builder:
-            for i, t in enumerate(timesteps):
-                # Calculate ratio for later
-                denoising_ratio = i / num_steps
+        for i, t in enumerate(timesteps):
+            # Calculate ratio for later
+            denoising_ratio = i / num_steps
 
-                # zero view latents
-                count.zero_()
-                value.zero_()
+            # zero view latents
+            count.zero_()
+            value.zero_()
 
-                # iterate over chunks
-                for j, (top, bottom, left, right) in enumerate(chunks):
-                    # Wrap IndexError to give a nice error about MultiDiff w/ some schedulers
-                    try:
-                        # Get pixel indices
-                        top_px = top * self.vae_scale_factor
-                        bottom_px = bottom * self.vae_scale_factor
-                        left_px = left * self.vae_scale_factor
-                        right_px = right * self.vae_scale_factor
+            # iterate over chunks
+            for j, (top, bottom, left, right) in enumerate(chunks):
+                # Wrap IndexError to give a nice error about MultiDiff w/ some schedulers
+                try:
+                    # Get pixel indices
+                    top_px = top * self.vae_scale_factor
+                    bottom_px = bottom * self.vae_scale_factor
+                    left_px = left * self.vae_scale_factor
+                    right_px = right * self.vae_scale_factor
 
-                        # Slice latents
-                        latents_for_view = latents[:, :, top:bottom, left:right]
+                    # Slice latents
+                    latents_for_view = latents[:, :, top:bottom, left:right]
 
-                        # expand the latents if we are doing classifier free guidance
-                        latent_model_input = (
-                            torch.cat([latents_for_view] * 2) if do_classifier_free_guidance else latents_for_view
-                        )
-
-                        # Re-match chunk scheduler status
-                        self.scheduler.__dict__.update(chunk_scheduler_status[j])
-
-                        # Scale model input
-                        latent_model_input = self.scheduler.scale_model_input(latent_model_input, t) # type: ignore[attr-defined]
-
-                        # Get controlnet input(s) if configured
-                        if control_images is not None:
-                            # Find which control image(s) to use
-                            controlnet_conds: Dict[str, List[Tuple[torch.Tensor, float]]] = {}
-                            for controlnet_name in control_images:
-                                for (
-                                    control_image,
-                                    conditioning_scale,
-                                    conditioning_start,
-                                    conditioning_end
-                                ) in control_images[controlnet_name]:
-                                    if (
-                                        (conditioning_start is None or conditioning_start <= denoising_ratio) and
-                                        (conditioning_end is None or denoising_ratio <= conditioning_end)
-                                    ):
-                                        if controlnet_name not in controlnet_conds:
-                                            controlnet_conds[controlnet_name] = []
-
-                                        controlnet_conds[controlnet_name].append((
-                                            control_image[:, :, top_px:bottom_px, left_px:right_px],
-                                            conditioning_scale
-                                        ))
-
-                            if not controlnet_conds:
-                                down_block, mid_block = None, None
-                            else:
-                                down_block, mid_block = self.get_controlnet_conditioning_blocks(
-                                    device=device,
-                                    latents=latent_model_input,
-                                    timestep=t,
-                                    encoder_hidden_states=prompt_embeds,
-                                    controlnet_conds=controlnet_conds,
-                                    added_cond_kwargs=added_cond_kwargs,
-                                )
-                        else:
-                            down_block, mid_block = None, None
-
-                        # add other dimensions to unet input if set
-                        if mask is not None and mask_image is not None and is_inpainting_unet:
-                            latent_model_input = torch.cat(
-                                [
-                                    latent_model_input,
-                                    mask[:, :, top:bottom, left:right],
-                                    mask_image[:, :, top:bottom, left:right],
-                                ],
-                                dim=1,
-                            )
-
-                        # predict the noise residual
-                        noise_pred = self.predict_noise_residual(
-                            latents=latent_model_input,
-                            timestep=t,
-                            embeddings=prompt_embeds,
-                            cross_attention_kwargs=cross_attention_kwargs,
-                            added_cond_kwargs=added_cond_kwargs,
-                            down_block_additional_residuals=down_block,
-                            mid_block_additional_residual=mid_block,
-                        )
-
-                        # perform guidance
-                        if do_classifier_free_guidance:
-                            noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
-                            noise_pred = noise_pred_uncond + guidance_scale * (noise_pred_text - noise_pred_uncond)
-
-                        # compute the previous noisy sample x_t -> x_t-1
-                        denoised_latents = self.scheduler.step( # type: ignore[attr-defined]
-                            noise_pred,
-                            t,
-                            latents_for_view,
-                            **extra_step_kwargs,
-                        ).prev_sample
-                    except IndexError:
-                        raise RuntimeError(f"Received IndexError during denoising. It is likely that the scheduler you are using ({type(self.scheduler).__name__}) does not work with Multi-Diffusion, and you should avoid using this when chunking is enabled.")
-
-                    # Save chunk scheduler status after sample
-                    chunk_scheduler_status[j] = self.get_scheduler_state()
-
-                    # If using mask and not using fine-tuned inpainting, then we calculate
-                    # the same denoising on the image without unet and cross with the
-                    # calculated unet input * mask
-                    if mask is not None and image is not None and noise is not None and not is_inpainting_unet:
-                        init_latents = (image[:, :, top:bottom, left:right])[:1]
-                        init_mask = (mask[:, :, top:bottom, left:right])[:1]
-
-                        if i < len(timesteps) - 1:
-                            noise_timestep = timesteps[i + 1]
-                            init_latents = self.scheduler.add_noise( # type: ignore[attr-defined]
-                                init_latents,
-                                noise[:, :, top:bottom, left:right],
-                                torch.tensor([noise_timestep])
-                            )
-
-                        denoised_latents = (1 - init_mask) * init_latents + init_mask * denoised_latents
-
-                    # Build weights
-                    multiplier = weight_builder(
-                        mask_type=self.chunking_mask_type,
-                        batch=samples,
-                        dim=num_channels,
-                        width=engine_latent_size,
-                        height=engine_latent_size,
-                        unfeather_left=left==0,
-                        unfeather_top=top==0,
-                        unfeather_right=right==latent_width,
-                        unfeather_bottom=bottom==latent_height,
-                        **self.chunking_mask_kwargs
+                    # expand the latents if we are doing classifier free guidance
+                    latent_model_input = (
+                        torch.cat([latents_for_view] * 2) if do_classifier_free_guidance else latents_for_view
                     )
 
-                    value[:, :, top:bottom, left:right] += denoised_latents * multiplier
-                    count[:, :, top:bottom, left:right] += multiplier
+                    # Re-match chunk scheduler status
+                    self.scheduler.__dict__.update(chunk_scheduler_status[j])
 
-                    # Call the progress callback
-                    if progress_callback is not None:
-                        progress_callback(True)
+                    # Scale model input
+                    latent_model_input = self.scheduler.scale_model_input(latent_model_input, t) # type: ignore[attr-defined]
 
-                # multidiffusion
-                latents = torch.where(count > 0, value / count, value)
+                    # Get controlnet input(s) if configured
+                    if control_images is not None:
+                        # Find which control image(s) to use
+                        controlnet_conds: Dict[str, List[Tuple[torch.Tensor, float]]] = {}
+                        for controlnet_name in control_images:
+                            for (
+                                control_image,
+                                conditioning_scale,
+                                conditioning_start,
+                                conditioning_end
+                            ) in control_images[controlnet_name]:
+                                if (
+                                    (conditioning_start is None or conditioning_start <= denoising_ratio) and
+                                    (conditioning_end is None or denoising_ratio <= conditioning_end)
+                                ):
+                                    if controlnet_name not in controlnet_conds:
+                                        controlnet_conds[controlnet_name] = []
 
-                # call the latent_callback, if provided
-                steps_since_last_callback += 1
-                if (
-                    latent_callback is not None
-                    and latent_callback_steps is not None
-                    and steps_since_last_callback >= latent_callback_steps
-                    and (i == num_steps - 1 or ((i + 1) > num_warmup_steps and (i + 1) % self.scheduler.order == 0)) # type: ignore[attr-defined]
-                ):
-                    steps_since_last_callback = 0
-                    latent_callback_value = latents
+                                    controlnet_conds[controlnet_name].append((
+                                        control_image[:, :, top_px:bottom_px, left_px:right_px],
+                                        conditioning_scale
+                                    ))
 
-                    if latent_callback_type != "latent":
-                        latent_callback_value = self.decode_latent_preview(
-                            latent_callback_value,
-                            device=device,
+                        if not controlnet_conds:
+                            down_block, mid_block = None, None
+                        else:
+                            down_block, mid_block = self.get_controlnet_conditioning_blocks(
+                                device=device,
+                                latents=latent_model_input,
+                                timestep=t,
+                                encoder_hidden_states=prompt_embeds,
+                                controlnet_conds=controlnet_conds,
+                                added_cond_kwargs=added_cond_kwargs,
+                            )
+                    else:
+                        down_block, mid_block = None, None
+
+                    # add other dimensions to unet input if set
+                    if mask is not None and mask_image is not None and is_inpainting_unet:
+                        latent_model_input = torch.cat(
+                            [
+                                latent_model_input,
+                                mask[:, :, top:bottom, left:right],
+                                mask_image[:, :, top:bottom, left:right],
+                            ],
+                            dim=1,
                         )
-                        latent_callback_value = self.denormalize_latents(latent_callback_value)
-                        if latent_callback_type != "pt":
-                            latent_callback_value = self.image_processor.pt_to_numpy(latent_callback_value)
-                            if latent_callback_type == "pil":
-                                latent_callback_value = self.image_processor.numpy_to_pil(latent_callback_value)
-                    latent_callback(latent_callback_value)
+
+                    # predict the noise residual
+                    noise_pred = self.predict_noise_residual(
+                        latents=latent_model_input,
+                        timestep=t,
+                        embeddings=prompt_embeds,
+                        cross_attention_kwargs=cross_attention_kwargs,
+                        added_cond_kwargs=added_cond_kwargs,
+                        down_block_additional_residuals=down_block,
+                        mid_block_additional_residual=mid_block,
+                    )
+
+                    # perform guidance
+                    if do_classifier_free_guidance:
+                        noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
+                        noise_pred = noise_pred_uncond + guidance_scale * (noise_pred_text - noise_pred_uncond)
+
+                    # compute the previous noisy sample x_t -> x_t-1
+                    denoised_latents = self.scheduler.step( # type: ignore[attr-defined]
+                        noise_pred,
+                        t,
+                        latents_for_view,
+                        **extra_step_kwargs,
+                    ).prev_sample
+                except IndexError:
+                    raise RuntimeError(f"Received IndexError during denoising. It is likely that the scheduler you are using ({type(self.scheduler).__name__}) does not work with Multi-Diffusion, and you should avoid using this when chunking is enabled.")
+
+                # Save chunk scheduler status after sample
+                chunk_scheduler_status[j] = self.get_scheduler_state()
+
+                # If using mask and not using fine-tuned inpainting, then we calculate
+                # the same denoising on the image without unet and cross with the
+                # calculated unet input * mask
+                if mask is not None and image is not None and noise is not None and not is_inpainting_unet:
+                    init_latents = (image[:, :, top:bottom, left:right])[:1]
+                    init_mask = (mask[:, :, top:bottom, left:right])[:1]
+
+                    if i < len(timesteps) - 1:
+                        noise_timestep = timesteps[i + 1]
+                        init_latents = self.scheduler.add_noise( # type: ignore[attr-defined]
+                            init_latents,
+                            noise[:, :, top:bottom, left:right],
+                            torch.tensor([noise_timestep])
+                        )
+
+                    denoised_latents = (1 - init_mask) * init_latents + init_mask * denoised_latents
+
+                # Build weights
+                multiplier = weight_builder(
+                    mask_type=self.chunking_mask_type,
+                    batch=samples,
+                    dim=num_channels,
+                    width=engine_latent_size,
+                    height=engine_latent_size,
+                    unfeather_left=left==0,
+                    unfeather_top=top==0,
+                    unfeather_right=right==latent_width,
+                    unfeather_bottom=bottom==latent_height,
+                    **self.chunking_mask_kwargs
+                )
+
+                value[:, :, top:bottom, left:right] += denoised_latents * multiplier
+                count[:, :, top:bottom, left:right] += multiplier
+
+                # Call the progress callback
+                if progress_callback is not None:
+                    progress_callback(True)
+
+            # multidiffusion
+            latents = torch.where(count > 0, value / count, value)
+
+            # call the latent_callback, if provided
+            steps_since_last_callback += 1
+            if (
+                latent_callback is not None
+                and latent_callback_steps is not None
+                and steps_since_last_callback >= latent_callback_steps
+                and (i == num_steps - 1 or ((i + 1) > num_warmup_steps and (i + 1) % self.scheduler.order == 0)) # type: ignore[attr-defined]
+            ):
+                steps_since_last_callback = 0
+                latent_callback_value = latents
+
+                if latent_callback_type != "latent":
+                    latent_callback_value = self.decode_latent_preview(
+                        latent_callback_value,
+                        device=device,
+                    )
+                    latent_callback_value = self.denormalize_latents(latent_callback_value)
+                    if latent_callback_type != "pt":
+                        latent_callback_value = self.image_processor.pt_to_numpy(latent_callback_value)
+                        if latent_callback_type == "pil":
+                            latent_callback_value = self.image_processor.numpy_to_pil(latent_callback_value)
+                latent_callback(latent_callback_value)
 
         return latents
 
@@ -2231,7 +2246,11 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         """
         return self.vae.decode(latents, return_dict=False)[0]
 
-    def decode_latents_unchunked(self, latents: torch.Tensor, device: Union[str, torch.device]) -> torch.Tensor:
+    def decode_latents_unchunked(
+        self,
+        latents: torch.Tensor,
+        device: Union[str, torch.device]
+    ) -> torch.Tensor:
         """
         Decodes the latents using the VAE without chunking.
         """
@@ -2241,6 +2260,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         self,
         latents: torch.Tensor,
         device: Union[str, torch.device],
+        weight_builder: MaskWeightBuilder,
         progress_callback: Optional[Callable[[bool], None]] = None,
     ) -> torch.Tensor:
         """
@@ -2257,7 +2277,6 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
         revert_dtype = None
 
-        weight_builder = MaskWeightBuilder(device=device, dtype=latents.dtype)
         if self.config.force_full_precision_vae: # type: ignore[attr-defined]
             # Resist overflow
             revert_dtype = latents.dtype
@@ -2282,40 +2301,39 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
         logger.debug(f"Decoding latents in {total_steps} steps")
 
-        with weight_builder:
-            # iterate over chunks
-            for i, (top, bottom, left, right) in enumerate(chunks):
-                # Slice latents
-                latents_for_view = latents[:, :, top:bottom, left:right]
+        # iterate over chunks
+        for i, (top, bottom, left, right) in enumerate(chunks):
+            # Slice latents
+            latents_for_view = latents[:, :, top:bottom, left:right]
 
-                # Get pixel indices
-                top_px = top * self.vae_scale_factor
-                bottom_px = bottom * self.vae_scale_factor
-                left_px = left * self.vae_scale_factor
-                right_px = right * self.vae_scale_factor
+            # Get pixel indices
+            top_px = top * self.vae_scale_factor
+            bottom_px = bottom * self.vae_scale_factor
+            left_px = left * self.vae_scale_factor
+            right_px = right * self.vae_scale_factor
 
-                # Decode latents
-                decoded_latents = self.decode_latent_view(latents_for_view).to(device=device)
+            # Decode latents
+            decoded_latents = self.decode_latent_view(latents_for_view).to(device=device)
 
-                # Build weights
-                multiplier = weight_builder(
-                    mask_type=self.chunking_mask_type,
-                    batch=samples,
-                    dim=3,
-                    width=self.engine_size,
-                    height=self.engine_size,
-                    unfeather_left=left==0,
-                    unfeather_top=top==0,
-                    unfeather_right=right==latent_width,
-                    unfeather_bottom=bottom==latent_height,
-                    **self.chunking_mask_kwargs
-                )
+            # Build weights
+            multiplier = weight_builder(
+                mask_type=self.chunking_mask_type,
+                batch=samples,
+                dim=3,
+                width=self.engine_size,
+                height=self.engine_size,
+                unfeather_left=left==0,
+                unfeather_top=top==0,
+                unfeather_right=right==latent_width,
+                unfeather_bottom=bottom==latent_height,
+                **self.chunking_mask_kwargs
+            )
 
-                value[:, :, top_px:bottom_px, left_px:right_px] += decoded_latents * multiplier
-                count[:, :, top_px:bottom_px, left_px:right_px] += multiplier
+            value[:, :, top_px:bottom_px, left_px:right_px] += decoded_latents * multiplier
+            count[:, :, top_px:bottom_px, left_px:right_px] += multiplier
 
-                if progress_callback is not None:
-                    progress_callback(True)
+            if progress_callback is not None:
+                progress_callback(True)
 
         # re-average pixels
         latents = torch.where(count > 0, value / count, value)
@@ -2325,7 +2343,9 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         return latents
 
     def prepare_extra_step_kwargs(
-        self, generator: Optional[torch.Generator], eta: float
+        self,
+        generator: Optional[torch.Generator],
+        eta: float
     ) -> Dict[str, Any]:
         """
         Prepares arguments to add during denoising
@@ -2455,6 +2475,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 width = self.unet.config.sample_size * self.vae_scale_factor # type: ignore[attr-defined]
         height = cast(int, height)
         width = cast(int, width)
+
         # Training details
         original_size = original_size or (height, width)
         target_size = target_size or (height, width)
@@ -2671,329 +2692,339 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 logger.debug(f"{width}x{height} is smaller than is chunkable, disabling.")
                 self.chunking_size = 0
 
+            # No longer none
             prompt_embeds = cast(torch.Tensor, prompt_embeds)
-            if prepared_image is not None and prepared_mask is not None:
-                # Inpainting
-                num_channels_latents = self.vae.config.latent_channels # type: ignore[attr-defined]
 
-                if latents:
-                    prepared_latents = latents.to(device) * self.scheduler.init_noise_sigma # type: ignore[attr-defined]
-                else:
-                    prepared_latents = self.create_latents(
-                        batch_size,
-                        num_channels_latents,
-                        height,
-                        width,
-                        prompt_embeds.dtype,
-                        device,
-                        generator,
+            # Build the weight builder
+            weight_builder = MaskWeightBuilder(device=device, dtype=prompt_embeds.dtype)
+            with weight_builder:
+                if prepared_image is not None and prepared_mask is not None:
+                    # Inpainting
+                    num_channels_latents = self.vae.config.latent_channels # type: ignore[attr-defined]
+
+                    if latents:
+                        prepared_latents = latents.to(device) * self.scheduler.init_noise_sigma # type: ignore[attr-defined]
+                    else:
+                        prepared_latents = self.create_latents(
+                            batch_size,
+                            num_channels_latents,
+                            height,
+                            width,
+                            prompt_embeds.dtype,
+                            device,
+                            generator,
+                        )
+
+                    prepared_mask, prepared_image_latents = self.prepare_mask_latents(
+                        mask=prepared_mask,
+                        image=prepared_image,
+                        batch_size=batch_size,
+                        height=height,
+                        width=width,
+                        dtype=prompt_embeds.dtype,
+                        device=device,
+                        weight_builder=weight_builder,
+                        generator=generator,
+                        do_classifier_free_guidance=do_classifier_free_guidance,
+                        progress_callback=step_complete,
                     )
 
-                prepared_mask, prepared_image_latents = self.prepare_mask_latents(
-                    prepared_mask,
-                    prepared_image,
-                    batch_size,
-                    height,
-                    width,
-                    prompt_embeds.dtype,
-                    device,
-                    generator,
-                    do_classifier_free_guidance,
-                    progress_callback=step_complete,
-                )
+                    if init_image is not None:
+                        init_image = init_image.to(device=device, dtype=prompt_embeds.dtype)
+                        init_image = self.encode_image(
+                            init_image,
+                            device=device,
+                            dtype=prompt_embeds.dtype,
+                            generator=generator,
+                            weight_builder=weight_builder
+                        )
 
-                if init_image is not None:
-                    init_image = init_image.to(device=device, dtype=prompt_embeds.dtype)
-                    init_image = self.encode_image(
-                        init_image,
-                        device=device,
+                    # prepared_latents = noise or init latents + noise
+                    # prepared_mask = only mask
+                    # prepared_image_latents = masked image
+                    # init_image = only image when not using inpainting unet
+                elif prepared_image is not None and strength is not None:
+                    # img2img
+                    prepared_latents = self.prepare_image_latents(
+                        image=prepared_image,
+                        timestep=timesteps[:1].repeat(batch_size),
+                        batch_size=batch_size,
                         dtype=prompt_embeds.dtype,
+                        device=device,
+                        weight_builder=weight_builder,
+                        generator=generator,
+                        progress_callback=step_complete,
+                        add_noise=denoising_start is None,
+                    )
+                    # prepared_latents = img + noise
+                elif latents:
+                    prepared_latents = latents.to(device) * self.scheduler.init_noise_sigma # type: ignore[attr-defined]
+                    # prepared_latents = passed latents + noise
+                else:
+                    # txt2img
+                    prepared_latents = self.create_latents(
+                        batch_size=batch_size,
+                        num_channels_latents=self.unet.config.in_channels, # type: ignore[attr-defined]
+                        height=height,
+                        width=width,
+                        dtype=prompt_embeds.dtype,
+                        device=device,
                         generator=generator,
                     )
+                    # prepared_latents = noise
 
-                # prepared_latents = noise or init latents + noise
-                # prepared_mask = only mask
-                # prepared_image_latents = masked image
-                # init_image = only image when not using inpainting unet
-            elif prepared_image is not None and strength is not None:
-                # img2img
-                prepared_latents = self.prepare_image_latents(
-                    prepared_image,
-                    timesteps[:1].repeat(batch_size),
-                    batch_size,
-                    prompt_embeds.dtype,
-                    device,
-                    generator,
-                    progress_callback=step_complete,
-                    add_noise=denoising_start is None
-                )
-                # prepared_latents = img + noise
-            elif latents:
-                prepared_latents = latents.to(device) * self.scheduler.init_noise_sigma # type: ignore[attr-defined]
-                # prepared_latents = passed latents + noise
-            else:
-                # txt2img
-                prepared_latents = self.create_latents(
-                    batch_size,
-                    self.unet.config.in_channels, # type: ignore[attr-defined]
-                    height,
-                    width,
-                    prompt_embeds.dtype,
-                    device,
-                    generator,
-                )
-                # prepared_latents = noise
+                # Look for controlnet and conditioning image
+                prepared_control_images: PreparedControlImageArgType = {}
+                if control_images is not None:
+                    if not self.controlnets:
+                        logger.warning("Control image passed, but no controlnet present. Ignoring.")
+                        prepared_control_images = None
+                    else:
+                        for name in control_images:
+                            if name not in self.controlnets:
+                                raise RuntimeError(f"Control image mapped to ControlNet {name}, but it is not loaded.")
 
-            # Look for controlnet and conditioning image
-            prepared_control_images: PreparedControlImageArgType = {}
-            if control_images is not None:
-                if not self.controlnets:
-                    logger.warning("Control image passed, but no controlnet present. Ignoring.")
-                    prepared_control_images = None
-                else:
-                    for name in control_images:
-                        if name not in self.controlnets:
-                            raise RuntimeError(f"Control image mapped to ControlNet {name}, but it is not loaded.")
+                            image_list = control_images[name]
+                            if not isinstance(image_list, list):
+                                image_list = [image_list]
 
-                        image_list = control_images[name]
-                        if not isinstance(image_list, list):
-                            image_list = [image_list]
+                            for controlnet_image in image_list:
+                                if isinstance(controlnet_image, tuple):
+                                    if len(controlnet_image) == 4:
+                                        controlnet_image, conditioning_scale, conditioning_start, conditioning_end = controlnet_image
+                                    elif len(controlnet_image) == 3:
+                                        controlnet_image, conditioning_scale, conditioning_start = controlnet_image
+                                        conditioning_end = None
+                                    elif len(controlnet_image) == 2:
+                                        controlnet_image, conditioning_scale = controlnet_image
+                                        conditioning_start, conditioning_end = None, None
 
-                        for controlnet_image in image_list:
-                            if isinstance(controlnet_image, tuple):
-                                if len(controlnet_image) == 4:
-                                    controlnet_image, conditioning_scale, conditioning_start, conditioning_end = controlnet_image
-                                elif len(controlnet_image) == 3:
-                                    controlnet_image, conditioning_scale, conditioning_start = controlnet_image
-                                    conditioning_end = None
-                                elif len(controlnet_image) == 2:
-                                    controlnet_image, conditioning_scale = controlnet_image
+                                elif isinstance(controlnet_image, dict):
+                                    conditioning_scale = controlnet_image.get("scale", 1.0)
+                                    conditioning_start = controlnet_image.get("start", None)
+                                    conditioning_end = controlnet_image.get("end", None)
+                                    controlnet_image = controlnet_image["image"]
+                                else:
+                                    conditioning_scale = 1.0
                                     conditioning_start, conditioning_end = None, None
 
-                            elif isinstance(controlnet_image, dict):
-                                conditioning_scale = controlnet_image.get("scale", 1.0)
-                                conditioning_start = controlnet_image.get("start", None)
-                                conditioning_end = controlnet_image.get("end", None)
-                                controlnet_image = controlnet_image["image"]
-                            else:
-                                conditioning_scale = 1.0
-                                conditioning_start, conditioning_end = None, None
+                                if isinstance(controlnet_image, str):
+                                    controlnet_image = PIL.Image.open(controlnet_image)
 
-                            if isinstance(controlnet_image, str):
-                                controlnet_image = PIL.Image.open(controlnet_image)
+                                prepared_controlnet_image = self.prepare_control_image(
+                                    image=controlnet_image,
+                                    height=height,
+                                    width=width,
+                                    batch_size=batch_size,
+                                    num_images_per_prompt=num_images_per_prompt,
+                                    device=device,
+                                    dtype=prompt_embeds.dtype,
+                                    do_classifier_free_guidance=do_classifier_free_guidance,
+                                )
 
-                            prepared_controlnet_image = self.prepare_control_image(
-                                image=controlnet_image,
-                                height=height,
-                                width=width,
-                                batch_size=batch_size,
-                                num_images_per_prompt=num_images_per_prompt,
-                                device=device,
-                                dtype=prompt_embeds.dtype,
-                                do_classifier_free_guidance=do_classifier_free_guidance,
-                            )
+                                if name not in prepared_control_images: # type: ignore[operator]
+                                    prepared_control_images[name] = [] # type: ignore[index]
 
-                            if name not in prepared_control_images: # type: ignore[operator]
-                                prepared_control_images[name] = [] # type: ignore[index]
+                                prepared_control_images[name].append( # type: ignore[index]
+                                    (prepared_controlnet_image, conditioning_scale, conditioning_start, conditioning_end)
+                                )
 
-                            prepared_control_images[name].append( # type: ignore[index]
-                                (prepared_controlnet_image, conditioning_scale, conditioning_start, conditioning_end)
-                            )
+                # Should no longer be None
+                prepared_latents = cast(torch.Tensor, prepared_latents)
 
-            # Should no longer be None
-            prepared_latents = cast(torch.Tensor, prepared_latents)
+                # Prepare extra step kwargs
+                extra_step_kwargs = self.prepare_extra_step_kwargs(generator, eta)
 
-            # Prepare extra step kwargs
-            extra_step_kwargs = self.prepare_extra_step_kwargs(generator, eta)
-
-            # Get prompt embeds here if using ip adapter
-            if ip_adapter_tuples is not None:
-                image_prompt_embeds = torch.Tensor().to(
-                    device=device,
-                    dtype=prompt_embeds.dtype
-                )
-                image_uncond_prompt_embeds = torch.Tensor().to(
-                    device=device,
-                    dtype=prompt_embeds.dtype
-                )
-                for img, scale in ip_adapter_tuples:
-                    these_prompt_embeds, these_uncond_prompt_embeds = self.get_image_embeds(
-                        img,
-                        num_images_per_prompt
+                # Get prompt embeds here if using ip adapter
+                if ip_adapter_tuples is not None:
+                    image_prompt_embeds = torch.Tensor().to(
+                        device=device,
+                        dtype=prompt_embeds.dtype
                     )
+                    image_uncond_prompt_embeds = torch.Tensor().to(
+                        device=device,
+                        dtype=prompt_embeds.dtype
+                    )
+                    for img, scale in ip_adapter_tuples:
+                        these_prompt_embeds, these_uncond_prompt_embeds = self.get_image_embeds(
+                            img,
+                            num_images_per_prompt
+                        )
 
-                    image_prompt_embeds = torch.cat([
-                        image_prompt_embeds,
-                        (these_prompt_embeds * scale / ip_adapter_scale)
-                    ], dim=1)
+                        image_prompt_embeds = torch.cat([
+                            image_prompt_embeds,
+                            (these_prompt_embeds * scale / ip_adapter_scale)
+                        ], dim=1)
 
-                    image_uncond_prompt_embeds = torch.cat([
-                        image_uncond_prompt_embeds,
-                        (these_uncond_prompt_embeds * scale / ip_adapter_scale)
-                    ], dim=1)
+                        image_uncond_prompt_embeds = torch.cat([
+                            image_uncond_prompt_embeds,
+                            (these_uncond_prompt_embeds * scale / ip_adapter_scale)
+                        ], dim=1)
 
+                    if self.is_sdxl:
+                        negative_prompt_embeds = cast(torch.Tensor, negative_prompt_embeds)
+                        prompt_embeds = torch.cat([prompt_embeds, image_prompt_embeds], dim=1)
+                        negative_prompt_embeds = torch.cat([negative_prompt_embeds, image_uncond_prompt_embeds], dim=1)
+                    else:
+                        if do_classifier_free_guidance:
+                            _negative_prompt_embeds, _prompt_embeds = prompt_embeds.chunk(2)
+                        else:
+                            _negative_prompt_embeds, _prompt_embeds = negative_prompt_embeds, prompt_embeds # type: ignore
+                        prompt_embeds = torch.cat([_prompt_embeds, image_prompt_embeds], dim=1)
+                        negative_prompt_embeds = torch.cat([_negative_prompt_embeds, image_uncond_prompt_embeds], dim=1)
+                        if do_classifier_free_guidance:
+                            prompt_embeds = torch.cat([negative_prompt_embeds, prompt_embeds])
+
+                    if ip_adapter_images:
+                        del ip_adapter_images
+
+                # Prepared added time IDs and embeddings (SDXL)
                 if self.is_sdxl:
                     negative_prompt_embeds = cast(torch.Tensor, negative_prompt_embeds)
-                    prompt_embeds = torch.cat([prompt_embeds, image_prompt_embeds], dim=1)
-                    negative_prompt_embeds = torch.cat([negative_prompt_embeds, image_uncond_prompt_embeds], dim=1)
-                else:
+                    pooled_prompt_embeds = cast(torch.Tensor, pooled_prompt_embeds)
+                    negative_pooled_prompt_embeds = cast(torch.Tensor, negative_pooled_prompt_embeds)
+                    add_text_embeds = pooled_prompt_embeds
+
                     if do_classifier_free_guidance:
-                        _negative_prompt_embeds, _prompt_embeds = prompt_embeds.chunk(2)
+                        prompt_embeds = torch.cat([negative_prompt_embeds, prompt_embeds], dim=0)
+                        add_text_embeds = torch.cat([negative_pooled_prompt_embeds, add_text_embeds], dim=0)
+
+                    if self.config.requires_aesthetic_score: # type: ignore[attr-defined]
+                        add_time_ids, add_neg_time_ids = self.get_add_time_ids(
+                            original_size=original_size,
+                            crops_coords_top_left=crops_coords_top_left,
+                            target_size=target_size,
+                            dtype=prompt_embeds.dtype,
+                            aesthetic_score=aesthetic_score,
+                            negative_aesthetic_score=negative_aesthetic_score,
+                        )
+                        if do_classifier_free_guidance:
+                            add_time_ids = torch.cat([add_neg_time_ids, add_time_ids], dim=0)
                     else:
-                        _negative_prompt_embeds, _prompt_embeds = negative_prompt_embeds, prompt_embeds # type: ignore
-                    prompt_embeds = torch.cat([_prompt_embeds, image_prompt_embeds], dim=1)
-                    negative_prompt_embeds = torch.cat([_negative_prompt_embeds, image_uncond_prompt_embeds], dim=1)
-                    if do_classifier_free_guidance:
-                        prompt_embeds = torch.cat([negative_prompt_embeds, prompt_embeds])
+                        add_time_ids, _ = self.get_add_time_ids(
+                            original_size=original_size,
+                            crops_coords_top_left=crops_coords_top_left,
+                            target_size=target_size,
+                            dtype=prompt_embeds.dtype,
+                        )
+                        add_time_ids = torch.cat([add_time_ids, add_time_ids], dim=0)
 
-                if ip_adapter_images:
-                    del ip_adapter_images
-
-            # Prepared added time IDs and embeddings (SDXL)
-            if self.is_sdxl:
-                negative_prompt_embeds = cast(torch.Tensor, negative_prompt_embeds)
-                pooled_prompt_embeds = cast(torch.Tensor, pooled_prompt_embeds)
-                negative_pooled_prompt_embeds = cast(torch.Tensor, negative_pooled_prompt_embeds)
-                add_text_embeds = pooled_prompt_embeds
-
-                if do_classifier_free_guidance:
-                    prompt_embeds = torch.cat([negative_prompt_embeds, prompt_embeds], dim=0)
-                    add_text_embeds = torch.cat([negative_pooled_prompt_embeds, add_text_embeds], dim=0)
-
-                if self.config.requires_aesthetic_score: # type: ignore[attr-defined]
-                    add_time_ids, add_neg_time_ids = self.get_add_time_ids(
-                        original_size=original_size,
-                        crops_coords_top_left=crops_coords_top_left,
-                        target_size=target_size,
-                        dtype=prompt_embeds.dtype,
-                        aesthetic_score=aesthetic_score,
-                        negative_aesthetic_score=negative_aesthetic_score,
-                    )
-                    if do_classifier_free_guidance:
-                        add_time_ids = torch.cat([add_neg_time_ids, add_time_ids], dim=0)
+                    prompt_embeds = prompt_embeds.to(device)
+                    add_text_embeds = add_text_embeds.to(device)
+                    add_time_ids = add_time_ids.to(device).repeat(batch_size, 1)
+                    added_cond_kwargs = {"text_embeds": add_text_embeds, "time_ids": add_time_ids}
                 else:
-                    add_time_ids, _ = self.get_add_time_ids(
-                        original_size=original_size,
-                        crops_coords_top_left=crops_coords_top_left,
-                        target_size=target_size,
-                        dtype=prompt_embeds.dtype,
-                    )
-                    add_time_ids = torch.cat([add_time_ids, add_time_ids], dim=0)
+                    added_cond_kwargs = None
 
-                prompt_embeds = prompt_embeds.to(device)
-                add_text_embeds = add_text_embeds.to(device)
-                add_time_ids = add_time_ids.to(device).repeat(batch_size, 1)
-                added_cond_kwargs = {"text_embeds": add_text_embeds, "time_ids": add_time_ids}
-            else:
-                added_cond_kwargs = None
-
-            self.vae.to("cpu")
-            if decode_intermediates:
-                self.vae_preview.to(device)
-            empty_cache()
-
-            # Make sure controlnet on device
-            if self.controlnets is not None:
-                for name in self.controlnets:
-                    self.controlnets[name].to(device=device)
-
-            # Make sure unet is on device
-            self.align_unet(
-                device=device,
-                dtype=prompt_embeds.dtype,
-                offload_models=offload_models
-            ) # May be overridden by RT
-
-            # Denoising loop
-            prepared_latents = self.denoise(
-                height=height,
-                width=width,
-                device=device,
-                num_inference_steps=num_inference_steps,
-                timesteps=timesteps,
-                latents=prepared_latents,
-                prompt_embeds=prompt_embeds,
-                guidance_scale=guidance_scale,
-                do_classifier_free_guidance=do_classifier_free_guidance,
-                is_inpainting_unet=is_inpainting_unet,
-                mask=prepared_mask,
-                mask_image=prepared_image_latents,
-                image=init_image,
-                control_images=prepared_control_images,
-                progress_callback=step_complete,
-                latent_callback=latent_callback,
-                latent_callback_steps=latent_callback_steps,
-                latent_callback_type=latent_callback_type,
-                extra_step_kwargs=extra_step_kwargs,
-                cross_attention_kwargs=cross_attention_kwargs,
-                added_cond_kwargs=added_cond_kwargs,
-            )
-
-            # Clear no longer needed tensors
-            del prepared_mask
-            del prepared_image_latents
-
-            # Unload controlnets to free memory
-            if self.controlnets is not None:
-                for name in self.controlnets:
-                    self.controlnets[name].to("cpu")
-                del prepared_control_images
-
-            # Unload UNet to free memory
-            if offload_models:
-                self.unet.to("cpu")
-
-            # Empty caches for more memory
-            empty_cache()
-            if output_type != "latent":
-                self.vae.to(
-                    dtype=torch.float32 if self.config.force_full_precision_vae else prepared_latents.dtype, # type: ignore[attr-defined]
-                    device=device
-                )
-                if self.is_sdxl:
-                    use_torch_2_0_or_xformers = self.vae.decoder.mid_block.attentions[0].processor in [
-                        AttnProcessor2_0,
-                        XFormersAttnProcessor,
-                        LoRAXFormersAttnProcessor,
-                        LoRAAttnProcessor2_0,
-                    ]
-                    # if xformers or torch_2_0 is used attention block does not need
-                    # to be in float32 which can save lots of memory
-                    if not use_torch_2_0_or_xformers:
-                        self.vae.post_quant_conv.to(prepared_latents.dtype)
-                        self.vae.decoder.conv_in.to(prepared_latents.dtype)
-                        self.vae.decoder.mid_block.to(prepared_latents.dtype)
-                    else:
-                        prepared_latents = prepared_latents.float()
-
-                prepared_latents = self.decode_latents(
-                    prepared_latents,
-                    device=device,
-                    progress_callback=step_complete,
-                )
-
-                if self.config.force_full_precision_vae: # type: ignore[attr-defined]
-                    self.vae.to(dtype=prepared_latents.dtype)
-
-        if output_type == "latent":
-            output = prepared_latents
-        else:
-            if offload_models:
-                # Offload VAE again
                 self.vae.to("cpu")
-                self.vae_preview.to("cpu")
+                if decode_intermediates:
+                    self.vae_preview.to(device)
                 empty_cache()
-            output = self.denormalize_latents(prepared_latents)
-            if output_type != "pt":
-                output = self.image_processor.pt_to_numpy(output)
-                output_nsfw = self.run_safety_checker(output, device, prompt_embeds.dtype)[1]# type: ignore[arg-type]
-                if output_type == "pil":
-                    output = self.image_processor.numpy_to_pil(output)
 
-        if hasattr(self, "final_offload_hook") and self.final_offload_hook is not None:
-            self.final_offload_hook.offload()
+                # Make sure controlnet on device
+                if self.controlnets is not None:
+                    for name in self.controlnets:
+                        self.controlnets[name].to(device=device)
 
-        if not return_dict:
-            return (output, output_nsfw)
+                # Make sure unet is on device
+                self.align_unet(
+                    device=device,
+                    dtype=prompt_embeds.dtype,
+                    offload_models=offload_models
+                ) # May be overridden by RT
 
-        return StableDiffusionPipelineOutput(images=output, nsfw_content_detected=output_nsfw) # type: ignore[arg-type]
+                # Denoising loop
+                prepared_latents = self.denoise(
+                    height=height,
+                    width=width,
+                    device=device,
+                    num_inference_steps=num_inference_steps,
+                    timesteps=timesteps,
+                    latents=prepared_latents,
+                    prompt_embeds=prompt_embeds,
+                    guidance_scale=guidance_scale,
+                    do_classifier_free_guidance=do_classifier_free_guidance,
+                    is_inpainting_unet=is_inpainting_unet,
+                    mask=prepared_mask,
+                    mask_image=prepared_image_latents,
+                    image=init_image,
+                    control_images=prepared_control_images,
+                    progress_callback=step_complete,
+                    latent_callback=latent_callback,
+                    latent_callback_steps=latent_callback_steps,
+                    latent_callback_type=latent_callback_type,
+                    extra_step_kwargs=extra_step_kwargs,
+                    cross_attention_kwargs=cross_attention_kwargs,
+                    added_cond_kwargs=added_cond_kwargs,
+                    weight_builder=weight_builder
+                )
+
+                # Clear no longer needed tensors
+                del prepared_mask
+                del prepared_image_latents
+
+                # Unload controlnets to free memory
+                if self.controlnets is not None:
+                    for name in self.controlnets:
+                        self.controlnets[name].to("cpu")
+                    del prepared_control_images
+
+                # Unload UNet to free memory
+                if offload_models:
+                    self.unet.to("cpu")
+
+                # Empty caches for more memory
+                empty_cache()
+                if output_type != "latent":
+                    self.vae.to(
+                        dtype=torch.float32 if self.config.force_full_precision_vae else prepared_latents.dtype, # type: ignore[attr-defined]
+                        device=device
+                    )
+                    if self.is_sdxl:
+                        use_torch_2_0_or_xformers = self.vae.decoder.mid_block.attentions[0].processor in [
+                            AttnProcessor2_0,
+                            XFormersAttnProcessor,
+                            LoRAXFormersAttnProcessor,
+                            LoRAAttnProcessor2_0,
+                        ]
+                        # if xformers or torch_2_0 is used attention block does not need
+                        # to be in float32 which can save lots of memory
+                        if not use_torch_2_0_or_xformers:
+                            self.vae.post_quant_conv.to(prepared_latents.dtype)
+                            self.vae.decoder.conv_in.to(prepared_latents.dtype)
+                            self.vae.decoder.mid_block.to(prepared_latents.dtype)
+                        else:
+                            prepared_latents = prepared_latents.float()
+
+                    prepared_latents = self.decode_latents(
+                        prepared_latents,
+                        device=device,
+                        progress_callback=step_complete,
+                        weight_builder=weight_builder
+                    )
+
+                    if self.config.force_full_precision_vae: # type: ignore[attr-defined]
+                        self.vae.to(dtype=prepared_latents.dtype)
+
+            if output_type == "latent":
+                output = prepared_latents
+            else:
+                if offload_models:
+                    # Offload VAE again
+                    self.vae.to("cpu")
+                    self.vae_preview.to("cpu")
+                    empty_cache()
+                output = self.denormalize_latents(prepared_latents)
+                if output_type != "pt":
+                    output = self.image_processor.pt_to_numpy(output)
+                    output_nsfw = self.run_safety_checker(output, device, prompt_embeds.dtype)[1]# type: ignore[arg-type]
+                    if output_type == "pil":
+                        output = self.image_processor.numpy_to_pil(output)
+
+            if hasattr(self, "final_offload_hook") and self.final_offload_hook is not None:
+                self.final_offload_hook.offload()
+
+            if not return_dict:
+                return (output, output_nsfw)
+
+            return StableDiffusionPipelineOutput(images=output, nsfw_content_detected=output_nsfw) # type: ignore[arg-type]
