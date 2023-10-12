@@ -652,6 +652,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         self,
         device: torch.device,
         dtype: torch.dtype,
+        freeu_factors: Optional[Tuple[float, float, float, float]] = None,
         offload_models: bool = False
     ) -> None:
         """
@@ -663,6 +664,13 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             if self.text_encoder_2:
                 self.text_encoder_2.to("cpu")
             empty_cache()
+        if freeu_factors is None:
+            if getattr(self, "_freeu_enabled", False): # Make sure we've enabled this at least once
+                self.unet.disable_freeu()
+        else:
+            s1, s2, b1, b2 = freeu_factors
+            self.unet.enable_freeu(s1=s1, s2=s2, b1=b1, b2=b2)
+            self._freeu_enabled = True
         self.unet.to(device=device, dtype=dtype)
 
     def run_safety_checker(
@@ -766,6 +774,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         lora_scale: Optional[float] = None,
         prompt_2: Optional[str] = None,
         negative_prompt_2: Optional[str] = None,
+        clip_skip: Optional[int] = None,
     ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]]:
         """
         Encodes the prompt into text encoder hidden states.
@@ -844,16 +853,24 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 else:
                     attention_mask = None
 
-                text_input_ids = text_input_ids.to(device=device)
                 # Align device and encode
+                text_input_ids = text_input_ids.to(device=device)
                 text_encoder.to(device=device)
                 prompt_embeds = text_encoder(
-                    text_input_ids, output_hidden_states=self.is_sdxl, attention_mask=attention_mask
+                    text_input_ids,
+                    output_hidden_states=self.is_sdxl or clip_skip is not None,
+                    attention_mask=attention_mask
                 )
 
                 if self.is_sdxl:
                     pooled_prompt_embeds = prompt_embeds[0]  # type: ignore
-                    prompt_embeds = prompt_embeds.hidden_states[-2]  # type: ignore
+                    if clip_skip is None:
+                        prompt_embeds = prompt_embeds.hidden_states[-2]  # type: ignore
+                    else:
+                        prompt_embeds = prompt_embeds.hidden_states[-(clip_skip + 2)] # type: ignore
+                elif clip_skip is not None:
+                    prompt_embeds = prompt_embeds[-1][-(clip_skip + 1)] # type: ignore
+                    prompt_embeds = text_encoder.text_model.final_layer_norm(prompt_embeds)
                 else:
                     prompt_embeds = prompt_embeds[0].to(dtype=text_encoder.dtype, device=device)  # type: ignore
 
@@ -2408,6 +2425,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         prompt_2: Optional[str] = None,
         negative_prompt: Optional[str] = None,
         negative_prompt_2: Optional[str] = None,
+        clip_skip: Optional[int] = None,
+        freeu_factors: Optional[Tuple[float, float, float, float]] = None,
         image: Optional[Union[PIL.Image.Image, torch.Tensor, str]] = None,
         mask: Optional[Union[PIL.Image.Image, torch.Tensor, str]] = None,
         control_images: ControlImageArgType = None,
@@ -2632,7 +2651,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     prompt_embeds=prompt_embeds,
                     negative_prompt_embeds=negative_prompt_embeds,
                     prompt_2=prompt_2,
-                    negative_prompt_2=negative_prompt_2
+                    negative_prompt_2=negative_prompt_2,
+                    clip_skip=clip_skip
                 )
             else:
                 prompt_embeds = self.encode_prompt(
@@ -2644,7 +2664,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     prompt_embeds=prompt_embeds,
                     negative_prompt_embeds=negative_prompt_embeds,
                     prompt_2=prompt_2,
-                    negative_prompt_2=negative_prompt_2
+                    negative_prompt_2=negative_prompt_2,
+                    clip_skip=clip_skip
                 )  # type: ignore
                 pooled_prompt_embeds = None
                 negative_prompt_embeds = None
@@ -2930,6 +2951,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 self.align_unet(
                     device=device,
                     dtype=prompt_embeds.dtype,
+                    freeu_factors=freeu_factors,
                     offload_models=offload_models
                 ) # May be overridden by RT
 

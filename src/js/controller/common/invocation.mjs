@@ -707,6 +707,40 @@ class InvocationController extends Controller {
         }
         this.kwargs.vae = newVae;
     }
+
+    /**
+     * @return int CLIP Skip, if set
+     */
+    get clipSkip() {
+        return this.kwargs.clip_skip || null;
+    }
+
+    /**
+     * @param int New CLIP skip layers
+     */
+    set clipSkip(newClipSkip) {
+        if (this.clipSkip !== newClipSkip) {
+            this.publish("engineClipSkipChange");
+        }
+        this.kwargs.clip_skip = newClipSkip;
+    }
+
+    /**
+     * @return ?array freeU factors, or null
+     */
+    get freeUFactors() {
+        return this.kwargs.freeu_factors || null;
+    }
+
+    /**
+     * @param ?array freeU factors or null
+     */
+    set freeUFactors(newFreeUFactors) {
+        if (!isEquivalent(this.freeUFactors, newFreeUFactors)) {
+            this.publish("engineFreeUFactorsChange");
+        }
+        this.kwargs.freeu_factors = newFreeUFactors;
+    }
     
     /**
      * On initialization, create DOM elements related to invocations.

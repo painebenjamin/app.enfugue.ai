@@ -822,6 +822,7 @@ class DiffusionPlan:
         prompt_2: Optional[str] = None, # Global
         negative_prompt: Optional[str] = None,  # Global
         negative_prompt_2: Optional[str] = None, # Global
+        clip_skip: Optional[int] = None,
         refiner_size: Optional[int] = None,
         inpainter_size: Optional[int] = None,
         model: Optional[str] = None,
@@ -847,6 +848,7 @@ class DiffusionPlan:
         build_tensorrt: bool = False,
         outpaint: bool = True,
         upscale_steps: Optional[Union[UpscaleStepDict, List[UpscaleStepDict]]] = None,
+        freeu_factors: Optional[Tuple[float, float, float, float]] = None,
     ) -> None:
         self.size = size
         self.inpainter_size = inpainter_size
@@ -855,6 +857,7 @@ class DiffusionPlan:
         self.prompt_2 = prompt_2
         self.negative_prompt = negative_prompt
         self.negative_prompt_2 = negative_prompt_2
+        self.clip_skip = clip_skip
         self.model = model
         self.refiner = refiner
         self.inpainter = inpainter
@@ -879,6 +882,7 @@ class DiffusionPlan:
         self.build_tensorrt = build_tensorrt
         self.nodes = nodes
         self.upscale_steps = upscale_steps
+        self.freeu_factors = freeu_factors
 
     @property
     def kwargs(self) -> Dict[str, Any]:
@@ -888,6 +892,8 @@ class DiffusionPlan:
         return {
             "width": self.width,
             "height": self.height,
+            "clip_skip": self.clip_skip,
+            "freeu_factors": self.freeu_factors,
             "chunking_size": self.chunking_size,
             "chunking_mask_type": self.chunking_mask_type,
             "chunking_mask_kwargs": self.chunking_mask_kwargs,
@@ -1396,6 +1402,8 @@ class DiffusionPlan:
             "chunking_mask_kwargs": self.chunking_mask_kwargs,
             "build_tensorrt": self.build_tensorrt,
             "outpaint": self.outpaint,
+            "clip_skip": self.clip_skip,
+            "freeu_factors": self.freeu_factors,
         }
 
     @staticmethod
@@ -1435,7 +1443,9 @@ class DiffusionPlan:
             "negative_prompt_2",
             "build_tensorrt",
             "outpaint",
-            "upscale_steps"
+            "upscale_steps",
+            "clip_skip",
+            "freeu_factors"
         ]:
             if arg in plan_dict:
                 kwargs[arg] = plan_dict[arg]
@@ -1547,6 +1557,8 @@ class DiffusionPlan:
         prompt_2: Optional[str] = None,
         negative_prompt: Optional[str] = None,
         negative_prompt_2: Optional[str] = None,
+        clip_skip: Optional[int] = None,
+        freeu_factors: Optional[Tuple[float, float, float, float]] = None,
         num_inference_steps: Optional[int] = DEFAULT_INFERENCE_STEPS,
         mask: Optional[Union[str, PIL.Image.Image]] = None,
         image: Optional[Union[str, PIL.Image.Image]] = None,
@@ -1609,6 +1621,8 @@ class DiffusionPlan:
             chunking_size=chunking_size,
             chunking_mask_type=chunking_mask_type,
             chunking_mask_kwargs=chunking_mask_kwargs,
+            clip_skip=clip_skip,
+            freeu_factors=freeu_factors,
             nodes=[],
         )
 

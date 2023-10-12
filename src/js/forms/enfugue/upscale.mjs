@@ -2,21 +2,22 @@
 import { isEmpty, deepClone } from "../../base/helpers.mjs";
 import { FormView } from "../base.mjs";
 import { 
-    CheckboxInputView,
+    FormInputView,
     NumberInputView,
+    SelectInputView,
+    CheckboxInputView,
     MaskTypeInputView,
     SchedulerInputView,
-    FormInputView,
     RepeatableInputView,
     UpscaleAmountInputView,
     UpscaleMethodInputView,
-    UpscaleDiffusionControlnetInputView,
-    UpscaleDiffusionPromptInputView,
-    UpscaleDiffusionNegativePromptInputView,
     UpscaleDiffusionStepsInputView,
+    UpscaleDiffusionPromptInputView,
     UpscaleDiffusionStrengthInputView,
     UpscaleDiffusionPipelineInputView,
-    UpscaleDiffusionGuidanceScaleInputView
+    UpscaleDiffusionControlnetInputView,
+    UpscaleDiffusionGuidanceScaleInputView,
+    UpscaleDiffusionNegativePromptInputView,
 } from "../input.mjs";
 
 /**
@@ -70,12 +71,10 @@ class UpscaleFormView extends FormView {
             },
             "chunkingSize": {
                 "label": "Chunking Size",
-                "class": NumberInputView,
+                "class": SelectInputView,
                 "config": {
-                    "minimum": 32,
-                    "maximum": 512,
-                    "step": 8,
-                    "value": 128,
+                    "options": ["8", "16", "32", "64", "128", "256", "512"],
+                    "value": "128",
                     "tooltip": "The number of pixels to move the frame by during diffusion. Smaller values produce better results, but take longer."
                 }
             },

@@ -43,7 +43,7 @@ Configuration.model = {
         width: 512,
         height: 512,
         engineSize: null,
-        chunkingSize: 0,
+        chunkingSize: 64,
         chunkingMaskType: "bilinear",
         guidanceScale: 6.5,
         inferenceSteps: 20,

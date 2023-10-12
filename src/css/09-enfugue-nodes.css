@@ -786,8 +786,8 @@ fieldset.field-set-directories .field-container,
 fieldset.field-set-engine .field-container,
 fieldset.field-set-diffusion .field-container,
 fieldset.field-set-filters .field-container.string-input-view-search,
-fieldset.field-set-dimensions .field-container.checkbox-input-view,
-enfugue-sidebar .field-container.slider-precise-input-view
+enfugue-sidebar .field-container.slider-precise-input-view,
+enfugue-sidebar .field-container.checkbox-input-view
 {
     flex-basis: 100%;
 }
@@ -841,7 +841,7 @@ form.show-inpainter fieldset.field-set-additional-models:not(.collapsed) .vae-in
     flex-basis: 100%;
 }
 
-form.no-chunking .field-container.number-input-view-chunking-size,
+form.no-chunking .field-container.select-input-view-chunking-size,
 form.no-chunking .field-container.mask-type-input-view-chunking-mask-type
 {
     display: none;
@@ -852,6 +852,14 @@ form .field-container.checkbox-input-view-invert-control-image {
 }
 
 form.no-process .field-container.checkbox-input-view-invert-control-image {
+    display: flex;
+}
+
+form .field-container.slider-precise-input-view {
+    display: none;
+}
+
+form.show-free-u fieldset:not(.collapsed) .field-container.slider-precise-input-view {
     display: flex;
 }
 

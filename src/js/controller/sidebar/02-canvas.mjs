@@ -22,7 +22,7 @@ class CanvasController extends Controller {
             "canvas": {
                 "width": this.config.model.invocation.width,
                 "height": this.config.model.invocation.height,
-                "useChunking": this.config.model.invocation.chunkingSize > 0,
+                "useChunking": false,
                 "chunkingSize": this.config.model.invocation.chunkingSize,
                 "chunkingMaskType": this.config.model.invocation.chunkingMaskType
             }

@@ -130,6 +130,7 @@ class EnfugueClient(UserExtensionClientBase, JSONWebServiceAPIClient):
         prompt_2: Optional[str] = None,
         negative_prompt: Optional[str] = None,
         negative_prompt_2: Optional[str] = None,
+        clip_skip: Optional[int] = None,
         model_prompt: Optional[str] = None,
         model_prompt_2: Optional[str] = None,
         model_negative_prompt: Optional[str] = None,
@@ -168,6 +169,7 @@ class EnfugueClient(UserExtensionClientBase, JSONWebServiceAPIClient):
         vae: Optional[str] = None,
         refiner_vae: Optional[str] = None,
         inpainter_vae: Optional[str] = None,
+        freeu_factors: Optional[Tuple[float, float, float, float]] = None,
         seed: Optional[int] = None,
         image: Optional[Union[str, Image]] = None,
         mask: Optional[Union[str, Image]] = None,
@@ -302,6 +304,10 @@ class EnfugueClient(UserExtensionClientBase, JSONWebServiceAPIClient):
             kwargs["ip_adapter_face"] = ip_adapter_face
         if upscale_steps is not None:
             kwargs["upscale_steps"] = upscale_steps
+        if clip_skip is not None:
+            kwargs["clip_skip"] = clip_skip
+        if freeu_factors is not None:
+            kwargs["freeu_factors"] = freeu_factors
 
         logger.info(f"Invoking with keyword arguments {kwargs}")
 

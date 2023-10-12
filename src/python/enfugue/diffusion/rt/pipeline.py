@@ -216,6 +216,7 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         self,
         device: torch.device,
         dtype: torch.dtype,
+        freeu_factors: Optional[Tuple[float, float, float, float]] = None,
         offload_models: bool = False
     ) -> None:
         """
@@ -228,6 +229,7 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
             return super(EnfugueTensorRTStableDiffusionPipeline, self).align_unet(
                 device=device,
                 dtype=dtype,
+                freeu_factors=freeu_factors,
                 offload_models=offload_models
             )
 
@@ -303,6 +305,7 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         lora_scale: Optional[float] = None,
         prompt_2: Optional[str] = None,
         negative_prompt_2: Optional[str] = None,
+        clip_skip: Optional[int] = None,
     ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]]:
         """
         Encodes the prompt into text encoder hidden states.
@@ -324,7 +327,8 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
                 prompt_embeds=prompt_embeds,
                 negative_prompt_embeds=negative_prompt_embeds,
                 prompt_2=prompt_2,
-                negative_prompt_2=negative_prompt_2
+                negative_prompt_2=negative_prompt_2,
+                clip_skip=clip_skip,
             )
         if self.tokenizer is None:
             raise ValueError("No tokenizer available in TensorRT pipeline.")
