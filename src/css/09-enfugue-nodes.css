@@ -855,11 +855,11 @@ form.no-process .field-container.checkbox-input-view-invert-control-image {
     display: flex;
 }
 
-form .field-container.slider-precise-input-view {
+form fieldset.field-set-tweaks .field-container.slider-precise-input-view {
     display: none;
 }
 
-form.show-free-u fieldset:not(.collapsed) .field-container.slider-precise-input-view {
+form.show-free-u fieldset.field-set-tweaks:not(.collapsed) .field-container.slider-precise-input-view {
     display: flex;
 }
 
