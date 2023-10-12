@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import time
 
-from typing import Dict, Any, Optional, Literal, TypedDict, List, Union
+from typing import Dict, Any, Optional, Literal, TypedDict, List, Union, Tuple
 from PIL.Image import Image
 
 from urllib.parse import urlparse
