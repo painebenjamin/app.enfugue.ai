@@ -81,7 +81,9 @@ class CivitAIItemView extends View {
                             E.span().class("type").content(`${file.metadata.size || ""} ${file.metadata.fp || ""}`),
                             E.span().class("format").content(file.metadata.format),
                             E.span().class("size").content(humanSize(file.sizeKB * 1000)),
-                            E.a().content(E.i().class("fa-solid fa-download")).data("tooltip", "Start Download").on("click", (e) => {
+                            E.a().href(file.downloadUrl).content(E.i().class("fa-solid fa-download")).data("tooltip", "Start Download").on("click", (e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
                                 this.download(file.downloadUrl, file.name);
                             })
                         )
