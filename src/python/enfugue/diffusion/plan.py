@@ -1201,6 +1201,7 @@ class DiffusionPlan:
         }
 
         # Set up the pipeline
+        pipeline._task_callback = task_callback
         self.prepare_pipeline(pipeline)
 
         if self.seed is not None:

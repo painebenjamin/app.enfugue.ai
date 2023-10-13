@@ -61,7 +61,6 @@ def redact(kwargs: Dict[str, Any]) -> Dict[str, Any]:
     
     return redacted
 
-
 class KeepaliveThread(threading.Thread):
     """
     Calls the keepalive function every <n> seconds.
@@ -120,6 +119,7 @@ class DiffusionPipelineManager:
     _size: int
     _refiner_size: int
     _inpainter_size: int
+    _task_callback: Optional[Callable[[str], None]] = None
 
     def __init__(self, configuration: Optional[APIConfiguration] = None, optimize: bool = True) -> None:
         self.configuration = APIConfiguration()
@@ -151,6 +151,8 @@ class DiffusionPipelineManager:
             return found_path
         if self.offline:
             raise ValueError(f"File {output_file} does not exist in {local_dir} and offline mode is enabled, refusing to download from {remote_url}")
+        elif self._task_callback is not None:
+            self._task_callback(f"Downloading {remote_url}")
         check_download(remote_url, output_path)
         return output_path
 
@@ -2975,6 +2977,7 @@ class DiffusionPipelineManager:
                 dtype=self.dtype,
                 offline=self.offline
             )
+            self._upscaler.task_callback = self._task_callback
         return self._upscaler
 
     @property
@@ -2990,6 +2993,7 @@ class DiffusionPipelineManager:
                 dtype=self.dtype,
                 offline=self.offline
             )
+            self._control_image_processor.task_callback = self._task_callback
         return self._control_image_processor
 
     @property
@@ -3005,6 +3009,7 @@ class DiffusionPipelineManager:
                 dtype=self.dtype,
                 offline=self.offline
             )
+            self._background_remover.task_callback = self._task_callback
         return self._background_remover
 
     @property
@@ -3020,6 +3025,7 @@ class DiffusionPipelineManager:
                 dtype=self.dtype,
                 offline=self.offline
             )
+            self._ip_adapter.task_callback = self._task_callback
         return self._ip_adapter
 
     def get_xl_controlnet(self, controlnet: str) -> ControlNetModel:
@@ -3071,6 +3077,8 @@ class DiffusionPipelineManager:
                 logger.info(
                     f"Controlnet {controlnet} does not exist in cache directory {self.engine_cache_dir}, it will be downloaded."
                 )
+                if self._task_callback is not None:
+                    self._task_callback(f"Downloading {controlnet} model weights")
             result = ControlNetModel.from_pretrained(
                 controlnet,
                 torch_dtype=torch.half,
@@ -3398,6 +3406,7 @@ class DiffusionPipelineManager:
         """
         if task_callback is None:
             task_callback = lambda arg: None
+        self._task_callback = task_callback
         latent_callback = noop
         will_refine = (refiner_strength != 0 or (refiner_start != 0 and refiner_start != 1)) and self.refiner is not None
         callback_images: List[PIL.Image.Image] = []
@@ -3483,7 +3492,9 @@ class DiffusionPipelineManager:
 
                 # Check IP adapter for downloads
                 if kwargs.get("ip_adapter_scale", None) is not None:
-                    self.ip_adapter.check_download(pipe.is_sdxl)
+                    self.ip_adapter.check_download(
+                        is_sdxl=pipe.is_sdxl,
+                    )
 
                 self.stop_keepalive()
                 task_callback("Executing Inference")
@@ -3579,6 +3590,7 @@ class DiffusionPipelineManager:
                 self.offload_refiner(intention if next_intention is None else next_intention) # type: ignore
             return result
         finally:
+            self._task_callback = None
             self.tensorrt_is_enabled = True
             self.stop_keepalive()
 

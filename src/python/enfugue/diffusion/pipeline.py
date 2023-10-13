@@ -2254,8 +2254,36 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
     ) -> torch.Tensor:
         """
         Issues the command to decode latents with the tiny VAE.
+        Batches anything > 1024px (128 latent)
         """
-        return self.vae_preview.decode(latents, return_dict = False)[0].to(device)
+        from math import ceil
+        batch = latents.shape[0]
+        height, width = latents.shape[-2:]
+        if height > 128 or width > 128:
+            width_chunks = ceil(width / 128)
+            height_chunks = ceil(height / 128)
+            decoded_preview = torch.zeros(
+                (batch, 3, height*self.vae_scale_factor, width*self.vae_scale_factor),
+                dtype=latents.dtype,
+                device=device
+            )
+            for i in range(height_chunks):
+                start_h = i * 128
+                end_h = (i + 1) * 128
+                start_h_px = start_h * self.vae_scale_factor
+                end_h_px = end_h * self.vae_scale_factor
+                for j in range(width_chunks):
+                    start_w = j * 128
+                    end_w = (j + 1) * 128
+                    start_w_px = start_w * self.vae_scale_factor
+                    end_w_px = end_w * self.vae_scale_factor
+                    decoded_preview[:, :, start_h_px:end_h_px, start_w_px:end_w_px] = self.vae_preview.decode(
+                        latents[:, :, start_h:end_h, start_w:end_w],
+                        return_dict=False
+                    )[0].to(device)
+            return decoded_preview
+        else:
+            return self.vae_preview.decode(latents, return_dict=False)[0].to(device)
 
     def decode_latent_view(self, latents: torch.Tensor) -> torch.Tensor:
         """
