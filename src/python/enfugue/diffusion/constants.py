@@ -154,11 +154,21 @@ CONTROLNET_POSE_XL = (
     "controlnet-openpose-sdxl-1.0",
 )
 CONTROLNET_LITERAL = Literal[
-    "canny", "mlsd", "hed", "scribble", "tile", "inpaint", "depth", "normal", "pose", "pidi", "line", "anime", "temporal", "qr"
+    "canny", "mlsd", "hed",
+    "scribble", "tile", "inpaint",
+    "depth", "normal", "pose",
+    "pidi", "line", "anime",
+    "temporal", "qr"
 ]
 
 SCHEDULER_LITERAL = Literal[
-    "ddim", "ddpm", "deis", "dpmsm", "dpmsmk", "dpmsmka", "dpmss", "heun", "dpmd", "adpmd", "dpmsde", "unipc", "lmsd", "pndm", "eds", "eads"
+    "ddim", "ddpm", "deis",
+    "dpmsm", "dpmsmk", "dpmsmka",
+    "dpmss", "dpmssk", "heun",
+    "dpmd", "dpmdk", "adpmd",
+    "adpmdk", "dpmsde", "unipc",
+    "lmsd", "lmsdk", "pndm",
+    "eds", "eads"
 ]
 
 DEVICE_LITERAL = Literal["cpu", "cuda", "dml", "mps"]

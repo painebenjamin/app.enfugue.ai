@@ -358,67 +358,62 @@ class DiffusionPipelineManager:
         """
         Sets the scheduler class
         """
+        kwargs: Dict[str, Any] = {}
         if not scheduler:
             return None
-        elif scheduler == "ddim":
-            from diffusers.schedulers import DDIMScheduler
-
-            return DDIMScheduler
-        elif scheduler == "ddpm":
-            from diffusers.schedulers import DDPMScheduler
-
-            return DDPMScheduler
-        elif scheduler == "deis":
-            from diffusers.schedulers import DEISMultistepScheduler
-
-            return DEISMultistepScheduler
         elif scheduler in ["dpmsm", "dpmsmk", "dpmsmka"]:
             from diffusers.schedulers import DPMSolverMultistepScheduler
-            kwargs: Dict[str, Any] = {}
             if scheduler in ["dpmsmk", "dpmsmka"]:
                 kwargs["use_karras_sigmas"] = True
                 if scheduler == "dpmsmka":
                     kwargs["algorithm_type"] = "sde-dpmsolver++"
             return (DPMSolverMultistepScheduler, kwargs)
-        elif scheduler == "dpmss":
+        elif scheduler in ["dpmss", "dpmssk"]:
             from diffusers.schedulers import DPMSolverSinglestepScheduler
-
-            return DPMSolverSinglestepScheduler
+            if scheduler == "dpmssk":
+                kwargs["use_karras_sigmas"] = True
+            return (DPMSolverSinglestepScheduler, kwargs)
         elif scheduler == "heun":
             from diffusers.schedulers import HeunDiscreteScheduler
-
             return HeunDiscreteScheduler
-        elif scheduler == "dpmd":
+        elif scheduler in ["dpmd", "dpmdk"]:
             from diffusers.schedulers import KDPM2DiscreteScheduler
-
-            return KDPM2DiscreteScheduler
-        elif scheduler == "adpmd":
+            if scheduler == "dpmdk":
+                kwargs["use_karras_sigmas"] = True
+            return (KDPM2DiscreteScheduler, kwargs)
+        elif scheduler in ["adpmd", "adpmdk"]:
             from diffusers.schedulers import KDPM2AncestralDiscreteScheduler
-
-            return KDPM2AncestralDiscreteScheduler
+            if scheduler == "adpmdk":
+                kwargs["use_karras_sigmas"] = True
+            return (KDPM2AncestralDiscreteScheduler, kwargs)
+        elif scheduler in ["lmsd", "lmsdk"]:
+            from diffusers.schedulers import LMSDiscreteScheduler
+            if scheduler == "lmsdk":
+                kwargs["use_karras_sigmas"] = True
+            return (LMSDiscreteScheduler, kwargs)
+        elif scheduler == "ddim":
+            from diffusers.schedulers import DDIMScheduler
+            return DDIMScheduler
+        elif scheduler == "ddpm":
+            from diffusers.schedulers import DDPMScheduler
+            return DDPMScheduler
+        elif scheduler == "deis":
+            from diffusers.schedulers import DEISMultistepScheduler
+            return DEISMultistepScheduler
         elif scheduler == "dpmsde":
             from diffusers.schedulers import DPMSolverSDEScheduler
-
             return DPMSolverSDEScheduler
         elif scheduler == "unipc":
             from diffusers.schedulers import UniPCMultistepScheduler
-
             return UniPCMultistepScheduler
-        elif scheduler == "lmsd":
-            from diffusers.schedulers import LMSDiscreteScheduler
-
-            return LMSDiscreteScheduler
         elif scheduler == "pndm":
             from diffusers.schedulers import PNDMScheduler
-
             return PNDMScheduler
         elif scheduler == "eds":
             from diffusers.schedulers import EulerDiscreteScheduler
-
             return EulerDiscreteScheduler
         elif scheduler == "eads":
             from diffusers.schedulers import EulerAncestralDiscreteScheduler
-
             return EulerAncestralDiscreteScheduler
         raise ValueError(f"Unknown scheduler {scheduler}")
 
@@ -2753,7 +2748,7 @@ class DiffusionPipelineManager:
                         if not os.path.exists(possible_cache_dir):
                             # No cache, will merge on-the-fly
                             is_sdxl_merged_inpainter = True
-                            logger.info(f"Inpainting with SDXL, will merge XL inpainting checkpoing into {self.model}")
+                            logger.info(f"Inpainting with SDXL, will merge XL inpainting checkpoint into {self.model}")
                             target_checkpoint_path = self.model
                     elif self.create_inpainter:
                         logger.info(f"Creating inpainting checkpoint from {self.model}")
@@ -2820,7 +2815,7 @@ class DiffusionPipelineManager:
                     vae_preview=self.get_vae_preview(self.inpainter_is_sdxl),
                     **kwargs
                 )
-            elif self.inpainter_engine_cache_exists:
+            elif self.inpainter_engine_cache_exists and not is_sdxl_merged_inpainter:
                 if not self.safe:
                     kwargs["safety_checker"] = None
                 if not self.inpainter_is_sdxl:
@@ -2858,7 +2853,6 @@ class DiffusionPipelineManager:
                 if is_sdxl_merged_inpainter:
                     self.inpainter = self.default_inpainter_path
                 if self.should_cache_inpainter:
-                    logger.critical(self.inpainter)
                     logger.debug("Saving inpainter pipeline to pretrained cache.")
                     inpainter_pipeline.save_pretrained(self.inpainter_diffusers_dir)
             if not self.inpainter_tensorrt_is_ready:

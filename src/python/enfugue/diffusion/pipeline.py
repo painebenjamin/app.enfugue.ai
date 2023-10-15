@@ -1975,6 +1975,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         timesteps: torch.Tensor,
         latents: torch.Tensor,
         prompt_embeds: torch.Tensor,
+        weight_builder: MaskWeightBuilder,
         guidance_scale: float,
         do_classifier_free_guidance: bool = False,
         is_inpainting_unet: bool = False,
@@ -2113,6 +2114,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 if latent_callback_type != "latent":
                     latent_callback_value = self.decode_latent_preview(
                         latent_callback_value,
+                        weight_builder=weight_builder,
                         device=device,
                     )
                     latent_callback_value = self.denormalize_latents(latent_callback_value)
@@ -2181,6 +2183,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 timesteps=timesteps,
                 latents=latents,
                 prompt_embeds=prompt_embeds,
+                weight_builder=weight_builder,
                 guidance_scale=guidance_scale,
                 is_inpainting_unet=is_inpainting_unet,
                 do_classifier_free_guidance=do_classifier_free_guidance,
@@ -2385,6 +2388,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 if latent_callback_type != "latent":
                     latent_callback_value = self.decode_latent_preview(
                         latent_callback_value,
+                        weight_builder=weight_builder,
                         device=device,
                     )
                     latent_callback_value = self.denormalize_latents(latent_callback_value)
@@ -2399,6 +2403,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
     def decode_latent_preview(
         self,
         latents: torch.Tensor,
+        weight_builder: MaskWeightBuilder,
         device: Union[str, torch.device],
     ) -> torch.Tensor:
         """
@@ -2408,29 +2413,57 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         from math import ceil
         batch = latents.shape[0]
         height, width = latents.shape[-2:]
-        if height > 128 or width > 128:
-            width_chunks = ceil(width / 128)
-            height_chunks = ceil(height / 128)
+
+        max_size = 128
+        overlap = 16
+        max_size_px = max_size * self.vae_scale_factor
+
+        if height > max_size or width > max_size:
+            # Do some chunking to avoid sharp lines, but don't follow global chunk
+            width_chunks = ceil(width / (max_size - overlap))
+            height_chunks = ceil(height / (max_size - overlap))
             decoded_preview = torch.zeros(
                 (batch, 3, height*self.vae_scale_factor, width*self.vae_scale_factor),
                 dtype=latents.dtype,
                 device=device
             )
+            multiplier = torch.zeros_like(decoded_preview)
             for i in range(height_chunks):
-                start_h = i * 128
-                end_h = (i + 1) * 128
+                start_h = i * (max_size - overlap)
+                end_h = start_h + max_size
+                if end_h > height:
+                    diff = end_h - height
+                    end_h -= diff
+                    start_h -= diff
                 start_h_px = start_h * self.vae_scale_factor
                 end_h_px = end_h * self.vae_scale_factor
                 for j in range(width_chunks):
-                    start_w = j * 128
-                    end_w = (j + 1) * 128
+                    start_w = j * (max_size - overlap)
+                    end_w = start_w + max_size
+                    if end_w > width:
+                        diff = end_w - width
+                        end_w -= diff
+                        start_w -= diff
                     start_w_px = start_w * self.vae_scale_factor
                     end_w_px = end_w * self.vae_scale_factor
-                    decoded_preview[:, :, start_h_px:end_h_px, start_w_px:end_w_px] = self.vae_preview.decode(
+                    mask = weight_builder(
+                        mask_type="bilinear",
+                        batch=batch,
+                        dim=3,
+                        width=max_size_px,
+                        height=max_size_px,
+                        unfeather_left=start_w==0,
+                        unfeather_top=start_h==0,
+                        unfeather_right=end_w==width,
+                        unfeather_bottom=end_h==height,
+                    )
+                    decoded_view = self.vae_preview.decode(
                         latents[:, :, start_h:end_h, start_w:end_w],
                         return_dict=False
                     )[0].to(device)
-            return decoded_preview
+                    decoded_preview[:, :, start_h_px:end_h_px, start_w_px:end_w_px] += decoded_view * mask
+                    multiplier[:, :, start_h_px:end_h_px, start_w_px:end_w_px] += mask
+            return decoded_preview / multiplier
         else:
             return self.vae_preview.decode(latents, return_dict=False)[0].to(device)
 
