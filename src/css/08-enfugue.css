@@ -1134,6 +1134,17 @@ enfugue-download-size, enfugue-download-time {
     font-weight: 300;
 }
 
+enfugue-download-time > div {
+    display: flex;
+    flex-flow: row nowrap;
+    align-items: center;
+    justify-content: space-between;
+}
+
+enfugue-download-time > div > span:nth-child(2) {
+    color: var(--theme-color-primary);
+}
+
 enfugue-download-status {
     position: relative;
     display: block;

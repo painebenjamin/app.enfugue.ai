@@ -33,7 +33,6 @@ from contextlib import contextmanager
 from collections import defaultdict
 from omegaconf import OmegaConf
 
-
 from transformers import (
     AutoFeatureExtractor,
     CLIPImageProcessor,
@@ -55,7 +54,7 @@ from diffusers.models import (
     AutoencoderKL,
     AutoencoderTiny,
     UNet2DConditionModel,
-    ControlNetModel
+    ControlNetModel,
 )
 from diffusers.loaders import LoraLoaderMixin
 from diffusers.models.attention_processor import (
@@ -81,6 +80,8 @@ from diffusers.pipelines.stable_diffusion.convert_from_ckpt import (
 from diffusers.utils import PIL_INTERPOLATION
 from diffusers.utils.torch_utils import randn_tensor
 from diffusers.image_processor import VaeImageProcessor
+
+from pibble.util.files import load_json
 
 from enfugue.util import logger, check_download, check_download_to_dir, TokenMerger
 from enfugue.diffusion.util import (
@@ -239,6 +240,87 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 logger.debug(f"{key} = {value.shape} ({value.dtype})")
 
     @classmethod
+    def create_unet(
+        cls,
+        config: Dict[str, Any],
+        cache_dir: str,
+        is_sdxl: bool,
+        is_inpainter: bool,
+        **kwargs: Any
+    ) -> UNet2DConditionModel:
+        """
+        Instantiates the UNet from config
+        """
+        if is_sdxl and is_inpainter:
+            config_url = "https://huggingface.co/diffusers/stable-diffusion-xl-1.0-inpainting-0.1/raw/main/unet/config.json"
+            config_path = check_download_to_dir(config_url, cache_dir, check_size=False)
+            config = load_json(config_path)
+        return UNet2DConditionModel.from_config(config)
+
+    @classmethod
+    def merge_xl_inpainting_checkpoint(
+        cls,
+        checkpoint: Dict[str, Any],
+        cache_dir,
+        task_callback: Optional[Callable[[str], None]]=None,
+    ) -> None:
+        """
+        Loads the SDXL inpainting checkpoint weights
+        """
+        inpainter_unet_file_name = "stable-diffusion-xl-1.0-inpainting-0.1-unet.safetensors"
+        inpainter_unet_weights_url = (
+            "https://huggingface.co/diffusers/stable-diffusion-xl-1.0-inpainting-0.1/resolve/main/unet/diffusion_pytorch_model.fp16.safetensors"
+        )
+        inpainter_unet_save_path = os.path.join(cache_dir, inpainter_unet_file_name)
+        if not os.path.exists(inpainter_unet_save_path) and task_callback is not None:
+            task_callback(f"Downloading {inpainter_unet_weights_url}")
+        check_download(inpainter_unet_weights_url, inpainter_unet_save_path)
+
+        base_unet_file_name = "stable-diffusion-xl-1.0-unet.safetensors"
+        base_unet_weights_url = (
+            "https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/unet/diffusion_pytorch_model.fp16.safetensors"
+        )
+        base_unet_save_path = os.path.join(cache_dir, base_unet_file_name)
+        if not os.path.exists(base_unet_save_path) and task_callback is not None:
+            task_callback(f"Downloading {base_unet_weights_url}")
+        check_download(base_unet_weights_url, base_unet_save_path)
+
+        logger.info("Merging SDXL inpainter UNet weights")
+        base_dict = load_state_dict(base_unet_save_path)
+
+        # Get difference between current weights and base weights
+        logger.debug("Calculating difference between current checkpoint UNet and SDXL base UNet")
+        for key in checkpoint.keys():
+            if key in base_dict:
+                checkpoint[key] = base_dict[key] - checkpoint[key]
+            else:
+                checkpoint[key] = torch.zeros_like(base_dict[key]) # type: ignore
+        del base_dict
+        empty_cache()
+
+        # Add inpainter weight
+        logger.debug("Adding SDXL inpainter UNet into current checkpoint UNet")
+        inpainter_state_dict = load_state_dict(inpainter_unet_save_path)
+        for key in inpainter_state_dict.keys():
+            if key not in checkpoint:
+                checkpoint[key] = inpainter_state_dict[key]
+            else:
+                a = inpainter_state_dict[key]
+                b = checkpoint[key]
+                if a.shape != b.shape: # type: ignore
+                    if a.shape[1] == 9 and b.shape[1] == 4: # type: ignore
+                        checkpoint[key] = torch.cat([
+                            a[:, 0:4, :, :] - b, # type: ignore
+                            a[:, 4:, :, :], # type: ignore
+                        ], dim=1)
+                    else:
+                        raise IOError("Bad dimensions for layer {key}, can't merge inpainter weights. A={a.shape}, B={b.shape}")
+                else:
+                    checkpoint[key] = a - b
+        del inpainter_state_dict
+        empty_cache()
+
+    @classmethod
     def from_ckpt(
         cls,
         checkpoint_path: str,
@@ -253,6 +335,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         upcast_attention: Optional[bool] = None,
         extract_ema: Optional[bool] = None,
         offload_models: bool = False,
+        is_inpainter=False,
+        task_callback: Optional[Callable[[str], None]]=None,
         **kwargs: Any,
     ) -> EnfugueStableDiffusionPipeline:
         """
@@ -276,33 +360,45 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             checkpoint = checkpoint["state_dict"] # type: ignore[assignment]
 
         checkpoint = cast(Mapping[str, torch.Tensor], checkpoint) # type: ignore[assignment]
-        key_name_2_1 = "model.diffusion_model.input_blocks.2.1.transformer_blocks.0.attn2.to_k.weight"
-        key_name_xl_base = "conditioner.embedders.1.model.transformer.resblocks.9.mlp.c_proj.bias"
-        key_name_xl_refiner = "conditioner.embedders.0.model.transformer.resblocks.9.mlp.c_proj.bias"
 
-        # SD v1
-        config_url = (
-            "https://raw.githubusercontent.com/CompVis/stable-diffusion/main/configs/stable-diffusion/v1-inference.yaml"
-        )
+        # Check for config in same directory as checkpoint
+        ckpt_dir = os.path.dirname(os.path.abspath(checkpoint_path))
+        ckpt_name, _ = os.path.splitext(os.path.basename(checkpoint_path))
 
-        if key_name_2_1 in checkpoint and checkpoint[key_name_2_1].shape[-1] == 1024: # type: ignore[union-attr]
-            # SD v2.1
-            config_url = "https://raw.githubusercontent.com/Stability-AI/stablediffusion/main/configs/stable-diffusion/v2-inference-v.yaml"
+        original_config_file: Optional[str] = os.path.join(ckpt_dir, f"{ckpt_name}.yaml")
+        if not os.path.exists(original_config_file): # type: ignore[arg-type]
+            original_config_file = os.path.join(ckpt_dir, f"{ckpt_name}.json")
+            if not os.path.exists(original_config_file):
+                original_config_file = None
 
-            if global_step == 110000:
-                # v2.1 needs to upcast attention
-                upcast_attention = True
-        elif key_name_xl_base in checkpoint:
-            # SDXL Base
-            config_url = "https://raw.githubusercontent.com/Stability-AI/generative-models/main/configs/inference/sd_xl_base.yaml"
-        elif key_name_xl_refiner in checkpoint:
-            # SDXL Refiner
-            config_url = "https://raw.githubusercontent.com/Stability-AI/generative-models/main/configs/inference/sd_xl_refiner.yaml"
+        if original_config_file is None:
+            key_name_2_1 = "model.diffusion_model.input_blocks.2.1.transformer_blocks.0.attn2.to_k.weight"
+            key_name_xl_base = "conditioner.embedders.1.model.transformer.resblocks.9.mlp.c_proj.bias"
+            key_name_xl_refiner = "conditioner.embedders.0.model.transformer.resblocks.9.mlp.c_proj.bias"
 
-        original_config_file = check_download_to_dir(config_url, cache_dir, check_size=False)
-        original_config = OmegaConf.load(original_config_file)
+            # SD v1
+            config_url = (
+                "https://raw.githubusercontent.com/CompVis/stable-diffusion/main/configs/stable-diffusion/v1-inference.yaml"
+            )
 
-        num_in_channels = 9 if "inpaint" in os.path.basename(checkpoint_path).lower() else 4
+            if key_name_2_1 in checkpoint and checkpoint[key_name_2_1].shape[-1] == 1024: # type: ignore[union-attr]
+                # SD v2.1
+                config_url = "https://raw.githubusercontent.com/Stability-AI/stablediffusion/main/configs/stable-diffusion/v2-inference-v.yaml"
+
+                if global_step == 110000:
+                    # v2.1 needs to upcast attention
+                    upcast_attention = True
+            elif key_name_xl_base in checkpoint:
+                # SDXL Base
+                config_url = "https://raw.githubusercontent.com/Stability-AI/generative-models/main/configs/inference/sd_xl_base.yaml"
+            elif key_name_xl_refiner in checkpoint:
+                # SDXL Refiner
+                config_url = "https://raw.githubusercontent.com/Stability-AI/generative-models/main/configs/inference/sd_xl_refiner.yaml"
+            original_config_file = check_download_to_dir(config_url, cache_dir, check_size=False)
+
+        original_config = OmegaConf.load(original_config_file) # type: ignore
+
+        num_in_channels = 9 if is_inpainter else 4
         if "unet_config" in original_config["model"]["params"]:  # type: ignore
             # SD 1 or 2
             original_config["model"]["params"]["unet_config"]["params"]["in_channels"] = num_in_channels  # type: ignore
@@ -340,12 +436,14 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             else:
                 model_type = "SDXL-Refiner"
 
+        is_sdxl = isinstance(model_type, str) and model_type.startswith("SDXL")
+
         num_train_timesteps = 1000  # Default is SDXL
         if "timesteps" in original_config.model.params:
             # SD 1 or 2
             num_train_timesteps = original_config.model.params.timesteps
 
-        if model_type in ["SDXL", "SDXL-Refiner"]:
+        if is_sdxl:
             image_size = 1024
             scheduler_dict = {
                 "beta_schedule": "scaled_linear",
@@ -400,7 +498,13 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
         unet_config = create_unet_diffusers_config(original_config, image_size=image_size)
         unet_config["upcast_attention"] = upcast_attention
-        unet = UNet2DConditionModel(**unet_config)
+
+        unet = cls.create_unet(
+            unet_config,
+            cache_dir=cache_dir,
+            is_sdxl=isinstance(model_type, str) and model_type.startswith("SDXL"),
+            is_inpainter=is_inpainter
+        )
 
         converted_unet_checkpoint = convert_ldm_unet_checkpoint(
             checkpoint,
@@ -408,6 +512,13 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             path=checkpoint_path,
             extract_ema=extract_ema
         )
+
+        if is_sdxl and is_inpainter:
+            cls.merge_xl_inpainting_checkpoint(
+                converted_unet_checkpoint,
+                cache_dir=cache_dir,
+                task_callback=task_callback
+            )
 
         unet.load_state_dict(converted_unet_checkpoint)
 
@@ -436,6 +547,11 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             except KeyError as ex:
                 default_path = "stabilityai/sdxl-vae" if model_type in ["SDXL", "SDXL-Refiner"] else "stabilityai/sd-vae-ft-ema"
                 logger.error(f"Malformed VAE state dictionary detected; missing required key '{ex}'. Reverting to default model {default_path}")
+                pretrained_save_path = os.path.join(cache_dir, "models--{0}".format(
+                    default_path.replace("/", "--")
+                ))
+                if not os.path.exists(pretrained_save_path) and task_callback is not None:
+                    task_callback(f"Downloading default VAE weights from repository {default_path}")
                 vae = AutoencoderKL.from_pretrained(default_path, cache_dir=cache_dir)
         elif os.path.exists(vae_path):
             if model_type in ["SDXL", "SDXL-Refiner"]:
@@ -464,6 +580,9 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             else:
                 vae_preview_path = "madebyollin/taesd"
 
+        vae_preview_local_path = os.path.join(cache_dir, "models--{0}".format(vae_preview_path.replace("/", "--")))
+        if not os.path.exists(vae_preview_local_path) and task_callback is not None:
+            task_callback("Downloading preview VAE weights from repository {vae_preview_path}")
         vae_preview = AutoencoderTiny.from_pretrained(vae_preview_path, cache_dir=cache_dir)
 
         if offload_models:
@@ -471,15 +590,20 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             empty_cache()
 
         if load_safety_checker:
+            safety_checker_path = "CompVis/stable-diffusion-safety-checker"
+            safety_checker_local_path = os.path.join(cache_dir, "models--{0}".format(safety_checker_path.replace("/", "--")))
+            if not os.path.exists(safety_checker_local_path) and task_callback is not None:
+                task_callback(f"Downloading safety checker weights from repository {safety_checker_path}")
+
             safety_checker = StableDiffusionSafetyChecker.from_pretrained(
-                "CompVis/stable-diffusion-safety-checker",
+                safety_checker_path,
                 cache_dir=cache_dir
             )
             if offload_models:
                 safety_checker.to("cpu")
                 empty_cache()
             feature_extractor = AutoFeatureExtractor.from_pretrained(
-                "CompVis/stable-diffusion-safety-checker",
+                safety_checker_path,
                 cache_dir=cache_dir
             )
         else:
@@ -493,10 +617,17 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             if offload_models:
                 text_model.to("cpu")
                 empty_cache()
+
+            tokenizer_path = "openai/clip-vit-large-patch14"
+            tokenizer_local_path = os.path.join(cache_dir, "models--{0}".format(tokenizer_path.replace("/", "--")))
+            if not os.path.exists(tokenizer_local_path) and task_callback is not None:
+                task_callback(f"Downloading tokenizer weights from repository {tokenizer_path}")
+
             tokenizer = CLIPTokenizer.from_pretrained(
-                "openai/clip-vit-large-patch14",
+                tokenizer_path=tokenizer_path,
                 cache_dir=cache_dir
             )
+
             kwargs["text_encoder_2"] = None
             kwargs["tokenizer_2"] = None
             pipe = cls(
@@ -512,19 +643,31 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             )
         elif model_type == "SDXL":
             logger.debug("Using Stable Diffusion XL pipeline.")
+
+            tokenizer_path = "openai/clip-vit-large-patch14"
+            tokenizer_local_path = os.path.join(cache_dir, "models--{0}".format(tokenizer_path.replace("/", "--")))
+            if not os.path.exists(tokenizer_local_path) and task_callback is not None:
+                task_callback(f"Downloading tokenizer weights from repository {tokenizer_path}")
+
             tokenizer = CLIPTokenizer.from_pretrained(
-                "openai/clip-vit-large-patch14",
+                tokenizer_path,
                 cache_dir=cache_dir
             )
             text_encoder = convert_ldm_clip_checkpoint(checkpoint)
+
+            tokenizer_2_path = "laion/CLIP-ViT-bigG-14-laion2B-39B-b160k"
+            tokenizer_2_local_path = os.path.join(cache_dir, "models--{0}".format(tokenizer_2_path.replace("/", "--")))
+            if not os.path.exists(tokenizer_local_path) and task_callback is not None:
+                task_callback(f"Downloading tokenizer 2 weights from repository {tokenizer_2_path}")
+
             tokenizer_2 = CLIPTokenizer.from_pretrained(
-                "laion/CLIP-ViT-bigG-14-laion2B-39B-b160k",
+                tokenizer_2_path,
                 cache_dir=cache_dir,
                 pad_token="!"
             )
             text_encoder_2 = convert_open_clip_checkpoint(
                 checkpoint,
-                "laion/CLIP-ViT-bigG-14-laion2B-39B-b160k",
+                tokenizer_2_path,
                 prefix="conditioner.embedders.1.model.",
                 has_projection=True,
                 projection_dim=1280,
@@ -551,14 +694,20 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             )
         elif model_type == "SDXL-Refiner":
             logger.debug("Using Stable Diffusion XL refiner pipeline.")
+
+            tokenizer_2_path = "laion/CLIP-ViT-bigG-14-laion2B-39B-b160k"
+            tokenizer_2_local_path = os.path.join(cache_dir, "models--{0}".format(tokenizer_2_path.replace("/", "--")))
+            if not os.path.exists(tokenizer_2_local_path) and task_callback is not None:
+                task_callback(f"Downloading tokenizer 2 weights from repository {tokenizer_2_path}")
+
             tokenizer_2 = CLIPTokenizer.from_pretrained(
-                "laion/CLIP-ViT-bigG-14-laion2B-39B-b160k",
+                tokenizer_2_path,
                 cache_dir=cache_dir,
                 pad_token="!"
             )
             text_encoder_2 = convert_open_clip_checkpoint(
                 checkpoint,
-                "laion/CLIP-ViT-bigG-14-laion2B-39B-b160k",
+                tokenizer_2_path,
                 prefix="conditioner.embedders.0.model.",
                 has_projection=True,
                 projection_dim=1280,
@@ -2520,6 +2669,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     width = image.shape[-1] * self.vae_scale_factor
             else:
                 width = self.unet.config.sample_size * self.vae_scale_factor # type: ignore[attr-defined]
+
         height = cast(int, height)
         width = cast(int, width)
 

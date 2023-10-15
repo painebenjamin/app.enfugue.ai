@@ -43,10 +43,21 @@ class CivitAIItemView extends View {
      * On build, assemble all the details and event handlers
      */
     async build() {
+        // TODO: clean this up, it's messy
+        console.log(this.item);
         let node = await super.build(),
             selectedVersion = this.item.modelVersions[0].name,
-            name = E.h2().content(this.item.name),
-            author = E.h4().content(`By ${this.item.creator.username}`),
+            name = E.h2().content(
+                E.a().content(this.item.name)
+                     .target("_blank")
+                     .href(`https://civitai.com/models/${this.item.id}`)
+            ),
+            author = E.h4().content(
+                E.span().content("By "),
+                E.a().content(`${this.item.creator.username}`)
+                     .target("_blank")
+                     .href(`https://civitai.com/user/${this.item.creator.username}`)
+            ),
             versionSelect = E.select(),
             versionContainer = E.div().class("versions"),
             flags = E.div().class("flags"),

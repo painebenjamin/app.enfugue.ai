@@ -41,9 +41,9 @@ class DownloadsView extends View {
             if (isEmpty(downloadNode)) {
                 this.node.append(this.createDownloadNode(download));
             } else {
-                downloadNode.find(E.getCustomTag("downloadSize")).content(this.getDownloadSizeText(download));
+                downloadNode.find(E.getCustomTag("downloadSize")).content(this.getDownloadSizeContent(download));
                 downloadNode.find(E.getCustomTag("downloadProgress")).css(this.getDownloadProgressCSS(download));
-                downloadNode.find(E.getCustomTag("downloadTime")).content(this.getDownloadTimeText(download));
+                downloadNode.find(E.getCustomTag("downloadTime")).content(this.getDownloadTimeContent(download));
                 let cancelDownloadButton = downloadNode.find("button");
                 if (["complete", "canceled"].indexOf(download.status) == -1) {
                     cancelDownloadButton.disabled(false).removeClass("disabled");
@@ -78,7 +78,7 @@ class DownloadsView extends View {
     /**
      * Gets the text to say regarding size when showing a download
      */
-    getDownloadSizeText(download) {
+    getDownloadSizeContent(download) {
         if (isEmpty(download.total)) {
             return "Size Unknown";
         } else if (download.downloaded === download.total) {
@@ -91,7 +91,7 @@ class DownloadsView extends View {
     /**
      * Gets the text to say regarding timing when showing a download
      */
-    getDownloadTimeText(download) {
+    getDownloadTimeContent(download) {
         if (download.status === "error") {
             return "Error";
         } else if (download.status === "canceled") {
@@ -105,8 +105,11 @@ class DownloadsView extends View {
             let bytesPerSecond = download.downloaded / download.elapsed,
                 remainingBytes = download.total - download.downloaded,
                 remainingSeconds = remainingBytes / bytesPerSecond;
-            
-            return `${humanDuration(download.elapsed)} elapsed, ${humanDuration(remainingSeconds)} remaining (${humanSize(bytesPerSecond)}/sec)`;
+
+            return E.div().content(
+                E.span().content(`${humanDuration(download.elapsed)} elapsed`), 
+                E.span().content(`${humanDuration(remainingSeconds)} remaining (${humanSize(bytesPerSecond)}/sec)`)
+            );
         }
     };
 
@@ -128,9 +131,9 @@ class DownloadsView extends View {
                 E.span().content(download.filename),
                 cancelButton
             ),
-            E.downloadSize().content(this.getDownloadSizeText(download)),
+            E.downloadSize().content(this.getDownloadSizeContent(download)),
             E.downloadProgress().css(this.getDownloadProgressCSS(download)),
-            E.downloadTime().content(this.getDownloadTimeText(download))
+            E.downloadTime().content(this.getDownloadTimeContent(download))
         );
     }
 

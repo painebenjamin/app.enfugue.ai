@@ -1790,10 +1790,7 @@ class DiffusionPipelineManager:
         """
         Defines how to switch to inpainting.
         """
-        configured = self.configuration.get("enfugue.pipeline.inpainter", None)
-        if configured is None:
-            return not self.is_sdxl
-        return configured
+        return bool(self.configuration.get("enfugue.pipeline.inpainter", True))
 
     @property
     def refiner_strength(self) -> float:
@@ -2483,6 +2480,7 @@ class DiffusionPipelineManager:
             if self.model.startswith("http"):
                 # Base model, make sure it's downloaded here
                 self.model = self.check_download_model(self.engine_checkpoints_dir, self.model)
+
             kwargs = {
                 "cache_dir": self.engine_cache_dir,
                 "engine_size": self.size,
@@ -2492,7 +2490,8 @@ class DiffusionPipelineManager:
                 "cache_dir": self.engine_cache_dir,
                 "force_full_precision_vae": self.is_sdxl and (self.vae_name is None or "16" not in self.vae_name),
                 "controlnets": self.controlnets,
-                "ip_adapter": self.ip_adapter
+                "ip_adapter": self.ip_adapter,
+                "task_callback": getattr(self, "_task_callback", None),
             }
             
             vae = self.vae
@@ -2618,7 +2617,8 @@ class DiffusionPipelineManager:
                     self.refiner_vae_name is None or "16" not in self.refiner_vae_name
                 ),
                 "controlnets": self.refiner_controlnets,
-                "ip_adapter": self.ip_adapter
+                "ip_adapter": self.ip_adapter,
+                "task_callback": getattr(self, "_task_callback", None),
             }
             
             vae = self.refiner_vae
@@ -2740,11 +2740,22 @@ class DiffusionPipelineManager:
         """
         if not hasattr(self, "_inpainter_pipeline"):
             if not self.inpainter:
+                is_sdxl_merged_inpainter = False
                 target_checkpoint_path = self.default_inpainter_path
+                logger.debug(f"No inpainter explicitly set, will look for inpainter from {target_checkpoint_path}")
                 if target_checkpoint_path.startswith("http"):
                     target_checkpoint_path = self.check_download_model(self.engine_checkpoints_dir, target_checkpoint_path)
                 if not os.path.exists(target_checkpoint_path):
-                    if self.create_inpainter:
+                    if self.is_sdxl:
+                        # Look for diffusers cache
+                        cache_name = os.path.splitext(os.path.basename(target_checkpoint_path))[0]
+                        possible_cache_dir = os.path.join(self.engine_diffusers_dir, cache_name)
+                        if not os.path.exists(possible_cache_dir):
+                            # No cache, will merge on-the-fly
+                            is_sdxl_merged_inpainter = True
+                            logger.info(f"Inpainting with SDXL, will merge XL inpainting checkpoing into {self.model}")
+                            target_checkpoint_path = self.model
+                    elif self.create_inpainter:
                         logger.info(f"Creating inpainting checkpoint from {self.model}")
                         self.create_inpainting_checkpoint(self.model, target_checkpoint_path)
                     else:
@@ -2765,7 +2776,9 @@ class DiffusionPipelineManager:
                 "force_full_precision_vae": self.inpainter_is_sdxl and (
                     self.inpainter_vae_name is None or "16" not in self.inpainter_vae_name
                 ),
-                "ip_adapter": self.ip_adapter
+                "ip_adapter": self.ip_adapter,
+                "task_callback": getattr(self, "_task_callback", None),
+                "is_inpainter": True
             }
 
             vae = self.inpainter_vae
@@ -2842,7 +2855,10 @@ class DiffusionPipelineManager:
                 )
                 if inpainter_pipeline.is_sdxl and (self.inpainter_vae_name is None or "16" not in self.inpainter_vae_name):
                     inpainter_pipeline.register_to_config(force_full_precision_vae=True)
+                if is_sdxl_merged_inpainter:
+                    self.inpainter = self.default_inpainter_path
                 if self.should_cache_inpainter:
+                    logger.critical(self.inpainter)
                     logger.debug("Saving inpainter pipeline to pretrained cache.")
                     inpainter_pipeline.save_pretrained(self.inpainter_diffusers_dir)
             if not self.inpainter_tensorrt_is_ready:
