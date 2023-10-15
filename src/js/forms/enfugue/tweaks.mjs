@@ -79,7 +79,8 @@ class TweaksFormView extends FormView {
                     "min": 1.0,
                     "max": 2.0,
                     "value": 1.2,
-                    "step": 0.01
+                    "step": 0.01,
+                    "tooltip": "Adjusts the weight of primary backbone features. The recommended starting value for this field is <strong>1.2</strong>."
                 }
             },
             "freeUBackbone2": {
@@ -89,7 +90,9 @@ class TweaksFormView extends FormView {
                     "min": 1.0,
                     "max": 2.0,
                     "value": 1.4,
-                    "step": 0.01
+                    "step": 0.01,
+                    "tooltip": "Adjusts the weight of secondary backbone features. The recommended starting value for this field is <strong>1.4</strong>."
+
                 }
             },
             "freeUSkip1": {
@@ -99,7 +102,8 @@ class TweaksFormView extends FormView {
                     "min": 0.0,
                     "max": 1.0,
                     "value": 0.9,
-                    "step": 0.01
+                    "step": 0.01,
+                    "tooltip": "Adjusts the weight of primary skipped features. The recommended starting value for this field is <strong>0.9</strong>."
                 }
             },
             "freeUSkip2": {
@@ -109,7 +113,8 @@ class TweaksFormView extends FormView {
                     "min": 0.0,
                     "max": 1.0,
                     "value": 0.2,
-                    "step": 0.01
+                    "step": 0.01,
+                    "tooltip": "Adjusts the weight of secondary skipped features. The recommended starting value for this field is <strong>0.2</strong>."
                 }
             }
         }

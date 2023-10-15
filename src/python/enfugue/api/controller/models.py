@@ -73,31 +73,37 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
     @handlers.methods("GET")
     @handlers.format()
     @handlers.secured()
-    def get_checkpoints(self, request: Request, response: Response) -> List[str]:
+    def get_checkpoints(self, request: Request, response: Response) -> List[Dict[str, Any]]:
         """
         Gets installed checkpoints.
         """
         checkpoints_dir = self.get_configured_directory("checkpoint")
         checkpoints = [
-            os.path.basename(filename)
+            {
+                "name": os.path.basename(filename),
+                "directory": os.path.relpath(os.path.dirname(filename), checkpoints_dir)
+            }
             for filename in self.get_models_in_directory(checkpoints_dir)
         ]
         for checkpoint in self.DEFAULT_CHECKPOINTS:
-            if checkpoint not in checkpoints:
-                checkpoints.append(checkpoint)
+            if checkpoint not in [cp["name"] for cp in checkpoints]:
+                checkpoints.append({"name": checkpoint, "directory": "available for download"})
         return checkpoints
 
     @handlers.path("^/api/lora$")
     @handlers.methods("GET")
     @handlers.format()
     @handlers.secured()
-    def get_lora(self, request: Request, response: Response) -> List[str]:
+    def get_lora(self, request: Request, response: Response) -> List[Dict[str, Any]]:
         """
         Gets installed lora.
         """
         lora_dir = self.get_configured_directory("lora")
         lora = [
-            os.path.basename(filename)
+            {
+                "name": os.path.basename(filename),
+                "directory": os.path.relpath(os.path.dirname(filename), lora_dir)
+            }
             for filename in self.get_models_in_directory(lora_dir)
         ]
         return lora
@@ -106,13 +112,16 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
     @handlers.methods("GET")
     @handlers.format()
     @handlers.secured()
-    def get_lycoris(self, request: Request, response: Response) -> List[str]:
+    def get_lycoris(self, request: Request, response: Response) -> List[Dict[str, Any]]:
         """
         Gets installed lycoris/locon
         """
         lycoris_dir = self.get_configured_directory("lycoris")
         lycoris = [
-            os.path.basename(filename)
+            {
+                "name": os.path.basename(filename),
+                "directory": os.path.relpath(os.path.dirname(filename), lycoris_dir)
+            }
             for filename in self.get_models_in_directory(lycoris_dir)
         ]
         return lycoris
@@ -121,13 +130,16 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
     @handlers.methods("GET")
     @handlers.format()
     @handlers.secured()
-    def get_inversions(self, request: Request, response: Response) -> List[str]:
+    def get_inversions(self, request: Request, response: Response) -> List[Dict[str, Any]]:
         """
         Gets installed textual inversions.
         """
         inversions_dir = self.get_configured_directory("inversion")
         inversions = [
-            os.path.basename(filename)
+            {
+                "name": os.path.basename(filename),
+                "directory": os.path.relpath(os.path.dirname(filename), inversions_dir)
+            }
             for filename in self.get_models_in_directory(inversions_dir)
         ]
         return inversions
@@ -628,25 +640,63 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
     @handlers.secured("DiffusionModel", "read")
     def get_all_models(self, request: Request, response: Response) -> List[Dict[str, Any]]:
         """
-        Gets all checkpoints and model names for the picker.
+        Gets all checkpoints, diffusers caches and model names for the picker.
         """
+        # Get checkpoints
         checkpoints_dir = self.get_configured_directory("checkpoint")
-        checkpoints = self.get_models_in_directory(checkpoints_dir)
-        checkpoints.sort(key=lambda item: os.path.getmtime(os.path.join(checkpoints_dir, item)))
+        checkpoint_paths = self.get_models_in_directory(checkpoints_dir)
+        checkpoint_paths.sort(key=lambda item: os.path.getmtime(os.path.join(checkpoints_dir, item)))
         checkpoints = [
-            os.path.basename(checkpoint)
-            for checkpoint in checkpoints
+            {
+                "name": os.path.basename(filename),
+                "directory": os.path.relpath(os.path.dirname(filename), checkpoints_dir),
+                "type": "checkpoint"
+            }
+            for filename in checkpoint_paths
         ]
         for checkpoint in self.DEFAULT_CHECKPOINTS:
-            if checkpoint not in checkpoints:
-                checkpoints.append(checkpoint)
-        
-        model_names = self.database.query(self.orm.DiffusionModel.name).all()
-        return [
-            {"type": "checkpoint", "name": checkpoint} for checkpoint in checkpoints
-        ] + [
-            {"type": "model", "name": model[0]} for model in model_names
+            if checkpoint not in [cp["name"] for cp in checkpoints]:
+                checkpoints.append({
+                    "name": checkpoint,
+                    "directory": "available for download",
+                    "type": "checkpoint"
+                })
+
+        # Get diffusers caches
+        diffusers_dir = self.get_configured_directory("diffusers")
+        diffusers_models = [
+            dirname
+            for dirname in os.listdir(diffusers_dir)
+            if os.path.exists(os.path.join(diffusers_dir, dirname, "model_index.json"))
         ]
+        diffusers_caches = []
+        for model in diffusers_models:
+            found = False
+            for i, ckpt in enumerate(checkpoints):
+                if os.path.splitext(ckpt["name"])[0] == model:
+                    checkpoints[i]["type"] = "checkpoint+diffusers"
+                    found = True
+                    break
+            if not found:
+                diffusers_caches.append(
+                    {
+                        "name": model,
+                        "type": "diffusers",
+                        "directory": ""
+                    }
+                )
+
+        # Check preconfigured models
+        model_names = self.database.query(self.orm.DiffusionModel.name).all()
+        preconfigured_models = [
+            {
+                "name": model_name[0],
+                "type": "model",
+                "directory": ""
+            }
+            for model_name in model_names
+        ]
+        return checkpoints + diffusers_caches + preconfigured_models
 
     @handlers.path("^/api/model-merge$")
     @handlers.methods("POST")

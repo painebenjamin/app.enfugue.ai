@@ -623,7 +623,7 @@ const secondsPerMinute = 60,
  * @param bool $trim Whether or not to trim to first nonzero value, default true
  * @return string The formatted duration string
  */
-export let humanDuration = (seconds, trim = true) => {
+export let humanDuration = (seconds, trim = true, compact = false) => {
     let days = 0, hours = 0, minutes = 0;
     if (seconds > secondsPerDay) {
         days = Math.floor(seconds / secondsPerDay);
@@ -638,15 +638,21 @@ export let humanDuration = (seconds, trim = true) => {
         seconds -= minutes * secondsPerMinute;
     }
     seconds = Math.floor(seconds);
-    let durationString = `${days} day${days!=1?'s':''}, ${hours} hour${hours!=1?'s':''}, ${minutes} minute${minutes!=1?'s':''}, ${seconds} second${seconds!=1?'s':''}`;
+    let durationSeparator = compact ? ":": ", ",
+        durationString = compact 
+            ? `${days}:${hours.toString().padStart(days>0?2:1, '0')}:${minutes.toString().padStart(hours>0?2:1, '0')}:${seconds.toString().padStart(2, '0')}`
+            : `${days} day${days!=1?'s':''}, ${hours} hour${hours!=1?'s':''}, ${minutes} minute${minutes!=1?'s':''}, ${seconds} second${seconds!=1?'s':''}`;
     if (trim && days == 0) {
-        let durationParts = durationString.split(", ");
+        let durationParts = durationString.split(durationSeparator);
         if (hours == 0 && minutes == 0) {
-            return durationParts.slice(3).join(", ");
+            if (compact) {
+                return `0:${durationParts.slice(-1)[0]}`;
+            }
+            return durationParts.slice(3).join(durationSeparator);
         } else if (hours == 0) {
-            return durationParts.slice(2).join(", ");
+            return durationParts.slice(2).join(durationSeparator);
         } else {
-            return durationParts.slice(1).join(", ");
+            return durationParts.slice(1).join(durationSeparator);
         }
     }
     return durationString;

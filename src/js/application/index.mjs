@@ -306,20 +306,69 @@ class Application {
             // Remove other input
             delete DefaultVaeInputView.defaultOptions.other;
         }
-        CheckpointInputView.defaultOptions = () => this.model.get("/checkpoints");
-        LoraInputView.defaultOptions = () => this.model.get("/lora");
-        LycorisInputView.defaultOptions = () => this.model.get("/lycoris");
-        InversionInputView.defaultOptions = () => this.model.get("/inversions");
+        CheckpointInputView.defaultOptions = async () => {
+            let checkpoints = await this.model.get("/checkpoints");
+            return checkpoints.reduce((carry, datum) => {
+                if (!isEmpty(datum.directory) && datum.directory !== ".") {
+                    carry[datum.name] = `<strong>${datum.name}</strong><span class='note' style='margin-left: 2px'>(${datum.directory})</note>`;
+                } else {
+                    carry[datum.name] = datum.name;
+                }
+                return carry;
+            }, {});
+        };
+        LoraInputView.defaultOptions = async () => {
+            let models = await this.model.get("/lora");
+            return models.reduce((carry, datum) => {
+                if (!isEmpty(datum.directory) && datum.directory !== ".") {
+                    carry[datum.name] = `<strong>${datum.name}</strong><span class='note' style='margin-left: 2px'>(${datum.directory})</note>`;
+                } else {
+                    carry[datum.name] = datum.name;
+                }
+                return carry;
+            }, {});
+        };
+        LycorisInputView.defaultOptions = async () => {
+            let models = await this.model.get("/lycoris");
+            return models.reduce((carry, datum) => {
+                if (!isEmpty(datum.directory) && datum.directory !== ".") {
+                    carry[datum.name] = `<strong>${datum.name}</strong><span class='note' style='margin-left: 2px'>(${datum.directory})</note>`;
+                } else {
+                    carry[datum.name] = datum.name;
+                }
+                return carry;
+            }, {});
+        };
+        InversionInputView.defaultOptions = async () => {
+            let models = await this.model.get("/inversions");
+            return models.reduce((carry, datum) => {
+                if (!isEmpty(datum.directory) && datum.directory !== ".") {
+                    carry[datum.name] = `<strong>${datum.name}</strong><span class='note' style='margin-left: 2px'>(${datum.directory})</note>`;
+                } else {
+                    carry[datum.name] = datum.name;
+                }
+                return carry;
+            }, {});
+        };
         ModelPickerInputView.defaultOptions = async () => {
-            let allModels = await this.model.get("/model-options"),
-                modelOptions = allModels.reduce((carry, datum) => {
-                    let typeString = datum.type === "checkpoint"
+            let allModels = await this.model.get("/model-options");
+            return allModels.reduce((carry, datum) => {
+                let typeString = isEmpty(datum.type)
+                    ? ""
+                    :datum.type === "checkpoint"
                         ? "Checkpoint"
-                        : "Preconfigured Model";
+                        : datum.type === "checkpoint+diffusers"
+                            ? "Checkpoint + Diffusers Cache"
+                            : datum.type === "diffusers"
+                                ? "Diffusers Cache"
+                                : "Preconfigured Model";
+                if (!isEmpty(datum.directory) && datum.directory !== ".") {
+                    carry[`${datum.type}/${datum.name}`] = `<strong>${datum.name}</strong><span class='note' style='margin-left: 2px'>(${datum.directory})</note></span><em>${typeString}</em>`;
+                } else {
                     carry[`${datum.type}/${datum.name}`] = `<strong>${datum.name}</strong><em>${typeString}</em>`;
-                    return carry;
-                }, {});
-            return modelOptions;
+                }
+                return carry;
+            }, {});
         };
     }
 

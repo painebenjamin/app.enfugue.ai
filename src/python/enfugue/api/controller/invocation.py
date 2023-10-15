@@ -162,17 +162,29 @@ class EnfugueAPIInvocationController(EnfugueAPIControllerBase):
                 "inpainter_vae",
             ]:
                 request.parsed.pop(ignored_arg, None)
-        elif model_name and model_type == "checkpoint":
-            plan_kwargs["model"] = self.check_find_model("checkpoint", model_name)
+        elif model_name and model_type in ["checkpoint", "diffusers", "checkpoint+diffusers"]:
+            if model_type == "diffusers":
+                plan_kwargs["model"] = model_name # Hope for the best
+            else:
+                plan_kwargs["model"] = self.check_find_model("checkpoint", model_name)
 
             refiner = request.parsed.pop("refiner", None)
-            plan_kwargs["refiner"] = self.check_find_model("checkpoint", refiner) if refiner else None
+            if refiner is not None:
+                if "." in refiner:
+                    plan_kwargs["refiner"] = self.check_find_model("checkpoint", refiner)
+                else:
+                    plan_kwargs["refiner"] = refiner
+
             if "refiner" not in plan_kwargs:
                 request.parsed.pop("refiner_size", None) # Don't allow override if not overriding checkpoint
                 request.parsed.pop("refiner_vae", None)
 
             inpainter = request.parsed.pop("inpainter", None)
-            plan_kwargs["inpainter"] = self.check_find_model("checkpoint", inpainter) if inpainter else None
+            if inpainter is not None:
+                if "." in inpainter:
+                    plan_kwargs["inpainter"] = self.check_find_model("checkpoint", inpainter)
+                else:
+                    plan_kwargs["inpainter"] = inpainter
 
             if "inpainter" not in plan_kwargs:
                 request.parsed.pop("inpainter_size", None)

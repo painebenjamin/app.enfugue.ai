@@ -960,24 +960,33 @@ enfugue-invocation-outputs {
     gap: 5px;
 }
 
+enfugue-model-table.invocation-history {
+    margin-bottom: 5px;
+}
+
 enfugue-model-table.invocation-history tr th:nth-child(1),
 enfugue-model-table.invocation-history tr td:nth-child(1) {
-    width: 15%;
+    width: 150px;
 }
 
 enfugue-model-table.invocation-history tr th:nth-child(2),
 enfugue-model-table.invocation-history tr td:nth-child(2) {
-    width: 15%;
+    width: 80px;
 }
 
 enfugue-model-table.invocation-history tr th:nth-child(3),
 enfugue-model-table.invocation-history tr td:nth-child(3) {
-    width: 25%;
+    width: 150px;
 }
 
 enfugue-model-table.invocation-history tr th:nth-child(4),
 enfugue-model-table.invocation-history tr td:nth-child(4) {
-    width: 35%;
+    width: 200px;
+}
+
+enfugue-model-table.invocation-history tr th:nth-child(5),
+enfugue-model-table.invocation-history tr td:nth-child(5) {
+    width: 150px;
 }
 
 div.announcements-view > .view > p,

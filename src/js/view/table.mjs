@@ -439,7 +439,7 @@ class TableView extends View {
                     .content(value)
                     .class(snakeCase(column));
             
-            if (!isEmpty(tooltip)) {
+            if (!isEmpty(tooltip) && typeof tooltip == "string") {
                 cell.data('tooltip', tooltip);
             }
 

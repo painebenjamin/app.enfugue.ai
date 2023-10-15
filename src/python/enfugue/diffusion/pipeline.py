@@ -366,9 +366,13 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         ckpt_name, _ = os.path.splitext(os.path.basename(checkpoint_path))
 
         original_config_file: Optional[str] = os.path.join(ckpt_dir, f"{ckpt_name}.yaml")
-        if not os.path.exists(original_config_file): # type: ignore[arg-type]
+        if os.path.exists(original_config_file): # type: ignore[arg-type]
+            logger.info(f"Found configuration file alongside checkpoint, using {ckpt_name}.yaml")
+        else:
             original_config_file = os.path.join(ckpt_dir, f"{ckpt_name}.json")
-            if not os.path.exists(original_config_file):
+            if os.path.exists(original_config_file):
+                logger.info(f"Found configuration file alongside checkpoint, using {ckpt_name}.json")
+            else:
                 original_config_file = None
 
         if original_config_file is None:
@@ -376,7 +380,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             key_name_xl_base = "conditioner.embedders.1.model.transformer.resblocks.9.mlp.c_proj.bias"
             key_name_xl_refiner = "conditioner.embedders.0.model.transformer.resblocks.9.mlp.c_proj.bias"
 
-            # SD v1
+            # SD v1 default
             config_url = (
                 "https://raw.githubusercontent.com/CompVis/stable-diffusion/main/configs/stable-diffusion/v1-inference.yaml"
             )
@@ -384,16 +388,22 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             if key_name_2_1 in checkpoint and checkpoint[key_name_2_1].shape[-1] == 1024: # type: ignore[union-attr]
                 # SD v2.1
                 config_url = "https://raw.githubusercontent.com/Stability-AI/stablediffusion/main/configs/stable-diffusion/v2-inference-v.yaml"
+                logger.info(f"No configuration file found for checkpoint {ckpt_name}, using Stable Diffusion V2.1")
 
                 if global_step == 110000:
                     # v2.1 needs to upcast attention
                     upcast_attention = True
             elif key_name_xl_base in checkpoint:
                 # SDXL Base
+                logger.info(f"No configuration file found for checkpoint {ckpt_name}, using Stable Diffusion XL Base")
                 config_url = "https://raw.githubusercontent.com/Stability-AI/generative-models/main/configs/inference/sd_xl_base.yaml"
             elif key_name_xl_refiner in checkpoint:
                 # SDXL Refiner
+                logger.info(f"No configuration file found for checkpoint {ckpt_name}, using Stable Diffusion XL Refiner")
                 config_url = "https://raw.githubusercontent.com/Stability-AI/generative-models/main/configs/inference/sd_xl_refiner.yaml"
+            else:
+                # SD v1
+                logger.info(f"No configuration file found for checkpoint {ckpt_name}, using Stable Diffusion 1.5")
             original_config_file = check_download_to_dir(config_url, cache_dir, check_size=False)
 
         original_config = OmegaConf.load(original_config_file) # type: ignore
@@ -612,7 +622,6 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
         # Convert the text model.
         if model_type == "FrozenCLIPEmbedder":
-            logger.debug("Using Stable Diffusion v1 pipeline.")
             text_model = convert_ldm_clip_checkpoint(checkpoint)
             if offload_models:
                 text_model.to("cpu")
@@ -642,8 +651,6 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 **kwargs,
             )
         elif model_type == "SDXL":
-            logger.debug("Using Stable Diffusion XL pipeline.")
-
             tokenizer_path = "openai/clip-vit-large-patch14"
             tokenizer_local_path = os.path.join(cache_dir, "models--{0}".format(tokenizer_path.replace("/", "--")))
             if not os.path.exists(tokenizer_local_path) and task_callback is not None:
@@ -693,8 +700,6 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 **kwargs,
             )
         elif model_type == "SDXL-Refiner":
-            logger.debug("Using Stable Diffusion XL refiner pipeline.")
-
             tokenizer_2_path = "laion/CLIP-ViT-bigG-14-laion2B-39B-b160k"
             tokenizer_2_local_path = os.path.join(cache_dir, "models--{0}".format(tokenizer_2_path.replace("/", "--")))
             if not os.path.exists(tokenizer_2_local_path) and task_callback is not None:
@@ -1172,29 +1177,36 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         """
         Call the appropriate adapted fix based on pipeline class
         """
-        if self.is_sdxl:
-            # Call SDXL fix
-            return self.load_sdxl_lora_weights(
-                pretrained_model_name_or_path_or_dict,
-                multiplier=multiplier,
-                dtype=dtype,
-                **kwargs
+        try:
+            if self.is_sdxl:
+                # Call SDXL fix
+                return self.load_sdxl_lora_weights(
+                    pretrained_model_name_or_path_or_dict,
+                    multiplier=multiplier,
+                    dtype=dtype,
+                    **kwargs
+                )
+            elif (
+                isinstance(pretrained_model_name_or_path_or_dict, str) and
+                pretrained_model_name_or_path_or_dict.endswith(".safetensors")
+            ):
+                # Call safetensors fix
+                return self.load_safetensors_lora_weights(
+                    pretrained_model_name_or_path_or_dict,
+                    multiplier=multiplier,
+                    dtype=dtype,
+                    **kwargs
+                )
+            # Return parent
+            return super(EnfugueStableDiffusionPipeline, self).load_lora_weights( # type: ignore[misc]
+                pretrained_model_name_or_path_or_dict, **kwargs
             )
-        elif (
-            isinstance(pretrained_model_name_or_path_or_dict, str) and
-            pretrained_model_name_or_path_or_dict.endswith(".safetensors")
-        ):
-            # Call safetensors fix
-            return self.load_safetensors_lora_weights(
-                pretrained_model_name_or_path_or_dict,
-                multiplier=multiplier,
-                dtype=dtype,
-                **kwargs
-            )
-        # Return parent
-        return super(EnfugueStableDiffusionPipeline, self).load_lora_weights( # type: ignore[misc]
-            pretrained_model_name_or_path_or_dict, **kwargs
-        )
+        except (AttributeError, KeyError) as ex:
+            if self.is_sdxl:
+                message = "Are you trying to use a Stable Diffusion 1.5 LoRA with this Stable Diffusion XL pipeline?"
+            else:
+                message = "Are you trying to use a Stable Diffusion XL LoRA with this Stable Diffusion 1.5 pipeline?"
+            raise IOError(f"Received {type(ex).__name__} loading LoRA. {message}")
 
     def load_sdxl_lora_weights(
         self, 
@@ -1311,39 +1323,46 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         Loads textual inversion
         Temporary implementation from https://github.com/huggingface/diffusers/issues/4405
         """
-        if not self.is_sdxl:
-            return super(EnfugueStableDiffusionPipeline, self).load_textual_inversion(inversion_path, **kwargs) # type: ignore[misc]
+        try:
+            if not self.is_sdxl:
+                return super(EnfugueStableDiffusionPipeline, self).load_textual_inversion(inversion_path, **kwargs) # type: ignore[misc]
 
-        logger.debug(f"Using SDXL adaptation for textual inversion - Loading {inversion_path}")
-        if inversion_path.endswith("safetensors"):
-            from safetensors import safe_open
+            logger.debug(f"Using SDXL adaptation for textual inversion - Loading {inversion_path}")
+            if inversion_path.endswith("safetensors"):
+                from safetensors import safe_open
 
-            inversion = {}
-            with safe_open(inversion_path, framework="pt", device="cpu") as f: # type: ignore[attr-defined]
-                for key in f.keys():
-                    inversion[key] = f.get_tensor(key)
-        else:
-            inversion = torch.load(inversion_path, map_location="cpu")
+                inversion = {}
+                with safe_open(inversion_path, framework="pt", device="cpu") as f: # type: ignore[attr-defined]
+                    for key in f.keys():
+                        inversion[key] = f.get_tensor(key)
+            else:
+                inversion = torch.load(inversion_path, map_location="cpu")
 
-        for i, (embedding_1, embedding_2) in enumerate(zip(inversion["clip_l"], inversion["clip_g"])):
-            token = f"sksd{chr(i+65)}"
-            if self.tokenizer is not None:
-                self.tokenizer.add_tokens(token)
-            if self.tokenizer_2 is not None:
-                self.tokenizer_2.add_tokens(token)
-            if self.text_encoder is not None and self.tokenizer is not None:
-                token_id = self.tokenizer.convert_tokens_to_ids(token)
-                self.text_encoder.resize_token_embeddings(len(self.tokenizer))
-                self.text_encoder.get_input_embeddings().weight.data[token_id] = embedding_1
-            if self.text_encoder_2 is not None:
+            for i, (embedding_1, embedding_2) in enumerate(zip(inversion["clip_l"], inversion["clip_g"])):
+                token = f"sksd{chr(i+65)}"
+                if self.tokenizer is not None:
+                    self.tokenizer.add_tokens(token)
                 if self.tokenizer_2 is not None:
-                    token_id_2 = self.tokenizer_2.convert_tokens_to_ids(token)
-                elif self.tokenizer is not None:
-                    token_id_2 = self.tokenizer.convert_tokens_to_ids(token)
-                else:
-                    raise ValueError("No tokenizer, cannot add inversion to encoder")
-                self.text_encoder_2.resize_token_embeddings(len(self.tokenizer))
-                self.text_encoder_2.get_input_embeddings().weight.data[token_id_2] = embedding_2
+                    self.tokenizer_2.add_tokens(token)
+                if self.text_encoder is not None and self.tokenizer is not None:
+                    token_id = self.tokenizer.convert_tokens_to_ids(token)
+                    self.text_encoder.resize_token_embeddings(len(self.tokenizer))
+                    self.text_encoder.get_input_embeddings().weight.data[token_id] = embedding_1
+                if self.text_encoder_2 is not None:
+                    if self.tokenizer_2 is not None:
+                        token_id_2 = self.tokenizer_2.convert_tokens_to_ids(token)
+                    elif self.tokenizer is not None:
+                        token_id_2 = self.tokenizer.convert_tokens_to_ids(token)
+                    else:
+                        raise ValueError("No tokenizer, cannot add inversion to encoder")
+                    self.text_encoder_2.resize_token_embeddings(len(self.tokenizer))
+                    self.text_encoder_2.get_input_embeddings().weight.data[token_id_2] = embedding_2
+        except (AttributeError, KeyError) as ex:
+            if self.is_sdxl:
+                message = "Are you trying to use a Stable Diffusion 1.5 textual inversion with this Stable Diffusion XL pipeline?"
+            else:
+                message = "Are you trying to use a Stable Diffusion XL textual inversion with this Stable Diffusion 1.5 pipeline?"
+            raise IOError(f"Received {type(ex).__name__} loading textual inversion. {message}")
 
     def denormalize_latents(self, latents: torch.Tensor) -> torch.Tensor:
         """

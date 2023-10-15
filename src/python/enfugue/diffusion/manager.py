@@ -140,6 +140,13 @@ class DiffusionPipelineManager:
                 # Maximum optimization
                 self.configuration["enfugue.pipeline.sequential"] = True
 
+    def task_callback(self, message: str) -> None:
+        """
+        Calls the passed task callback if set.
+        """
+        if getattr(self, "_task_callback", None) is not None:
+            self._task_callback(message) # type: ignore[misc]
+
     def check_download_model(self, local_dir: str, remote_url: str) -> str:
         """
         Downloads a model directly to the model folder if enabled.
@@ -151,8 +158,7 @@ class DiffusionPipelineManager:
             return found_path
         if self.offline:
             raise ValueError(f"File {output_file} does not exist in {local_dir} and offline mode is enabled, refusing to download from {remote_url}")
-        elif self._task_callback is not None:
-            self._task_callback(f"Downloading {remote_url}")
+        self.task_callback(f"Downloading {remote_url}")
         check_download(remote_url, output_path)
         return output_path
 
@@ -516,7 +522,10 @@ class DiffusionPipelineManager:
         vae_model.load_state_dict(load_state_dict(vae), strict=False)
         return vae_model.to(self.device)
 
-    def get_vae(self, vae: Optional[Union[str, Tuple[str, ...]]] = None) -> Optional[AutoencoderKL]:
+    def get_vae(
+        self,
+        vae: Optional[Union[str, Tuple[str, ...]]] = None
+    ) -> Optional[AutoencoderKL]:
         """
         Loads the VAE
         """
@@ -557,6 +566,7 @@ class DiffusionPipelineManager:
             if not os.path.exists(expected_vae_location):
                 if self.offline:
                     raise IOError(f"Offline mode enabled, cannot download {vae} to {expected_vae_location}")
+                self.task_callback(f"Downloading VAE weights from repository {vae}")
                 logger.info(f"VAE {vae} does not exist in cache directory {self.engine_cache_dir}, it will be downloaded.")
             result = AutoencoderKL.from_pretrained(
                 vae,
@@ -572,8 +582,14 @@ class DiffusionPipelineManager:
         Gets a previewer VAE (tiny)
         """
         from diffusers.models import AutoencoderTiny
+        repo = "madebyollin/taesdxl" if use_xl else "madebyollin/taesd"
+        expected_path = os.path.join(self.engine_cache_dir, "models--{0}".format(repo.replace("/", "--")))
+        if not os.path.exists(expected_path):
+            if self.offline:
+                raise IOError(f"Offline mode enabled, cannot download {repo} to {expected_path}")
+            self.task_callback(f"Downloading preview VAE weights from repository {repo}")
         return AutoencoderTiny.from_pretrained(
-            "madebyollin/taesdxl" if use_xl else "madebyollin/taesd",
+            repo,
             cache_dir=self.engine_cache_dir,
             torch_dtype=self.dtype
         )
@@ -1955,6 +1971,8 @@ class DiffusionPipelineManager:
         model_name, _ = os.path.splitext(os.path.basename(model))
         if self.model_name != model_name:
             self.unload_pipeline("model changing")
+            if not hasattr(self, "_inpainter") and getattr(self, "_inpainter_pipeline", None) is not None:
+                self.unload_inpainter("base model changing")
         self._model = model
 
     @property
@@ -3087,8 +3105,7 @@ class DiffusionPipelineManager:
                 logger.info(
                     f"Controlnet {controlnet} does not exist in cache directory {self.engine_cache_dir}, it will be downloaded."
                 )
-                if self._task_callback is not None:
-                    self._task_callback(f"Downloading {controlnet} model weights")
+                self.task_callback(f"Downloading {controlnet} model weights")
             result = ControlNetModel.from_pretrained(
                 controlnet,
                 torch_dtype=torch.half,

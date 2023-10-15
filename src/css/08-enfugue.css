@@ -929,7 +929,8 @@ ul.enfugue-search-list-items > li {
     color: var(--light-color);
 }
 
-ul.model-picker-list-input-view > li > span {
+ul.model-picker-list-input-view > li > span,
+ul.enfugue-search-list-items > li > span {
     color: var(--light-color);
     display: flex;
     width: 100%;
@@ -937,7 +938,18 @@ ul.model-picker-list-input-view > li > span {
     flex-grow: 1;
     flex-flow: row nowrap;
     align-items: center;
-    justify-content: space-between;
+    justify-content: flex-start;
+}
+
+ul.model-picker-list-input-view > li > span > *,
+ul.enfugue-search-list-items > li > span > * {
+    flex-grow: 0;
+}
+
+ul.model-picker-list-input-view > li > span > *:last-child,
+ul.enfugue-search-list-items > li > span > *:last-child {
+    flex-grow: 1;
+    text-align: right;
 }
 
 .model-configuration-form-view {

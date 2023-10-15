@@ -208,6 +208,7 @@ class DownloadsController extends Controller {
             
         try {
             response = await this.model.post("download", null, null, payload);
+            this.notify("info", "Success", `Downloading ${filename} from ${url}`);
             this.checkDownloads();
         } catch(e) {
             if (!isEmpty(e) && e.status == 409) {
@@ -280,6 +281,8 @@ class DownloadsController extends Controller {
                 if (thisDownloadRatio > highestDownloadRatio) {
                     highestDownloadRatio = thisDownloadRatio;
                 }
+                activeDownloads++;
+            } else if(download.status === "pending") {
                 activeDownloads++;
             }
         }
