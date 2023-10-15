@@ -1734,7 +1734,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         passed_add_embed_dim = (
             self.unet.config.addition_time_embed_dim * len(add_time_ids) + self.text_encoder_2.config.projection_dim # type: ignore[attr-defined]
         )
-        expected_add_embed_dim = self.unet.add_embedding.linear_1.in_features
+        expected_add_embed_dim = self.unet.add_embedding.linear_1.in_features # type: ignore[union-attr]
 
         if (
             expected_add_embed_dim > passed_add_embed_dim
