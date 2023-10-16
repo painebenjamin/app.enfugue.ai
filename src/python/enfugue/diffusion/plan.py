@@ -574,12 +574,19 @@ class DiffusionStep:
 
         if control_images is not None:
             for controlnet_name in control_images:
-                for (
+                for i, (
                     control_image,
                     conditioning_scale,
                     conditioning_start,
                     conditioning_end
-                ) in control_images[controlnet_name]:
+                ) in enumerate(control_images[controlnet_name]):
+                    if image_position is not None and image_width is not None and image_height is not None:
+                        # Also crop control image
+                        x0, y0 = image_position
+                        x1 = x0 + image_width
+                        y1 = y0 + image_height
+                        control_image = control_image.crop((x0, y0, x1, y1))
+                        control_images[controlnet_name][i] = (control_image, conditioning_scale, conditioning_start, conditioning_end)
                     if image_width is None or image_height is None:
                         image_width, image_height = control_image.size
                     else:

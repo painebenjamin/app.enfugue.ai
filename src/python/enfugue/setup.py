@@ -55,6 +55,7 @@ install_requires = [
     "html2text==2020.1.16",
     "torchsde>=0.2.5,<0.3",
     "timm>=0.9.2,<1.0",
+    "opensimplex>=0.4.5,<0.5",
     "taming-transformers",
     "clip",
     "latent-diffusion",

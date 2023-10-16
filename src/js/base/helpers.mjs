@@ -1062,21 +1062,15 @@ export let formatOrdinal = (n) => `${n}${suffixes.get(pluralRules.select(n))}`;
  */
 export let promptFiles = (contentType = "*", allowMultiple = false) => {
     return new Promise((resolve, reject) => {
-        let inputElement = document.createElement("input"),
-            onMouseMove = (e) => {
-                window.removeEventListener("mousemove", onMouseMove);
-                reject("No files selected.");
-            };
+        let inputElement = document.createElement("input");
         inputElement.type = "file";
         inputElement.multiple = allowMultiple;
         inputElement.accept = contentType;
         inputElement.onchange = () => {
             let inputFiles = Array.from(inputElement.files);
-            window.removeEventListener("mousemove", onMouseMove);
             resolve(allowMultiple ? inputFiles : inputFiles[0]);
         };
         inputElement.click();
-        window.addEventListener("mousemove", onMouseMove);
     });
 };
 

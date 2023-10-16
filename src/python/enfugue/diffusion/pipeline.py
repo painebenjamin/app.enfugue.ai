@@ -408,7 +408,11 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
         original_config = OmegaConf.load(original_config_file) # type: ignore
 
-        num_in_channels = 9 if is_inpainter else 4
+        if "model.diffusion_model.input_blocks.0.0.weight" in checkpoint:
+            num_in_channels = checkpoint["model.diffusion_model.input_blocks.0.0.weight"].shape[1] # type: ignore[union-attr]
+        else:
+            num_in_channels = 9 if is_inpainter else 4
+
         if "unet_config" in original_config["model"]["params"]:  # type: ignore
             # SD 1 or 2
             original_config["model"]["params"]["unet_config"]["params"]["in_channels"] = num_in_channels  # type: ignore
@@ -633,7 +637,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 task_callback(f"Downloading tokenizer weights from repository {tokenizer_path}")
 
             tokenizer = CLIPTokenizer.from_pretrained(
-                tokenizer_path=tokenizer_path,
+                tokenizer_path,
                 cache_dir=cache_dir
             )
 

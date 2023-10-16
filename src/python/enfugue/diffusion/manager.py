@@ -2752,8 +2752,8 @@ class DiffusionPipelineManager:
         Instantiates the inpainter pipeline.
         """
         if not hasattr(self, "_inpainter_pipeline"):
+            is_sdxl_merged_inpainter = False
             if not self.inpainter:
-                is_sdxl_merged_inpainter = False
                 target_checkpoint_path = self.default_inpainter_path
                 logger.debug(f"No inpainter explicitly set, will look for inpainter from {target_checkpoint_path}")
                 if target_checkpoint_path.startswith("http"):
