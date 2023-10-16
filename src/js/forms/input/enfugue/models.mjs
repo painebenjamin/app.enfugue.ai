@@ -32,7 +32,7 @@ class ModelPickerStringInputView extends StringInputView {
         if(!isEmpty(newValue)) {
             if (newValue.startsWith("<")) {
                 newValue = createElementsFromString(newValue)[0].innerText;
-            } else {
+            } else if (newValue.indexOf("/") !== -1) {
                 newValue = newValue.split("/")[1];
             }
         }
