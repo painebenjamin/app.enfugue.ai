@@ -2799,9 +2799,10 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
         do_classifier_free_guidance = guidance_scale > 1.0
 
-        # Calculate chunks
+        # Calculate chunks, use autocast since KPDM2 breaks with MPS here
         num_chunks = max(1, len(self.get_chunks(height, width)))
-        self.scheduler.set_timesteps(num_inference_steps, device=device) # type: ignore[attr-defined]
+        with torch.autocast(device.type, dtype=torch.float32):
+            self.scheduler.set_timesteps(num_inference_steps, device=device) # type: ignore[attr-defined]
 
         if image is not None and mask is None and (strength is not None or denoising_start is not None):
             # Scale timesteps by strength
