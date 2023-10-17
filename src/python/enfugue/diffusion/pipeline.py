@@ -410,8 +410,10 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
         if "model.diffusion_model.input_blocks.0.0.weight" in checkpoint:
             num_in_channels = checkpoint["model.diffusion_model.input_blocks.0.0.weight"].shape[1] # type: ignore[union-attr]
+            logger.info(f"Checkpoint has {num_in_channels} input channels")
         else:
             num_in_channels = 9 if is_inpainter else 4
+            logger.info(f"Could not automatically determine input channels, forcing {num_in_channels} input channels")
 
         if "unet_config" in original_config["model"]["params"]:  # type: ignore
             # SD 1 or 2
@@ -517,7 +519,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             unet_config,
             cache_dir=cache_dir,
             is_sdxl=isinstance(model_type, str) and model_type.startswith("SDXL"),
-            is_inpainter=is_inpainter
+            is_inpainter=is_inpainter,
         )
 
         converted_unet_checkpoint = convert_ldm_unet_checkpoint(
@@ -527,7 +529,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             extract_ema=extract_ema
         )
 
-        if is_sdxl and is_inpainter:
+        if is_sdxl and is_inpainter and num_in_channels == 4:
             cls.merge_xl_inpainting_checkpoint(
                 converted_unet_checkpoint,
                 cache_dir=cache_dir,
@@ -2436,6 +2438,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         from math import ceil
         batch = latents.shape[0]
         height, width = latents.shape[-2:]
+        height_px = height * self.vae_scale_factor
+        width_px = width * self.vae_scale_factor
 
         max_size = 128
         overlap = 16
@@ -2452,29 +2456,29 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             )
             multiplier = torch.zeros_like(decoded_preview)
             for i in range(height_chunks):
-                start_h = i * (max_size - overlap)
+                start_h = max(0, i * (max_size - overlap))
                 end_h = start_h + max_size
                 if end_h > height:
                     diff = end_h - height
                     end_h -= diff
-                    start_h -= diff
+                    start_h = max(0, start_h-diff)
                 start_h_px = start_h * self.vae_scale_factor
                 end_h_px = end_h * self.vae_scale_factor
                 for j in range(width_chunks):
-                    start_w = j * (max_size - overlap)
+                    start_w = max(0, j * (max_size - overlap))
                     end_w = start_w + max_size
                     if end_w > width:
                         diff = end_w - width
                         end_w -= diff
-                        start_w -= diff
+                        start_w = max(0, start_w-diff)
                     start_w_px = start_w * self.vae_scale_factor
                     end_w_px = end_w * self.vae_scale_factor
                     mask = weight_builder(
                         mask_type="bilinear",
                         batch=batch,
                         dim=3,
-                        width=max_size_px,
-                        height=max_size_px,
+                        width=min(width_px, max_size_px),
+                        height=min(height_px, max_size_px),
                         unfeather_left=start_w==0,
                         unfeather_top=start_h==0,
                         unfeather_right=end_w==width,
