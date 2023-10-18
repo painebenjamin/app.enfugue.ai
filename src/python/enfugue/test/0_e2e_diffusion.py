@@ -115,7 +115,7 @@ def main() -> None:
         
         logger.info(f"Starting e2e test on {gpu_name}")
         checkpoints = client.checkpoints()
-        if CHECKPOINT not in checkpoints:
+        if CHECKPOINT not in [checkpoint["name"] for checkpoint in checkpoints]:
             logger.info(f"Downloading checkpoint {CHECKPOINT}")
             client.download("checkpoint", CHECKPOINT_URL, filename=CHECKPOINT)
         
