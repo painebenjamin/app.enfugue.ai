@@ -787,6 +787,7 @@ fieldset.field-set-engine .field-container,
 fieldset.field-set-diffusion .field-container,
 fieldset.field-set-filters .field-container.string-input-view-search,
 enfugue-sidebar .field-container.slider-precise-input-view,
+enfugue-sidebar .field-container.noise-offset-input-view,
 enfugue-sidebar .field-container.checkbox-input-view
 {
     flex-basis: 100%;

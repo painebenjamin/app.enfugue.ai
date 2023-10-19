@@ -49,6 +49,8 @@ if TYPE_CHECKING:
         CONTROLNET_LITERAL,
         UPSCALE_LITERAL,
         MASK_TYPE_LITERAL,
+        NOISE_METHOD_LITERAL,
+        LATENT_BLEND_METHOD_LITERAL,
     )
 
 DEFAULT_SIZE = 512
@@ -91,6 +93,9 @@ class UpscaleStepDict(TypedDict):
     chunking_size: NotRequired[int]
     chunking_mask_type: NotRequired[MASK_TYPE_LITERAL]
     chunking_mask_kwargs: NotRequired[Dict[str, Any]]
+    noise_offset: NotRequired[float]
+    noise_method: NotRequired[NOISE_METHOD_LITERAL]
+    noise_blend_method: NotRequired[LATENT_BLEND_METHOD_LITERAL]
 
 class ControlImageDict(TypedDict):
     controlnet: CONTROLNET_LITERAL
@@ -856,6 +861,11 @@ class DiffusionPlan:
         outpaint: bool = True,
         upscale_steps: Optional[Union[UpscaleStepDict, List[UpscaleStepDict]]] = None,
         freeu_factors: Optional[Tuple[float, float, float, float]] = None,
+        guidance_scale: Optional[float] = None,
+        num_inference_steps: Optional[int] = None,
+        noise_offset: Optional[float] = None,
+        noise_method: NOISE_METHOD_LITERAL = "perlin",
+        noise_blend_method: LATENT_BLEND_METHOD_LITERAL = "inject",
     ) -> None:
         self.size = size
         self.inpainter_size = inpainter_size
@@ -890,6 +900,11 @@ class DiffusionPlan:
         self.nodes = nodes
         self.upscale_steps = upscale_steps
         self.freeu_factors = freeu_factors
+        self.guidance_scale = guidance_scale
+        self.num_inference_steps = num_inference_steps
+        self.noise_offset = noise_offset
+        self.noise_method = noise_method
+        self.noise_blend_method = noise_blend_method
 
     @property
     def kwargs(self) -> Dict[str, Any]:
@@ -905,6 +920,9 @@ class DiffusionPlan:
             "chunking_mask_type": self.chunking_mask_type,
             "chunking_mask_kwargs": self.chunking_mask_kwargs,
             "num_images_per_prompt": self.samples,
+            "noise_offset": self.noise_offset,
+            "noise_method": self.noise_method,
+            "noise_blend_method": self.noise_blend_method,
         }
 
     @property
@@ -963,6 +981,9 @@ class DiffusionPlan:
             scheduler = upscale_step.get("scheduler", self.scheduler)
             chunking_mask_type = upscale_step.get("chunking_mask_type", None)
             chunking_mask_kwargs = upscale_step.get("chunking_mask_kwargs", None)
+            noise_offset = upscale_step.get("noise_offset", None)
+            noise_method = upscale_step.get("noise_method", None)
+            noise_blend_method = upscale_step.get("noise_blend_method", None)
             refiner = self.refiner is not None and upscale_step.get("refiner", True)
 
             for i, image in enumerate(images):
@@ -1038,7 +1059,10 @@ class DiffusionPlan:
                         "progress_callback": progress_callback,
                         "latent_callback": image_callback,
                         "latent_callback_type": "pil",
-                        "latent_callback_steps": image_callback_steps
+                        "latent_callback_steps": image_callback_steps,
+                        "noise_offset": noise_offset,
+                        "noise_method": noise_method,
+                        "noise_blend_method": noise_blend_method,
                     }
 
                     if controlnets is not None:
@@ -1339,7 +1363,12 @@ class DiffusionPlan:
                 """
                 task_callback(f"Outpaint: {task}")
 
+            invocation_kwargs["strength"] = 0.99
             invocation_kwargs["task_callback"] = outpaint_task_callback
+            if self.guidance_scale is not None:
+                invocation_kwargs["guidance_scale"] = self.guidance_scale
+            if self.num_inference_steps is not None:
+                invocation_kwargs["num_inference_steps"] = self.num_inference_steps
 
             for i, image in enumerate(images):
                 pipeline.controlnet = None
@@ -1352,6 +1381,7 @@ class DiffusionPlan:
                         image_callback(images)  # type: ignore
                 else:
                     outpaint_image_callback = None  # type: ignore
+
                 result = pipeline(
                     image=image,
                     mask=outpaint_mask,
@@ -1363,6 +1393,7 @@ class DiffusionPlan:
                     num_images_per_prompt=1,
                     **invocation_kwargs,
                 )
+
                 images[i] = result["images"][0]
                 nsfw_content_detected[i] = nsfw_content_detected[i] or (
                     "nsfw_content_detected" in result and result["nsfw_content_detected"][0]
@@ -1412,6 +1443,11 @@ class DiffusionPlan:
             "outpaint": self.outpaint,
             "clip_skip": self.clip_skip,
             "freeu_factors": self.freeu_factors,
+            "guidance_scale": self.guidance_scale,
+            "num_inference_steps": self.num_inference_steps,
+            "noise_offset": self.noise_offset,
+            "noise_method": self.noise_method,
+            "noise_blend_method": self.noise_blend_method,
         }
 
     @staticmethod
@@ -1453,7 +1489,12 @@ class DiffusionPlan:
             "outpaint",
             "upscale_steps",
             "clip_skip",
-            "freeu_factors"
+            "freeu_factors",
+            "guidance_scale",
+            "num_inference_steps",
+            "noise_offset",
+            "noise_method",
+            "noise_blend_method",
         ]:
             if arg in plan_dict:
                 kwargs[arg] = plan_dict[arg]
@@ -1495,6 +1536,9 @@ class DiffusionPlan:
         refiner_vae: Optional[str] = None,
         inpainter_vae: Optional[str] = None,
         seed: Optional[int] = None,
+        noise_offset: Optional[float] = None,
+        noise_method: NOISE_METHOD_LITERAL = "perlin",
+        noise_blend_method: LATENT_BLEND_METHOD_LITERAL = "inject",
         **kwargs: Any,
     ) -> DiffusionPlan:
         """
@@ -1530,6 +1574,9 @@ class DiffusionPlan:
             width=width,
             height=height,
             upscale_steps=upscale_steps,
+            noise_offset=noise_offset,
+            noise_method=noise_method,
+            noise_blend_method=noise_blend_method,
             nodes=nodes
         )
 
@@ -1594,6 +1641,9 @@ class DiffusionPlan:
         refiner_negative_prompt: Optional[str] = None,
         refiner_negative_prompt_2: Optional[str] = None,
         upscale_steps: Optional[Union[UpscaleStepDict, List[UpscaleStepDict]]] = None,
+        noise_offset: Optional[float] = None,
+        noise_method: NOISE_METHOD_LITERAL = "perlin",
+        noise_blend_method: LATENT_BLEND_METHOD_LITERAL = "inject",
         **kwargs: Any,
     ) -> DiffusionPlan:
         """
@@ -1631,6 +1681,11 @@ class DiffusionPlan:
             chunking_mask_kwargs=chunking_mask_kwargs,
             clip_skip=clip_skip,
             freeu_factors=freeu_factors,
+            guidance_scale=guidance_scale,
+            num_inference_steps=num_inference_steps,
+            noise_offset=noise_offset,
+            noise_method=noise_method,
+            noise_blend_method=noise_blend_method,
             nodes=[],
         )
 

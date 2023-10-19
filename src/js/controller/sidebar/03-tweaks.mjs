@@ -37,7 +37,10 @@ class TweaksController extends Controller {
                 "freeUBackbone1": 1.2,
                 "freeUBackbone2": 1.4,
                 "freeUSkip1": 0.9,
-                "freeUSkip2": 0.2
+                "freeUSkip2": 0.2,
+                "noiseOffset": 0.0,
+                "noiseMethod": "perlin",
+                "noiseBlendMethod": "inject"
             }
         }
     }
@@ -53,6 +56,9 @@ class TweaksController extends Controller {
             this.engine.inferenceSteps = values.inferenceSteps;
             this.engine.scheduler = values.scheduler;
             this.engine.clipSkip = values.clipSkip;
+            this.engine.noiseOffset = values.noiseOffset;
+            this.engine.noiseMethod = values.noiseMethod;
+            this.engine.noiseBlendMethod = values.noiseBlendMethod;
             if (values.enableFreeU) {
                 this.engine.freeUFactors = [
                     values.freeUBackbone1,
@@ -79,6 +85,15 @@ class TweaksController extends Controller {
                 }
                 if (!isEmpty(defaultConfig.clip_skip)) {
                     tweaksConfig.clipSkip = defaultConfig.clip_skip;
+                }
+                if (!isEmpty(defaultConfig.noise_offset)) {
+                    tweaksConfig.noiseOffset = defaultConfig.noise_offset;
+                }
+                if (!isEmpty(defaultConfig.noise_method)) {
+                    tweaksConfig.noiseMethod = defaultConfig.noise_method;
+                }
+                if (!isEmpty(defaultConfig.noise_blend_method)) {
+                    tweaksConfig.noiseBlendMethod = defaultConfig.noise_blend_method;
                 }
                 if (!isEmpty(defaultConfig.freeu_factors)) {
                     tweaksConfig.enableFreeU = true;

@@ -4,8 +4,11 @@ import {
     NumberInputView, 
     FloatInputView,
     SchedulerInputView,
+    CheckboxInputView,
     SliderPreciseInputView,
-    CheckboxInputView
+    NoiseOffsetInputView,
+    NoiseMethodInputView,
+    BlendMethodInputView,
 } from "../input.mjs";
 
 let defaultGuidanceScale = 6.5,
@@ -54,6 +57,31 @@ class TweaksFormView extends FormView {
             "scheduler": {
                 "label": "Scheduler",
                 "class": SchedulerInputView
+            },
+            "noiseOffset": {
+                "label": "Noise Offset",
+                "class": NoiseOffsetInputView,
+                "config": {
+                    "min": 0.0,
+                    "max": 1.0,
+                    "step": 0.01,
+                    "value": 0.0,
+                    "tooltip": "How much to blend offset noise in with initial latents, using the chosen blend method."
+                }
+            },
+            "noiseMethod": {
+                "label": "Noise Method",
+                "class": NoiseMethodInputView,
+                "config": {
+                    "value": "perlin"
+                }
+            },
+            "noiseBlendMethod": {
+                "label": "Blend Method",
+                "class": BlendMethodInputView,
+                "config": {
+                    "value": "inject"
+                }
             },
             "clipSkip": {
                 "label": "CLIP Skip",

@@ -360,6 +360,15 @@ class InvocationController extends Controller {
             if (!isEmpty(step.pipeline)) {
                 formattedStep.refiner = step.pipeline !== "base";
             }
+            if (!isEmpty(step.noiseOffset)) {
+                formattedStep.noise_offset = step.noiseOffset;
+            }
+            if (!isEmpty(step.noiseMethod)) {
+                formattedStep.noise_method = step.noiseMethod;
+            }
+            if (!isEmpty(step.noiseBlendMethod)) {
+                formattedStep.noise_blend_method = step.noiseBlendMethod;
+            }
             formattedSteps.push(formattedStep);
         }
         if (!isEquivalent(this.upscaleSteps, formattedSteps)) {
@@ -741,7 +750,58 @@ class InvocationController extends Controller {
         }
         this.kwargs.freeu_factors = newFreeUFactors;
     }
-    
+
+    /**
+     * @return float Offset noise
+     */
+    get noiseOffset() {
+        return this.kwargs.noise_offset || 0.0;
+    }
+
+    /**
+     * @param float Offset noise amount, 0 through 1
+     */
+    set noiseOffset(newNoiseOffset){
+        if (this.noiseOffset !== newNoiseOffset) {
+            this.publish("engineNoiseOffsetChange");
+        }
+        this.kwargs.noise_offset = newNoiseOffset;
+    }
+
+    /**
+     * @return string Noise method
+     */
+    get noiseMethod() {
+        return this.kwargs.noise_method || "perlin";
+    }
+
+    /**
+     * @param string Noise method
+     */
+    set noiseMethod(newNoiseMethod){
+        if (this.noiseMethod !== newNoiseMethod) {
+            this.publish("engineNoiseMethodChange");
+        }
+        this.kwargs.noise_method = newNoiseMethod;
+    }
+
+    /**
+     * @return string Noise method
+     */
+    get noiseBlendMethod() {
+        return this.kwargs.noise_blend_method || "inject";
+    }
+
+    /**
+     * @param string Noise method
+     */
+    set noiseBlendMethod(newNoiseBlendMethod){
+        if (this.noiseBlendMethod !== newNoiseBlendMethod) {
+            this.publish("engineNoiseBlendMethodChange");
+        }
+        this.kwargs.noise_blend_method = newNoiseBlendMethod;
+    }
+
     /**
      * On initialization, create DOM elements related to invocations.
      */

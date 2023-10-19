@@ -187,6 +187,9 @@ class EnfugueClient(UserExtensionClientBase, JSONWebServiceAPIClient):
         conditioning_scale: Optional[float] = None,
         crop_inpaint: Optional[bool] = None,
         inpaint_feather: Optional[int] = None,
+        noise_offset: Optional[float] = None,
+        noise_method: Optional[NOISE_METHOD_LITERAL] = None,
+        noise_blend_method: Optional[LATENT_BLEND_METHOD_LITERAL] = None,
         upscale_steps: Optional[Union[UpscaleStepDict, List[UpscaleStepDict]]] = None,
     ) -> RemoteInvocation:
         """
@@ -308,6 +311,12 @@ class EnfugueClient(UserExtensionClientBase, JSONWebServiceAPIClient):
             kwargs["clip_skip"] = clip_skip
         if freeu_factors is not None:
             kwargs["freeu_factors"] = freeu_factors
+        if noise_offset is not None:
+            kwargs["noise_offset"] = noise_offset
+        if noise_method is not None:
+            kwargs["noise_method"] = noise_method
+        if noise_blend_method is not None:
+            kwargs["noise_blend_method"] = noise_blend_method
 
         logger.info(f"Invoking with keyword arguments {kwargs}")
 

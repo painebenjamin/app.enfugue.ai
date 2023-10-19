@@ -5,6 +5,7 @@ __all__ = [
     "DEFAULT_INPAINTING_MODEL",
     "DEFAULT_SDXL_MODEL",
     "DEFAULT_SDXL_REFINER",
+    "DEFAULT_SDXL_INPAINTING_MODEL",
     "VAE_EMA",
     "VAE_MSE",
     "VAE_XL",
@@ -38,11 +39,10 @@ __all__ = [
 ]
 
 DEFAULT_MODEL = "https://huggingface.co/runwayml/stable-diffusion-v1-5/resolve/main/v1-5-pruned.ckpt"
-DEFAULT_INPAINTING_MODEL = (
-    "https://huggingface.co/runwayml/stable-diffusion-inpainting/resolve/main/sd-v1-5-inpainting.ckpt"
-)
-DEFAULT_SDXL_MODEL = "https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_base_1.0.safetensors"
+DEFAULT_INPAINTING_MODEL = "https://huggingface.co/runwayml/stable-diffusion-inpainting/resolve/main/sd-v1-5-inpainting.ckpt"
+DEFAULT_SDXL_MODEL = "https://huggingface.co/benjamin-paine/sd-xl-alternative-bases/resolve/main/sd_xl_base_1.0_fp16_vae.safetensors"
 DEFAULT_SDXL_REFINER = "https://huggingface.co/stabilityai/stable-diffusion-xl-refiner-1.0/resolve/main/sd_xl_refiner_1.0.safetensors"
+DEFAULT_SDXL_INPAINTING_MODEL = "https://huggingface.co/benjamin-paine/sd-xl-alternative-bases/resolve/main/sd_xl_base_1.0_inpainting_0.1.safetensors"
 
 VAE_EMA = (
     "stabilityai/sd-vae-ft-ema",

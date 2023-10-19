@@ -87,12 +87,18 @@ from enfugue.util import logger, check_download, check_download_to_dir, TokenMer
 from enfugue.diffusion.util import (
     load_state_dict,
     empty_cache,
+    make_noise,
+    blend_latents,
     LatentScaler,
     MaskWeightBuilder
 )
 if TYPE_CHECKING:
     from enfugue.diffusers.support.ip import IPAdapter
-    from enfugue.diffusion.constants import MASK_TYPE_LITERAL
+    from enfugue.diffusion.constants import (
+        MASK_TYPE_LITERAL,
+        NOISE_METHOD_LITERAL,
+        LATENT_BLEND_METHOD_LITERAL
+    )
 
 # This is ~64k×64k. Absurd, but I don't judge
 PIL.Image.MAX_IMAGE_PIXELS = 2**32
@@ -256,69 +262,6 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             config_path = check_download_to_dir(config_url, cache_dir, check_size=False)
             config = load_json(config_path)
         return UNet2DConditionModel.from_config(config)
-
-    @classmethod
-    def merge_xl_inpainting_checkpoint(
-        cls,
-        checkpoint: Dict[str, Any],
-        cache_dir,
-        task_callback: Optional[Callable[[str], None]]=None,
-    ) -> None:
-        """
-        Loads the SDXL inpainting checkpoint weights
-        """
-        inpainter_unet_file_name = "stable-diffusion-xl-1.0-inpainting-0.1-unet.safetensors"
-        inpainter_unet_weights_url = (
-            "https://huggingface.co/diffusers/stable-diffusion-xl-1.0-inpainting-0.1/resolve/main/unet/diffusion_pytorch_model.fp16.safetensors"
-        )
-        inpainter_unet_save_path = os.path.join(cache_dir, inpainter_unet_file_name)
-        if not os.path.exists(inpainter_unet_save_path) and task_callback is not None:
-            task_callback(f"Downloading {inpainter_unet_weights_url}")
-        check_download(inpainter_unet_weights_url, inpainter_unet_save_path)
-
-        base_unet_file_name = "stable-diffusion-xl-1.0-unet.safetensors"
-        base_unet_weights_url = (
-            "https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/unet/diffusion_pytorch_model.fp16.safetensors"
-        )
-        base_unet_save_path = os.path.join(cache_dir, base_unet_file_name)
-        if not os.path.exists(base_unet_save_path) and task_callback is not None:
-            task_callback(f"Downloading {base_unet_weights_url}")
-        check_download(base_unet_weights_url, base_unet_save_path)
-
-        logger.info("Merging SDXL inpainter UNet weights")
-        base_dict = load_state_dict(base_unet_save_path)
-
-        # Get difference between current weights and base weights
-        logger.debug("Calculating difference between current checkpoint UNet and SDXL base UNet")
-        for key in checkpoint.keys():
-            if key in base_dict:
-                checkpoint[key] = base_dict[key] - checkpoint[key]
-            else:
-                checkpoint[key] = torch.zeros_like(base_dict[key]) # type: ignore
-        del base_dict
-        empty_cache()
-
-        # Add inpainter weight
-        logger.debug("Adding SDXL inpainter UNet into current checkpoint UNet")
-        inpainter_state_dict = load_state_dict(inpainter_unet_save_path)
-        for key in inpainter_state_dict.keys():
-            if key not in checkpoint:
-                checkpoint[key] = inpainter_state_dict[key]
-            else:
-                a = inpainter_state_dict[key]
-                b = checkpoint[key]
-                if a.shape != b.shape: # type: ignore
-                    if a.shape[1] == 9 and b.shape[1] == 4: # type: ignore
-                        checkpoint[key] = torch.cat([
-                            a[:, 0:4, :, :] - b, # type: ignore
-                            a[:, 4:, :, :], # type: ignore
-                        ], dim=1)
-                    else:
-                        raise IOError("Bad dimensions for layer {key}, can't merge inpainter weights. A={a.shape}, B={b.shape}")
-                else:
-                    checkpoint[key] = a - b
-        del inpainter_state_dict
-        empty_cache()
 
     @classmethod
     def from_ckpt(
@@ -529,13 +472,6 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             extract_ema=extract_ema
         )
 
-        if is_sdxl and is_inpainter and num_in_channels == 4:
-            cls.merge_xl_inpainting_checkpoint(
-                converted_unet_checkpoint,
-                cache_dir=cache_dir,
-                task_callback=task_callback
-            )
-
         unet.load_state_dict(converted_unet_checkpoint)
 
         if offload_models:
@@ -553,11 +489,11 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     and "params" in original_config.model
                     and "scale_factor" in original_config.model.params
                 ):
-                    vae_scaling_factor = original_config.model.params.scale_factor
+                    vae_scale_factor = original_config.model.params.scale_factor
                 else:
-                    vae_scaling_factor = 0.18215  # default SD scaling factor
+                    vae_scale_factor = 0.18215  # default SD scaling factor
 
-                vae_config["scaling_factor"] = vae_scaling_factor
+                vae_config["scaling_factor"] = vae_scale_factor
                 vae = AutoencoderKL(**vae_config)
                 vae.load_state_dict(converted_vae_checkpoint)
             except KeyError as ex:
@@ -2700,6 +2636,9 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         negative_aesthetic_score: float = 2.5,
         chunking_mask_type: Optional[MASK_TYPE_LITERAL] = None,
         chunking_mask_kwargs: Optional[Dict[str, Any]] = None,
+        noise_offset: Optional[float] = None,
+        noise_method: NOISE_METHOD_LITERAL = "perlin",
+        noise_blend_method: LATENT_BLEND_METHOD_LITERAL = "inject",
     ) -> Union[
         StableDiffusionPipelineOutput,
         Tuple[Union[torch.Tensor, np.ndarray, List[PIL.Image.Image]], Optional[List[bool]]],
@@ -3175,10 +3114,29 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 else:
                     added_cond_kwargs = None
 
+                # Unload VAE, and maybe preview VAE
                 self.vae.to("cpu")
                 if decode_intermediates:
                     self.vae_preview.to(device)
                 empty_cache()
+
+                # Inject noise
+                if noise_offset is not None and noise_offset > 0 and denoising_start is None:
+                    noise_latents = make_noise(
+                        batch_size=prepared_latents.shape[0],
+                        channels=prepared_latents.shape[1],
+                        height=height // self.vae_scale_factor,
+                        width=width // self.vae_scale_factor,
+                        generator=noise_generator,
+                        device=device,
+                        dtype=prepared_latents.dtype
+                    )
+                    prepared_latents = blend_latents(
+                        left=prepared_latents,
+                        right=noise_latents,
+                        time=noise_offset,
+                        method=noise_blend_method
+                    )
 
                 # Make sure controlnet on device
                 if self.controlnets is not None:
@@ -3283,6 +3241,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
             if hasattr(self, "final_offload_hook") and self.final_offload_hook is not None:
                 self.final_offload_hook.offload()
+
+            empty_cache()
 
             if not return_dict:
                 return (output, output_nsfw)

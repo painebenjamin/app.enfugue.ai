@@ -9,6 +9,9 @@ import {
     MaskTypeInputView,
     SchedulerInputView,
     RepeatableInputView,
+    NoiseOffsetInputView,
+    NoiseMethodInputView,
+    BlendMethodInputView,
     UpscaleAmountInputView,
     UpscaleMethodInputView,
     UpscaleDiffusionStepsInputView,
@@ -81,6 +84,30 @@ class UpscaleFormView extends FormView {
             "chunkingMaskType": {
                 "label": "Chunking Mask",
                 "class": MaskTypeInputView,
+            },
+            "noiseOffset": {
+                "label": "Noise Offset",
+                "class": NoiseOffsetInputView,
+                "config": {
+                    "value": 0.0,
+                    "min": 0.0,
+                    "max": 1.0,
+                    "step": 0.01,
+                }
+            },
+            "noiseMethod": {
+                "label": "Noise Method",
+                "class": NoiseMethodInputView,
+                "config": {
+                    "value": "perlin"
+                }
+            },
+            "noiseBlendMethod": {
+                "label": "Blend Method",
+                "class": BlendMethodInputView,
+                "config": {
+                    "value": "inject"
+                }
             }
         }
     };

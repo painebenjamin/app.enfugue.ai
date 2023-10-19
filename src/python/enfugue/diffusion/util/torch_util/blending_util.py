@@ -225,6 +225,8 @@ def blend_latents(
     """
     Calls the appropriate interpolation method
     """
+    if left.shape != right.shape:
+        raise ValueError(f"Cannot blend latents of different shapes; left is {left.shape}, right is {right.shape}")
     try:
         return {
             "add": LatentBlender.add,
