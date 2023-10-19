@@ -776,6 +776,7 @@ enfugue-node-editor.image-editor enfugue-node-canvas enfugue-toolbar-item::after
 .field-container.upscale-diffusion-negative-prompt-input-view,
 .field-container.upscale-diffusion-guidance-scale-input-view,
 .field-container.upscale-diffusion-steps-input-view,
+.field-container.noise-offset-input-view,
 .field-container.scheduler-input-view,
 .field-container.multi-diffusion-scheduler-input-view,
 .field-container.prompt-input-view,
@@ -787,7 +788,6 @@ fieldset.field-set-engine .field-container,
 fieldset.field-set-diffusion .field-container,
 fieldset.field-set-filters .field-container.string-input-view-search,
 enfugue-sidebar .field-container.slider-precise-input-view,
-enfugue-sidebar .field-container.noise-offset-input-view,
 enfugue-sidebar .field-container.checkbox-input-view
 {
     flex-basis: 100%;
