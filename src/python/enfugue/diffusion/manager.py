@@ -2741,10 +2741,13 @@ class DiffusionPipelineManager:
         """
         current_checkpoint_path = self.model
         default_checkpoint_name, _ = os.path.splitext(os.path.basename(DEFAULT_MODEL))
+        default_xl_checkpoint_name, _ = os.path.splitext(os.path.basename(DEFAULT_SDXL_MODEL))
         checkpoint_name, ext = os.path.splitext(os.path.basename(current_checkpoint_path))
 
         if default_checkpoint_name == checkpoint_name:
             return DEFAULT_INPAINTING_MODEL
+        elif default_xl_checkpoint_name == checkpoint_name:
+            return DEFAULT_SDXL_INPAINTING_MODEL
         else:
             target_checkpoint_name = f"{checkpoint_name}-inpainting"
             return os.path.join(self.engine_checkpoints_dir, f"{target_checkpoint_name}{ext}")

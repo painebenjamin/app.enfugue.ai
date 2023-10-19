@@ -20,7 +20,8 @@ from enfugue.diffusion.constants import (
     DEFAULT_MODEL,
     DEFAULT_INPAINTING_MODEL,
     DEFAULT_SDXL_MODEL,
-    DEFAULT_SDXL_REFINER
+    DEFAULT_SDXL_REFINER,
+    DEFAULT_SDXL_INPAINTING_MODEL,
 )
 
 __all__ = ["EnfugueAPIModelsController"]
@@ -56,6 +57,7 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         os.path.basename(DEFAULT_INPAINTING_MODEL),
         os.path.basename(DEFAULT_SDXL_MODEL),
         os.path.basename(DEFAULT_SDXL_REFINER),
+        os.path.basename(DEFAULT_SDXL_INPAINTING_MODEL),
     ]
 
     def get_models_in_directory(self, directory: str) -> List[str]:
@@ -664,11 +666,13 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
 
         # Get diffusers caches
         diffusers_dir = self.get_configured_directory("diffusers")
-        diffusers_models = [
-            dirname
-            for dirname in os.listdir(diffusers_dir)
-            if os.path.exists(os.path.join(diffusers_dir, dirname, "model_index.json"))
-        ]
+        diffusers_models = []
+        if os.path.exists(diffusers_dir):
+            diffusers_models = [
+                dirname
+                for dirname in os.listdir(diffusers_dir)
+                if os.path.exists(os.path.join(diffusers_dir, dirname, "model_index.json"))
+            ]
         diffusers_caches = []
         for model in diffusers_models:
             found = False
