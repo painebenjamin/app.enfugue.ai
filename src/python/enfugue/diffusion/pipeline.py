@@ -3125,7 +3125,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     noise_timestep = timesteps[:1].repeat(batch_size).to("cpu", dtype=torch.int)
                     schedule_factor = (1 - self.scheduler.alphas_cumprod[noise_timestep]) ** 0.5
                     schedule_factor = schedule_factor.flatten()[0] # type: ignore
-                    logger.debug(f"Added noise factor is {schedule_factor*noise_offset} - offset is {noise_offset}, scheduled alpha cumulative product is {schedule_factor}")
+                    logger.debug(f"Adding {noise_method} noise by method {noise_blend_method} and factor {schedule_factor*noise_offset:.4f} - offset is {noise_offset:.2f}, scheduled alpha cumulative product is {schedule_factor:.4f}")
                     noise_latents = make_noise(
                         batch_size=prepared_latents.shape[0],
                         channels=prepared_latents.shape[1],
@@ -3133,7 +3133,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                         width=width // self.vae_scale_factor,
                         generator=noise_generator,
                         device=device,
-                        dtype=prepared_latents.dtype
+                        dtype=prepared_latents.dtype,
+                        method=noise_method,
                     )
                     prepared_latents = blend_latents(
                         left=prepared_latents,
