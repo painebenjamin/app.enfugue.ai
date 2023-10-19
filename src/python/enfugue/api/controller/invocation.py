@@ -22,6 +22,7 @@ from enfugue.diffusion.constants import (
     DEFAULT_INPAINTING_MODEL,
     DEFAULT_SDXL_MODEL,
     DEFAULT_SDXL_REFINER,
+    DEFAULT_SDXL_INPAINTING_MODEL,
 )
 from enfugue.util import find_file_in_directory
 from enfugue.api.controller.base import EnfugueAPIControllerBase
@@ -32,6 +33,7 @@ DEFAULT_MODEL_CKPT = os.path.basename(DEFAULT_MODEL)
 DEFAULT_INPAINTING_MODEL_CKPT = os.path.basename(DEFAULT_INPAINTING_MODEL)
 DEFAULT_SDXL_MODEL_CKPT = os.path.basename(DEFAULT_SDXL_MODEL)
 DEFAULT_SDXL_REFINER_CKPT = os.path.basename(DEFAULT_SDXL_REFINER)
+DEFAULT_SDXL_INPAINTING_CKPT = os.path.basename(DEFAULT_SDXL_INPAINTING_MODEL)
 
 class EnfugueAPIInvocationController(EnfugueAPIControllerBase):
     handlers = UserExtensionHandlerRegistry()
@@ -56,6 +58,8 @@ class EnfugueAPIInvocationController(EnfugueAPIControllerBase):
             return DEFAULT_SDXL_MODEL
         if base_model_name == DEFAULT_SDXL_REFINER_CKPT:
             return DEFAULT_SDXL_REFINER
+        if base_model_name == DEFAULT_SDXL_INPAINTING_CKPT:
+            return DEFAULT_SDXL_INPAINTING_MODEL
         return None
 
     def get_default_size_for_model(self, model: Optional[str]) -> int:

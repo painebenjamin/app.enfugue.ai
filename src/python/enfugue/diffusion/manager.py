@@ -2035,7 +2035,11 @@ class DiffusionPipelineManager:
         """
         Returns true if the inpainter is set.
         """
-        return self.inpainter is not None or os.path.exists(self.default_inpainter_path)
+        return self.inpainter is not None or (
+            os.path.exists(self.default_inpainter_path) or (
+                self.default_inpainter_path.startswith("http") and not self.offline
+            )
+        )
 
     @property
     def inpainter(self) -> Optional[str]:
