@@ -3123,7 +3123,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 # Inject noise
                 if noise_offset is not None and noise_offset > 0 and denoising_start is None:
                     noise_timestep = timesteps[:1].repeat(batch_size).to("cpu", dtype=torch.int)
-                    schedule_factor = (1 - self.scheduler.alphas_cumprod[noise_timestep]) ** 0.5
+                    schedule_factor = (1 - self.scheduler.alphas_cumprod[noise_timestep]) ** 0.5 # type: ignore
                     schedule_factor = schedule_factor.flatten()[0] # type: ignore
                     logger.debug(f"Adding {noise_method} noise by method {noise_blend_method} and factor {schedule_factor*noise_offset:.4f} - offset is {noise_offset:.2f}, scheduled alpha cumulative product is {schedule_factor:.4f}")
                     noise_latents = make_noise(
