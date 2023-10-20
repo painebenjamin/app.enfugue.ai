@@ -124,7 +124,7 @@ The User Interface is broken up into a small handful of components:
 
 The sidebar is where all of your settings are for the current image you are creating. Most import is the `prompt` field, which must be filled with what you want the image to contain before invoking the engine. All other settings are optional; click on any of the headers to expand them and view the settings beneath. Hold your mouse over the relevant input sections to see details about what it does, or visit [the Wiki](https://github.com/painebenjamin/app.enfugue.ai/edit/main/README.md).
 
-The button at the button, labeled `ENFUGUE`, to send your current invocation settings to the engine and start the image creation process.
+The button at the bottom, labeled `ENFUGUE`, to send your current invocation settings to the engine and start the image creation process.
 
 ### The Canvas
 
