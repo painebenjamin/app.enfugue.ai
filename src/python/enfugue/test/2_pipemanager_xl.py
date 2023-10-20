@@ -3,6 +3,7 @@ Uses the pipemanager to create a simple image using default settings
 """
 import os
 from enfugue.diffusion.manager import DiffusionPipelineManager
+from enfugue.diffusion.constants import DEFAULT_SDXL_MODEL
 from pibble.util.log import DebugUnifiedLoggingContext
 
 def main() -> None:
@@ -22,7 +23,7 @@ def main() -> None:
         # Even if there's nothing on your machine, this should work by downloading everything needed.
         manager = DiffusionPipelineManager()
         manager.size = 1024
-        manager.model = "sd_xl_base_1.0.safetensors"
+        manager.model = DEFAULT_SDXL_MODEL
         
         def run_and_save(filename: str) -> None:
             manager.seed = 1238421 # set seed for reproduceability

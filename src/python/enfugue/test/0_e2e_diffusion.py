@@ -16,8 +16,8 @@ from typing import Any, List
 GRID_SIZE = 256
 GRID_COLS = 4
 CAPTION_HEIGHT = 50
-CHECKPOINT = "realisticVisionV40_v40VAE.safetensors"
-CHECKPOINT_URL = "https://civitai.com/api/download/models/114367"
+CHECKPOINT = "epicphotogasm_x.safetensors"
+CHECKPOINT_URL = "https://civitai.com/api/download/models/172306?type=Model&format=SafeTensor&size=pruned&fp=fp16"
 INPAINT_IMAGE = "https://huggingface.co/datasets/diffusers/test-arrays/resolve/main/stable_diffusion_inpaint/boy.png"
 INPAINT_MASK = "https://huggingface.co/datasets/diffusers/test-arrays/resolve/main/stable_diffusion_inpaint/boy_mask.png"
 
@@ -144,6 +144,17 @@ def main() -> None:
             fit="cover"
         )
 
+        invoke(
+            "inpaint-4ch",
+            inpainter=CHECKPOINT,
+            prompt="a handsome man with ray-ban sunglasses",
+            image=inpaint_image,
+            mask=inpaint_mask,
+            width=512,
+            height=512,
+            fit="cover"
+        )
+
         # Automatic background removal with no inference
         invoke(
             "background", 
@@ -163,6 +174,23 @@ def main() -> None:
         # IP Adapter
         invoke(
             "ip-adapter",
+            ip_adapter_images=[{
+                "image": inpaint_image,
+                "scale": 0.3
+            }]
+        )
+        invoke(
+            "ip-adapter-plus",
+            ip_adapter_plus=True,
+            ip_adapter_images=[{
+                "image": inpaint_image,
+                "scale": 0.3
+            }]
+        )
+        invoke(
+            "ip-adapter-plus-face",
+            ip_adapter_plus=True,
+            ip_adapter_face=True,
             ip_adapter_images=[{
                 "image": inpaint_image, 
                 "scale": 0.3
@@ -317,6 +345,26 @@ def main() -> None:
                 guidance_scale=6
             )
 
+            invoke(
+                "sdxl-inpaint",
+                prompt="a handsome man with ray-ban sunglasses",
+                model=DEFAULT_SDXL_MODEL,
+                image=fit_image(inpaint_image, width=1024, height=1024, fit="stretch"),
+                mask=fit_image(inpaint_mask, width=1024, height=1024, fit="stretch"),
+                width=1024,
+                height=1024,
+            )
+
+            invoke(
+                "sdxl-inpaint-4ch",
+                prompt="a handsome man with ray-ban sunglasses",
+                inpainter=DEFAULT_SDXL_MODEL,
+                image=fit_image(inpaint_image, width=1024, height=1024, fit="stretch"),
+                mask=fit_image(inpaint_mask, width=1024, height=1024, fit="stretch"),
+                width=1024,
+                height=1024,
+            )
+
             control = invoke(
                 "sdxl-refined",
                 model=DEFAULT_SDXL_MODEL,
@@ -410,6 +458,28 @@ def main() -> None:
                     guidance_scale=6
                 )[0]
 
+                invoke(
+                    f"sdxl-{controlnet}-img2img-ip-plus-refined",
+                    model=DEFAULT_SDXL_MODEL,
+                    refiner=DEFAULT_SDXL_REFINER,
+                    control_images=[
+                        {
+                            "controlnet": controlnet,
+                            "image": control,
+                            "scale": 0.5
+                        }
+                    ],
+                    image=control,
+                    strength=0.8,
+                    ip_adapter_images=[{
+                        "image": control,
+                        "scale": 0.5
+                    }],
+                    ip_adapter_plus=True,
+                    prompt="A bride and groom on their wedding day",
+                    refiner_start=0.85,
+                    guidance_scale=6
+                )[0]
 
         # Make grid
         total_results = sum([len(arr) for arr in all_results.values()])
