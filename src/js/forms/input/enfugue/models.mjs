@@ -11,7 +11,54 @@ import {
     SearchListInputListView
 } from "../enumerable.mjs";
 
-let defaultEngineSize = 512;
+/**
+ * Extend the SearchListInputListView to add additional classes
+ */
+class ModelPickerListInputView extends SearchListInputListView {
+    /**
+     * @var array<string> CSS classes
+     */
+    static classList = SearchListInputListView.classList.concat(["model-picker-list-input-view"]);
+};
+
+/**
+ * Extend the StringInputView so we can strip HTML from the value
+ */
+class ModelPickerStringInputView extends StringInputView {
+    /**
+     * Strip HTML from the value and only display the name portion.
+     */
+    setValue(newValue, triggerChange) {
+        if(!isEmpty(newValue)) {
+            if (newValue.startsWith("<")) {
+                newValue = createElementsFromString(newValue)[0].innerText;
+            } else if (newValue.indexOf("/") !== -1) {
+                newValue = newValue.split("/")[1];
+            }
+        }
+        return super.setValue(newValue, triggerChange);
+    }
+};
+
+/**
+ * We extend the SearchListInputView to change some default config.
+ */
+class ModelPickerInputView extends SearchListInputView {
+    /**
+     * @var string The content of the node when nothing is selected.
+     */
+    static placeholder = "Start typing to search models…";
+
+    /**
+     * @var class The class of the string input, override so we can override setValue
+     */
+    static stringInputClass = ModelPickerStringInputView;
+
+    /**
+     * @var class The class of the list input, override so we can add css classes
+     */
+    static listInputClass = ModelPickerListInputView;
+};
 
 /**
  * Engine size input
@@ -32,11 +79,6 @@ class EngineSizeInputView extends NumberInputView {
      */
     static step = 8;
 
-    /**
-     * @var int The default value
-     */
-    static defaultValue = defaultEngineSize;
-    
     /**
      * @var string The tooltip to display to the user
      */
@@ -209,16 +251,21 @@ class SchedulerInputView extends SelectInputView {
         "ddim": "DDIM: Denoising Diffusion Implicit Models",
         "ddpm": "DDPM: Denoising Diffusion Probabilistic Models",
         "deis": "DEIS: Diffusion Exponential Integrator Sampler",
-        "dpmss": "DPM-Solver++",
+        "dpmss": "DPM-Solver++ SDE",
+        "dpmssk": "DPM-Solver++ SDE Karras",
         "dpmsm": "DPM-Solver++ 2M",
         "dpmsmk": "DPM-Solver++ 2M Karras",
+        "dpmsms": "DPM-Solver++ 2M SDE",
         "dpmsmka": "DPM-Solver++ 2M SDE Karras",
         "heun": "Heun Discrete Scheduler",
-        "dpmd": "DPM Discrete Scheduler",
-        "adpmd": "DPM Ancestral Discrete Scheduler",
+        "dpmd": "DPM Discrete Scheduler (KDPM2)",
+        "dpmdk": "DPM Discrete Scheduler (KDPM2) Karras",
+        "adpmd": "DPM Ancestral Discrete Scheduler (KDPM2A)",
+        "adpmdk": "DPM Ancestral Discrete Scheduler (KDPM2A) Karras",
         "dpmsde": "DPM Solver SDE Scheduler",
         "unipc": "UniPC: Predictor (UniP) and Corrector (UniC)",
         "lmsd": "LMS: Linear Multi-Step Discrete Scheduler",
+        "lmsdk": "LMS: Linear Multi-Step Discrete Scheduler Karras",
         "pndm": "PNDM: Pseudo Numerical Methods for Diffusion Models",
         "eds": "Euler Discrete Scheduler",
         "eads": "Euler Ancestral Discrete Scheduler",
@@ -273,22 +320,42 @@ class RefinerEngineSizeInputView extends EngineSizeInputView {
 /**
  * Inversion input - will be populated at init.
  */
-class InversionInputView extends SearchListInputView {};
+class InversionInputView extends SearchListInputView {
+    /**
+     * @var class The class of the string input, override so we can override setValue
+     */
+    static stringInputClass = ModelPickerStringInputView;
+};
 
 /**
  * LoRA input - will be populated at init.
  */
-class LoraInputView extends SearchListInputView {};
+class LoraInputView extends SearchListInputView {
+    /**
+     * @var class The class of the string input, override so we can override setValue
+     */
+    static stringInputClass = ModelPickerStringInputView;
+};
 
 /**
  * LyCORIS input - will be populated at init.
  */
-class LycorisInputView extends SearchListInputView {};
+class LycorisInputView extends SearchListInputView {
+    /**
+     * @var class The class of the string input, override so we can override setValue
+     */
+    static stringInputClass = ModelPickerStringInputView;
+};
 
 /**
  * Checkpoint input - will be populated at init.
  */
-class CheckpointInputView extends SearchListInputView {};
+class CheckpointInputView extends SearchListInputView {
+    /**
+     * @var class The class of the string input, override so we can override setValue
+     */
+    static stringInputClass = ModelPickerStringInputView;
+};
 
 /**
  * Lora input additionally has weight; create the FormView here,
@@ -440,55 +507,6 @@ class MultiInversionInputView extends RepeatableInputView {
      * @var class The repeatable input element.
      */
     static memberClass = InversionInputView;
-};
-
-/**
- * Extend the SearchListInputListView to add additional classes
- */
-class ModelPickerListInputView extends SearchListInputListView {
-    /**
-     * @var array<string> CSS classes
-     */
-    static classList = SearchListInputListView.classList.concat(["model-picker-list-input-view"]);
-};
-
-/**
- * Extend the StringInputView so we can strip HTML from the value
- */
-class ModelPickerStringInputView extends StringInputView {
-    /**
-     * Strip HTML from the value and only display the name portion.
-     */
-    setValue(newValue, triggerChange) {
-        if(!isEmpty(newValue)) {
-            if (newValue.startsWith("<")) {
-                newValue = createElementsFromString(newValue)[0].innerText;
-            } else {
-                newValue = newValue.split("/")[1];
-            }
-        }
-        return super.setValue(newValue, triggerChange);
-    }
-};
-
-/**
- * We extend the SearchListInputView to change some default config.
- */
-class ModelPickerInputView extends SearchListInputView {
-    /**
-     * @var string The content of the node when nothing is selected.
-     */
-    static placeholder = "Start typing to search models…";
-
-    /**
-     * @var class The class of the string input, override so we can override setValue
-     */
-    static stringInputClass = ModelPickerStringInputView;
-
-    /**
-     * @var class The class of the list input, override so we can add css classes
-     */
-    static listInputClass = ModelPickerListInputView;
 };
 
 /**

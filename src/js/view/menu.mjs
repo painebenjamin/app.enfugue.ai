@@ -307,17 +307,8 @@ class MenuItemView extends View {
      * Fires callbacks
      */
     async activate() {
-        if (this.node !== undefined) {
-            if (this.node.hasClass("disabled")) return;
-            this.node.addClass("disabled").addClass("loading");
-            for (let callback of this.callbacks) {
-                await callback();
-            }
-            this.node.removeClass("disabled").removeClass("loading");
-        } else {
-            for (let callback of this.callbacks) {
-                await callback();
-            }
+        for (let callback of this.callbacks) {
+            await callback();
         }
     }
 

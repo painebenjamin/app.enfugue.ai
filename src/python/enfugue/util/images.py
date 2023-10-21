@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-import math
 import io
-import PIL
-import PIL.Image
-import PIL.ImageChops
+import math
 
-from typing import Optional, Literal, Union, Tuple
+from typing import Optional, Literal, Union, Tuple, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from PIL.Image import Image
 
 from pibble.resources.retriever import Retriever
 
@@ -34,17 +34,18 @@ IMAGE_ANCHOR_LITERAL = Literal[
 ]
 
 def fit_image(
-    image: PIL.Image.Image,
+    image: Image,
     width: int,
     height: int,
     fit: Optional[IMAGE_FIT_LITERAL] = None,
     anchor: Optional[IMAGE_ANCHOR_LITERAL] = None,
     offset_left: Optional[int] = None,
     offset_top: Optional[int] = None
-) -> PIL.Image.Image:
+) -> Image:
     """
     Given an image of unknown size, make it a known size with optional fit parameters.
     """
+    from PIL import Image
     if fit is None or fit == "actual":
         left, top = 0, 0
         crop_left, crop_top = 0, 0
@@ -103,7 +104,7 @@ def fit_image(
         if offset_left is not None:
             left += offset_left
 
-        blank_image = PIL.Image.new("RGBA", (width, height))
+        blank_image = Image.new("RGBA", (width, height))
         blank_image.paste(input_image, (left, top))
 
         return blank_image
@@ -142,7 +143,7 @@ def fit_image(
         if offset_left is not None:
             left += offset_left
 
-        blank_image = PIL.Image.new("RGBA", (width, height))
+        blank_image = Image.new("RGBA", (width, height))
         blank_image.paste(input_image, (left, top))
 
         return blank_image
@@ -151,7 +152,7 @@ def fit_image(
     else:
         raise ValueError(f"Unknown fit {fit}")
 
-def feather_mask(image: PIL.Image.Image) -> PIL.Image.Image:
+def feather_mask(image: Image) -> Image:
     """
     Given an image, create a feathered binarized mask by 'growing' the black/white pixel sections.
     """
@@ -168,10 +169,9 @@ def feather_mask(image: PIL.Image.Image) -> PIL.Image.Image:
                     if 0 <= nx < width and 0 <= ny < height and mask.getpixel((nx, ny)) == 255:
                         feathered.putpixel((x, y), (255))
                         break
-
     return feathered
 
-def tile_image(image: PIL.Image.Image, tiles: Union[int, Tuple[int, int]]) -> PIL.Image.Image:
+def tile_image(image: Image, tiles: Union[int, Tuple[int, int]]) -> Image:
     """
     Given an image and number of tiles, create a tiled image.
     Accepts either an integer (squre tiles) or tuple (rectangular)
@@ -187,16 +187,18 @@ def tile_image(image: PIL.Image.Image, tiles: Union[int, Tuple[int, int]]) -> PI
             tiled.paste(image, (i * width, j * height))
     return tiled
 
-def image_from_uri(uri: str) -> PIL.Image.Image:
+def image_from_uri(uri: str) -> Image:
     """
     Loads an image using the pibble reteiever; works with http, file, ftp, ftps, sftp, and s3
     """
-    return PIL.Image.open(io.BytesIO(Retriever.get(uri).all()))
+    from PIL import Image
+    return Image.open(io.BytesIO(Retriever.get(uri).all()))
 
-def images_are_equal(image_1: PIL.Image.Image, image_2: PIL.Image.Image) -> bool:
+def images_are_equal(image_1: Image, image_2: Image) -> bool:
     """
     Determines if two images are equal.
     """
+    from PIL import ImageChops
     if image_1.height != image_2.height or image_1.width != image_2.width:
         return False
     if image_1.mode == image_2.mode == "RGBA":
@@ -204,6 +206,21 @@ def images_are_equal(image_1: PIL.Image.Image, image_2: PIL.Image.Image) -> bool
         image_2_alpha = [p[3] for p in image_2.getdata()]
         if image_1_alpha != image_2_alpha:
             return False
-    return not PIL.ImageChops.difference(
+    return not ImageChops.difference(
         image_1.convert("RGB"), image_2.convert("RGB")
     ).getbbox()
+
+def image_pixelize(image: Image, factor: int = 2, exact: bool = True) -> None:
+    """
+    Makes an image pixelized by downsizing and upsizing by a factor.
+    """
+    from PIL import Image
+    from PIL.Image import Resampling
+    width, height = image.size
+    downsample_width = width // 2 ** factor
+    downsample_height = height // 2 ** factor
+    upsample_width = downsample_width * 2 ** factor if exact else width
+    upsample_height = downsample_height * 2 ** factor if exact else height
+    image = image.resize((downsample_width, downsample_height), resample=Resampling.NEAREST)
+    image = image.resize((upsample_width, upsample_height), resample=Resampling.NEAREST)
+    return image

@@ -43,10 +43,21 @@ class CivitAIItemView extends View {
      * On build, assemble all the details and event handlers
      */
     async build() {
+        // TODO: clean this up, it's messy
+        console.log(this.item);
         let node = await super.build(),
             selectedVersion = this.item.modelVersions[0].name,
-            name = E.h2().content(this.item.name),
-            author = E.h4().content(`By ${this.item.creator.username}`),
+            name = E.h2().content(
+                E.a().content(this.item.name)
+                     .target("_blank")
+                     .href(`https://civitai.com/models/${this.item.id}`)
+            ),
+            author = E.h4().content(
+                E.span().content("By "),
+                E.a().content(`${this.item.creator.username}`)
+                     .target("_blank")
+                     .href(`https://civitai.com/user/${this.item.creator.username}`)
+            ),
             versionSelect = E.select(),
             versionContainer = E.div().class("versions"),
             flags = E.div().class("flags"),
@@ -67,20 +78,7 @@ class CivitAIItemView extends View {
                                 "max-width": `${((1/versionImages.length)*100).toFixed(2)}%`
                             });
                             if (!isEmpty(image.meta) && !isEmpty(image.meta.prompt)) {
-                                if (!!navigator.clipboard) {
-                                    // We can copy, bind clipboard write
-                                    node.data("tooltip", `${cleanHTML(image.meta.prompt)}<br /><em class='note'>Ctrl+Right Click to copy prompt.</em>`);
-                                    node.on("contextmenu", (e) => {
-                                        if (e.ctrlKey) {
-                                            e.preventDefault();
-                                            e.stopPropagation();
-                                            navigator.clipboard.writeText(image.meta.prompt);
-                                            SimpleNotification.notify("Copied to Clipboard", 1000);
-                                        }
-                                    });
-                                } else {
-                                    node.data("tooltip", cleanHTML(image.meta.prompt));
-                                }
+                                node.data("tooltip", cleanHTML(image.meta.prompt));
                             }
                             return node;
                         }
@@ -94,7 +92,9 @@ class CivitAIItemView extends View {
                             E.span().class("type").content(`${file.metadata.size || ""} ${file.metadata.fp || ""}`),
                             E.span().class("format").content(file.metadata.format),
                             E.span().class("size").content(humanSize(file.sizeKB * 1000)),
-                            E.a().content(E.i().class("fa-solid fa-download")).data("tooltip", "Start Download").on("click", (e) => {
+                            E.a().href(file.downloadUrl).content(E.i().class("fa-solid fa-download")).data("tooltip", "Start Download").on("click", (e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
                                 this.download(file.downloadUrl, file.name);
                             })
                         )

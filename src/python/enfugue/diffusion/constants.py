@@ -36,6 +36,7 @@ __all__ = [
     "DEFAULT_INPAINTING_MODEL",
     "DEFAULT_SDXL_MODEL",
     "DEFAULT_SDXL_REFINER",
+    "DEFAULT_SDXL_INPAINTING_MODEL",
     "VAE_EMA",
     "VAE_MSE",
     "VAE_XL",
@@ -105,12 +106,15 @@ __all__ = [
     "GLOBAL_PROMPT_UPSCALE_WEIGHT",
     "UPSCALE_PROMPT_STEP_WEIGHT",
     "MAX_IMAGE_SCALE",
+    "LATENT_BLEND_METHOD_LITERAL",
+    "NOISE_METHOD_LITERAL"
 ]
 
 DEFAULT_MODEL = "https://huggingface.co/runwayml/stable-diffusion-v1-5/resolve/main/v1-5-pruned.ckpt"
 DEFAULT_INPAINTING_MODEL = "https://huggingface.co/runwayml/stable-diffusion-inpainting/resolve/main/sd-v1-5-inpainting.ckpt"
-DEFAULT_SDXL_MODEL = "https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_base_1.0.safetensors"
+DEFAULT_SDXL_MODEL = "https://huggingface.co/benjamin-paine/sd-xl-alternative-bases/resolve/main/sd_xl_base_1.0_fp16_vae.safetensors"
 DEFAULT_SDXL_REFINER = "https://huggingface.co/stabilityai/stable-diffusion-xl-refiner-1.0/resolve/main/sd_xl_refiner_1.0.safetensors"
+DEFAULT_SDXL_INPAINTING_MODEL = "https://huggingface.co/benjamin-paine/sd-xl-alternative-bases/resolve/main/sd_xl_base_1.0_inpainting_0.1.safetensors"
 
 DEFAULT_CHECKPOINT_DIR = os.path.expanduser("~/.cache/enfugue/checkpoint")
 DEFAULT_INVERSION_DIR = os.path.expanduser("~/.cache/enfugue/inversion")
@@ -157,10 +161,11 @@ MASK_TYPE_LITERAL = Literal["constant", "multilinear", "gaussian"]
 SCHEDULER_LITERAL = Literal[
     "ddim", "ddpm", "deis",
     "dpmsm", "dpmsmk", "dpmsmka",
-    "dpmss", "heun", "dpmd",
-    "adpmd", "dpmsde", "unipc",
-    "lmsd", "pndm", "eds",
-    "eads"
+    "dpmss", "dpmssk", "heun",
+    "dpmd", "dpmdk", "adpmd",
+    "adpmdk", "dpmsde", "unipc",
+    "lmsd", "lmsdk", "pndm",
+    "eds", "eads"
 ]
 UPSCALE_LITERAL = Literal[
     "esrgan", "esrganime", "gfpgan",
@@ -179,6 +184,20 @@ MOTION_LORA_LITERAL = [
     "roll-clockwise", "roll-anti-clockwise",
     "tilt-up", "tilt-down",
     "zoom-in", "zoom-out"
+]
+MASK_TYPE_LITERAL = Literal["constant", "bilinear", "gaussian"]
+LATENT_BLEND_METHOD_LITERAL = Literal[
+    "add", "bislerp", "cosine", "cubic",
+    "difference", "inject", "lerp", "slerp",
+    "exclusion", "subtract", "multiply", "overlay",
+    "screen", "color_dodge", "linear_dodge", "glow",
+    "pin_light", "hard_light", "linear_light", "vivid_light"
+]
+NOISE_METHOD_LITERAL = Literal[
+    "default", "crosshatch", "simplex",
+    "perlin", "brownian_fractal", "white",
+    "grey", "pink", "blue", "green",
+    "velvet", "violet", "random_mix"
 ]
 
 # VAE repos/files
@@ -288,6 +307,7 @@ CONTROLNET_POSE_XL = (
     "OpenPoseXL2",
     "controlnet-openpose-sdxl-1.0",
 )
+
 MOTION_LORA_PAN_LEFT = "https://huggingface.co/guoyww/animatediff/resolve/main/v2_lora_PanLeft.ckpt"
 MOTION_LORA_PAN_RIGHT = "https://huggingface.co/guoyww/animatediff/resolve/main/v2_lora_PanRight.ckpt"
 MOTION_LORA_ROLL_CLOCKWISE = "https://huggingface.co/guoyww/animatediff/resolve/main/v2_lora_RollingClockwise.ckpt"

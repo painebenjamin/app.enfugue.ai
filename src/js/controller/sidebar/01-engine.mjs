@@ -55,7 +55,7 @@ class EngineController extends Controller {
 
         // Bind events to listen for when to show form and fields
         this.subscribe("engineModelTypeChange", (newType) => {
-            if (isEmpty(newType) || newType === "checkpoint") {
+            if (isEmpty(newType) || newType !== "model") {
                 this.engineForm.show();
             } else {
                 this.engineForm.hide();
@@ -78,7 +78,7 @@ class EngineController extends Controller {
         this.subscribe("engineModelChange", (newModel) => {
             if (isEmpty(newModel)) {
                 this.engineForm.show();
-            } else if (this.engine.modelType !== "checkpoint"){
+            } else if (this.engine.modelType === "model"){
                 this.engineForm.hide();
             }
         });

@@ -2,7 +2,7 @@
 #
 # This script serves as an example configuration file as well as run command.
 # See the full documentation for more details on configurability.
-# 
+#
 # We write the following configuration to a `.yml` file in the current working directory.
 # Most of these are self-explanatory (or able to be explained quickly,) but there are some
 # important tuning values that can determine how your server behaves that are explained here.
@@ -47,6 +47,17 @@
 #
 # When the value is 'true', diffusers caches will be created for all pipelines. This is not recommended as it only provides marginal
 # speed advantages for 1.5 models.
+#
+# ---------------------------
+# enfugue.pipeline.sequential
+# ---------------------------
+# 'sequential' enables sequential onloading and offloading of AI models.
+#
+# When the value is 'true', AI models will only ever be loaded to the GPU when they are needed.
+# At all other times, they will be in normal memory, waiting for the next time they are requested, at which time they will be loaded
+# to the GPU, and afterward unloaded.
+#
+# These operations take time, so this is only recommended to enable if you are experiencing issues with out-of-memory errors.
 
 cat << EOF > $PWD/config.yml
 ---
@@ -83,10 +94,11 @@ enfugue:
         lycoris: ~/.cache/enfugue/lycoris       # lycoris only
         inversion: ~/.cache/enfugue/inversion   # textual inversion only
         other: ~/.cache/enfugue/other           # other AI models (upscalers, preprocessors, etc.)
-        pipeline:
-            switch: "offload"                   # See comment above
-            inpainter: true                     # See comment above
-            cache: null                         # See comment above
+    pipeline:
+        switch: "offload"                   # See comment above
+        inpainter: true                     # See comment above
+        cache: null                         # See comment above
+        sequential: false                   # See comment above
 EOF
 
 # Now we run enfugue with the current configuration file.

@@ -776,6 +776,7 @@ enfugue-node-editor.image-editor enfugue-node-canvas enfugue-toolbar-item::after
 .field-container.upscale-diffusion-negative-prompt-input-view,
 .field-container.upscale-diffusion-guidance-scale-input-view,
 .field-container.upscale-diffusion-steps-input-view,
+.field-container.noise-offset-input-view,
 .field-container.scheduler-input-view,
 .field-container.multi-diffusion-scheduler-input-view,
 .field-container.prompt-input-view,
@@ -788,7 +789,8 @@ fieldset.field-set-diffusion .field-container,
 fieldset.field-set-filters .field-container.string-input-view-search,
 fieldset.field-set-dimensions .field-container.checkbox-input-view-use-chunking,
 fieldset.field-set-animation .field-container.checkbox-input-view,
-enfugue-sidebar .field-container.slider-precise-input-view
+enfugue-sidebar .field-container.slider-precise-input-view,
+enfugue-sidebar .field-container.checkbox-input-view
 {
     flex-basis: 100%;
 }
@@ -843,7 +845,7 @@ form.show-inpainter fieldset.field-set-additional-models:not(.collapsed) .vae-in
     flex-basis: 100%;
 }
 
-form.no-chunking .field-container.number-input-view-chunking-size,
+form.no-chunking .field-container.select-input-view-chunking-size,
 form.no-chunking .field-container.mask-type-input-view-chunking-mask-type
 {
     display: none;
@@ -866,6 +868,14 @@ form .field-container.checkbox-input-view-invert-control-image {
 }
 
 form.no-process .field-container.checkbox-input-view-invert-control-image {
+    display: flex;
+}
+
+form fieldset.field-set-tweaks .field-container.slider-precise-input-view {
+    display: none;
+}
+
+form.show-free-u fieldset.field-set-tweaks:not(.collapsed) .field-container.slider-precise-input-view {
     display: flex;
 }
 
@@ -966,24 +976,33 @@ enfugue-invocation-outputs {
     gap: 5px;
 }
 
+enfugue-model-table.invocation-history {
+    margin-bottom: 5px;
+}
+
 enfugue-model-table.invocation-history tr th:nth-child(1),
 enfugue-model-table.invocation-history tr td:nth-child(1) {
-    width: 15%;
+    width: 150px;
 }
 
 enfugue-model-table.invocation-history tr th:nth-child(2),
 enfugue-model-table.invocation-history tr td:nth-child(2) {
-    width: 15%;
+    width: 80px;
 }
 
 enfugue-model-table.invocation-history tr th:nth-child(3),
 enfugue-model-table.invocation-history tr td:nth-child(3) {
-    width: 25%;
+    width: 150px;
 }
 
 enfugue-model-table.invocation-history tr th:nth-child(4),
 enfugue-model-table.invocation-history tr td:nth-child(4) {
-    width: 35%;
+    width: 200px;
+}
+
+enfugue-model-table.invocation-history tr th:nth-child(5),
+enfugue-model-table.invocation-history tr td:nth-child(5) {
+    width: 150px;
 }
 
 div.announcements-view > .view > p,

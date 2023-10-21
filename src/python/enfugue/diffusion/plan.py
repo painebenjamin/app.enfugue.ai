@@ -495,12 +495,19 @@ class DiffusionStep:
 
         if control_images is not None:
             for controlnet_name in control_images:
-                for (
+                for i, (
                     control_image,
                     conditioning_scale,
                     conditioning_start,
                     conditioning_end
-                ) in control_images[controlnet_name]:
+                ) in enumerate(control_images[controlnet_name]):
+                    if image_position is not None and image_width is not None and image_height is not None:
+                        # Also crop control image
+                        x0, y0 = image_position
+                        x1 = x0 + image_width
+                        y1 = y0 + image_height
+                        control_image = control_image.crop((x0, y0, x1, y1))
+                        control_images[controlnet_name][i] = (control_image, conditioning_scale, conditioning_start, conditioning_end)
                     if image_width is None or image_height is None:
                         image_width, image_height = control_image.size
                     else:
@@ -738,11 +745,12 @@ class DiffusionPlan:
 
     def __init__(
         self,
+        size: int, # Required
         prompt: Optional[str] = None,  # Global
         prompt_2: Optional[str] = None, # Global
         negative_prompt: Optional[str] = None,  # Global
         negative_prompt_2: Optional[str] = None, # Global
-        size: Optional[int] = None,
+        clip_skip: Optional[int] = None,
         refiner_size: Optional[int] = None,
         inpainter_size: Optional[int] = None,
         model: Optional[str] = None,
@@ -768,14 +776,21 @@ class DiffusionPlan:
         build_tensorrt: bool = False,
         outpaint: bool = True,
         upscale_steps: Optional[Union[UpscaleStepDict, List[UpscaleStepDict]]] = None,
+        freeu_factors: Optional[Tuple[float, float, float, float]] = None,
+        guidance_scale: Optional[float] = None,
+        num_inference_steps: Optional[int] = None,
+        noise_offset: Optional[float] = None,
+        noise_method: NOISE_METHOD_LITERAL = "perlin",
+        noise_blend_method: LATENT_BLEND_METHOD_LITERAL = "inject",
     ) -> None:
-        self.size = size if size is not None else (1024 if model is not None and "xl" in model.lower() else 512)
+        self.size = size
         self.inpainter_size = inpainter_size
         self.refiner_size = refiner_size
         self.prompt = prompt
         self.prompt_2 = prompt_2
         self.negative_prompt = negative_prompt
         self.negative_prompt_2 = negative_prompt_2
+        self.clip_skip = clip_skip
         self.model = model
         self.refiner = refiner
         self.inpainter = inpainter
@@ -800,6 +815,12 @@ class DiffusionPlan:
         self.build_tensorrt = build_tensorrt
         self.nodes = nodes
         self.upscale_steps = upscale_steps
+        self.freeu_factors = freeu_factors
+        self.guidance_scale = guidance_scale
+        self.num_inference_steps = num_inference_steps
+        self.noise_offset = noise_offset
+        self.noise_method = noise_method
+        self.noise_blend_method = noise_blend_method
 
     @property
     def kwargs(self) -> Dict[str, Any]:
@@ -809,10 +830,15 @@ class DiffusionPlan:
         return {
             "width": self.width,
             "height": self.height,
+            "clip_skip": self.clip_skip,
+            "freeu_factors": self.freeu_factors,
             "chunking_size": self.chunking_size,
             "chunking_mask_type": self.chunking_mask_type,
             "chunking_mask_kwargs": self.chunking_mask_kwargs,
             "num_results_per_prompt": self.samples,
+            "noise_offset": self.noise_offset,
+            "noise_method": self.noise_method,
+            "noise_blend_method": self.noise_blend_method,
         }
 
     @property
@@ -871,6 +897,9 @@ class DiffusionPlan:
             scheduler = upscale_step.get("scheduler", self.scheduler)
             chunking_mask_type = upscale_step.get("chunking_mask_type", None)
             chunking_mask_kwargs = upscale_step.get("chunking_mask_kwargs", None)
+            noise_offset = upscale_step.get("noise_offset", None)
+            noise_method = upscale_step.get("noise_method", None)
+            noise_blend_method = upscale_step.get("noise_blend_method", None)
             refiner = self.refiner is not None and upscale_step.get("refiner", True)
 
             for i, image in enumerate(images):
@@ -902,7 +931,7 @@ class DiffusionPlan:
                     )
                 else:
                     logger.error(f"Unknown upscaler {method}")
-                    return images
+                    return self.format_output(images, nsfw)
 
                 images[i] = image
                 if image_callback is not None:
@@ -916,7 +945,6 @@ class DiffusionPlan:
                     logger.debug("Using refiner for upscaling.")
                     re_enable_safety = False
                     chunking_size = min(chunking_size, pipeline.refiner_size // 2)
-                    pipeline.reload_refiner()
                 else:
                     # Disable pipeline safety here, it gives many false positives when upscaling.
                     # We'll re-enable it after.
@@ -950,6 +978,12 @@ class DiffusionPlan:
                         "chunking_mask_type": chunking_mask_type,
                         "chunking_mask_kwargs": chunking_mask_kwargs,
                         "progress_callback": progress_callback,
+                        "latent_callback": image_callback,
+                        "latent_callback_type": "pil",
+                        "latent_callback_steps": image_callback_steps,
+                        "noise_offset": noise_offset,
+                        "noise_method": noise_method,
+                        "noise_blend_method": noise_blend_method,
                     }
 
                     if controlnets is not None:
@@ -972,12 +1006,10 @@ class DiffusionPlan:
 
                         if refiner:
                             pipeline.refiner_controlnets = controlnet_names
-                            pipeline.reload_refiner()
                             upscale_pipline = pipeline.refiner_pipeline
                             is_sdxl = pipeline.refiner_is_sdxl
                         else:
                             pipeline.controlnets = controlnet_names
-                            pipeline.reload_pipeline()
                             upscale_pipeline = pipeline.pipeline
                             is_sdxl = pipeline.is_sdxl
 
@@ -996,13 +1028,17 @@ class DiffusionPlan:
                         upscale_pipeline = pipeline.refiner_pipeline
                     else:
                         pipeline.controlnets = None
-                        pipeline.reload_pipeline()  # If we didn't change controlnet, then pipeline is still on CPU
                         upscale_pipeline = pipeline.pipeline
 
                     logger.debug(f"Upscaling sample {i} with arguments {kwargs}")
                     pipeline.stop_keepalive() # Stop here to kill during upscale diffusion
                     task_callback(f"Re-diffusing Upscaled Sample {i+1}")
-                    image = upscale_pipeline(**kwargs).images[0]
+                    image = upscale_pipeline(
+                        generator=pipeline.generator,
+                        device=pipeline.device,
+                        offload_models=pipeline.pipeline_sequential_onload,
+                        **kwargs
+                    ).images[0]
                     pipeline.start_keepalive() # Return keepalive between iterations
                     images[i] = image
                     if image_callback is not None:
@@ -1117,6 +1153,7 @@ class DiffusionPlan:
         }
 
         # Set up the pipeline
+        pipeline._task_callback = task_callback
         self.prepare_pipeline(pipeline)
 
         if self.seed is not None:
@@ -1247,7 +1284,12 @@ class DiffusionPlan:
                 """
                 task_callback(f"Outpaint: {task}")
 
+            invocation_kwargs["strength"] = 0.99
             invocation_kwargs["task_callback"] = outpaint_task_callback
+            if self.guidance_scale is not None:
+                invocation_kwargs["guidance_scale"] = self.guidance_scale
+            if self.num_inference_steps is not None:
+                invocation_kwargs["num_inference_steps"] = self.num_inference_steps
 
             for i, image in enumerate(images):
                 pipeline.controlnet = None
@@ -1260,6 +1302,7 @@ class DiffusionPlan:
                         image_callback(images)  # type: ignore
                 else:
                     outpaint_image_callback = None  # type: ignore
+
                 result = pipeline(
                     image=image,
                     mask=outpaint_mask,
@@ -1271,6 +1314,7 @@ class DiffusionPlan:
                     num_results_per_prompt=1,
                     **invocation_kwargs,
                 )
+
                 images[i] = result["images"][0]
                 nsfw_content_detected[i] = nsfw_content_detected[i] or (
                     "nsfw_content_detected" in result and result["nsfw_content_detected"][0]
@@ -1318,6 +1362,13 @@ class DiffusionPlan:
             "chunking_mask_kwargs": self.chunking_mask_kwargs,
             "build_tensorrt": self.build_tensorrt,
             "outpaint": self.outpaint,
+            "clip_skip": self.clip_skip,
+            "freeu_factors": self.freeu_factors,
+            "guidance_scale": self.guidance_scale,
+            "num_inference_steps": self.num_inference_steps,
+            "noise_offset": self.noise_offset,
+            "noise_method": self.noise_method,
+            "noise_blend_method": self.noise_blend_method,
         }
 
     @staticmethod
@@ -1357,7 +1408,14 @@ class DiffusionPlan:
             "negative_prompt_2",
             "build_tensorrt",
             "outpaint",
-            "upscale_steps"
+            "upscale_steps",
+            "clip_skip",
+            "freeu_factors",
+            "guidance_scale",
+            "num_inference_steps",
+            "noise_offset",
+            "noise_method",
+            "noise_blend_method",
         ]:
             if arg in plan_dict:
                 kwargs[arg] = plan_dict[arg]
@@ -1383,9 +1441,9 @@ class DiffusionPlan:
 
     @staticmethod
     def upscale_image(
+        size: int,
         image: PIL.Image,
         upscale_steps: Union[UpscaleStepDict, List[UpscaleStepDict]],
-        size: Optional[int] = None,
         refiner_size: Optional[int] = None,
         inpainter_size: Optional[int] = None,
         model: Optional[str] = None,
@@ -1399,6 +1457,9 @@ class DiffusionPlan:
         refiner_vae: Optional[str] = None,
         inpainter_vae: Optional[str] = None,
         seed: Optional[int] = None,
+        noise_offset: Optional[float] = None,
+        noise_method: NOISE_METHOD_LITERAL = "perlin",
+        noise_blend_method: LATENT_BLEND_METHOD_LITERAL = "inject",
         **kwargs: Any,
     ) -> DiffusionPlan:
         """
@@ -1434,12 +1495,15 @@ class DiffusionPlan:
             width=width,
             height=height,
             upscale_steps=upscale_steps,
+            noise_offset=noise_offset,
+            noise_method=noise_method,
+            noise_blend_method=noise_blend_method,
             nodes=nodes
         )
 
     @staticmethod
     def assemble(
-        size: Optional[int] = None,
+        size: int,
         refiner_size: Optional[int] = None,
         inpainter_size: Optional[int] = None,
         model: Optional[str] = None,
@@ -1469,6 +1533,8 @@ class DiffusionPlan:
         prompt_2: Optional[str] = None,
         negative_prompt: Optional[str] = None,
         negative_prompt_2: Optional[str] = None,
+        clip_skip: Optional[int] = None,
+        freeu_factors: Optional[Tuple[float, float, float, float]] = None,
         num_inference_steps: Optional[int] = DEFAULT_INFERENCE_STEPS,
         mask: Optional[Union[str, PIL.Image.Image]] = None,
         image: Optional[Union[str, PIL.Image.Image]] = None,
@@ -1496,6 +1562,9 @@ class DiffusionPlan:
         refiner_negative_prompt: Optional[str] = None,
         refiner_negative_prompt_2: Optional[str] = None,
         upscale_steps: Optional[Union[UpscaleStepDict, List[UpscaleStepDict]]] = None,
+        noise_offset: Optional[float] = None,
+        noise_method: NOISE_METHOD_LITERAL = "perlin",
+        noise_blend_method: LATENT_BLEND_METHOD_LITERAL = "inject",
         **kwargs: Any,
     ) -> DiffusionPlan:
         """
@@ -1531,6 +1600,13 @@ class DiffusionPlan:
             chunking_size=chunking_size,
             chunking_mask_type=chunking_mask_type,
             chunking_mask_kwargs=chunking_mask_kwargs,
+            clip_skip=clip_skip,
+            freeu_factors=freeu_factors,
+            guidance_scale=guidance_scale,
+            num_inference_steps=num_inference_steps,
+            noise_offset=noise_offset,
+            noise_method=noise_method,
+            noise_blend_method=noise_blend_method,
             nodes=[],
         )
 

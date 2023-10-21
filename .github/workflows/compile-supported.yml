@@ -1,0 +1,29 @@
+name: Compile Supported Portable Distributions
+on:
+  workflow_dispatch:
+    inputs:
+      release:
+        description: Upload to a tagged release?
+        required: true
+        type: boolean
+      dwpose:
+        description: Build DWPose?
+        required: true
+        type: boolean
+jobs:
+  compile-all:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            api: cuda-latest
+          - os: windows-latest
+            api: cuda-latest
+          - os: macos-13
+            api: mps-latest
+    uses: painebenjamin/app.enfugue.ai/.github/workflows/compile.yml@main
+    with:
+      os: ${{ matrix.os }}
+      api: ${{ matrix.api }}
+      release: ${{ inputs.release }}
+      dwpose: ${{ inputs.dwpose }}

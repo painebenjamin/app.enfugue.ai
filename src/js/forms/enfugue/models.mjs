@@ -24,8 +24,6 @@ import {
     MaskTypeInputView
 } from "../input.mjs";
 
-let defaultEngineSize = 512;
-
 /**
  * The model form pulls it all together for making/editing models
  */
@@ -45,7 +43,7 @@ class ModelFormView extends FormView {
                 "label": "Name",
                 "config": {
                     "required": true,
-                    "tooltip": "Give your model a name that describes what you want it to do - for example, if you're using a photorealistic model and use phrases related to central framing, bokeh focus and and saturated colors, you could call this configuration &ldquo;Product Photography.%rdquo;"
+                    "tooltip": "Give your model a name that describes what you want it to do - for example, if you're using a photorealistic model and use phrases related to central framing, bokeh focus and and saturated colors, you could call this configuration &ldquo;Product Photography.&rdquo;"
                 }
             }
         },

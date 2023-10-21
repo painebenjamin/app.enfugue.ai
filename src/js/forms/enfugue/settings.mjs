@@ -53,6 +53,13 @@ class SystemSettingsFormView extends FormView {
             }
         },
         "Diffusion": {
+            "sequential": {
+                "label": "Use Sequential Model Loading",
+                "class": CheckboxInputView,
+                "config": {
+                    "tooltip": "When checked, the individuals components that make up a diffusion pipeline will be loaded when they are needed and unloaded afterwards. This provides the lowest memory footprint available by Enfugue, but individual images can take longer to generate."
+                }
+            },
             "switch_mode": {
                 "label": "Pipeline Switch Mode",
                 "class": PipelineSwitchModeInputView

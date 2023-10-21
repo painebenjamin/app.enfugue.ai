@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Iterator, Tuple, Callable, TYPE_CHECKING
+from typing import Iterator, Tuple, Callable, Optional, TYPE_CHECKING
 
 from contextlib import contextmanager, ExitStack
 
@@ -27,6 +27,7 @@ class ControlImageProcessor:
     Amalgamates all controlnet processors.
     Allows multiple contexts at once
     """
+    task_callback: Optional[Callable[[str], None]] = None
     def __init__(
         self,
         model_dir: str,
@@ -102,6 +103,7 @@ class ControlImageProcessor:
                 dtype=self.dtype,
                 offline=self.offline
             )
+            self._edge_detector.task_callback = self.task_callback
         return self._edge_detector
 
     @property
@@ -117,6 +119,7 @@ class ControlImageProcessor:
                 dtype=self.dtype,
                 offline=self.offline
             )
+            self._line_detector.task_callback = self.task_callback
         return self._line_detector
 
     @property
@@ -132,6 +135,7 @@ class ControlImageProcessor:
                 dtype=self.dtype,
                 offline=self.offline
             )
+            self._depth_detector.task_callback = self.task_callback
         return self._depth_detector
 
     @property
@@ -147,6 +151,7 @@ class ControlImageProcessor:
                 dtype=self.dtype,
                 offline=self.offline
             )
+            self._pose_detector.task_callback = self.task_callback
         return self._pose_detector
 
     def __call__(self, controlnet: CONTROLNET_LITERAL, image: Image) -> Image:

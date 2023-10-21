@@ -909,6 +909,10 @@ ul.list-input-view li.selected {
     font-family: var(--monospace-font), monospace;
 }
 
+.tooltip-container code {
+    color: var(--theme-color-primary);
+}
+
 .tooltip-container > p:not(:last-child) {
     margin-bottom: 1em;
 }

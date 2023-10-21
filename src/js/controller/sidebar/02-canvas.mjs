@@ -22,7 +22,7 @@ class CanvasController extends Controller {
             "canvas": {
                 "width": this.config.model.invocation.width,
                 "height": this.config.model.invocation.height,
-                "useChunking": true,
+                "useChunking": false,
                 "chunkingSize": this.config.model.invocation.chunkingSize,
                 "chunkingMaskType": this.config.model.invocation.chunkingMaskType
             }
@@ -90,6 +90,7 @@ class CanvasController extends Controller {
                 }
             }
         });
+        this.subscribe("applicationReady", () => this.canvasForm.submit());
     }
 }
 

@@ -347,6 +347,8 @@ class ImageEditorImageNodeOptionsFormView extends FormView {
             if (inputView.getValue()) {
                 inference.setValue(true, false);
                 inference.disable();
+                this.values.infer = true;
+                this.evaluateConditions();
             } else {
                 inference.enable();
             }
@@ -385,6 +387,7 @@ class ImageEditorImageNodeOptionsFormView extends FormView {
         }
         let inference = await this.getInputView("infer");
         if (this.values.inpaint) {
+            this.values.infer = true;
             inference.setValue(true, false);
             inference.disable();
         } else {

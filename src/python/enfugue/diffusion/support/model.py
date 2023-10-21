@@ -5,7 +5,7 @@ import gc
 
 from contextlib import contextmanager
 
-from typing import Iterator, Any, Optional, List, TYPE_CHECKING
+from typing import Iterator, Any, Optional, Callable, List, TYPE_CHECKING
 from typing_extensions import Self
 
 from enfugue.util import find_file_in_directory, check_download
@@ -45,6 +45,7 @@ class SupportModel:
     """
 
     process: Optional[SupportModelImageProcessor] = None
+    task_callback: Optional[Callable[[str], None]] = None
 
     def __init__(
         self,
@@ -64,7 +65,6 @@ class SupportModel:
         self,
         uri: str,
         filename: Optional[str] = None,
-        check_remote_size: bool = False,
         extensions: Optional[List[str]] = None,
     ) -> str:
         """
@@ -85,9 +85,12 @@ class SupportModel:
             return existing_path # Already downloaded somewhere (can be nested)
         if uri.startswith("http"):
             local_path = os.path.join(self.model_dir, filename)
-            if not os.path.exists(local_path) and self.offline:
-                raise IOError(f"Offline mode is enabled and could not find requested model file at {local_path}")
-            check_download(uri, local_path, check_size=check_remote_size)
+            if not os.path.exists(local_path):
+                if self.offline:
+                    raise IOError(f"Offline mode is enabled and could not find requested model file at {local_path}")
+                elif self.task_callback is not None:
+                    self.task_callback(f"Downloading {uri}")
+            check_download(uri, local_path, check_size=False)
             return local_path
         raise IOError(f"Cannot retrieve model file {uri}")
 

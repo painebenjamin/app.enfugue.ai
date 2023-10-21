@@ -929,7 +929,8 @@ ul.enfugue-search-list-items > li {
     color: var(--light-color);
 }
 
-ul.model-picker-list-input-view > li > span {
+ul.model-picker-list-input-view > li > span,
+ul.enfugue-search-list-items > li > span {
     color: var(--light-color);
     display: flex;
     width: 100%;
@@ -937,7 +938,18 @@ ul.model-picker-list-input-view > li > span {
     flex-grow: 1;
     flex-flow: row nowrap;
     align-items: center;
-    justify-content: space-between;
+    justify-content: flex-start;
+}
+
+ul.model-picker-list-input-view > li > span > *,
+ul.enfugue-search-list-items > li > span > * {
+    flex-grow: 0;
+}
+
+ul.model-picker-list-input-view > li > span > *:last-child,
+ul.enfugue-search-list-items > li > span > *:last-child {
+    flex-grow: 1;
+    text-align: right;
 }
 
 .model-configuration-form-view {
@@ -1134,6 +1146,17 @@ enfugue-download-size, enfugue-download-time {
     font-weight: 300;
 }
 
+enfugue-download-time > div {
+    display: flex;
+    flex-flow: row nowrap;
+    align-items: center;
+    justify-content: space-between;
+}
+
+enfugue-download-time > div > span:nth-child(2) {
+    color: var(--theme-color-primary);
+}
+
 enfugue-download-status {
     position: relative;
     display: block;
@@ -1313,4 +1336,16 @@ enfugue-image-browser span {
     left: 0;
     top: 0;
     pointer-events: none;
+}
+
+.controls-helper-view {
+    position: fixed;
+    bottom: 85px;
+    left: 40px;
+    color: var(--theme-color-primary);
+    font-weight: bold;
+    font-size: 14px;
+    z-index: 4;
+    cursor: pointer;
+    padding-left: 5px;
 }

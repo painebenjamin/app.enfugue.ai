@@ -9,6 +9,7 @@ from typing import List
 from pibble.util.log import DebugUnifiedLoggingContext
 from enfugue.util import logger
 from enfugue.diffusion.plan import DiffusionPlan
+from enfugue.diffusion.constants import DEFAULT_SDXL_MODEL
 from enfugue.diffusion.manager import DiffusionPipelineManager
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -28,8 +29,9 @@ def main() -> None:
         prompt = "a huge cactus standing in the desert"
         
         plan = DiffusionPlan.assemble(
+            size = 1024,
             prompt = prompt,
-            model = "sd_xl_base_1.0.safetensors",
+            model = DEFAULT_SDXL_MODEL,
             num_inference_steps = 50,
             image = image,
             mask = mask

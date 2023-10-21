@@ -79,6 +79,11 @@ import {
     UpscaleDiffusionPipelineInputView,
     UpscaleDiffusionGuidanceScaleInputView
 } from "./input/enfugue/upscale.mjs";
+import {
+    NoiseOffsetInputView,
+    NoiseMethodInputView,
+    BlendMethodInputView
+} from "./input/enfugue/noise.mjs";
 
 export {
     InputView,
@@ -144,5 +149,8 @@ export {
     UpscaleDiffusionStepsInputView,
     UpscaleDiffusionStrengthInputView,
     UpscaleDiffusionPipelineInputView,
-    UpscaleDiffusionGuidanceScaleInputView
+    UpscaleDiffusionGuidanceScaleInputView,
+    NoiseOffsetInputView,
+    NoiseMethodInputView,
+    BlendMethodInputView
 };

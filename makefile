@@ -109,7 +109,7 @@ endif
 ##################
 ## CAPABILITIES ##
 ##################
-ifeq ($(shell $(PYTHON) -c "import tensorrt" 2>&1),)
+ifeq ($(shell $(PYTHON) -c "import tensorrt; import onnx_graphsurgeon" 2>&1),)
 BUILD_TENSORRT=1
 else
 BUILD_TENSORRT=0

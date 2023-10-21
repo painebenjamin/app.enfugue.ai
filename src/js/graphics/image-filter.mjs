@@ -148,9 +148,14 @@ class ImageFilter {
         if (this.gpu !== undefined) {
             return Promise.resolve(this.gpu);
         }
+        let constructor = GPU.GPU;
+        if (typeof GPU.GPU === "undefined" && typeof GPU === "function"){
+            // Firefox
+            constructor = GPU;
+        }
         return new Promise((resolve) => {
             this.awaitLoad().then(() => {
-                this.gpu = new GPU.GPU({
+                this.gpu = new constructor({
                     "canvas": this.canvas,
                     "context": this.context
                 });

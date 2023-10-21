@@ -5,6 +5,7 @@ import os
 from pibble.util.log import DebugUnifiedLoggingContext
 from enfugue.diffusion.plan import DiffusionPlan, DiffusionNode, DiffusionStep
 from enfugue.diffusion.manager import DiffusionPipelineManager
+from enfugue.diffusion.constants import DEFAULT_SDXL_MODEL, DEFAULT_SDXL_REFINER
 
 def main() -> None:
     with DebugUnifiedLoggingContext():
@@ -13,8 +14,9 @@ def main() -> None:
             os.makedirs(save_dir)
 
         kwargs = {
-            "model": "sd_xl_base_1.0.safetensors",
-            "refiner": "sd_xl_refiner_1.0.safetensors",
+            "size": 1024,
+            "model": DEFAULT_SDXL_MODEL,
+            "refiner": DEFAULT_SDXL_REFINER,
             "prompt": "A happy looking puppy",
             "upscale_diffusion_guidance_scale": 5.0,
             "upscale_diffusion_strength": 0.3,
@@ -51,7 +53,7 @@ def main() -> None:
         
         # Upscale again alone
         plan = DiffusionPlan.upscale_image(
-            result,
+            image=result,
             upscale_steps=[{
                 "amount": 2,
                 "method": "esrgan",

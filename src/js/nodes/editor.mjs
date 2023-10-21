@@ -267,6 +267,12 @@ class NodeEditorView extends View {
      * @param bool $resetNodes Whether or not to reset the dimensions of the nodes on this canvas.
      */
     setDimension(newWidth, newHeight, resetNodes = true) {
+        if (isEmpty(newWidth)){
+            newWidth = this.canvasWidth;
+        }
+        if (isEmpty(newHeight)) {
+            newHeight = this.canvasHeight;
+        }
         this.canvasWidth = newWidth;
         this.canvasHeight = newHeight;
         if (this.node !== undefined) {
@@ -315,7 +321,7 @@ class NodeEditorView extends View {
             }
 
             // Check if dragged header is near target header
-            if (Math.abs(movedNode.visibleTop - node.visibleTop) > movedNode.constructor.headerHeight) {
+            if (Math.abs(movedNode.visibleTop - node.visibleTop) > movedNode.constructor.headerHeight / 2) {
                 continue;
             }
 
@@ -325,9 +331,9 @@ class NodeEditorView extends View {
                 intersectRight = Math.min(movedNode.visibleLeft + movedNode.visibleWidth, node.visibleLeft + node.visibleWidth),
                 intersectBottom = Math.min(movedNode.visibleTop + movedNode.visibleHeight, node.visibleTop + node.visibleHeight),
                 intersectArea = (intersectRight - intersectLeft) * (intersectBottom - intersectTop),
-                intersectRatio = intersectArea / (node.visibleWidth * node.visibleHeight);
+                intersectRatio = intersectArea / (movedNode.visibleWidth * movedNode.visibleHeight);
 
-            if (intersectRatio >= 0.3333) {
+            if (intersectRatio >= 0.33) {
                 // Set node merge targets
                 mergeNode = node;
             }

@@ -184,12 +184,16 @@ class RepeatableInputView extends InputView {
      */
     addInput(inputConfig) {
         inputConfig = inputConfig || {};
-        let newInputView = new this.constructor.memberClass(
-            this.config,
-            this.inputViews.length,
-            { ...this.memberConfig, ...inputConfig }
-        );
+        let newInputConfig = { ...this.memberConfig, ...inputConfig },
+            newInputView = new this.constructor.memberClass(
+                this.config,
+                this.inputViews.length,
+                newInputConfig
+            );
         newInputView.inputParent = this;
+        if (newInputConfig.value !== undefined) {
+            newInputView.setValue(newInputConfig.value, false);
+        }
         newInputView.onChange(() => this.changed());
         this.inputViews.push(newInputView);
         if (this.node !== undefined) {

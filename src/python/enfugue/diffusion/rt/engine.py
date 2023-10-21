@@ -8,7 +8,7 @@ import logging
 import tensorrt as trt
 
 from copy import copy
-from typing import Dict, Optional, Tuple, Any, List
+from typing import Dict, Optional, Tuple, Any, List, Union
 
 from polygraphy import cuda
 from collections import OrderedDict
@@ -112,7 +112,7 @@ class Engine:
         """
         self.context = self.engine.create_execution_context()
 
-    def allocate_buffers(self, shape_dict: Optional[Dict[str, Tuple]] = None, device: str = "cuda"):
+    def allocate_buffers(self, shape_dict: Optional[Dict[str, Tuple]] = None, device: Union[str, torch.device] = "cuda"):
         """
         Allocates TRT buffers.
         """
@@ -263,6 +263,7 @@ class Engine:
                     if force_engine_rebuild or not os.path.exists(onnx_path):
                         logger.debug(f"Exporting model to {onnx_path}")
                         model = model_obj.get_model()
+                        model.to("cuda")
                         with torch.inference_mode(), torch.autocast("cuda"):
                             inputs = model_obj.get_sample_input(opt_batch_size, opt_image_height, opt_image_width)
                             torch.onnx.export(

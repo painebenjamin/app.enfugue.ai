@@ -5,6 +5,7 @@ import {
     getDataParameters,
     waitFor,
     createEvent,
+    merge,
     sleep
 } from "../base/helpers.mjs";
 import { Session } from "../base/session.mjs";
@@ -17,6 +18,7 @@ import { WindowsView } from "../nodes/windows.mjs";
 import { ImageView } from "../view/image.mjs";
 import { Model } from "../model/enfugue.mjs";
 import { View } from "../view/base.mjs";
+import { ControlsHelperView } from "../view/controls.mjs";
 import { FileNameFormView } from "../forms/enfugue/files.mjs";
 import { StringInputView } from "../forms/input.mjs";
 import { InvocationController } from "../controller/common/invocation.mjs";
@@ -157,6 +159,9 @@ class Application {
      * @param {object} The configuration, an object of key-value pairs.
      */
     constructor(config) {
+        if (!isEmpty(window.enfugue) && !isEmpty(window.enfugue.config)) {
+            config = merge(config, window.enfugue.config);
+        }
         this.config = config;
         this.publisher = new Publisher();
     }
@@ -182,6 +187,7 @@ class Application {
         this.notifications = new NotificationCenterView(this.config);
         this.history = new HistoryDatabase(this.config.history.size, this.config.debug);
         this.images = new ImageEditorView(this);
+        this.controlsHelper = new ControlsHelperView(this.config);
 
         this.container.appendChild(await this.menu.render());
         this.container.appendChild(await this.sidebar.render());
@@ -189,6 +195,7 @@ class Application {
         this.container.appendChild(await this.images.render());
         this.container.appendChild(await this.windows.render());
         this.container.appendChild(await this.notifications.render());
+        this.container.appendChild(await this.controlsHelper.render());
         
         await this.startAnimations();
         await this.registerDynamicInputs();
@@ -212,6 +219,7 @@ class Application {
         document.addEventListener("keypress", (e) => this.onKeyPress(e));
         document.addEventListener("keyup", (e) => this.onKeyUp(e));
         document.addEventListener("keydown", (e) => this.onKeyDown(e));
+        this.publish("applicationReady");
         this.container.classList.remove("loading");
     }
 
@@ -298,20 +306,69 @@ class Application {
             // Remove other input
             delete DefaultVaeInputView.defaultOptions.other;
         }
-        CheckpointInputView.defaultOptions = () => this.model.get("/checkpoints");
-        LoraInputView.defaultOptions = () => this.model.get("/lora");
-        LycorisInputView.defaultOptions = () => this.model.get("/lycoris");
-        InversionInputView.defaultOptions = () => this.model.get("/inversions");
+        CheckpointInputView.defaultOptions = async () => {
+            let checkpoints = await this.model.get("/checkpoints");
+            return checkpoints.reduce((carry, datum) => {
+                if (!isEmpty(datum.directory) && datum.directory !== ".") {
+                    carry[datum.name] = `<strong>${datum.name}</strong><span class='note' style='margin-left: 2px'>(${datum.directory})</note>`;
+                } else {
+                    carry[datum.name] = datum.name;
+                }
+                return carry;
+            }, {});
+        };
+        LoraInputView.defaultOptions = async () => {
+            let models = await this.model.get("/lora");
+            return models.reduce((carry, datum) => {
+                if (!isEmpty(datum.directory) && datum.directory !== ".") {
+                    carry[datum.name] = `<strong>${datum.name}</strong><span class='note' style='margin-left: 2px'>(${datum.directory})</note>`;
+                } else {
+                    carry[datum.name] = datum.name;
+                }
+                return carry;
+            }, {});
+        };
+        LycorisInputView.defaultOptions = async () => {
+            let models = await this.model.get("/lycoris");
+            return models.reduce((carry, datum) => {
+                if (!isEmpty(datum.directory) && datum.directory !== ".") {
+                    carry[datum.name] = `<strong>${datum.name}</strong><span class='note' style='margin-left: 2px'>(${datum.directory})</note>`;
+                } else {
+                    carry[datum.name] = datum.name;
+                }
+                return carry;
+            }, {});
+        };
+        InversionInputView.defaultOptions = async () => {
+            let models = await this.model.get("/inversions");
+            return models.reduce((carry, datum) => {
+                if (!isEmpty(datum.directory) && datum.directory !== ".") {
+                    carry[datum.name] = `<strong>${datum.name}</strong><span class='note' style='margin-left: 2px'>(${datum.directory})</note>`;
+                } else {
+                    carry[datum.name] = datum.name;
+                }
+                return carry;
+            }, {});
+        };
         ModelPickerInputView.defaultOptions = async () => {
-            let allModels = await this.model.get("/model-options"),
-                modelOptions = allModels.reduce((carry, datum) => {
-                    let typeString = datum.type === "checkpoint"
+            let allModels = await this.model.get("/model-options");
+            return allModels.reduce((carry, datum) => {
+                let typeString = isEmpty(datum.type)
+                    ? ""
+                    :datum.type === "checkpoint"
                         ? "Checkpoint"
-                        : "Preconfigured Model";
+                        : datum.type === "checkpoint+diffusers"
+                            ? "Checkpoint + Diffusers Cache"
+                            : datum.type === "diffusers"
+                                ? "Diffusers Cache"
+                                : "Preconfigured Model";
+                if (!isEmpty(datum.directory) && datum.directory !== ".") {
+                    carry[`${datum.type}/${datum.name}`] = `<strong>${datum.name}</strong><span class='note' style='margin-left: 2px'>(${datum.directory})</note></span><em>${typeString}</em>`;
+                } else {
                     carry[`${datum.type}/${datum.name}`] = `<strong>${datum.name}</strong><em>${typeString}</em>`;
-                    return carry;
-                }, {});
-            return modelOptions;
+                }
+                return carry;
+            }, {});
         };
     }
 

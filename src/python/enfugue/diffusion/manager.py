@@ -26,11 +26,12 @@ __all__ = ["DiffusionPipelineManager"]
 DEFAULT_MODEL_FILE = os.path.basename(DEFAULT_MODEL)
 DEFAULT_INPAINTING_MODEL_FILE = os.path.basename(DEFAULT_INPAINTING_MODEL)
 DEFAULT_SDXL_MODEL_FILE = os.path.basename(DEFAULT_SDXL_MODEL)
+DEFAULT_SDXL_INPAINTING_MODEL_FILE = os.path.basename(DEFAULT_SDXL_INPAINTING_MODEL)
 DEFAULT_SDXL_REFINER_FILE = os.path.basename(DEFAULT_SDXL_REFINER)
 
 if TYPE_CHECKING:
     from diffusers.pipelines.stable_diffusion import StableDiffusionPipelineOutput
-    from diffusers.models import ControlNetModel, AutoencoderKL
+    from diffusers.models import ControlNetModel, AutoencoderKL, AutoencoderTiny
     from diffusers.schedulers.scheduling_utils import KarrasDiffusionSchedulers
     from enfugue.diffusion.pipeline import EnfugueStableDiffusionPipeline
     from enfugue.diffusion.support import ControlImageProcessor, Upscaler, IPAdapter, BackgroundRemover, Interpolator
@@ -55,13 +56,12 @@ def redact(kwargs: Dict[str, Any]) -> Dict[str, Any]:
             redacted[key] = "[" + ", ".join([str(redact({"v": v})["v"]) for v in value]) + "]" # type: ignore[assignment]
         elif type(value) not in [str, float, int, bool, type(None)]:
             redacted[key] = type(value).__name__ # type: ignore[assignment]
-        elif "prompt" in key and value is not None:
+        elif "prompt" in key and "num" not in key and value is not None:
             redacted[key] = "***" # type: ignore[assignment]
         else:
             redacted[key] = str(value) # type: ignore[assignment]
     
     return redacted
-
 
 class KeepaliveThread(threading.Thread):
     """
@@ -125,6 +125,7 @@ class DiffusionPipelineManager:
     _refiner_size: int
     _inpainter_size: int
     _animator_size: int
+    _task_callback: Optional[Callable[[str], None]] = None
 
     def __init__(
         self,
@@ -143,9 +144,18 @@ class DiffusionPipelineManager:
         """
         vram_free, vram_total = get_vram_info()
         if self.device.type == "cpu" or vram_total < 16 * 10 ** 9:
-            # Maximum optimization
             self.configuration["enfugue.pipeline.cache"] = None
             self.configuration["enfugue.pipeline.switch"] = "unload"
+            if vram_total < 12 * 10 ** 9:
+                # Maximum optimization
+                self.configuration["enfugue.pipeline.sequential"] = True
+
+    def task_callback(self, message: str) -> None:
+        """
+        Calls the passed task callback if set.
+        """
+        if getattr(self, "_task_callback", None) is not None:
+            self._task_callback(message) # type: ignore[misc]
 
     def check_download_model(self, local_dir: str, remote_url: str) -> str:
         """
@@ -158,6 +168,7 @@ class DiffusionPipelineManager:
             return found_path
         if self.offline:
             raise ValueError(f"File {output_file} does not exist in {local_dir} and offline mode is enabled, refusing to download from {remote_url}")
+        self.task_callback(f"Downloading {remote_url}")
         check_download(remote_url, output_path)
         return output_path
 
@@ -263,6 +274,7 @@ class DiffusionPipelineManager:
         """
         self._seed = new_seed
         del self.generator
+        del self.noise_generator
 
     @property
     def keepalive_callback(self) -> Callable[[], None]:
@@ -331,77 +343,93 @@ class DiffusionPipelineManager:
         if hasattr(self, "_generator"):
             delattr(self, "_generator")
 
+    @property
+    def noise_generator(self) -> torch.Generator:
+        """
+        Creates the noise generator once, otherwise returns it.
+        This is kept on the CPU as it creates better noise.
+        """
+        if not hasattr(self, "_noise_generator"):
+            self._noise_generator = torch.Generator()
+            self._noise_generator.manual_seed(self.seed)
+        return self._noise_generator
+
+    @noise_generator.deleter
+    def noise_generator(self) -> None:
+        """
+        Removes an existing noise generator.
+        """
+        if hasattr(self, "_noise_generator"):
+            delattr(self, "_noise_generator")
+
     def get_scheduler_class(
         self,
         scheduler: Optional[SCHEDULER_LITERAL]
-    ) -> Union[
-        KarrasDiffusionSchedulers,
-        Tuple[KarrasDiffusionSchedulers, Dict[str, Any]]
+    ) -> Optional[
+        Union[
+            Type,
+            Tuple[Type, Dict[str, Any]]
+        ]
     ]:
         """
         Sets the scheduler class
         """
+        kwargs: Dict[str, Any] = {}
         if not scheduler:
             return None
-        elif scheduler == "ddim":
-            from diffusers.schedulers import DDIMScheduler
-
-            return DDIMScheduler
-        elif scheduler == "ddpm":
-            from diffusers.schedulers import DDPMScheduler
-
-            return DDPMScheduler
-        elif scheduler == "deis":
-            from diffusers.schedulers import DEISMultistepScheduler
-
-            return DEISMultistepScheduler
         elif scheduler in ["dpmsm", "dpmsmk", "dpmsmka"]:
             from diffusers.schedulers import DPMSolverMultistepScheduler
-            kwargs: Dict[str, Any] = {}
             if scheduler in ["dpmsmk", "dpmsmka"]:
                 kwargs["use_karras_sigmas"] = True
                 if scheduler == "dpmsmka":
                     kwargs["algorithm_type"] = "sde-dpmsolver++"
             return (DPMSolverMultistepScheduler, kwargs)
-        elif scheduler == "dpmss":
+        elif scheduler in ["dpmss", "dpmssk"]:
             from diffusers.schedulers import DPMSolverSinglestepScheduler
-
-            return DPMSolverSinglestepScheduler
+            if scheduler == "dpmssk":
+                kwargs["use_karras_sigmas"] = True
+            return (DPMSolverSinglestepScheduler, kwargs)
         elif scheduler == "heun":
             from diffusers.schedulers import HeunDiscreteScheduler
-
             return HeunDiscreteScheduler
-        elif scheduler == "dpmd":
+        elif scheduler in ["dpmd", "dpmdk"]:
             from diffusers.schedulers import KDPM2DiscreteScheduler
-
-            return KDPM2DiscreteScheduler
-        elif scheduler == "adpmd":
+            if scheduler == "dpmdk":
+                kwargs["use_karras_sigmas"] = True
+            return (KDPM2DiscreteScheduler, kwargs)
+        elif scheduler in ["adpmd", "adpmdk"]:
             from diffusers.schedulers import KDPM2AncestralDiscreteScheduler
-
-            return KDPM2AncestralDiscreteScheduler
+            if scheduler == "adpmdk":
+                kwargs["use_karras_sigmas"] = True
+            return (KDPM2AncestralDiscreteScheduler, kwargs)
+        elif scheduler in ["lmsd", "lmsdk"]:
+            from diffusers.schedulers import LMSDiscreteScheduler
+            if scheduler == "lmsdk":
+                kwargs["use_karras_sigmas"] = True
+            return (LMSDiscreteScheduler, kwargs)
+        elif scheduler == "ddim":
+            from diffusers.schedulers import DDIMScheduler
+            return DDIMScheduler
+        elif scheduler == "ddpm":
+            from diffusers.schedulers import DDPMScheduler
+            return DDPMScheduler
+        elif scheduler == "deis":
+            from diffusers.schedulers import DEISMultistepScheduler
+            return DEISMultistepScheduler
         elif scheduler == "dpmsde":
             from diffusers.schedulers import DPMSolverSDEScheduler
-
             return DPMSolverSDEScheduler
         elif scheduler == "unipc":
             from diffusers.schedulers import UniPCMultistepScheduler
-
             return UniPCMultistepScheduler
-        elif scheduler == "lmsd":
-            from diffusers.schedulers import LMSDiscreteScheduler
-
-            return LMSDiscreteScheduler
         elif scheduler == "pndm":
             from diffusers.schedulers import PNDMScheduler
-
             return PNDMScheduler
         elif scheduler == "eds":
             from diffusers.schedulers import EulerDiscreteScheduler
-
             return EulerDiscreteScheduler
         elif scheduler == "eads":
             from diffusers.schedulers import EulerAncestralDiscreteScheduler
-
             return EulerAncestralDiscreteScheduler
         raise ValueError(f"Unknown scheduler {scheduler}")
 
@@ -437,8 +465,8 @@ class DiffusionPipelineManager:
         if isinstance(scheduler_class, tuple):
             scheduler_class, scheduler_config = scheduler_class
         if not hasattr(self, "_scheduler") or self._scheduler is not scheduler_class or self.scheduler_config != scheduler_config:
-            logger.debug(f"Changing to scheduler {scheduler_class.__name__} ({new_scheduler})")
-            self._scheduler = scheduler_class
+            logger.debug(f"Changing to scheduler {scheduler_class.__name__} ({new_scheduler})") # type: ignore[union-attr]
+            self._scheduler = scheduler_class # type: ignore[assignment]
             self._scheduler_config = scheduler_config
         else:
             return
@@ -507,7 +535,10 @@ class DiffusionPipelineManager:
         vae_model.load_state_dict(load_state_dict(vae), strict=False)
         return vae_model.to(self.device)
 
-    def get_vae(self, vae: Optional[Union[str, Tuple[str, ...]]] = None) -> Optional[AutoencoderKL]:
+    def get_vae(
+        self,
+        vae: Optional[Union[str, Tuple[str, ...]]] = None
+    ) -> Optional[AutoencoderKL]:
         """
         Loads the VAE
         """
@@ -548,6 +579,7 @@ class DiffusionPipelineManager:
             if not os.path.exists(expected_vae_location):
                 if self.offline:
                     raise IOError(f"Offline mode enabled, cannot download {vae} to {expected_vae_location}")
+                self.task_callback(f"Downloading VAE weights from repository {vae}")
                 logger.info(f"VAE {vae} does not exist in cache directory {self.engine_cache_dir}, it will be downloaded.")
             result = AutoencoderKL.from_pretrained(
                 vae,
@@ -556,7 +588,24 @@ class DiffusionPipelineManager:
                 local_files_only=self.offline
             )
 
-        return result.to(device=self.device)
+        return result
+
+    def get_vae_preview(self, use_xl: bool) -> AutoencoderTiny:
+        """
+        Gets a previewer VAE (tiny)
+        """
+        from diffusers.models import AutoencoderTiny
+        repo = "madebyollin/taesdxl" if use_xl else "madebyollin/taesd"
+        expected_path = os.path.join(self.engine_cache_dir, "models--{0}".format(repo.replace("/", "--")))
+        if not os.path.exists(expected_path):
+            if self.offline:
+                raise IOError(f"Offline mode enabled, cannot download {repo} to {expected_path}")
+            self.task_callback(f"Downloading preview VAE weights from repository {repo}")
+        return AutoencoderTiny.from_pretrained(
+            repo,
+            cache_dir=self.engine_cache_dir,
+            torch_dtype=self.dtype
+        )
 
     @property
     def vae(self) -> Optional[AutoencoderKL]:
@@ -594,9 +643,9 @@ class DiffusionPipelineManager:
                     self.unload_pipeline("VAE changing")
                 elif hasattr(self, "_pipeline"):
                     logger.debug(f"Hot-swapping pipeline VAE to {new_vae}")
-                    self._pipeline.vae = self._vae
+                    self._pipeline.vae = self._vae # type: ignore[assignment]
                     if self.is_sdxl:
-                        self._pipeline.register_to_config(
+                        self._pipeline.register_to_config( # type: ignore[attr-defined]
                             force_full_precision_vae = new_vae in ["xl", "stabilityai/sdxl-vae"] or (new_vae.endswith("sdxl_vae.safetensors") and "16" not in new_vae)
                         )
 
@@ -645,9 +694,9 @@ class DiffusionPipelineManager:
                     self.unload_refiner("VAE changing")
                 elif hasattr(self, "_refiner_pipeline"):
                     logger.debug(f"Hot-swapping refiner pipeline VAE to {new_vae}")
-                    self._refiner_pipeline.vae = self._vae
+                    self._refiner_pipeline.vae = self._refiner_vae # type: ignore[assignment]
                     if self.refiner_is_sdxl:
-                        self._refiner_pipeline.register_to_config(
+                        self._refiner_pipeline.register_to_config( # type: ignore[attr-defined]
                             force_full_precision_vae = new_vae in ["xl", "stabilityai/sdxl-vae"] or (new_vae.endswith("sdxl_vae.safetensors") and "16" not in new_vae)
                         )
 
@@ -696,9 +745,9 @@ class DiffusionPipelineManager:
                     self.unload_inpainter("VAE changing")
                 elif hasattr(self, "_inpainter_pipeline"):
                     logger.debug(f"Hot-swapping inpainter pipeline VAE to {new_vae}")
-                    self._inpainter_pipeline.vae = self._vae
+                    self._inpainter_pipeline.vae = self._inpainter_vae # type: ignore[assignment]
                     if self.inpainter_is_sdxl:
-                        self._inpainter_pipeline.register_to_config(
+                        self._inpainter_pipeline.register_to_config( # type: ignore[attr-defined]
                             force_full_precision_vae = new_vae in ["xl", "stabilityai/sdxl-vae"] or (new_vae.endswith("sdxl_vae.safetensors") and "16" not in new_vae)
                         )
 
@@ -768,14 +817,24 @@ class DiffusionPipelineManager:
         Gets the base engine size in pixels when chunking (default always.)
         """
         if not hasattr(self, "_size"):
-            return int(self.configuration.get("enfugue.size", 1024 if self.is_sdxl else 512))
+            return 1024 if self.is_sdxl else 512
         return self._size
 
     @size.setter
-    def size(self, new_size: int) -> None:
+    def size(self, new_size: Optional[int]) -> None:
         """
         Sets the base engine size in pixels.
         """
+        if new_size is None:
+            if hasattr(self, "_size"):
+                check_reload_size = self._size
+                delattr(self, "_size")
+                if check_reload_size != self.size and self.tensorrt_is_ready:
+                    self.unload_pipeline("engine size changing")
+                elif hasattr(self, "_pipeline"):
+                    logger.debug("setting pipeline engine size in place.")
+                    self._pipeline.engine_size = self.size
+            return
         if hasattr(self, "_size") and self._size != new_size:
             if self.tensorrt_is_ready:
                 self.unload_pipeline("engine size changing")
@@ -790,11 +849,7 @@ class DiffusionPipelineManager:
         Gets the refiner engine size in pixels when chunking (default always.)
         """
         if not hasattr(self, "_refiner_size"):
-            if self.is_sdxl and not self.refiner_is_sdxl:
-                return 512
-            elif not self.is_sdxl and self.refiner_is_sdxl:
-                return 1024
-            return self.size
+            return 1024 if self.refiner_is_sdxl else 512
         return self._refiner_size
 
     @refiner_size.setter
@@ -1876,15 +1931,8 @@ class DiffusionPipelineManager:
         Tries to import tensorrt to see if it's supported.
         """
         if not hasattr(self, "_tensorrt_is_supported"):
-            try:
-                import tensorrt
-
-                tensorrt.__version__  # quiet importchecker
-                self._tensorrt_is_supported = True
-            except Exception as ex:
-                logger.info("TensorRT is disabled.")
-                logger.debug("{0}: {1}".format(type(ex).__name__, ex))
-                self._tensorrt_is_supported = False
+            from enfugue.diffusion.util import tensorrt_available
+            self._tensorrt_is_supported = tensorrt_available()
         return self._tensorrt_is_supported
 
     @property
@@ -2092,14 +2140,27 @@ class DiffusionPipelineManager:
         self._pipeline_switch_mode = mode
 
     @property
+    def pipeline_sequential_onload(self) -> bool:
+        """
+        Defines how pipelines are loaded into memory.
+        """
+        if not hasattr(self, "_pipeline_sequential_onload"):
+            self._pipeline_sequential_onload = self.configuration.get("enfugue.pipeline.sequential", False) in [1, True, "1"]
+        return self._pipeline_sequential_onload
+
+    @pipeline_sequential_onload.setter
+    def pipeline_sequential_onload(self, new_onload: bool) -> None:
+        """
+        Defines how pipelines are loaded into memory.
+        """
+        self._pipeline_sequential_onload = new_onload
+
+    @property
     def create_inpainter(self) -> bool:
         """
         Defines how to switch to inpainting.
         """
-        configured = self.configuration.get("enfugue.pipeline.inpainter", None)
-        if configured is None:
-            return not self.is_sdxl
-        return configured
+        return bool(self.configuration.get("enfugue.pipeline.inpainter", True))
 
     @property
     def create_animator(self) -> bool:
@@ -2258,6 +2319,8 @@ class DiffusionPipelineManager:
             return DEFAULT_INPAINTING_MODEL
         elif model_file == DEFAULT_SDXL_MODEL_FILE:
             return DEFAULT_SDXL_MODEL
+        elif model_file == DEFAULT_SDXL_INPAINTING_MODEL_FILE:
+            return DEFAULT_SDXL_INPAINTING_MODEL
         elif model_file == DEFAULT_SDXL_REFINER_FILE:
             return DEFAULT_SDXL_REFINER
         return model
@@ -2290,6 +2353,8 @@ class DiffusionPipelineManager:
         model_name, _ = os.path.splitext(os.path.basename(model))
         if self.model_name != model_name:
             self.unload_pipeline("model changing")
+            if not hasattr(self, "_inpainter") and getattr(self, "_inpainter_pipeline", None) is not None:
+                self.unload_inpainter("base model changing")
         self._model = model
 
     @property
@@ -2349,7 +2414,11 @@ class DiffusionPipelineManager:
         """
         Returns true if the inpainter is set.
         """
-        return self.inpainter is not None or os.path.exists(self.default_inpainter_path)
+        return self.inpainter is not None or (
+            os.path.exists(self.default_inpainter_path) or (
+                self.default_inpainter_path.startswith("http") and not self.offline
+            )
+        )
 
     @property
     def inpainter(self) -> Optional[str]:
@@ -2932,7 +3001,7 @@ class DiffusionPipelineManager:
             if i < len(modules_to_gpu):
                 modules_to_gpu[i].to(self.device, dtype=self.dtype)
             if i < len(modules_to_cpu):
-                modules_to_cpu[i].to(torch.device("cpu"), dtype=torch.float32)
+                modules_to_cpu[i].to(torch.device("cpu"))
             self.clear_memory()
     
     @property
@@ -2952,9 +3021,10 @@ class DiffusionPipelineManager:
                 "requires_safety_checker": self.safe,
                 "torch_dtype": self.dtype,
                 "cache_dir": self.engine_cache_dir,
-                "force_full_precision_vae": self.is_sdxl and (self.vae_name is None or "16" not in self.vae_name),
+                "force_full_precision_vae": self.is_sdxl and "16" not in self.model and (self.vae_name is None or "16" not in self.vae_name),
                 "controlnets": self.controlnets,
-                "ip_adapter": self.ip_adapter
+                "ip_adapter": self.ip_adapter,
+                "task_callback": getattr(self, "_task_callback", None),
             }
             
             vae = self.vae
@@ -2984,12 +3054,15 @@ class DiffusionPipelineManager:
                 if not self.is_sdxl:
                     kwargs["tokenizer_2"] = None
                     kwargs["text_encoder_2"] = None
+
+                kwargs["build_half"] = "16" in str(self.dtype)
                 logger.debug(
                     f"Initializing TensorRT pipeline from diffusers cache directory at {self.model_diffusers_cache_dir}. Arguments are {redact(kwargs)}"
                 )
                 pipeline = self.pipeline_class.from_pretrained(
                     self.model_diffusers_cache_dir,
                     local_files_only=self.offline,
+                    vae_preview=self.get_vae_preview(self.is_sdxl),
                     **kwargs
                 )
             elif self.model_diffusers_cache_dir is not None:
@@ -3006,16 +3079,19 @@ class DiffusionPipelineManager:
                 pipeline = self.pipeline_class.from_pretrained(
                     self.model_diffusers_cache_dir,
                     local_files_only=self.offline,
+                    vae_preview=self.get_vae_preview(self.is_sdxl),
                     **kwargs
                 )
             else:
+                kwargs["offload_models"] = self.pipeline_sequential_onload
                 kwargs["load_safety_checker"] = self.safe
                 if self.vae_name is not None:
                     kwargs["vae_path"] = self.find_vae_path(self.vae_name)
 
                 logger.debug(f"Initializing pipeline from checkpoint at {self.model}. Arguments are {redact(kwargs)}")
+
                 pipeline = self.pipeline_class.from_ckpt(self.model, **kwargs)
-                if pipeline.is_sdxl and (self.vae_name is None or "16" not in self.vae_name):
+                if pipeline.is_sdxl and "16" not in self.model and (self.vae_name is None or "16" not in self.vae_name):
                     # We may have made an incorrect guess earlier if 'xl' wasn't in the filename.
                     # We can fix that here, though, by forcing full precision VAE
                     pipeline.register_to_config(force_full_precision_vae=True)
@@ -3035,9 +3111,9 @@ class DiffusionPipelineManager:
 
             # load scheduler
             if self.scheduler is not None:
-                logger.debug(f"Setting scheduler to {self.scheduler.__name__}")
-                pipeline.scheduler = self.scheduler.from_config({**pipeline.scheduler_config, **self.scheduler_config})
-            self._pipeline = pipeline.to(self.device)
+                logger.debug(f"Setting scheduler to {self.scheduler.__name__}") # type: ignore[attr-defined]
+                pipeline.scheduler = self.scheduler.from_config({**pipeline.scheduler_config, **self.scheduler_config}) # type: ignore[attr-defined]
+            self._pipeline = pipeline
         return self._pipeline
 
     @pipeline.deleter
@@ -3070,11 +3146,12 @@ class DiffusionPipelineManager:
                 "chunking_size": self.chunking_size,
                 "torch_dtype": self.dtype,
                 "requires_safety_checker": False,
-                "force_full_precision_vae": self.refiner_is_sdxl and (
+                "force_full_precision_vae": self.refiner_is_sdxl and "16" not in self.refiner and (
                     self.refiner_vae_name is None or "16" not in self.refiner_vae_name
                 ),
                 "controlnets": self.refiner_controlnets,
-                "ip_adapter": self.ip_adapter
+                "ip_adapter": self.ip_adapter,
+                "task_callback": getattr(self, "_task_callback", None),
             }
             
             vae = self.refiner_vae
@@ -3105,6 +3182,7 @@ class DiffusionPipelineManager:
                     kwargs["text_encoder_2"] = None
                     kwargs["tokenizer_2"] = None
 
+                kwargs["build_half"] = "16" in str(self.dtype)
                 logger.debug(
                     f"Initializing refiner TensorRT pipeline from diffusers cache directory at {self.refiner_diffusers_cache_dir}. Arguments are {redact(kwargs)}"
                 )
@@ -3112,6 +3190,7 @@ class DiffusionPipelineManager:
                 refiner_pipeline = self.refiner_pipeline_class.from_pretrained(
                     self.refiner_diffusers_cache_dir,
                     safety_checker=None,
+                    vae_preview=self.get_vae_preview(self.refiner_is_sdxl),
                     local_files_only=self.offline,
                     **kwargs,
                 )
@@ -3132,29 +3211,32 @@ class DiffusionPipelineManager:
                 refiner_pipeline = self.refiner_pipeline_class.from_pretrained(
                     self.refiner_diffusers_cache_dir,
                     safety_checker=None,
+                    vae_preview=self.get_vae_preview(self.refiner_is_sdxl),
                     local_files_only=self.offline,
                     **kwargs,
                 )
             else:
+                kwargs["offload_models"] = self.pipeline_sequential_onload
                 if self.refiner_vae_name is not None:
                     kwargs["vae_path"] = self.find_vae_path(self.refiner_vae_name)
 
                 logger.debug(f"Initializing refiner pipeline from checkpoint at {self.refiner}. Arguments are {redact(kwargs)}")
+
                 refiner_pipeline = self.refiner_pipeline_class.from_ckpt(
                     self.refiner,
                     load_safety_checker=False,
                     **kwargs,
                 )
-                if refiner_pipeline.is_sdxl and (self.refiner_vae_name is None or "16" not in self.refiner_vae_name):
+                if refiner_pipeline.is_sdxl and "16" not in self.refiner and (self.refiner_vae_name is None or "16" not in self.refiner_vae_name):
                     refiner_pipeline.register_to_config(force_full_precision_vae=True)
                 if self.should_cache_refiner:
                     logger.debug("Saving pipeline to pretrained.")
                     refiner_pipeline.save_pretrained(self.refiner_diffusers_dir)
             # load scheduler
             if self.scheduler is not None:
-                logger.debug(f"Setting refiner scheduler to {self.scheduler.__name__}")
-                refiner_pipeline.scheduler = self.scheduler.from_config({**refiner_pipeline.scheduler_config, **self.scheduler_config})
-            self._refiner_pipeline = refiner_pipeline.to(self.device)
+                logger.debug(f"Setting refiner scheduler to {self.scheduler.__name__}") # type: ignore[attr-defined]
+                refiner_pipeline.scheduler = self.scheduler.from_config({**refiner_pipeline.scheduler_config, **self.scheduler_config}) # type: ignore[attr-defined]
+            self._refiner_pipeline = refiner_pipeline
         return self._refiner_pipeline
 
     @refiner_pipeline.deleter
@@ -3176,15 +3258,16 @@ class DiffusionPipelineManager:
         """
         current_checkpoint_path = self.model
         default_checkpoint_name, _ = os.path.splitext(os.path.basename(DEFAULT_MODEL))
+        default_xl_checkpoint_name, _ = os.path.splitext(os.path.basename(DEFAULT_SDXL_MODEL))
         checkpoint_name, ext = os.path.splitext(os.path.basename(current_checkpoint_path))
 
         if default_checkpoint_name == checkpoint_name:
             return DEFAULT_INPAINTING_MODEL
+        elif default_xl_checkpoint_name == checkpoint_name:
+            return DEFAULT_SDXL_INPAINTING_MODEL
         else:
             target_checkpoint_name = f"{checkpoint_name}-inpainting"
-            return os.path.join(
-                os.path.dirname(current_checkpoint_path), f"{target_checkpoint_name}{ext}"
-            )
+            return os.path.join(self.engine_checkpoints_dir, f"{target_checkpoint_name}{ext}")
 
     @property
     def inpainter_pipeline(self) -> EnfugueStableDiffusionPipeline:
@@ -3194,12 +3277,17 @@ class DiffusionPipelineManager:
         if not hasattr(self, "_inpainter_pipeline"):
             if not self.inpainter:
                 target_checkpoint_path = self.default_inpainter_path
+                logger.debug(f"No inpainter explicitly set, will look for inpainter from {target_checkpoint_path}")
                 if target_checkpoint_path.startswith("http"):
                     target_checkpoint_path = self.check_download_model(self.engine_checkpoints_dir, target_checkpoint_path)
                 if not os.path.exists(target_checkpoint_path):
                     if self.create_inpainter:
                         logger.info(f"Creating inpainting checkpoint from {self.model}")
-                        self.create_inpainting_checkpoint(self.model, target_checkpoint_path)
+                        self.create_inpainting_checkpoint(
+                            self.model,
+                            target_checkpoint_path,
+                            self.is_sdxl
+                        )
                     else:
                         raise ConfigurationError(f"No target inpainter, creation is disabled, and default inpainter does not exist at {target_checkpoint_path}")
                 self.inpainter = target_checkpoint_path
@@ -3215,10 +3303,12 @@ class DiffusionPipelineManager:
                 "requires_safety_checker": self.safe,
                 "requires_aesthetic_score": False,
                 "controlnets": self.inpainter_controlnets,
-                "force_full_precision_vae": self.inpainter_is_sdxl and (
+                "force_full_precision_vae": self.inpainter_is_sdxl and "16" not in self.inpainter and (
                     self.inpainter_vae_name is None or "16" not in self.inpainter_vae_name
                 ),
-                "ip_adapter": self.ip_adapter
+                "ip_adapter": self.ip_adapter,
+                "task_callback": getattr(self, "_task_callback", None),
+                "is_inpainter": True
             }
 
             vae = self.inpainter_vae
@@ -3249,13 +3339,14 @@ class DiffusionPipelineManager:
                     kwargs["text_encoder_2"] = None
                     kwargs["tokenizer_2"] = None
 
+                kwargs["build_half"] = "16" in str(self.dtype)
                 logger.debug(
                     f"Initializing inpainter TensorRT pipeline from diffusers cache directory at {self.inpainter_diffusers_cache_dir}. Arguments are {redact(kwargs)}"
                 )
-
                 inpainter_pipeline = self.inpainter_pipeline_class.from_pretrained(
                     self.inpainter_diffusers_cache_dir,
                     local_files_only=self.offline,
+                    vae_preview=self.get_vae_preview(self.inpainter_is_sdxl),
                     **kwargs
                 )
             elif self.inpainter_engine_cache_exists:
@@ -3276,9 +3367,11 @@ class DiffusionPipelineManager:
                 inpainter_pipeline = self.inpainter_pipeline_class.from_pretrained(
                     self.inpainter_diffusers_cache_dir,
                     local_files_only=self.offline,
+                    vae_preview=self.get_vae_preview(self.inpainter_is_sdxl),
                     **kwargs
                 )
             else:
+                kwargs["offload_models"] = self.pipeline_sequential_onload
                 if self.inpainter_vae_name is not None:
                     kwargs["vae_path"] = self.find_vae_path(self.inpainter_vae_name)
                 
@@ -3289,7 +3382,7 @@ class DiffusionPipelineManager:
                 inpainter_pipeline = self.inpainter_pipeline_class.from_ckpt(
                     self.inpainter, load_safety_checker=self.safe, **kwargs
                 )
-                if inpainter_pipeline.is_sdxl and (self.inpainter_vae_name is None or "16" not in self.inpainter_vae_name):
+                if inpainter_pipeline.is_sdxl and "16" not in self.inpainter and (self.inpainter_vae_name is None or "16" not in self.inpainter_vae_name):
                     inpainter_pipeline.register_to_config(force_full_precision_vae=True)
                 if self.should_cache_inpainter:
                     logger.debug("Saving inpainter pipeline to pretrained cache.")
@@ -3306,9 +3399,9 @@ class DiffusionPipelineManager:
                     inpainter_pipeline.load_textual_inversion(inversion)
             # load scheduler
             if self.scheduler is not None:
-                logger.debug(f"Setting inpainter scheduler to {self.scheduler.__name__}")
-                inpainter_pipeline.scheduler = self.scheduler.from_config({**inpainter_pipeline.scheduler_config, **self.scheduler_config})
-            self._inpainter_pipeline = inpainter_pipeline.to(self.device)
+                logger.debug(f"Setting inpainter scheduler to {self.scheduler.__name__}") # type: ignore[attr-defined]
+                inpainter_pipeline.scheduler = self.scheduler.from_config({**inpainter_pipeline.scheduler_config, **self.scheduler_config}) # type: ignore[attr-defined]
+            self._inpainter_pipeline = inpainter_pipeline
         return self._inpainter_pipeline
 
     @inpainter_pipeline.deleter
@@ -3471,16 +3564,8 @@ class DiffusionPipelineManager:
             else:
                 import torch
                 logger.debug("Offloading pipeline to CPU.")
-                self._pipeline = self._pipeline.to("cpu", torch_dtype=torch.float32)
+                self._pipeline = self._pipeline.to("cpu") # type: ignore[attr-defined]
             self.clear_memory()
-
-    def reload_pipeline(self) -> None:
-        """
-        Reloads the pipeline to the device if present.
-        """
-        if hasattr(self, "_pipeline") and self.pipeline_switch_mode == "offload":
-            logger.debug("Reloading pipeline from CPU")
-            self._pipeline = self._pipeline.to(self.device, torch_dtype=self.dtype)
 
     def unload_refiner(self, reason: str = "none") -> None:
         """
@@ -3509,16 +3594,8 @@ class DiffusionPipelineManager:
             else:
                 import torch
                 logger.debug("Offloading refiner to CPU")
-                self._refiner_pipeline = self._refiner_pipeline.to("cpu", torch_dtype=torch.float32)
+                self._refiner_pipeline = self._refiner_pipeline.to("cpu") # type: ignore[attr-defined]
             self.clear_memory()
-
-    def reload_refiner(self) -> None:
-        """
-        Reloads the pipeline to the device if present.
-        """
-        if hasattr(self, "_refiner_pipeline") and self.pipeline_switch_mode == "offload":
-            logger.debug("Reloading refiner from CPU")
-            self._refiner_pipeline = self._refiner_pipeline.to(self.device, torch_dtype=self.dtype)
 
     def unload_inpainter(self, reason: str = "none") -> None:
         """
@@ -3549,16 +3626,8 @@ class DiffusionPipelineManager:
             else:
                 import torch
                 logger.debug("Offloading inpainter to CPU")
-                self._inpainter_pipeline = self._inpainter_pipeline.to("cpu", torch_dtype=torch.float32)
+                self._inpainter_pipeline = self._inpainter_pipeline.to("cpu") # type: ignore[attr-defined]
             self.clear_memory()
-
-    def reload_inpainter(self) -> None:
-        """
-        Reloads the pipeline to the device if present.
-        """
-        if hasattr(self, "_inpainter_pipeline") and self.pipeline_switch_mode == "offload":
-            logger.debug("Reloading inpainter from CPU")
-            self._inpainter_pipeline = self._inpainter_pipeline.to(self.device, torch_dtype=self.dtype)
 
     def unload_animator(self, reason: str = "none") -> None:
         """
@@ -3595,14 +3664,6 @@ class DiffusionPipelineManager:
                 self._animator_pipeline = self._animator_pipeline.to("cpu", torch_dtype=torch.float32)
             self.clear_memory()
 
-    def reload_animator(self) -> None:
-        """
-        Reloads the pipeline to the device if present.
-        """
-        if hasattr(self, "_animator_pipeline") and self.pipeline_switch_mode == "offload":
-            logger.debug("Reloading animator from CPU")
-            self._animator_pipeline = self._animator_pipeline.to(self.device, torch_dtype=self.dtype)
-
     @property
     def upscaler(self) -> Upscaler:
         """
@@ -3616,6 +3677,7 @@ class DiffusionPipelineManager:
                 dtype=self.dtype,
                 offline=self.offline
             )
+            self._upscaler.task_callback = self._task_callback
         return self._upscaler
 
     @property
@@ -3631,6 +3693,7 @@ class DiffusionPipelineManager:
                 dtype=self.dtype,
                 offline=self.offline
             )
+            self._control_image_processor.task_callback = self._task_callback
         return self._control_image_processor
 
     @property
@@ -3646,6 +3709,7 @@ class DiffusionPipelineManager:
                 dtype=self.dtype,
                 offline=self.offline
             )
+            self._background_remover.task_callback = self._task_callback
         return self._background_remover
 
     @property
@@ -3661,6 +3725,7 @@ class DiffusionPipelineManager:
                 dtype=self.dtype,
                 offline=self.offline
             )
+            self._ip_adapter.task_callback = self._task_callback
         return self._ip_adapter
 
     @property
@@ -3727,6 +3792,7 @@ class DiffusionPipelineManager:
                 logger.info(
                     f"Controlnet {controlnet} does not exist in cache directory {self.engine_cache_dir}, it will be downloaded."
                 )
+                self.task_callback(f"Downloading {controlnet} model weights")
             result = ControlNetModel.from_pretrained(
                 controlnet,
                 torch_dtype=torch.half,
@@ -4130,6 +4196,7 @@ class DiffusionPipelineManager:
         """
         if task_callback is None:
             task_callback = lambda arg: None
+        self._task_callback = task_callback
         latent_callback = noop
         will_refine = (refiner_strength != 0 or (refiner_start != 0 and refiner_start != 1)) and self.refiner is not None
         callback_images: List[PIL.Image.Image] = []
@@ -4219,7 +4286,7 @@ class DiffusionPipelineManager:
                     self.offload_pipeline(intention) # type: ignore
                     self.offload_refiner(intention) # type: ignore
                     self.offload_animator(intention) # type: ignore
-                    self.reload_inpainter()
+
                     pipe = self.inpainter_pipeline
                 elif animating:
                     if not self.has_animator:
@@ -4228,13 +4295,15 @@ class DiffusionPipelineManager:
                     self.offload_pipeline(intention) # type: ignore
                     self.offload_refiner(intention) # type: ignore
                     self.offload_inpainter(intention) # type: ignore
-                    self.reload_animator()
+
                     pipe = self.animator_pipeline
                 else:
+                    if inpainting:
+                        logger.info(f"No inpainter set and creation is disabled; using base pipeline for inpainting.")
                     self.offload_refiner(intention) # type: ignore
                     self.offload_inpainter(intention) # type: ignore
                     self.offload_animator(intention) # type: ignore
-                    self.reload_pipeline()
+
                     pipe = self.pipeline
 
                 # Check refining settings
@@ -4246,17 +4315,20 @@ class DiffusionPipelineManager:
 
                 # Check IP adapter for downloads
                 if kwargs.get("ip_adapter_scale", None) is not None:
-                    if pipe.is_sdxl:
-                        _ = self.ip_adapter.xl_image_prompt_checkpoint
-                        _ = self.ip_adapter.xl_adapter_directory
-                    else:
-                        _ = self.ip_adapter.default_image_prompt_checkpoint
-                        _ = self.ip_adapter.default_adapter_directory
+                    self.ip_adapter.check_download(
+                        is_sdxl=pipe.is_sdxl,
+                    )
 
                 self.stop_keepalive()
                 task_callback("Executing Inference")
                 logger.debug(f"Calling pipeline with arguments {redact(kwargs)}")
-                result = pipe(generator=self.generator, **kwargs)
+                result = pipe( # type: ignore[assignment]
+                    generator=self.generator,
+                    device=self.device,
+                    offload_models=self.pipeline_sequential_onload,
+                    noise_generator=self.noise_generator,
+                    **kwargs
+                )
 
             if will_refine:
                 self.start_keepalive()
@@ -4278,7 +4350,6 @@ class DiffusionPipelineManager:
                 else:
                     self.offload_pipeline("refining")
 
-                self.reload_refiner()
                 kwargs.pop("image", None)  # Remove any previous image
                 kwargs.pop("mask", None)  # Remove any previous mask
                 kwargs.pop("control_images", None) # Remove previous ControlNet images
@@ -4324,11 +4395,16 @@ class DiffusionPipelineManager:
                 task_callback(f"Refining")
 
                 refiner_result = pipe(  # type: ignore
-                    generator=self.generator, image=result["images"], **kwargs
+                    generator=self.generator,
+                    device=self.device,
+                    offload_models=self.pipeline_sequential_onload,
+                    noise_generator=self.noise_generator,
+                    image=result["images"],
+                    **kwargs
                 )
 
                 # Callback with the result
-                result = refiner_result
+                result = refiner_result # type: ignore[assignment]
                 if next_intention == "refining":
                     logger.debug("Next intention is refining, leaving refiner in memory")
                 elif next_intention == "upscaling":
@@ -4354,6 +4430,7 @@ class DiffusionPipelineManager:
                     result["images"] = result["images"][:-1]
             return result
         finally:
+            self._task_callback = None
             self.tensorrt_is_enabled = True
             self.stop_keepalive()
 
@@ -4510,17 +4587,25 @@ class DiffusionPipelineManager:
             "ready": ready,
         }
 
-    def create_inpainting_checkpoint(self, source_checkpoint_path: str, target_checkpoint_path: str) -> None:
+    def create_inpainting_checkpoint(
+        self,
+        source_checkpoint_path: str,
+        target_checkpoint_path: str,
+        is_sdxl: bool = False
+    ) -> None:
         """
         Creates an inpainting model by merging in the SD 1.5 inpainting model with a non inpainting model.
         """
         from enfugue.diffusion.util import ModelMerger
 
+        primary_model = DEFAULT_SDXL_INPAINTING_MODEL if is_sdxl else DEFAULT_INPAINTING_MODEL
+        tertiary_model = DEFAULT_SDXL_MODEL if is_sdxl else DEFAULT_MODEL
+
         try:
             merger = ModelMerger(
-                self.check_download_model(self.engine_checkpoints_dir, DEFAULT_INPAINTING_MODEL),
+                self.check_download_model(self.engine_checkpoints_dir, primary_model),
                 source_checkpoint_path,
-                self.check_download_model(self.engine_checkpoints_dir, DEFAULT_MODEL),
+                self.check_download_model(self.engine_checkpoints_dir, tertiary_model),
                 interpolation="add-difference",
             )
             merger.save(target_checkpoint_path)

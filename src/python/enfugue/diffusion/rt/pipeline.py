@@ -4,7 +4,6 @@ import torch
 import tensorrt as trt
 
 from typing import Optional, List, Dict, Iterator, Any, Union, Tuple, Callable, TYPE_CHECKING
-from typing_extensions import Self
 
 from contextlib import contextmanager
 
@@ -17,8 +16,12 @@ from transformers import (
 )
 
 from diffusers.schedulers import KarrasDiffusionSchedulers, DDIMScheduler
-from diffusers.models import AutoencoderKL, UNet2DConditionModel, ControlNetModel
-
+from diffusers.models import (
+    AutoencoderKL,
+    AutoencoderTiny,
+    UNet2DConditionModel,
+    ControlNetModel
+)
 from diffusers.pipelines.stable_diffusion import StableDiffusionSafetyChecker
 
 from enfugue.util import logger, TokenMerger
@@ -38,6 +41,7 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
     def __init__(
         self,
         vae: AutoencoderKL,
+        vae_preview: AutoencoderTiny,
         text_encoder: Optional[CLIPTextModel],
         text_encoder_2: Optional[CLIPTextModelWithProjection],
         tokenizer: Optional[CLIPTokenizer],
@@ -66,12 +70,14 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         build_static_batch: bool = False,
         build_dynamic_shape: bool = False,
         build_preview_features: bool = False,
+        build_half: bool = False,
         onnx_opset: int = 17,
     ) -> None:
         if engine_size is None:
             raise ValueError("Cannot use TensorRT with a 'None' engine size.")
         super(EnfugueTensorRTStableDiffusionPipeline, self).__init__(
             vae=vae,
+            vae_preview=vae_preview,
             text_encoder=text_encoder,
             text_encoder_2=text_encoder_2,
             tokenizer=tokenizer,
@@ -93,14 +99,15 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         )
         if self.controlnets:
             # Hijack forward
-            self.unet.forward = self.controlled_unet_forward
-        self.vae.forward = self.vae.decode
+            self.unet.forward = self.controlled_unet_forward # type: ignore[method-assign]
+        self.vae.forward = self.vae.decode # type: ignore[method-assign]
         self.onnx_opset = onnx_opset
         self.force_engine_rebuild = force_engine_rebuild
         self.vae_engine_dir = vae_engine_dir
         self.clip_engine_dir = clip_engine_dir
         self.unet_engine_dir = unet_engine_dir
         self.controlled_unet_engine_dir = controlled_unet_engine_dir
+        self.build_half = build_half
         self.build_static_batch = build_static_batch
         self.build_dynamic_shape = build_dynamic_shape
         self.build_preview_features = build_preview_features
@@ -156,10 +163,16 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         if self.clip_engine_dir is not None:
             self.models["clip"] = CLIP(self.text_encoder, **models_args)
         if self.unet_engine_dir is not None:
-            self.models["unet"] = UNet(self.unet, unet_dim=self.unet.config.in_channels, **models_args)
+            self.models["unet"] = UNet(
+                self.unet,
+                unet_dim=self.unet.config.in_channels, # type: ignore[attr-defined]
+                **models_args
+            )
         if self.controlled_unet_engine_dir is not None:
             self.models["controlledunet"] = ControlledUNet(
-                self.unet, unet_dim=self.unet.config.in_channels, **models_args
+                self.unet,
+                unet_dim=self.unet.config.in_channels, # type: ignore[attr-defined]
+                **models_args
             )
         if self.vae_engine_dir is not None:
             self.models["vae"] = VAE(self.vae, **models_args)
@@ -191,46 +204,54 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         """
         We initialize the TensorRT runtime here.
         """
-        self.load_resources(self.engine_size, self.engine_size, batch_size) # type: ignore[arg-type]
+        self.torch_device = device
+        self.prepare_engines(device)
+        self.load_resources(self.engine_size, self.engine_size, batch_size)
         with (
             torch.inference_mode(),
             torch.autocast(device.type if isinstance(device, torch.device) else device),
             trt.Runtime(trt.Logger(trt.Logger.ERROR)),
         ):
-            if self.vae is not None and self.vae_engine_dir is None:
-                self.vae.to(device)
-            if self.text_encoder is not None and self.clip_engine_dir is None:
-                self.text_encoder.to(device)
-            if self.unet_engine_dir is not None or self.controlled_unet_engine_dir is not None:
-                logger.info("TensorRT unloading UNET")
-                self.unet = self.unet.to("cpu")
             yield
-            if self.unet_engine_dir is not None or self.controlled_unet_engine_dir is not None:
-                logger.info("TensorRT reloading UNET")
-                self.unet = self.unet.to(device)
 
-    def to(
+    def align_unet(
         self,
-        torch_device: Optional[Union[str, torch.device]] = None,
-        silence_dtype_warnings: bool = False,
-        torch_dtype: torch.dtype = torch.float16,
-    ) -> Self:
+        device: torch.device,
+        dtype: torch.dtype,
+        freeu_factors: Optional[Tuple[float, float, float, float]] = None,
+        offload_models: bool = False
+    ) -> None:
         """
-        First follow the parent to(), then load engines.
+        TRT skips.
         """
-        super().to(torch_device, silence_dtype_warnings=silence_dtype_warnings)
+        engine_name = "controlledunet"
+        if engine_name not in self.engine:
+            engine_name = "unet"
+        if engine_name not in self.engine:
+            return super(EnfugueTensorRTStableDiffusionPipeline, self).align_unet(
+                device=device,
+                dtype=dtype,
+                freeu_factors=freeu_factors,
+                offload_models=offload_models
+            )
 
-        if torch_device == "cpu" or isinstance(torch_device, torch.device) and torch_device.type == "cpu":
-            return self
+    def prepare_engines(
+        self,
+        torch_device: Optional[Union[str, torch.device]] = None
+    ) -> None:
+        """
+        Prepares engines.
+        """
+        if torch_device == "cpu" or (isinstance(torch_device, torch.device) and torch_device.type == "cpu"):
+            return
         elif getattr(self, "_built", False):
-            return self
+            return
 
         # set device
-        self.torch_device = self._execution_device
+        self.torch_device = self.torch_device
 
         # load models
-        use_fp16 = torch_dtype is torch.float16
-        self.load_models(use_fp16)
+        self.load_models(self.build_half)
 
         # build engines
         engines_to_build: Dict[str, BaseModel] = {}
@@ -256,7 +277,6 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         )
 
         self._built = True
-        return self
 
     def create_latents(
         self,
@@ -288,6 +308,7 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         lora_scale: Optional[float] = None,
         prompt_2: Optional[str] = None,
         negative_prompt_2: Optional[str] = None,
+        clip_skip: Optional[int] = None,
     ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]]:
         """
         Encodes the prompt into text encoder hidden states.
@@ -309,9 +330,11 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
                 prompt_embeds=prompt_embeds,
                 negative_prompt_embeds=negative_prompt_embeds,
                 prompt_2=prompt_2,
-                negative_prompt_2=negative_prompt_2
+                negative_prompt_2=negative_prompt_2,
+                clip_skip=clip_skip,
             )
-        
+        if self.tokenizer is None:
+            raise ValueError("No tokenizer available in TensorRT pipeline.")
         if prompt and prompt_2:
             logger.debug("Merging prompt and prompt_2")
             prompt = str(TokenMerger(prompt, prompt_2))

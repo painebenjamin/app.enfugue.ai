@@ -68,10 +68,12 @@ class InvocationTableView extends ModelTableView {
      * @var object<callable> How to format individual columns.
      */
     static columnFormatters = {
-        "duration": (value) => humanDuration(parseFloat(value)),
+        "duration": (value) => humanDuration(parseFloat(value), true, true),
         "plan": (plan) => {
             return JSON.stringify(plan);
         },
+        "prompt": (_, datum) => datum.plan.prompt,
+        "seed": (_, datum) => datum.plan.seed.toString(),
         "outputs": async function(outputCount, datum) {
             if (outputCount > 0) {
                 let outputContainer = E.invocationOutputs();
@@ -102,6 +104,8 @@ class InvocationTableView extends ModelTableView {
     static columns = {
         "started": "Started",
         "duration": "Duration",
+        "seed": "Seed",
+        "prompt": "Prompt",
         "plan": "Parameters",
         "outputs": "Output"
     };
@@ -114,7 +118,7 @@ class ResultsController extends MenuController {
     /**
      * @var int The initial width of the history window
      */
-    static historyTableWidth = 800;
+    static historyTableWidth = 1000;
     
     /**
      * @var int The initial height of the history window

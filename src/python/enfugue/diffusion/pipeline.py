@@ -32,6 +32,7 @@ import safetensors.torch
 
 from contextlib import contextmanager
 from collections import defaultdict
+from omegaconf import OmegaConf
 
 from transformers import (
     AutoFeatureExtractor,
@@ -50,8 +51,13 @@ from diffusers.schedulers import (
     LMSDiscreteScheduler,
     PNDMScheduler,
 )
-from diffusers.models import AutoencoderKL, UNet2DConditionModel, ControlNetModel
 from diffusers.models.modeling_utils import ModelMixin
+from diffusers.models import (
+    AutoencoderKL,
+    AutoencoderTiny,
+    UNet2DConditionModel,
+    ControlNetModel,
+)
 from diffusers.loaders import LoraLoaderMixin
 from diffusers.models.attention_processor import (
     AttnProcessor2_0,
@@ -95,6 +101,17 @@ from enfugue.util import (
 )
 
 from einops import rearrange
+from pibble.util.files import load_json
+
+from enfugue.util import logger, check_download, check_download_to_dir, TokenMerger
+from enfugue.diffusion.util import (
+    load_state_dict,
+    empty_cache,
+    make_noise,
+    blend_latents,
+    LatentScaler,
+    MaskWeightBuilder
+)
 
 if TYPE_CHECKING:
     from enfugue.diffusers.support.ip import IPAdapter
@@ -165,14 +182,22 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
     6. animatediff
     """
     controlnets: Optional[Dict[str, ControlNetModel]]
-    text_encoder: Optional[CLIPTextModel]
-    text_encoder_2: Optional[CLIPTextModelWithProjection]
     unet: UNet2DConditionModel
     scheduler: KarrasDiffusionSchedulers
+    vae: AutoencoderKL
+    vae_preview: AutoencoderTiny
+    tokenizer: Optional[CLIPTokenizer]
+    tokenizer_2: Optional[CLIPTokenizer]
+    text_encoder: Optional[CLIPTextModel]
+    text_encoder_2: Optional[CLIPTextModelWithProjection]
+    vae_scale_factor: int
+    safety_checker: StableDiffusionSafetyChecker
+    config: OmegaConf
 
     def __init__(
         self,
         vae: AutoencoderKL,
+        vae_preview: AutoencoderTiny,
         text_encoder: Optional[CLIPTextModel],
         text_encoder_2: Optional[CLIPTextModelWithProjection],
         tokenizer: Optional[CLIPTokenizer],
@@ -206,7 +231,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         )
 
         # Save scheduler config for hotswapping
-        self.scheduler_config = {**dict(scheduler.config)}
+        self.scheduler_config = {**dict(scheduler.config)} # type: ignore[attr-defined]
 
         # Enfugue engine settings
         self.engine_size = engine_size
@@ -217,10 +242,10 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         self.temporal_chunking_size = temporal_chunking_size
 
         # Hide tqdm
-        self.set_progress_bar_config(disable=True)
+        self.set_progress_bar_config(disable=True) # type: ignore[attr-defined]
 
         # Add config for xl
-        self.register_to_config(
+        self.register_to_config( # type: ignore[attr-defined]
             force_full_precision_vae=force_full_precision_vae,
             requires_aesthetic_score=requires_aesthetic_score,
             force_zeros_for_empty_prompt=force_zeros_for_empty_prompt
@@ -230,7 +255,11 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         self.image_processor = VaeImageProcessor(vae_scale_factor=self.vae_scale_factor)
 
         # Register other networks
-        self.register_modules(text_encoder_2=text_encoder_2, tokenizer_2=tokenizer_2)
+        self.register_modules( # type: ignore[attr-defined]
+            text_encoder_2=text_encoder_2,
+            tokenizer_2=tokenizer_2,
+            vae_preview=vae_preview
+        )
 
         # Add ControlNet map
         self.controlnets = controlnets
@@ -238,6 +267,9 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         # Add IP Adapter
         self.ip_adapter = ip_adapter
         self.ip_adapter_loaded = False
+
+        # Create helpers
+        self.latent_scaler = LatentScaler()
 
     @classmethod
     def debug_tensors(cls, **kwargs: Union[Dict, List, torch.Tensor]) -> None:
@@ -289,11 +321,22 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             return [PIL.Image.open(path)]
 
     @classmethod
-    def create_unet(cls, config: Dict[str, Any], cache_dir: str, **kwargs: Any) -> ModelMixin:
+    def create_unet(
+        cls,
+        config: Dict[str, Any],
+        cache_dir: str,
+        is_sdxl: bool,
+        is_inpainter: bool,
+        **kwargs: Any
+    ) -> UNet2DConditionModel:
         """
         Instantiates the UNet from config
         """
-        return UNet2DConditionModel(**config)
+        if is_sdxl and is_inpainter:
+            config_url = "https://huggingface.co/diffusers/stable-diffusion-xl-1.0-inpainting-0.1/raw/main/unet/config.json"
+            config_path = check_download_to_dir(config_url, cache_dir, check_size=False)
+            config = load_json(config_path)
+        return UNet2DConditionModel.from_config(config)
 
     @classmethod
     def from_ckpt(
@@ -304,12 +347,16 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         image_size: int = 512,
         scheduler_type: Literal["pndm", "lms", "heun", "euler", "euler-ancestral", "dpm", "ddim"] = "ddim",
         vae_path: Optional[str] = None,
+        vae_preview_path: Optional[str] = None,
         load_safety_checker: bool = True,
         torch_dtype: Optional[torch.dtype] = None,
         upcast_attention: Optional[bool] = None,
         extract_ema: Optional[bool] = None,
         motion_module: Optional[str] = None,
         unet_kwargs: Dict[str, Any] = {},
+        offload_models: bool = False,
+        is_inpainter=False,
+        task_callback: Optional[Callable[[str], None]]=None,
         **kwargs: Any,
     ) -> EnfugueStableDiffusionPipeline:
         """
@@ -333,35 +380,61 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             checkpoint = checkpoint["state_dict"] # type: ignore[assignment]
 
         checkpoint = cast(Mapping[str, torch.Tensor], checkpoint) # type: ignore[assignment]
-        key_name_2_1 = "model.diffusion_model.input_blocks.2.1.transformer_blocks.0.attn2.to_k.weight"
-        key_name_xl_base = "conditioner.embedders.1.model.transformer.resblocks.9.mlp.c_proj.bias"
-        key_name_xl_refiner = "conditioner.embedders.0.model.transformer.resblocks.9.mlp.c_proj.bias"
 
-        # SD v1
-        config_url = (
-            "https://raw.githubusercontent.com/CompVis/stable-diffusion/main/configs/stable-diffusion/v1-inference.yaml"
-        )
+        # Check for config in same directory as checkpoint
+        ckpt_dir = os.path.dirname(os.path.abspath(checkpoint_path))
+        ckpt_name, _ = os.path.splitext(os.path.basename(checkpoint_path))
 
-        if key_name_2_1 in checkpoint and checkpoint[key_name_2_1].shape[-1] == 1024: # type: ignore[union-attr]
-            # SD v2.1
-            config_url = "https://raw.githubusercontent.com/Stability-AI/stablediffusion/main/configs/stable-diffusion/v2-inference-v.yaml"
+        original_config_file: Optional[str] = os.path.join(ckpt_dir, f"{ckpt_name}.yaml")
+        if os.path.exists(original_config_file): # type: ignore[arg-type]
+            logger.info(f"Found configuration file alongside checkpoint, using {ckpt_name}.yaml")
+        else:
+            original_config_file = os.path.join(ckpt_dir, f"{ckpt_name}.json")
+            if os.path.exists(original_config_file):
+                logger.info(f"Found configuration file alongside checkpoint, using {ckpt_name}.json")
+            else:
+                original_config_file = None
 
-            if global_step == 110000:
-                # v2.1 needs to upcast attention
-                upcast_attention = True
-        elif key_name_xl_base in checkpoint:
-            # SDXL Base
-            config_url = "https://raw.githubusercontent.com/Stability-AI/generative-models/main/configs/inference/sd_xl_base.yaml"
-        elif key_name_xl_refiner in checkpoint:
-            # SDXL Refiner
-            config_url = "https://raw.githubusercontent.com/Stability-AI/generative-models/main/configs/inference/sd_xl_refiner.yaml"
+        if original_config_file is None:
+            key_name_2_1 = "model.diffusion_model.input_blocks.2.1.transformer_blocks.0.attn2.to_k.weight"
+            key_name_xl_base = "conditioner.embedders.1.model.transformer.resblocks.9.mlp.c_proj.bias"
+            key_name_xl_refiner = "conditioner.embedders.0.model.transformer.resblocks.9.mlp.c_proj.bias"
 
-        original_config_file = check_download_to_dir(config_url, cache_dir, check_size=False)
-        from omegaconf import OmegaConf
+            # SD v1 default
+            config_url = (
+                "https://raw.githubusercontent.com/CompVis/stable-diffusion/main/configs/stable-diffusion/v1-inference.yaml"
+            )
 
-        original_config = OmegaConf.load(original_config_file)
+            if key_name_2_1 in checkpoint and checkpoint[key_name_2_1].shape[-1] == 1024: # type: ignore[union-attr]
+                # SD v2.1
+                config_url = "https://raw.githubusercontent.com/Stability-AI/stablediffusion/main/configs/stable-diffusion/v2-inference-v.yaml"
+                logger.info(f"No configuration file found for checkpoint {ckpt_name}, using Stable Diffusion V2.1")
 
-        num_in_channels = 9 if "inpaint" in os.path.basename(checkpoint_path).lower() else 4
+                if global_step == 110000:
+                    # v2.1 needs to upcast attention
+                    upcast_attention = True
+            elif key_name_xl_base in checkpoint:
+                # SDXL Base
+                logger.info(f"No configuration file found for checkpoint {ckpt_name}, using Stable Diffusion XL Base")
+                config_url = "https://raw.githubusercontent.com/Stability-AI/generative-models/main/configs/inference/sd_xl_base.yaml"
+            elif key_name_xl_refiner in checkpoint:
+                # SDXL Refiner
+                logger.info(f"No configuration file found for checkpoint {ckpt_name}, using Stable Diffusion XL Refiner")
+                config_url = "https://raw.githubusercontent.com/Stability-AI/generative-models/main/configs/inference/sd_xl_refiner.yaml"
+            else:
+                # SD v1
+                logger.info(f"No configuration file found for checkpoint {ckpt_name}, using Stable Diffusion 1.5")
+            original_config_file = check_download_to_dir(config_url, cache_dir, check_size=False)
+
+        original_config = OmegaConf.load(original_config_file) # type: ignore
+
+        if "model.diffusion_model.input_blocks.0.0.weight" in checkpoint:
+            num_in_channels = checkpoint["model.diffusion_model.input_blocks.0.0.weight"].shape[1] # type: ignore[union-attr]
+            logger.info(f"Checkpoint has {num_in_channels} input channels")
+        else:
+            num_in_channels = 9 if is_inpainter else 4
+            logger.info(f"Could not automatically determine input channels, forcing {num_in_channels} input channels")
+
         if "unet_config" in original_config["model"]["params"]:  # type: ignore
             # SD 1 or 2
             original_config["model"]["params"]["unet_config"]["params"]["in_channels"] = num_in_channels  # type: ignore
@@ -399,12 +472,14 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             else:
                 model_type = "SDXL-Refiner"
 
+        is_sdxl = isinstance(model_type, str) and model_type.startswith("SDXL")
+
         num_train_timesteps = 1000  # Default is SDXL
         if "timesteps" in original_config.model.params:
             # SD 1 or 2
             num_train_timesteps = original_config.model.params.timesteps
 
-        if model_type in ["SDXL", "SDXL-Refiner"]:
+        if is_sdxl:
             image_size = 1024
             scheduler_dict = {
                 "beta_schedule": "scaled_linear",
@@ -459,13 +534,15 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
         unet_config = create_unet_diffusers_config(original_config, image_size=image_size)
         unet_config["upcast_attention"] = upcast_attention
-        
+
         unet = cls.create_unet(
             unet_config,
             cache_dir=cache_dir,
             motion_module=motion_module,
+            is_sdxl=isinstance(model_type, str) and model_type.startswith("SDXL"),
+            is_inpainter=is_inpainter,
             **unet_kwargs
-        )
+	)
 
         converted_unet_checkpoint = convert_ldm_unet_checkpoint(
             checkpoint,
@@ -475,6 +552,10 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         )
 
         unet.load_state_dict(converted_unet_checkpoint, strict=False)
+
+        if offload_models:
+            unet.to("cpu")
+            empty_cache()
 
         # Convert the VAE model.
         if vae_path is None:
@@ -487,16 +568,21 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     and "params" in original_config.model
                     and "scale_factor" in original_config.model.params
                 ):
-                    vae_scaling_factor = original_config.model.params.scale_factor
+                    vae_scale_factor = original_config.model.params.scale_factor
                 else:
-                    vae_scaling_factor = 0.18215  # default SD scaling factor
+                    vae_scale_factor = 0.18215  # default SD scaling factor
 
-                vae_config["scaling_factor"] = vae_scaling_factor
+                vae_config["scaling_factor"] = vae_scale_factor
                 vae = AutoencoderKL(**vae_config)
                 vae.load_state_dict(converted_vae_checkpoint)
             except KeyError as ex:
                 default_path = "stabilityai/sdxl-vae" if model_type in ["SDXL", "SDXL-Refiner"] else "stabilityai/sd-vae-ft-ema"
                 logger.error(f"Malformed VAE state dictionary detected; missing required key '{ex}'. Reverting to default model {default_path}")
+                pretrained_save_path = os.path.join(cache_dir, "models--{0}".format(
+                    default_path.replace("/", "--")
+                ))
+                if not os.path.exists(pretrained_save_path) and task_callback is not None:
+                    task_callback(f"Downloading default VAE weights from repository {default_path}")
                 vae = AutoencoderKL.from_pretrained(default_path, cache_dir=cache_dir)
         elif os.path.exists(vae_path):
             if model_type in ["SDXL", "SDXL-Refiner"]:
@@ -519,13 +605,36 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         else:
             vae = AutoencoderKL.from_pretrained(vae_path, cache_dir=cache_dir)
 
+        if vae_preview_path is None:
+            if model_type in ["SDXL", "SDXL-Refiner"]:
+                vae_preview_path = "madebyollin/taesdxl"
+            else:
+                vae_preview_path = "madebyollin/taesd"
+
+        vae_preview_local_path = os.path.join(cache_dir, "models--{0}".format(vae_preview_path.replace("/", "--")))
+        if not os.path.exists(vae_preview_local_path) and task_callback is not None:
+            task_callback("Downloading preview VAE weights from repository {vae_preview_path}")
+        vae_preview = AutoencoderTiny.from_pretrained(vae_preview_path, cache_dir=cache_dir)
+
+        if offload_models:
+            vae.to("cpu")
+            empty_cache()
+
         if load_safety_checker:
+            safety_checker_path = "CompVis/stable-diffusion-safety-checker"
+            safety_checker_local_path = os.path.join(cache_dir, "models--{0}".format(safety_checker_path.replace("/", "--")))
+            if not os.path.exists(safety_checker_local_path) and task_callback is not None:
+                task_callback(f"Downloading safety checker weights from repository {safety_checker_path}")
+
             safety_checker = StableDiffusionSafetyChecker.from_pretrained(
-                "CompVis/stable-diffusion-safety-checker",
+                safety_checker_path,
                 cache_dir=cache_dir
             )
+            if offload_models:
+                safety_checker.to("cpu")
+                empty_cache()
             feature_extractor = AutoFeatureExtractor.from_pretrained(
-                "CompVis/stable-diffusion-safety-checker",
+                safety_checker_path,
                 cache_dir=cache_dir
             )
         else:
@@ -534,16 +643,26 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
         # Convert the text model.
         if model_type == "FrozenCLIPEmbedder":
-            logger.debug("Using Stable Diffusion v1 pipeline.")
             text_model = convert_ldm_clip_checkpoint(checkpoint)
+            if offload_models:
+                text_model.to("cpu")
+                empty_cache()
+
+            tokenizer_path = "openai/clip-vit-large-patch14"
+            tokenizer_local_path = os.path.join(cache_dir, "models--{0}".format(tokenizer_path.replace("/", "--")))
+            if not os.path.exists(tokenizer_local_path) and task_callback is not None:
+                task_callback(f"Downloading tokenizer weights from repository {tokenizer_path}")
+
             tokenizer = CLIPTokenizer.from_pretrained(
-                "openai/clip-vit-large-patch14",
+                tokenizer_path,
                 cache_dir=cache_dir
             )
+
             kwargs["text_encoder_2"] = None
             kwargs["tokenizer_2"] = None
             pipe = cls(
                 vae=vae,
+                vae_preview=vae_preview,
                 text_encoder=text_model,
                 tokenizer=tokenizer,
                 unet=unet,
@@ -553,27 +672,43 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 **kwargs,
             )
         elif model_type == "SDXL":
-            logger.debug("Using Stable Diffusion XL pipeline.")
+            tokenizer_path = "openai/clip-vit-large-patch14"
+            tokenizer_local_path = os.path.join(cache_dir, "models--{0}".format(tokenizer_path.replace("/", "--")))
+            if not os.path.exists(tokenizer_local_path) and task_callback is not None:
+                task_callback(f"Downloading tokenizer weights from repository {tokenizer_path}")
+
             tokenizer = CLIPTokenizer.from_pretrained(
-                "openai/clip-vit-large-patch14",
+                tokenizer_path,
                 cache_dir=cache_dir
             )
             text_encoder = convert_ldm_clip_checkpoint(checkpoint)
+
+            tokenizer_2_path = "laion/CLIP-ViT-bigG-14-laion2B-39B-b160k"
+            tokenizer_2_local_path = os.path.join(cache_dir, "models--{0}".format(tokenizer_2_path.replace("/", "--")))
+            if not os.path.exists(tokenizer_local_path) and task_callback is not None:
+                task_callback(f"Downloading tokenizer 2 weights from repository {tokenizer_2_path}")
+
             tokenizer_2 = CLIPTokenizer.from_pretrained(
-                "laion/CLIP-ViT-bigG-14-laion2B-39B-b160k",
+                tokenizer_2_path,
                 cache_dir=cache_dir,
                 pad_token="!"
             )
-
             text_encoder_2 = convert_open_clip_checkpoint(
                 checkpoint,
-                "laion/CLIP-ViT-bigG-14-laion2B-39B-b160k",
+                tokenizer_2_path,
                 prefix="conditioner.embedders.1.model.",
                 has_projection=True,
                 projection_dim=1280,
             )
+
+            if offload_models:
+                text_encoder.to("cpu")
+                text_encoder_2.to("cpu")
+                empty_cache()
+
             pipe = cls(
                 vae=vae,
+                vae_preview=vae_preview,
                 text_encoder=text_encoder,
                 text_encoder_2=text_encoder_2,
                 tokenizer=tokenizer,
@@ -586,21 +721,31 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 **kwargs,
             )
         elif model_type == "SDXL-Refiner":
-            logger.debug("Using Stable Diffusion XL refiner pipeline.")
+            tokenizer_2_path = "laion/CLIP-ViT-bigG-14-laion2B-39B-b160k"
+            tokenizer_2_local_path = os.path.join(cache_dir, "models--{0}".format(tokenizer_2_path.replace("/", "--")))
+            if not os.path.exists(tokenizer_2_local_path) and task_callback is not None:
+                task_callback(f"Downloading tokenizer 2 weights from repository {tokenizer_2_path}")
+
             tokenizer_2 = CLIPTokenizer.from_pretrained(
-                "laion/CLIP-ViT-bigG-14-laion2B-39B-b160k",
+                tokenizer_2_path,
                 cache_dir=cache_dir,
                 pad_token="!"
             )
             text_encoder_2 = convert_open_clip_checkpoint(
                 checkpoint,
-                "laion/CLIP-ViT-bigG-14-laion2B-39B-b160k",
+                tokenizer_2_path,
                 prefix="conditioner.embedders.0.model.",
                 has_projection=True,
                 projection_dim=1280,
             )
+
+            if offload_models:
+                text_encoder_2.to("cpu")
+                empty_cache()
+
             pipe = cls(
                 vae=vae,
+                vae_preview=vae_preview,
                 text_encoder=None,
                 text_encoder_2=text_encoder_2,
                 tokenizer=None,
@@ -616,7 +761,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         else:
             raise ValueError(f"Unsupported model type {model_type}")
         if torch_dtype is not None:
-            return pipe.to(torch_dtype=torch_dtype)
+            return pipe.to(torch_dtype=torch_dtype) # type: ignore[attr-defined]
         return pipe
 
     @property
@@ -670,13 +815,51 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         Gets modules in this pipeline ordered in decreasing size.
         """
         modules = []
-        module_names, _ = self._get_signature_keys(self)
+        module_names, _ = self._get_signature_keys(self) # type: ignore[attr-defined]
         for name in module_names:
             module = getattr(self, name, None)
             if isinstance(module, torch.nn.Module):
                 modules.append(module)
         modules.sort(key = lambda item: self.get_size_from_module(item), reverse=True)
         return modules
+
+    def align_unet(
+        self,
+        device: torch.device,
+        dtype: torch.dtype,
+        freeu_factors: Optional[Tuple[float, float, float, float]] = None,
+        offload_models: bool = False
+    ) -> None:
+        """
+        Makes sure the unet is on the device and text encoders are off.
+        """
+        if offload_models:
+            if self.text_encoder:
+                self.text_encoder.to("cpu")
+            if self.text_encoder_2:
+                self.text_encoder_2.to("cpu")
+            empty_cache()
+        if freeu_factors is None:
+            if getattr(self, "_freeu_enabled", False): # Make sure we've enabled this at least once
+                self.unet.disable_freeu()
+        else:
+            s1, s2, b1, b2 = freeu_factors
+            self.unet.enable_freeu(s1=s1, s2=s2, b1=b1, b2=b2)
+            self._freeu_enabled = True
+        self.unet.to(device=device, dtype=dtype)
+
+    def run_safety_checker(
+        self,
+        output: np.ndarray,
+        device: torch.device,
+        dtype: torch.dtype
+    ) -> Tuple[np.ndarray, List[bool]]:
+        """
+        Override parent run_safety_checker to make sure safety checker is aligned
+        """
+        if self.safety_checker is not None:
+            self.safety_checker.to(device)
+        return super(EnfugueStableDiffusionPipeline, self).run_safety_checker(output, device, dtype) # type: ignore[misc]
 
     def load_ip_adapter(
         self,
@@ -766,6 +949,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         lora_scale: Optional[float] = None,
         prompt_2: Optional[str] = None,
         negative_prompt_2: Optional[str] = None,
+        clip_skip: Optional[int] = None,
     ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]]:
         """
         Encodes the prompt into text encoder hidden states.
@@ -773,8 +957,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         """
         # set lora scale so that monkey patched LoRA
         # function of text encoder can correctly access it
-        if lora_scale is not None and isinstance(self, LoraLoaderMixin):
-            self._lora_scale = lora_scale
+        if lora_scale is not None and isinstance(self, LoraLoaderMixin): # type: ignore[unreachable]
+            self._lora_scale = lora_scale # type: ignore[unreachable]
 
         if self.is_sdxl_base:
             prompts = [
@@ -803,13 +987,18 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             prompts = [prompt, prompt]
             negative_prompts = [negative_prompt, negative_prompt]
 
+        # Align device
+        if self.text_encoder:
+            self.text_encoder = self.text_encoder.to(device, dtype=torch.float16)
+        if self.text_encoder_2:
+            self.text_encoder_2 = self.text_encoder_2.to(device, dtype=torch.float16)
         tokenizers = [self.tokenizer, self.tokenizer_2]
         text_encoders = [self.text_encoder, self.text_encoder_2]
 
         if prompt_embeds is None:
             prompt_embeds_list = []
             for tokenizer, text_encoder, prompt in zip(tokenizers, text_encoders, prompts):
-                if not tokenizer or not text_encoder:
+                if tokenizer is None or text_encoder is None:
                     continue
                 text_inputs = tokenizer(
                     prompt,
@@ -839,14 +1028,24 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 else:
                     attention_mask = None
 
+                # Align device and encode
                 text_input_ids = text_input_ids.to(device=device)
+                text_encoder.to(device=device)
                 prompt_embeds = text_encoder(
-                    text_input_ids, output_hidden_states=self.is_sdxl, attention_mask=attention_mask
+                    text_input_ids,
+                    output_hidden_states=self.is_sdxl or clip_skip is not None,
+                    attention_mask=attention_mask
                 )
 
                 if self.is_sdxl:
                     pooled_prompt_embeds = prompt_embeds[0]  # type: ignore
-                    prompt_embeds = prompt_embeds.hidden_states[-2]  # type: ignore
+                    if clip_skip is None:
+                        prompt_embeds = prompt_embeds.hidden_states[-2]  # type: ignore
+                    else:
+                        prompt_embeds = prompt_embeds.hidden_states[-(clip_skip + 2)] # type: ignore
+                elif clip_skip is not None:
+                    prompt_embeds = prompt_embeds[-1][-(clip_skip + 1)] # type: ignore
+                    prompt_embeds = text_encoder.text_model.final_layer_norm(prompt_embeds)
                 else:
                     prompt_embeds = prompt_embeds[0].to(dtype=text_encoder.dtype, device=device)  # type: ignore
 
@@ -861,7 +1060,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 prompt_embeds = torch.concat(prompt_embeds_list, dim=-1)
 
         # get unconditional embeddings for classifier free guidance
-        zero_out_negative_prompt = negative_prompt is None and self.config.force_zeros_for_empty_prompt
+        zero_out_negative_prompt = negative_prompt is None and self.config.force_zeros_for_empty_prompt # type: ignore[attr-defined]
         if self.is_sdxl and do_classifier_free_guidance and negative_prompt_embeds is None and zero_out_negative_prompt:
             negative_prompt_embeds = torch.zeros_like(prompt_embeds)  # type: ignore
             negative_pooled_prompt_embeds = torch.zeros_like(pooled_prompt_embeds)
@@ -946,12 +1145,6 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         """
         if isinstance(device, str):
             device = torch.device(device)
-        self.unet.to(device)
-        self.vae.to(device)
-        if self.text_encoder is not None:
-            self.text_encoder.to(device)
-        if self.text_encoder_2 is not None:
-            self.text_encoder_2.to(device)
         if ip_adapter_scale is not None:
             self.load_ip_adapter(
                 device=device,
@@ -962,6 +1155,10 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             )
         else:
             self.unload_ip_adapter()
+        if self.text_encoder is not None:
+            self.text_encoder.to(device)
+        if self.text_encoder_2 is not None:
+            self.text_encoder_2.to(device)
 
         if device.type == "cpu":
             with torch.autocast("cpu"):
@@ -986,7 +1183,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             state_dict = torch.load(weights_path, map_location="cpu")
 
         while "state_dict" in state_dict:
-            state_dict = state_dict["state_dict"]
+            state_dict = state_dict["state_dict"] # type: ignore[assignment]
 
         from lycoris.utils import merge
 
@@ -1002,29 +1199,36 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         """
         Call the appropriate adapted fix based on pipeline class
         """
-        if self.is_sdxl:
-            # Call SDXL fix
-            return self.load_sdxl_lora_weights(
-                pretrained_model_name_or_path_or_dict,
-                multiplier=multiplier,
-                dtype=dtype,
-                **kwargs
+        try:
+            if self.is_sdxl:
+                # Call SDXL fix
+                return self.load_sdxl_lora_weights(
+                    pretrained_model_name_or_path_or_dict,
+                    multiplier=multiplier,
+                    dtype=dtype,
+                    **kwargs
+                )
+            elif (
+                isinstance(pretrained_model_name_or_path_or_dict, str) and
+                pretrained_model_name_or_path_or_dict.endswith(".safetensors")
+            ):
+                # Call safetensors fix
+                return self.load_safetensors_lora_weights(
+                    pretrained_model_name_or_path_or_dict,
+                    multiplier=multiplier,
+                    dtype=dtype,
+                    **kwargs
+                )
+            # Return parent
+            return super(EnfugueStableDiffusionPipeline, self).load_lora_weights( # type: ignore[misc]
+                pretrained_model_name_or_path_or_dict, **kwargs
             )
-        elif (
-            isinstance(pretrained_model_name_or_path_or_dict, str) and
-            pretrained_model_name_or_path_or_dict.endswith(".safetensors")
-        ):
-            # Call safetensors fix
-            return self.load_flexible_lora_weights(
-                pretrained_model_name_or_path_or_dict,
-                multiplier=multiplier,
-                dtype=dtype,
-                **kwargs
-            )
-        # Return parent
-        return super(EnfugueStableDiffusionPipeline, self).load_lora_weights(
-            pretrained_model_name_or_path_or_dict, **kwargs
-        )
+        except (AttributeError, KeyError) as ex:
+            if self.is_sdxl:
+                message = "Are you trying to use a Stable Diffusion 1.5 LoRA with this Stable Diffusion XL pipeline?"
+            else:
+                message = "Are you trying to use a Stable Diffusion XL LoRA with this Stable Diffusion 1.5 pipeline?"
+            raise IOError(f"Received {type(ex).__name__} loading LoRA. {message}")
 
     def load_sdxl_lora_weights(
         self, 
@@ -1035,16 +1239,16 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         """
         Fix adapted from https://github.com/huggingface/diffusers/blob/4a4cdd6b07a36bbf58643e96c9a16d3851ca5bc5/src/diffusers/pipelines/stable_diffusion_xl/pipeline_stable_diffusion_xl.py
         """
-        state_dict, network_alphas = self.lora_state_dict(
+        state_dict, network_alphas = self.lora_state_dict( # type: ignore[attr-defined]
             pretrained_model_name_or_path_or_dict,
             unet_config=self.unet.config,
             **kwargs,
         )
-        self.load_lora_into_unet(state_dict, network_alphas=network_alphas, unet=self.unet)
+        self.load_lora_into_unet(state_dict, network_alphas=network_alphas, unet=self.unet) # type: ignore[attr-defined]
 
         text_encoder_state_dict = {k: v for k, v in state_dict.items() if "text_encoder." in k}
         if len(text_encoder_state_dict) > 0:
-            self.load_lora_into_text_encoder(
+            self.load_lora_into_text_encoder( # type: ignore[attr-defined]
                 text_encoder_state_dict,
                 network_alphas=network_alphas,
                 text_encoder=self.text_encoder,
@@ -1054,7 +1258,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
         text_encoder_2_state_dict = {k: v for k, v in state_dict.items() if "text_encoder_2." in k}
         if len(text_encoder_2_state_dict) > 0:
-            self.load_lora_into_text_encoder(
+            self.load_lora_into_text_encoder( # type: ignore[attr-defined]
                 text_encoder_2_state_dict,
                 network_alphas=network_alphas,
                 text_encoder=self.text_encoder_2,
@@ -1174,30 +1378,46 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         Loads textual inversion
         Temporary implementation from https://github.com/huggingface/diffusers/issues/4405
         """
-        if not self.is_sdxl:
-            return super(EnfugueStableDiffusionPipeline, self).load_textual_inversion(inversion_path, **kwargs)
+        try:
+            if not self.is_sdxl:
+                return super(EnfugueStableDiffusionPipeline, self).load_textual_inversion(inversion_path, **kwargs) # type: ignore[misc]
 
-        logger.debug(f"Using SDXL adaptation for textual inversion - Loading {inversion_path}")
-        if inversion_path.endswith("safetensors"):
-            from safetensors import safe_open
+            logger.debug(f"Using SDXL adaptation for textual inversion - Loading {inversion_path}")
+            if inversion_path.endswith("safetensors"):
+                from safetensors import safe_open
 
-            inversion = {}
-            with safe_open(inversion_path, framework="pt", device="cpu") as f:
-                for key in f.keys():
-                    inversion[key] = f.get_tensor(key)
-        else:
-            inversion = torch.load(inversion_path, map_location="cpu")
+                inversion = {}
+                with safe_open(inversion_path, framework="pt", device="cpu") as f: # type: ignore[attr-defined]
+                    for key in f.keys():
+                        inversion[key] = f.get_tensor(key)
+            else:
+                inversion = torch.load(inversion_path, map_location="cpu")
 
-        for i, (embedding_1, embedding_2) in enumerate(zip(inversion["clip_l"], inversion["clip_g"])):
-            token = f"sksd{chr(i+65)}"
-            self.tokenizer.add_tokens(token)
-            token_id = self.tokenizer.convert_tokens_to_ids(token)
-            if self.text_encoder is not None:
-                self.text_encoder.resize_token_embeddings(len(self.tokenizer))
-                self.text_encoder.get_input_embeddings().weight.data[token_id] = embedding_1
-            if self.text_encoder_2 is not None:
-                self.text_encoder_2.resize_token_embeddings(len(self.tokenizer))
-                self.text_encoder_2.get_input_embeddings().weight.data[token_id] = embedding_2
+            for i, (embedding_1, embedding_2) in enumerate(zip(inversion["clip_l"], inversion["clip_g"])):
+                token = f"sksd{chr(i+65)}"
+                if self.tokenizer is not None:
+                    self.tokenizer.add_tokens(token)
+                if self.tokenizer_2 is not None:
+                    self.tokenizer_2.add_tokens(token)
+                if self.text_encoder is not None and self.tokenizer is not None:
+                    token_id = self.tokenizer.convert_tokens_to_ids(token)
+                    self.text_encoder.resize_token_embeddings(len(self.tokenizer))
+                    self.text_encoder.get_input_embeddings().weight.data[token_id] = embedding_1
+                if self.text_encoder_2 is not None:
+                    if self.tokenizer_2 is not None:
+                        token_id_2 = self.tokenizer_2.convert_tokens_to_ids(token)
+                    elif self.tokenizer is not None:
+                        token_id_2 = self.tokenizer.convert_tokens_to_ids(token)
+                    else:
+                        raise ValueError("No tokenizer, cannot add inversion to encoder")
+                    self.text_encoder_2.resize_token_embeddings(len(self.tokenizer))
+                    self.text_encoder_2.get_input_embeddings().weight.data[token_id_2] = embedding_2
+        except (AttributeError, KeyError) as ex:
+            if self.is_sdxl:
+                message = "Are you trying to use a Stable Diffusion 1.5 textual inversion with this Stable Diffusion XL pipeline?"
+            else:
+                message = "Are you trying to use a Stable Diffusion XL textual inversion with this Stable Diffusion 1.5 pipeline?"
+            raise IOError(f"Received {type(ex).__name__} loading textual inversion. {message}")
 
     def denormalize_latents(self, latents: torch.Tensor) -> torch.Tensor:
         """
@@ -1325,15 +1545,14 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             )
         
         logger.debug(f"Creating random latents of shape {shape} and type {dtype}")
+        random_latents = randn_tensor(
+            shape,
+            generator=generator,
+            device=torch.device(device) if isinstance(device, str) else device,
+            dtype=dtype
+        )
 
-        if isinstance(device, str) and device == "mps" or isinstance(device, torch.device) and device.type == "mps":
-            # Force CPU-generation noise on MPS as GPU-generated noise is not random enough
-            random_latents = randn_tensor(shape, generator=generator, device="cpu", dtype=dtype)
-            random_latents = random_latents.to(device)
-        else:
-            random_latents = randn_tensor(shape, generator=generator, device=device, dtype=dtype)
-
-        return random_latents * self.scheduler.init_noise_sigma
+        return random_latents * self.scheduler.init_noise_sigma # type: ignore[attr-defined]
 
     def encode_image_unchunked(
         self,
@@ -1345,11 +1564,11 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         Encodes an image without chunking using the VAE.
         """
         logger.debug("Encoding image (unchunked).")
-        if self.config.force_full_precision_vae:
+        if self.config.force_full_precision_vae: # type: ignore[attr-defined]
             self.vae.to(dtype=torch.float32)
             image = image.float()
-        latents = self.vae.encode(image).latent_dist.sample(generator) * self.vae.config.scaling_factor
-        if self.config.force_full_precision_vae:
+        latents = self.vae.encode(image).latent_dist.sample(generator) * self.vae.config.scaling_factor # type: ignore[attr-defined]
+        if self.config.force_full_precision_vae: # type: ignore[attr-defined]
             self.vae.to(dtype=dtype)
         return latents.to(dtype=dtype)
 
@@ -1359,6 +1578,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         device: Union[str, torch.device],
         dtype: torch.dtype,
         chunker: Chunker,
+        weight_builder: MaskWeightBuilder,
         generator: Optional[torch.Generator] = None,
         progress_callback: Optional[Callable[[bool], None]] = None,
     ) -> torch.Tensor:
@@ -1372,6 +1592,9 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         chunker.tile = None
 
         total_steps = chunker.num_chunks
+
+        # Align device
+        self.vae.to(device)
 
         if total_steps == 1:
             result = self.encode_image_unchunked(image, dtype, generator)
@@ -1388,13 +1611,12 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         latent_width = width // self.vae_scale_factor
 
         engine_latent_size = self.engine_size // self.vae_scale_factor
-        num_channels = self.vae.config.latent_channels
+        num_channels = self.vae.config.latent_channels # type: ignore[attr-defined]
 
         count = torch.zeros((1, num_channels, latent_height, latent_width)).to(device=device)
         value = torch.zeros_like(count)
 
-        weight_builder = MaskWeightBuilder(device=device, dtype=image.dtype)
-        if self.config.force_full_precision_vae:
+        if self.config.force_full_precision_vae: # type: ignore[attr-defined]
             self.vae.to(dtype=torch.float32)
             weight_builder.dtype = torch.float32
             image = image.float()
@@ -1435,8 +1657,10 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         # Re-enable tiling if asked for
         chunker.tile = tile
         if self.config.force_full_precision_vae:
+        if self.config.force_full_precision_vae: # type: ignore[attr-defined]
             self.vae.to(dtype=dtype)
-        return (torch.where(count > 0, value / count, value) * self.vae.config.scaling_factor).to(dtype=dtype)
+            weight_builder.dtype = dtype
+        return (torch.where(count > 0, value / count, value) * self.vae.config.scaling_factor).to(dtype=dtype) # type: ignore[attr-defined]
 
     def prepare_image_latents(
         self,
@@ -1446,6 +1670,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         dtype: torch.dtype,
         device: Union[str, torch.device],
         chunker: Chunker,
+        weight_builder: MaskWeightBuilder,
         generator: Optional[torch.Generator] = None,
         progress_callback: Optional[Callable[[bool], None]] = None,
         add_noise: bool = True,
@@ -1495,9 +1720,14 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
         # add noise in accordance with timesteps
         if add_noise:
-            shape = latents.shape
-            noise = randn_tensor(shape, generator=generator, device=device, dtype=dtype)
-            return self.scheduler.add_noise(latents, noise, timestep)
+            shape = init_latents.shape
+            noise = randn_tensor(
+                shape,
+                generator=generator,
+                device=torch.device(device) if isinstance(device, str) else device,
+                dtype=dtype
+            )
+            return self.scheduler.add_noise(init_latents, noise, timestep) # type: ignore[attr-defined]
         else:
             logger.debug("Not adding noise; starting from noised image.")
             return latents
@@ -1512,6 +1742,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         dtype: torch.dtype,
         device: Union[str, torch.device],
         chunker: Chunker,
+        weight_builder: MaskWeightBuilder,
         generator: Optional[torch.Generator] = None,
         do_classifier_free_guidance: bool = False,
         progress_callback: Optional[Callable[[bool], None]] = None,
@@ -1591,7 +1822,6 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         self,
         num_inference_steps: int,
         strength: Optional[float],
-        device: str,
         denoising_start: Optional[float] = None
     ) -> Tuple[torch.Tensor, int]:
         """
@@ -1605,13 +1835,13 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         else:
             t_start = 0
 
-        timesteps = self.scheduler.timesteps[t_start * self.scheduler.order :]
+        timesteps = self.scheduler.timesteps[t_start * self.scheduler.order :] # type: ignore[attr-defined]
 
         if denoising_start is not None:
             discrete_timestep_cutoff = int(
                 round(
-                    self.scheduler.config.num_train_timesteps
-                    - (denoising_start * self.scheduler.config.num_train_timesteps)
+                    self.scheduler.config.num_train_timesteps # type: ignore[attr-defined]
+                    - (denoising_start * self.scheduler.config.num_train_timesteps) # type: ignore[attr-defined]
                 )
             )
             timesteps = list(filter(lambda ts: ts < discrete_timestep_cutoff, timesteps))
@@ -1635,7 +1865,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         if (
             aesthetic_score is not None
             and negative_aesthetic_score is not None
-            and self.config.requires_aesthetic_score
+            and self.config.requires_aesthetic_score # type: ignore[attr-defined]
         ):
             add_time_ids = list(original_size + crops_coords_top_left + (aesthetic_score,))
             add_neg_time_ids = list(original_size + crops_coords_top_left + (negative_aesthetic_score,))
@@ -1644,20 +1874,20 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             add_neg_time_ids = None
 
         passed_add_embed_dim = (
-            self.unet.config.addition_time_embed_dim * len(add_time_ids) + self.text_encoder_2.config.projection_dim
+            self.unet.config.addition_time_embed_dim * len(add_time_ids) + self.text_encoder_2.config.projection_dim # type: ignore[attr-defined]
         )
-        expected_add_embed_dim = self.unet.add_embedding.linear_1.in_features
+        expected_add_embed_dim = self.unet.add_embedding.linear_1.in_features # type: ignore[union-attr]
 
         if (
             expected_add_embed_dim > passed_add_embed_dim
-            and (expected_add_embed_dim - passed_add_embed_dim) == self.unet.config.addition_time_embed_dim
+            and (expected_add_embed_dim - passed_add_embed_dim) == self.unet.config.addition_time_embed_dim # type: ignore[attr-defined]
         ):
             raise ValueError(
                 f"Model expects an added time embedding vector of length {expected_add_embed_dim}, but a vector of {passed_add_embed_dim} was created. Please make sure to enable `requires_aesthetic_score` with `pipe.register_to_config(requires_aesthetic_score=True)` to make sure `aesthetic_score` {aesthetic_score} and `negative_aesthetic_score` {negative_aesthetic_score} is correctly used by the model."
             )
         elif (
             expected_add_embed_dim < passed_add_embed_dim
-            and (passed_add_embed_dim - expected_add_embed_dim) == self.unet.config.addition_time_embed_dim
+            and (passed_add_embed_dim - expected_add_embed_dim) == self.unet.config.addition_time_embed_dim # type: ignore[attr-defined]
         ):
             raise ValueError(
                 f"Model expects an added time embedding vector of length {expected_add_embed_dim}, but a vector of {passed_add_embed_dim} was created. Please make sure to disable `requires_aesthetic_score` with `pipe.register_to_config(requires_aesthetic_score=False)` to make sure `target_size` {target_size} is correctly used by the model."
@@ -1846,6 +2076,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         timesteps: torch.Tensor,
         latents: torch.Tensor,
         encoded_prompts: EncodedPrompts,
+        weight_builder: MaskWeightBuilder,
         guidance_scale: float,
         do_classifier_free_guidance: bool = False,
         is_inpainting_unet: bool = False,
@@ -1868,17 +2099,17 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             extra_step_kwargs = {}
 
         num_steps = len(timesteps)
-        num_warmup_steps = num_steps - num_inference_steps * self.scheduler.order
+        num_warmup_steps = num_steps - num_inference_steps * self.scheduler.order # type: ignore[attr-defined]
 
         if len(latents.shape) == 5:
             samples, num_channels, num_frames, latent_height, latent_width = latents.shape
         else:
             samples, num_channels, latent_height, latent_width = latents.shape
             num_frames = None
-        
+
         noise = None
         if mask is not None and mask_image is not None and not is_inpainting_unet:
-            noise = latents.detach().clone() / self.scheduler.init_noise_sigma
+            noise = latents.detach().clone() / self.scheduler.init_noise_sigma # type: ignore[attr-defined]
             noise = noise.to(device=device)
 
         logger.debug(f"Denoising image in {num_steps} steps on {device} (unchunked)")
@@ -1890,7 +2121,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
             # expand the latents if we are doing classifier free guidance
             latent_model_input = torch.cat([latents] * 2) if do_classifier_free_guidance else latents
-            latent_model_input = self.scheduler.scale_model_input(latent_model_input, t)
+            latent_model_input = self.scheduler.scale_model_input(latent_model_input, t) # type: ignore[attr-defined]
 
             # Get embeds
             embeds = encoded_prompts.get_embeds()
@@ -1967,7 +2198,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 noise_pred = noise_pred_uncond + guidance_scale * (noise_pred_text - noise_pred_uncond)
 
             # Compute previous noisy sample
-            latents = self.scheduler.step(
+            latents = self.scheduler.step( # type: ignore[attr-defined]
                 noise_pred,
                 t,
                 latents,
@@ -1983,7 +2214,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
                 if i < len(timesteps) - 1:
                     noise_timestep = timesteps[i + 1]
-                    init_latents = self.scheduler.add_noise(
+                    init_latents = self.scheduler.add_noise( # type: ignore[attr-defined]
                         init_latents,
                         noise,
                         torch.tensor([noise_timestep])
@@ -2000,14 +2231,15 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 latent_callback is not None
                 and latent_callback_steps is not None
                 and steps_since_last_callback >= latent_callback_steps
-                and (i == num_steps - 1 or ((i + 1) > num_warmup_steps and (i + 1) % self.scheduler.order == 0))
+                and (i == num_steps - 1 or ((i + 1) > num_warmup_steps and (i + 1) % self.scheduler.order == 0)) # type: ignore[attr-defined]
             ):
                 steps_since_last_callback = 0
                 latent_callback_value = latents
 
                 if latent_callback_type != "latent":
-                    latent_callback_value = self.decode_latents_unchunked(
+                    latent_callback_value = self.decode_latent_preview(
                         latent_callback_value,
+                        weight_builder=weight_builder,
                         device=device,
                     )
                     latent_callback_value = self.denormalize_latents(latent_callback_value)
@@ -2043,6 +2275,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         timesteps: torch.Tensor,
         latents: torch.Tensor,
         encoded_prompts: EncodedPrompts,
+        weight_builder: MaskWeightBuilder,
         guidance_scale: float,
         do_classifier_free_guidance: bool = False,
         is_inpainting_unet: bool = False,
@@ -2082,6 +2315,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 timesteps=timesteps,
                 latents=latents,
                 encoded_prompts=encoded_prompts,
+                weight_builder=weight_builder,
                 guidance_scale=guidance_scale,
                 is_inpainting_unet=is_inpainting_unet,
                 do_classifier_free_guidance=do_classifier_free_guidance,
@@ -2103,7 +2337,10 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             chunk_scheduler_status.append(self.get_scheduler_state())
 
         num_steps = len(timesteps)
-        num_warmup_steps = num_steps - num_inference_steps * self.scheduler.order
+        num_warmup_steps = num_steps - num_inference_steps * self.scheduler.order # type: ignore[attr-defined]
+
+        latent_width = width // self.vae_scale_factor
+        latent_height = height // self.vae_scale_factor
         engine_latent_size = self.engine_size // self.vae_scale_factor
 
         count = torch.zeros_like(latents)
@@ -2116,310 +2353,358 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
         noise = None
         if mask is not None and mask_image is not None and not is_inpainting_unet:
-            noise = latents.detach().clone() / self.scheduler.init_noise_sigma
+            noise = latents.detach().clone() / self.scheduler.init_noise_sigma # type: ignore[attr-defined]
             noise = noise.to(device=device)
 
         steps_since_last_callback = 0
-        with MaskWeightBuilder(device=device, dtype=latents.dtype) as weight_builder:
-            for i, t in enumerate(timesteps):
-                # Calculate ratio for later
-                denoising_ratio = i / num_steps
+        for i, t in enumerate(timesteps):
+            # Calculate ratio for later
+            denoising_ratio = i / num_steps
 
-                # zero view latents
-                count.zero_()
-                value.zero_()
+            # zero view latents
+            count.zero_()
+            value.zero_()
 
-                # iterate over chunks
-                for j, ((top, bottom), (left, right), (start, end)) in enumerate(chunker):
-                    # Memoize wrap for later
-                    wrap_x = right <= left
-                    wrap_y = bottom <= top
-                    wrap_t = start is not None and end is not None and end <= start
+            # iterate over chunks
+            for j, ((top, bottom), (left, right), (start, end)) in enumerate(chunker):
+                # Memoize wrap for later
+                wrap_x = right <= left
+                wrap_y = bottom <= top
+                wrap_t = start is not None and end is not None and end <= start
 
-                    mask_width = (latent_width - left) + right if wrap_x else right - left
-                    mask_height = (latent_height - top) + bottom if wrap_y else bottom - top
-                    if num_frames is None or start is None or end is None:
-                        mask_frames = None
-                    else:
-                        mask_frames = (num_frames - start) + end if wrap_t else end - start
+                mask_width = (latent_width - left) + right if wrap_x else right - left
+                mask_height = (latent_height - top) + bottom if wrap_y else bottom - top
+                if num_frames is None or start is None or end is None:
+                    mask_frames = None
+                else:
+                    mask_frames = (num_frames - start) + end if wrap_t else end - start
 
-                    # Define some helpers for chunked denoising
-                    def slice_for_view(tensor: torch.Tensor, scale_factor: int = 1) -> torch.Tensor:
-                        """
-                        Copies and slices input tensors
-                        """
-                        left_idx = left * scale_factor
-                        right_idx = right * scale_factor
-                        top_idx = top * scale_factor
-                        bottom_idx = bottom * scale_factor
-                        height_idx = latent_height * scale_factor
-                        width_idx = latent_width * scale_factor
-                        tensor_for_view = torch.clone(tensor)
-                        if wrap_x:
-                            if num_frames is None:
-                                tensor_for_view = torch.cat([tensor_for_view[:, :, :, left_idx:width_idx], tensor_for_view[:, :, :, :right_idx]], dim=3)
-                            else:
-                                tensor_for_view = torch.cat([tensor_for_view[:, :, :, :, left_idx:width_idx], tensor_for_view[:, :, :, :, :right_idx]], dim=4)
-                        elif num_frames is None:
-                            tensor_for_view = tensor_for_view[:, :, :, left_idx:right_idx]
-                        else:
-                            tensor_for_view = tensor_for_view[:, :, :, :, left_idx:right_idx]
-
-                        if wrap_y:
-                            if num_frames is None:
-                                tensor_for_view = torch.cat([tensor_for_view[:, :, top_idx:height_idx, :], tensor_for_view[:, :, :bottom_idx, :]], dim=2)
-                            else:
-                                tensor_for_view = torch.cat([tensor_for_view[:, :, :, top_idx:height_idx, :], tensor_for_view[:, :, :, :bottom_idx, :]], dim=3)
-                        elif num_frames is None:
-                            tensor_for_view = tensor_for_view[:, :, top_idx:bottom_idx, :]
-                        else:
-                            tensor_for_view = tensor_for_view[:, :, :, top_idx:bottom_idx, :]
-                        if wrap_t:
-                            tensor_for_view = torch.cat([tensor_for_view[:, :, start:num_frames, :, :], tensor_for_view[:, :, :end, :, :]], dim=2)
-                        elif num_frames is not None:
-                            tensor_for_view = tensor_for_view[:, :, start:end, :, :]
-                        return tensor_for_view
-
-                    def fill_value(tensor: torch.Tensor, multiplier: torch.Tensor) -> None:
-                        """
-                        Fills the value and count tensors
-                        """
-                        nonlocal value, count
-                        start_x = left
-                        end_x = latent_width if wrap_x else right
-                        initial_x = end_x - start_x
-                        start_y = top
-                        end_y = latent_height if wrap_y else bottom
-                        initial_y = end_y - start_y
-                        start_t = start
-                        end_t = num_frames if wrap_t else end
-                        initial_t = None if end_t is None or start_t is None else end_t - start_t
-
+                # Define some helpers for chunked denoising
+                def slice_for_view(tensor: torch.Tensor, scale_factor: int = 1) -> torch.Tensor:
+                    """
+                    Copies and slices input tensors
+                    """
+                    left_idx = left * scale_factor
+                    right_idx = right * scale_factor
+                    top_idx = top * scale_factor
+                    bottom_idx = bottom * scale_factor
+                    height_idx = latent_height * scale_factor
+                    width_idx = latent_width * scale_factor
+                    tensor_for_view = torch.clone(tensor)
+                    if wrap_x:
                         if num_frames is None:
-                            value[:, :, start_y:end_y, start_x:end_x] += tensor[:, :, :initial_y, :initial_x]
-                            count[:, :, start_y:end_y, start_x:end_x] += multiplier[:, :, :initial_y, :initial_x]
-                            if wrap_x:
-                                value[:, :, start_y:end_y, :right] += tensor[:, :, :initial_y, initial_x:]
-                                count[:, :, start_y:end_y, :right] += multiplier[:, :, :initial_y, initial_x:]
-                                if wrap_y:
-                                    value[:, :, :bottom, :right] += tensor[:, :, initial_y:, initial_x:]
-                                    count[:, :, :bottom, :right] += multiplier[:, :, initial_y:, initial_x:]
-                            if wrap_y:
-                                value[:, :, :bottom, start_x:end_x] += tensor[:, :, initial_y:, :initial_x]
-                                count[:, :, :bottom, start_x:end_x] += multiplier[:, :, initial_y:, :initial_x]
+                            tensor_for_view = torch.cat([tensor_for_view[:, :, :, left_idx:width_idx], tensor_for_view[:, :, :, :right_idx]], dim=3)
                         else:
-                            value[:, :, start_t:end_t, start_y:end_y, start_x:end_x] += tensor[:, :, :initial_t, :initial_y, :initial_x]
-                            count[:, :, start_t:end_t, start_y:end_y, start_x:end_x] += multiplier[:, :, :initial_t, :initial_y, :initial_x]
-                            if wrap_x:
-                                value[:, :, start_t:end_t, start_y:end_y, :right] += tensor[:, :, :initial_t, :initial_y, initial_x:]
-                                count[:, :, start_t:end_t, start_y:end_y, :right] += multiplier[:, :, :initial_t, :initial_y, initial_x:]
-                                if wrap_y:
-                                    value[:, :, start_t:end_t, :bottom, :right] += tensor[:, :, :initial_t, initial_y:, initial_x:]
-                                    count[:, :, start_t:end_t, :bottom, :right] += multiplier[:, :, :initial_t, initial_y:, initial_x:]
-                                    if wrap_t:
-                                        value[:, :, :end, :bottom, :right] += tensor[:, :, initial_t:, initial_y:, initial_x:]
-                                        count[:, :, :end, :bottom, :right] += multiplier[:, :, initial_t:, initial_y:, initial_x:]
+                            tensor_for_view = torch.cat([tensor_for_view[:, :, :, :, left_idx:width_idx], tensor_for_view[:, :, :, :, :right_idx]], dim=4)
+                    elif num_frames is None:
+                        tensor_for_view = tensor_for_view[:, :, :, left_idx:right_idx]
+                    else:
+                        tensor_for_view = tensor_for_view[:, :, :, :, left_idx:right_idx]
+
+                    if wrap_y:
+                        if num_frames is None:
+                            tensor_for_view = torch.cat([tensor_for_view[:, :, top_idx:height_idx, :], tensor_for_view[:, :, :bottom_idx, :]], dim=2)
+                        else:
+                            tensor_for_view = torch.cat([tensor_for_view[:, :, :, top_idx:height_idx, :], tensor_for_view[:, :, :, :bottom_idx, :]], dim=3)
+                    elif num_frames is None:
+                        tensor_for_view = tensor_for_view[:, :, top_idx:bottom_idx, :]
+                    else:
+                        tensor_for_view = tensor_for_view[:, :, :, top_idx:bottom_idx, :]
+                    if wrap_t:
+                        tensor_for_view = torch.cat([tensor_for_view[:, :, start:num_frames, :, :], tensor_for_view[:, :, :end, :, :]], dim=2)
+                    elif num_frames is not None:
+                        tensor_for_view = tensor_for_view[:, :, start:end, :, :]
+                    return tensor_for_view
+
+                def fill_value(tensor: torch.Tensor, multiplier: torch.Tensor) -> None:
+                    """
+                    Fills the value and count tensors
+                    """
+                    nonlocal value, count
+                    start_x = left
+                    end_x = latent_width if wrap_x else right
+                    initial_x = end_x - start_x
+                    start_y = top
+                    end_y = latent_height if wrap_y else bottom
+                    initial_y = end_y - start_y
+                    start_t = start
+                    end_t = num_frames if wrap_t else end
+                    initial_t = None if end_t is None or start_t is None else end_t - start_t
+
+                    if num_frames is None:
+                        value[:, :, start_y:end_y, start_x:end_x] += tensor[:, :, :initial_y, :initial_x]
+                        count[:, :, start_y:end_y, start_x:end_x] += multiplier[:, :, :initial_y, :initial_x]
+                        if wrap_x:
+                            value[:, :, start_y:end_y, :right] += tensor[:, :, :initial_y, initial_x:]
+                            count[:, :, start_y:end_y, :right] += multiplier[:, :, :initial_y, initial_x:]
                             if wrap_y:
-                                value[:, :, start_t:end_t, :bottom, start_x:end_x] += tensor[:, :, :initial_t, initial_y:, :initial_x]
-                                count[:, :, start_t:end_t, :bottom, start_x:end_x] += multiplier[:, :, :initial_t, initial_y:, :initial_x]
+                                value[:, :, :bottom, :right] += tensor[:, :, initial_y:, initial_x:]
+                                count[:, :, :bottom, :right] += multiplier[:, :, initial_y:, initial_x:]
+                        if wrap_y:
+                            value[:, :, :bottom, start_x:end_x] += tensor[:, :, initial_y:, :initial_x]
+                            count[:, :, :bottom, start_x:end_x] += multiplier[:, :, initial_y:, :initial_x]
+                    else:
+                        value[:, :, start_t:end_t, start_y:end_y, start_x:end_x] += tensor[:, :, :initial_t, :initial_y, :initial_x]
+                        count[:, :, start_t:end_t, start_y:end_y, start_x:end_x] += multiplier[:, :, :initial_t, :initial_y, :initial_x]
+                        if wrap_x:
+                            value[:, :, start_t:end_t, start_y:end_y, :right] += tensor[:, :, :initial_t, :initial_y, initial_x:]
+                            count[:, :, start_t:end_t, start_y:end_y, :right] += multiplier[:, :, :initial_t, :initial_y, initial_x:]
+                            if wrap_y:
+                                value[:, :, start_t:end_t, :bottom, :right] += tensor[:, :, :initial_t, initial_y:, initial_x:]
+                                count[:, :, start_t:end_t, :bottom, :right] += multiplier[:, :, :initial_t, initial_y:, initial_x:]
                                 if wrap_t:
-                                    value[:, :, :end, :bottom, start_x:end_x] += tensor[:, :, initial_t:, initial_y:, :initial_x]
-                                    count[:, :, :end, :bottom, start_x:end_x] += multiplier[:, :, initial_t:, initial_y:, :initial_x]
+                                    value[:, :, :end, :bottom, :right] += tensor[:, :, initial_t:, initial_y:, initial_x:]
+                                    count[:, :, :end, :bottom, :right] += multiplier[:, :, initial_t:, initial_y:, initial_x:]
+                        if wrap_y:
+                            value[:, :, start_t:end_t, :bottom, start_x:end_x] += tensor[:, :, :initial_t, initial_y:, :initial_x]
+                            count[:, :, start_t:end_t, :bottom, start_x:end_x] += multiplier[:, :, :initial_t, initial_y:, :initial_x]
                             if wrap_t:
-                                value[:, :, :end, start_y:end_y, start_x:end_x] += tensor[:, :, initial_t:, :initial_y, :initial_x]
-                                count[:, :, :end, start_y:end_y, start_x:end_x] += multiplier[:, :, initial_t:, :initial_y, :initial_x]
+                                value[:, :, :end, :bottom, start_x:end_x] += tensor[:, :, initial_t:, initial_y:, :initial_x]
+                                count[:, :, :end, :bottom, start_x:end_x] += multiplier[:, :, initial_t:, initial_y:, :initial_x]
+                        if wrap_t:
+                            value[:, :, :end, start_y:end_y, start_x:end_x] += tensor[:, :, initial_t:, :initial_y, :initial_x]
+                            count[:, :, :end, start_y:end_y, start_x:end_x] += multiplier[:, :, initial_t:, :initial_y, :initial_x]
 
-                    # Wrap IndexError to give a nice error about MultiDiff w/ some schedulers
-                    try:
-                        # Slice latents
-                        latents_for_view = slice_for_view(latents)
+                # Wrap IndexError to give a nice error about MultiDiff w/ some schedulers
+                try:
+                    # Slice latents
+                    latents_for_view = slice_for_view(latents)
 
-                        # expand the latents if we are doing classifier free guidance
-                        latent_model_input = (
-                            torch.cat([latents_for_view] * 2) if do_classifier_free_guidance else latents_for_view
-                        )
-
-                        # Re-match chunk scheduler status
-                        self.scheduler.__dict__.update(chunk_scheduler_status[j])
-
-                        # Scale model input
-                        latent_model_input = self.scheduler.scale_model_input(latent_model_input, t)
-
-                        # Get embeds
-                        if wrap_t and start is not None and num_frames is not None and end is not None:
-                            frame_indexes = list(range(start,num_frames)) + list(range(end))
-                        elif num_frames is not None and start is not None and end is not None:
-                            frame_indexes = list(range(start,end))
-                        else:
-                            frame_indexes = None
-                        embeds = encoded_prompts.get_embeds(frame_indexes)
-                        if embeds is None:
-                            if self.text_encoder:
-                                embeds = torch.zeros(samples, 77, self.text_encoder.config.hidden_size)
-                            elif self.text_encoder_2:
-                                embeds = torch.zeros(samples, 77, self.text_encoder_2.config.hidden_size)
-                            else:
-                                raise IOError("No embeds and no text encoder.")
-
-                        # Get added embeds
-                        add_text_embeds = encoded_prompts.get_add_text_embeds(frame_indexes)
-                        if add_text_embeds is not None:
-                            if not added_cond_kwargs:
-                                raise ValueError(f"Added condition arguments is empty, but received add text embeds. There should be time IDs prior to this point.")
-                            added_cond_kwargs["text_embeds"] = add_text_embeds.to(device=device, dtype=embeds.dtype)
-
-                        # Get controlnet input(s) if configured
-                        if control_images is not None:
-                            # Find which control image(s) to use
-                            controlnet_conds: Dict[str, List[Tuple[torch.Tensor, float]]] = {}
-                            for controlnet_name in control_images:
-                                for (
-                                    control_image,
-                                    conditioning_scale,
-                                    conditioning_start,
-                                    conditioning_end
-                                ) in control_images[controlnet_name]:
-                                    if (
-                                        (conditioning_start is None or conditioning_start <= denoising_ratio) and
-                                        (conditioning_end is None or denoising_ratio <= conditioning_end)
-                                    ):
-                                        if controlnet_name not in controlnet_conds:
-                                            controlnet_conds[controlnet_name] = []
-                                        controlnet_conds[controlnet_name].append((
-                                            slice_for_view(control_image, self.vae_scale_factor),
-                                            conditioning_scale
-                                        ))
-
-                            if not controlnet_conds:
-                                down_block, mid_block = None, None
-                            else:
-                                down_block, mid_block = self.get_controlnet_conditioning_blocks(
-                                    device=device,
-                                    latents=latent_model_input,
-                                    timestep=t,
-                                    encoder_hidden_states=embeds,
-                                    controlnet_conds=controlnet_conds,
-                                    added_cond_kwargs=added_cond_kwargs,
-                                )
-                        else:
-                            down_block, mid_block = None, None
-
-                        # add other dimensions to unet input if set
-                        if mask is not None and mask_image is not None and is_inpainting_unet:
-                            latent_model_input = torch.cat(
-                                [
-                                    latent_model_input,
-                                    slice_for_view(mask),
-                                    slice_for_view(mask_image),
-                                ],
-                                dim=1,
-                            )
-
-                        # predict the noise residual
-                        noise_pred = self.predict_noise_residual(
-                            latents=latent_model_input,
-                            timestep=t,
-                            embeddings=embeds,
-                            cross_attention_kwargs=cross_attention_kwargs,
-                            added_cond_kwargs=added_cond_kwargs,
-                            down_block_additional_residuals=down_block,
-                            mid_block_additional_residual=mid_block,
-                        )
-
-                        # perform guidance
-                        if do_classifier_free_guidance:
-                            noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
-                            noise_pred = noise_pred_uncond + guidance_scale * (noise_pred_text - noise_pred_uncond)
-
-                        # compute the previous noisy sample x_t -> x_t-1
-                        denoised_latents = self.scheduler.step(
-                            noise_pred,
-                            t,
-                            latents_for_view,
-                            **extra_step_kwargs,
-                        ).prev_sample
-
-                    except IndexError:
-                        raise RuntimeError(f"Received IndexError during denoising. It is likely that the scheduler you are using ({type(self.scheduler).__name__}) does not work with Multi-Diffusion, and you should avoid using this when chunking is enabled.")
-
-                    # Save chunk scheduler status after sample
-                    chunk_scheduler_status[j] = self.get_scheduler_state()
-
-                    # If using mask and not using fine-tuned inpainting, then we calculate
-                    # the same denoising on the image without unet and cross with the
-                    # calculated unet input * mask
-                    if mask is not None and image is not None and noise is not None and not is_inpainting_unet:
-                        init_latents = (slice_for_view(image))[:1]
-                        init_mask = (slice_for_view(mask))[:1]
-
-                        if i < len(timesteps) - 1:
-                            noise_timestep = timesteps[i + 1]
-                            init_latents = self.scheduler.add_noise(
-                                init_latents,
-                                slice_for_view(noise),
-                                torch.tensor([noise_timestep])
-                            )
-
-                        denoised_latents = (1 - init_mask) * init_latents + init_mask * denoised_latents
-
-                    # Build weights
-                    multiplier = weight_builder(
-                        mask_type=self.chunking_mask_type,
-                        batch=samples,
-                        dim=num_channels,
-                        frames=mask_frames,
-                        width=mask_width,
-                        height=mask_height,
-                        unfeather_left=left==0,
-                        unfeather_top=top==0,
-                        unfeather_right=right==latent_width,
-                        unfeather_bottom=bottom==latent_height,
-                        unfeather_start=False if num_frames is None else (start==0 and not chunker.loop),
-                        unfeather_end=False if num_frames is None else (end==num_frames and not chunker.loop),
-                        **self.chunking_mask_kwargs
+                    # expand the latents if we are doing classifier free guidance
+                    latent_model_input = (
+                        torch.cat([latents_for_view] * 2) if do_classifier_free_guidance else latents_for_view
                     )
 
-                    fill_value(denoised_latents * multiplier, multiplier)
+                    # Re-match chunk scheduler status
+                    self.scheduler.__dict__.update(chunk_scheduler_status[j])
 
-                    # Call the progress callback
-                    if progress_callback is not None:
-                        progress_callback(True)
+                    # Scale model input
+                    latent_model_input = self.scheduler.scale_model_input(latent_model_input, t)
 
-                # multidiffusion
-                latents = torch.where(count > 0, value / count, value)
-
-                # call the latent_callback, if provided
-                steps_since_last_callback += 1
-                if (
-                    latent_callback is not None
-                    and latent_callback_steps is not None
-                    and steps_since_last_callback >= latent_callback_steps
-                    and (i == num_steps - 1 or ((i + 1) > num_warmup_steps and (i + 1) % self.scheduler.order == 0))
-                ):
-                    steps_since_last_callback = 0
-                    latent_callback_value = latents
-
-                    if latent_callback_type != "latent":
-                        latent_callback_value = self.decode_latents(
-                            latent_callback_value,
-                            device=device,
-                            chunker=chunker,
-                            progress_callback=progress_callback
-                        )
-                        if num_frames is not None:
-                            output = [] # type: ignore[assignment]
-                            for frame in self.decode_animation_frames(latent_callback_value):
-                                output.extend(self.image_processor.numpy_to_pil(frame)) # type: ignore[attr-defined]
-                            latent_callback_value = output # type: ignore[assignment]
+                    # Get embeds
+                    if wrap_t and start is not None and num_frames is not None and end is not None:
+                        frame_indexes = list(range(start,num_frames)) + list(range(end))
+                    elif num_frames is not None and start is not None and end is not None:
+                        frame_indexes = list(range(start,end))
+                    else:
+                        frame_indexes = None
+                    embeds = encoded_prompts.get_embeds(frame_indexes)
+                    if embeds is None:
+                        if self.text_encoder:
+                            embeds = torch.zeros(samples, 77, self.text_encoder.config.hidden_size)
+                        elif self.text_encoder_2:
+                            embeds = torch.zeros(samples, 77, self.text_encoder_2.config.hidden_size)
                         else:
-                            latent_callback_value = self.denormalize_latents(latent_callback_value)
-                            if latent_callback_type != "pt":
-                                latent_callback_value = self.image_processor.pt_to_numpy(latent_callback_value)
-                                if latent_callback_type == "pil":
-                                    latent_callback_value = self.image_processor.numpy_to_pil(latent_callback_value)
-                    latent_callback(latent_callback_value)
+                            raise IOError("No embeds and no text encoder.")
 
+                    # Get added embeds
+                    add_text_embeds = encoded_prompts.get_add_text_embeds(frame_indexes)
+                    if add_text_embeds is not None:
+                        if not added_cond_kwargs:
+                            raise ValueError(f"Added condition arguments is empty, but received add text embeds. There should be time IDs prior to this point.")
+                        added_cond_kwargs["text_embeds"] = add_text_embeds.to(device=device, dtype=embeds.dtype)
+
+                    # Get controlnet input(s) if configured
+                    if control_images is not None:
+                        # Find which control image(s) to use
+                        controlnet_conds: Dict[str, List[Tuple[torch.Tensor, float]]] = {}
+                        for controlnet_name in control_images:
+                            for (
+                                control_image,
+                                conditioning_scale,
+                                conditioning_start,
+                                conditioning_end
+                            ) in control_images[controlnet_name]:
+                                if (
+                                    (conditioning_start is None or conditioning_start <= denoising_ratio) and
+                                    (conditioning_end is None or denoising_ratio <= conditioning_end)
+                                ):
+                                    if controlnet_name not in controlnet_conds:
+                                        controlnet_conds[controlnet_name] = []
+                                    controlnet_conds[controlnet_name].append((
+                                        slice_for_view(control_image, self.vae_scale_factor),
+                                        conditioning_scale
+                                    ))
+
+                        if not controlnet_conds:
+                            down_block, mid_block = None, None
+                        else:
+                            down_block, mid_block = self.get_controlnet_conditioning_blocks(
+                                device=device,
+                                latents=latent_model_input,
+                                timestep=t,
+                                encoder_hidden_states=embeds,
+                                controlnet_conds=controlnet_conds,
+                                added_cond_kwargs=added_cond_kwargs,
+                            )
+                    else:
+                        down_block, mid_block = None, None
+
+                    # add other dimensions to unet input if set
+                    if mask is not None and mask_image is not None and is_inpainting_unet:
+                        latent_model_input = torch.cat(
+                            [
+                                latent_model_input,
+                                slice_for_view(mask),
+                                slice_for_view(mask_image),
+                            ],
+                            dim=1,
+                        )
+
+                    # predict the noise residual
+                    noise_pred = self.predict_noise_residual(
+                        latents=latent_model_input,
+                        timestep=t,
+                        embeddings=embeds,
+                        cross_attention_kwargs=cross_attention_kwargs,
+                        added_cond_kwargs=added_cond_kwargs,
+                        down_block_additional_residuals=down_block,
+                        mid_block_additional_residual=mid_block,
+                    )
+
+                    # perform guidance
+                    if do_classifier_free_guidance:
+                        noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
+                        noise_pred = noise_pred_uncond + guidance_scale * (noise_pred_text - noise_pred_uncond)
+
+                    # compute the previous noisy sample x_t -> x_t-1
+                    denoised_latents = self.scheduler.step(
+                        noise_pred,
+                        t,
+                        latents_for_view,
+                        **extra_step_kwargs,
+                    ).prev_sample
+
+                except IndexError:
+                    raise RuntimeError(f"Received IndexError during denoising. It is likely that the scheduler you are using ({type(self.scheduler).__name__}) does not work with Multi-Diffusion, and you should avoid using this when chunking is enabled.")
+
+                # Save chunk scheduler status after sample
+                chunk_scheduler_status[j] = self.get_scheduler_state()
+
+                # If using mask and not using fine-tuned inpainting, then we calculate
+                # the same denoising on the image without unet and cross with the
+                # calculated unet input * mask
+                if mask is not None and image is not None and noise is not None and not is_inpainting_unet:
+                    init_latents = (slice_for_view(image))[:1]
+                    init_mask = (slice_for_view(mask))[:1]
+
+                    if i < len(timesteps) - 1:
+                        noise_timestep = timesteps[i + 1]
+                        init_latents = self.scheduler.add_noise(
+                            init_latents,
+                            slice_for_view(noise),
+                            torch.tensor([noise_timestep])
+                        )
+
+                    denoised_latents = (1 - init_mask) * init_latents + init_mask * denoised_latents
+
+                # Build weights
+                multiplier = weight_builder(
+                    mask_type=self.chunking_mask_type,
+                    batch=samples,
+                    dim=num_channels,
+                    frames=mask_frames,
+                    width=mask_width,
+                    height=mask_height,
+                    unfeather_left=left==0,
+                    unfeather_top=top==0,
+                    unfeather_right=right==latent_width,
+                    unfeather_bottom=bottom==latent_height,
+                    unfeather_start=False if num_frames is None else (start==0 and not chunker.loop),
+                    unfeather_end=False if num_frames is None else (end==num_frames and not chunker.loop),
+                    **self.chunking_mask_kwargs
+                )
+
+                fill_value(denoised_latents * multiplier, multiplier)
+                if latent_callback_type != "latent":
+                    latent_callback_value = self.decode_latent_preview(
+                        latent_callback_value,
+                        device=device,
+                        chunker=chunker,
+                        progress_callback=progress_callback
+                    )
+                    if num_frames is not None:
+                        output = [] # type: ignore[assignment]
+                        for frame in self.decode_animation_frames(latent_callback_value):
+                            output.extend(self.image_processor.numpy_to_pil(frame)) # type: ignore[attr-defined]
+                        latent_callback_value = output # type: ignore[assignment]
+                    else:
+                        latent_callback_value = self.denormalize_latents(latent_callback_value)
+                        if latent_callback_type != "pt":
+                            latent_callback_value = self.image_processor.pt_to_numpy(latent_callback_value)
+                            if latent_callback_type == "pil":
+                                latent_callback_value = self.image_processor.numpy_to_pil(latent_callback_value)
+                latent_callback(latent_callback_value)
         return latents
+
+    def decode_latent_preview(
+        self,
+        latents: torch.Tensor,
+        weight_builder: MaskWeightBuilder,
+        device: Union[str, torch.device],
+    ) -> torch.Tensor:
+        """
+        Issues the command to decode latents with the tiny VAE.
+        Batches anything > 1024px (128 latent)
+        """
+        from math import ceil
+        batch = latents.shape[0]
+        height, width = latents.shape[-2:]
+        height_px = height * self.vae_scale_factor
+        width_px = width * self.vae_scale_factor
+
+        max_size = 128
+        overlap = 16
+        max_size_px = max_size * self.vae_scale_factor
+
+        if height > max_size or width > max_size:
+            # Do some chunking to avoid sharp lines, but don't follow global chunk
+            width_chunks = ceil(width / (max_size - overlap))
+            height_chunks = ceil(height / (max_size - overlap))
+            decoded_preview = torch.zeros(
+                (batch, 3, height*self.vae_scale_factor, width*self.vae_scale_factor),
+                dtype=latents.dtype,
+                device=device
+            )
+            multiplier = torch.zeros_like(decoded_preview)
+            for i in range(height_chunks):
+                start_h = max(0, i * (max_size - overlap))
+                end_h = start_h + max_size
+                if end_h > height:
+                    diff = end_h - height
+                    end_h -= diff
+                    start_h = max(0, start_h-diff)
+                start_h_px = start_h * self.vae_scale_factor
+                end_h_px = end_h * self.vae_scale_factor
+                for j in range(width_chunks):
+                    start_w = max(0, j * (max_size - overlap))
+                    end_w = start_w + max_size
+                    if end_w > width:
+                        diff = end_w - width
+                        end_w -= diff
+                        start_w = max(0, start_w-diff)
+                    start_w_px = start_w * self.vae_scale_factor
+                    end_w_px = end_w * self.vae_scale_factor
+                    mask = weight_builder(
+                        mask_type="bilinear",
+                        batch=batch,
+                        dim=3,
+                        width=min(width_px, max_size_px),
+                        height=min(height_px, max_size_px),
+                        unfeather_left=start_w==0,
+                        unfeather_top=start_h==0,
+                        unfeather_right=end_w==width,
+                        unfeather_bottom=end_h==height,
+                    )
+                    decoded_view = self.vae_preview.decode(
+                        latents[:, :, start_h:end_h, start_w:end_w],
+                        return_dict=False
+                    )[0].to(device)
+                    decoded_preview[:, :, start_h_px:end_h_px, start_w_px:end_w_px] += decoded_view * mask
+                    multiplier[:, :, start_h_px:end_h_px, start_w_px:end_w_px] += mask
+            return decoded_preview / multiplier
+        else:
+            return self.vae_preview.decode(latents, return_dict=False)[0].to(device)
 
     def decode_latent_view(self, latents: torch.Tensor) -> torch.Tensor:
         """
@@ -2427,7 +2712,11 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         """
         return self.vae.decode(latents, return_dict=False)[0]
 
-    def decode_latents_unchunked(self, latents: torch.Tensor, device: Union[str, torch.device]) -> torch.Tensor:
+    def decode_latents_unchunked(
+        self,
+        latents: torch.Tensor,
+        device: Union[str, torch.device]
+    ) -> torch.Tensor:
         """
         Decodes the latents using the VAE without chunking.
         """
@@ -2438,6 +2727,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         latents: torch.Tensor,
         device: Union[str, torch.device],
         chunker: Chunker,
+        weight_builder: MaskWeightBuilder,
         progress_callback: Optional[Callable[[bool], None]] = None,
     ) -> torch.Tensor:
         """
@@ -2452,13 +2742,12 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         height *= self.vae_scale_factor
         width *= self.vae_scale_factor
 
-        latents = 1 / self.vae.config.scaling_factor * latents
+        latents = 1 / self.vae.config.scaling_factor * latents # type: ignore[attr-defined]
 
         total_steps = chunker.num_chunks
         revert_dtype = None
 
-        weight_builder = MaskWeightBuilder(device=device, dtype=latents.dtype)
-        if self.config.force_full_precision_vae:
+        if self.config.force_full_precision_vae: # type: ignore[attr-defined]
             # Resist overflow
             revert_dtype = latents.dtype
             self.vae.to(dtype=torch.float32)
@@ -2469,7 +2758,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             result = self.decode_latents_unchunked(latents, device)
             if progress_callback is not None:
                 progress_callback(True)
-            if self.config.force_full_precision_vae:
+            if self.config.force_full_precision_vae: # type: ignore[attr-defined]
                 self.vae.to(dtype=latents.dtype)
             return result
 
@@ -2484,97 +2773,96 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
         value = torch.zeros_like(count)
         logger.debug(f"Decoding latents in {total_steps} steps")
-        with weight_builder:
-            # iterate over chunks
-            for j, ((top, bottom), (left, right)) in enumerate(chunker.chunks):
-                # Memoize wrap for later
-                wrap_x = right <= left
-                wrap_y = bottom <= top
 
-                mask_width = ((latent_width - left) + right if wrap_x else right - left) * self.vae_scale_factor
-                mask_height = ((latent_height - top) + bottom if wrap_y else bottom - top) * self.vae_scale_factor
+        for j, ((top, bottom), (left, right)) in enumerate(chunker.chunks):
+            # Memoize wrap for later
+            wrap_x = right <= left
+            wrap_y = bottom <= top
 
-                # Define some helpers for chunked denoising
-                def slice_for_view(tensor: torch.Tensor, scale_factor: int = 1) -> torch.Tensor:
-                    """
-                    Copies and slices input tensors
-                    """
-                    left_idx = left * scale_factor
-                    right_idx = right * scale_factor
-                    top_idx = top * scale_factor
-                    bottom_idx = bottom * scale_factor
-                    height_idx = latent_height * scale_factor
-                    width_idx = latent_width * scale_factor
-                    tensor_for_view = torch.clone(tensor)
+            mask_width = ((latent_width - left) + right if wrap_x else right - left) * self.vae_scale_factor
+            mask_height = ((latent_height - top) + bottom if wrap_y else bottom - top) * self.vae_scale_factor
 
-                    if wrap_x:
-                        tensor_for_view = torch.cat([tensor_for_view[:, :, :, left_idx:width_idx], tensor_for_view[:, :, :, :right_idx]], dim=3)
-                    else:
-                        tensor_for_view = tensor_for_view[:, :, :, left_idx:right_idx]
+            # Define some helpers for chunked denoising
+            def slice_for_view(tensor: torch.Tensor, scale_factor: int = 1) -> torch.Tensor:
+                """
+                Copies and slices input tensors
+                """
+                left_idx = left * scale_factor
+                right_idx = right * scale_factor
+                top_idx = top * scale_factor
+                bottom_idx = bottom * scale_factor
+                height_idx = latent_height * scale_factor
+                width_idx = latent_width * scale_factor
+                tensor_for_view = torch.clone(tensor)
 
+                if wrap_x:
+                    tensor_for_view = torch.cat([tensor_for_view[:, :, :, left_idx:width_idx], tensor_for_view[:, :, :, :right_idx]], dim=3)
+                else:
+                    tensor_for_view = tensor_for_view[:, :, :, left_idx:right_idx]
+
+                if wrap_y:
+                    tensor_for_view = torch.cat([tensor_for_view[:, :, top_idx:height_idx, :], tensor_for_view[:, :, :bottom_idx, :]], dim=2)
+                else:
+                    tensor_for_view = tensor_for_view[:, :, top_idx:bottom_idx, :]
+
+                return tensor_for_view
+
+            def fill_value(tensor: torch.Tensor, multiplier: torch.Tensor) -> None:
+                """
+                Fills the value and count tensors
+                """
+                nonlocal value, count
+                start_x = left
+                end_x = latent_width if wrap_x else right
+                start_x *= self.vae_scale_factor
+                end_x *= self.vae_scale_factor
+                initial_x = end_x - start_x
+                right_px = right * self.vae_scale_factor
+
+                start_y = top
+                end_y = latent_height if wrap_y else bottom
+                start_y *= self.vae_scale_factor
+                end_y *= self.vae_scale_factor
+                initial_y = end_y - start_y
+                bottom_px = bottom * self.vae_scale_factor
+
+                value[:, :, start_y:end_y, start_x:end_x] += tensor[:, :, :initial_y, :initial_x]
+                count[:, :, start_y:end_y, start_x:end_x] += multiplier[:, :, :initial_y, :initial_x]
+                if wrap_x:
+                    value[:, :, start_y:end_y, :right_px] += tensor[:, :, :initial_y, initial_x:]
+                    count[:, :, start_y:end_y, :right_px] += multiplier[:, :, :initial_y, initial_x:]
                     if wrap_y:
-                        tensor_for_view = torch.cat([tensor_for_view[:, :, top_idx:height_idx, :], tensor_for_view[:, :, :bottom_idx, :]], dim=2)
-                    else:
-                        tensor_for_view = tensor_for_view[:, :, top_idx:bottom_idx, :]
+                        value[:, :, :bottom_px, :right_px] += tensor[:, :, initial_y:, initial_x:]
+                        count[:, :, :bottom_px, :right_px] += multiplier[:, :, initial_y:, initial_x:]
+                if wrap_y:
+                    value[:, :, :bottom_px, start_x:end_x] += tensor[:, :, initial_y:, :initial_x]
+                    count[:, :, :bottom_px, start_x:end_x] += multiplier[:, :, initial_y:, :initial_x]
 
-                    return tensor_for_view
+            # Slice latents
+            latents_for_view = slice_for_view(latents)
 
-                def fill_value(tensor: torch.Tensor, multiplier: torch.Tensor) -> None:
-                    """
-                    Fills the value and count tensors
-                    """
-                    nonlocal value, count
-                    start_x = left
-                    end_x = latent_width if wrap_x else right
-                    start_x *= self.vae_scale_factor
-                    end_x *= self.vae_scale_factor
-                    initial_x = end_x - start_x
-                    right_px = right * self.vae_scale_factor
+            # Decode latents
+            decoded_latents = self.decode_latent_view(latents_for_view).to(device=device)
 
-                    start_y = top
-                    end_y = latent_height if wrap_y else bottom
-                    start_y *= self.vae_scale_factor
-                    end_y *= self.vae_scale_factor
-                    initial_y = end_y - start_y
-                    bottom_px = bottom * self.vae_scale_factor
+            # Build weights
+            multiplier = weight_builder(
+                mask_type=self.chunking_mask_type,
+                batch=samples,
+                dim=3,
+                frames=None,
+                width=mask_width,
+                height=mask_height,
+                unfeather_left=left==0,
+                unfeather_top=top==0,
+                unfeather_right=right==latent_width,
+                unfeather_bottom=bottom==latent_height,
+                **self.chunking_mask_kwargs
+            )
 
-                    value[:, :, start_y:end_y, start_x:end_x] += tensor[:, :, :initial_y, :initial_x]
-                    count[:, :, start_y:end_y, start_x:end_x] += multiplier[:, :, :initial_y, :initial_x]
-                    if wrap_x:
-                        value[:, :, start_y:end_y, :right_px] += tensor[:, :, :initial_y, initial_x:]
-                        count[:, :, start_y:end_y, :right_px] += multiplier[:, :, :initial_y, initial_x:]
-                        if wrap_y:
-                            value[:, :, :bottom_px, :right_px] += tensor[:, :, initial_y:, initial_x:]
-                            count[:, :, :bottom_px, :right_px] += multiplier[:, :, initial_y:, initial_x:]
-                    if wrap_y:
-                        value[:, :, :bottom_px, start_x:end_x] += tensor[:, :, initial_y:, :initial_x]
-                        count[:, :, :bottom_px, start_x:end_x] += multiplier[:, :, initial_y:, :initial_x]
+            fill_value(decoded_latents * multiplier, multiplier)
 
-                # Slice latents
-                latents_for_view = slice_for_view(latents)
-
-                # Decode latents
-                decoded_latents = self.decode_latent_view(latents_for_view).to(device=device)
-
-                # Build weights
-                multiplier = weight_builder(
-                    mask_type=self.chunking_mask_type,
-                    batch=samples,
-                    dim=3,
-                    frames=None,
-                    width=mask_width,
-                    height=mask_height,
-                    unfeather_left=left==0,
-                    unfeather_top=top==0,
-                    unfeather_right=right==latent_width,
-                    unfeather_bottom=bottom==latent_height,
-                    **self.chunking_mask_kwargs
-                )
-
-                fill_value(decoded_latents * multiplier, multiplier)
-
-                if progress_callback is not None:
-                    progress_callback(True)
+            if progress_callback is not None:
+                progress_callback(True)
 
         # re-average pixels
         latents = torch.where(count > 0, value / count, value)
@@ -2600,18 +2888,20 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         return outputs
 
     def prepare_extra_step_kwargs(
-        self, generator: Optional[torch.Generator], eta: float
+        self,
+        generator: Optional[torch.Generator],
+        eta: float
     ) -> Dict[str, Any]:
         """
         Prepares arguments to add during denoising
         """
-        accepts_eta = "eta" in set(inspect.signature(self.scheduler.step).parameters.keys())
+        accepts_eta = "eta" in set(inspect.signature(self.scheduler.step).parameters.keys()) # type: ignore[attr-defined]
         extra_step_kwargs: Dict[str, Any] = {}
         if accepts_eta:
             extra_step_kwargs["eta"] = eta
 
         # check if the scheduler accepts generator
-        accepts_generator = "generator" in set(inspect.signature(self.scheduler.step).parameters.keys())
+        accepts_generator = "generator" in set(inspect.signature(self.scheduler.step).parameters.keys()) # type: ignore[attr-defined]
         if accepts_generator:
             extra_step_kwargs["generator"] = generator
         return extra_step_kwargs
@@ -2657,6 +2947,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
     @torch.no_grad()
     def __call__(
         self,
+        device: Optional[Union[str, torch.device]] = None,
+        offload_models: bool = False,
         prompt: Optional[str] = None,
         prompt_2: Optional[str] = None,
         negative_prompt: Optional[str] = None,
@@ -2664,6 +2956,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         prompts: Optional[List[Prompt]] = None,
         image: Optional[Union[List[PIL.Image.Image], PIL.Image.Image, torch.Tensor, str]] = None,
         mask: Optional[Union[List[PIL.Image.Image], PIL.Image.Image, torch.Tensor, str]] = None,
+        clip_skip: Optional[int] = None,
+        freeu_factors: Optional[Tuple[float, float, float, float]] = None,
         control_images: ControlImageArgType = None,
         ip_adapter_images: ImagePromptArgType = None,
         ip_adapter_plus: bool = False,
@@ -2683,6 +2977,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         tile: Union[bool, Tuple[bool, bool]] = False,
         eta: float = 0.0,
         generator: Optional[torch.Generator] = None,
+        noise_generator: Optional[torch.Generator] = None,
         latents: Optional[torch.Tensor] = None,
         prompt_embeds: Optional[torch.Tensor] = None,
         negative_prompt_embeds: Optional[torch.Tensor] = None,
@@ -2701,6 +2996,9 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         negative_aesthetic_score: float = 2.5,
         chunking_mask_type: Optional[MASK_TYPE_LITERAL] = None,
         chunking_mask_kwargs: Optional[Dict[str, Any]] = None,
+        noise_offset: Optional[float] = None,
+        noise_method: NOISE_METHOD_LITERAL = "perlin",
+        noise_blend_method: LATENT_BLEND_METHOD_LITERAL = "inject",
     ) -> Union[
         StableDiffusionPipelineOutput,
         Tuple[Union[torch.Tensor, np.ndarray, List[PIL.Image.Image]], Optional[List[bool]]],
@@ -2708,9 +3006,31 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         """
         Invokes the pipeline.
         """
-        # 1. Default height and width to unet
-        height = height or self.unet.config.sample_size * self.vae_scale_factor
-        width = width or self.unet.config.sample_size * self.vae_scale_factor
+        # 1. Default height and width to image or unet config
+        if not height:
+            if image is not None:
+                if isinstance(image, str):
+                    image = PIL.Image.open(image)
+                if isinstance(image, PIL.Image.Image):
+                    _, height = image.size
+                else:
+                    height = image.shape[-2] * self.vae_scale_factor
+            else:
+                height = self.unet.config.sample_size * self.vae_scale_factor # type: ignore[attr-defined]
+
+        if not width:
+            if image is not None:
+                if isinstance(image, str):
+                    image = PIL.Image.open(image)
+                if isinstance(image, PIL.Image.Image):
+                    width, _ = image.size
+                else:
+                    width = image.shape[-1] * self.vae_scale_factor
+            else:
+                width = self.unet.config.sample_size * self.vae_scale_factor # type: ignore[attr-defined]
+
+        height = cast(int, height)
+        width = cast(int, width)
 
         # Training details
         original_size = original_size or (height, width)
@@ -2759,7 +3079,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         output_nsfw: Optional[List[bool]] = None
 
         # Determine dimensionality
-        is_inpainting_unet = self.unet.config.in_channels == 9
+        is_inpainting_unet = self.unet.config.in_channels == 9 # type: ignore[attr-defined]
 
         # Define call parameters
         if prompt is not None or prompts is not None:
@@ -2777,7 +3097,11 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 logger.warning("No mask present, but using inpainting model. Adding blank mask.")
                 mask = PIL.Image.new("RGB", (width, height), (255, 255, 255))
 
-        device = self._execution_device
+        if device is None:
+            device = torch.device("cpu")
+        elif isinstance(device, str):
+            device = torch.device(device)
+
         do_classifier_free_guidance = guidance_scale > 1.0
 
         # Calculate chunks
@@ -2796,18 +3120,17 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         num_chunks = chunker.num_chunks 
         num_temporal_chunks = chunker.num_frame_chunks
 
-        self.scheduler.set_timesteps(num_inference_steps, device=device)
+        self.scheduler.set_timesteps(num_inference_steps, device=device) # type: ignore[attr-defined]
 
         if image is not None and mask is None and (strength is not None or denoising_start is not None):
             # Scale timesteps by strength
             timesteps, num_inference_steps = self.get_timesteps(
                 num_inference_steps,
                 strength,
-                device,
                 denoising_start=denoising_start
             )
         else:
-            timesteps = self.scheduler.timesteps
+            timesteps = self.scheduler.timesteps # type: ignore[attr-defined]
 
         batch_size *= num_results_per_prompt
         num_scheduled_inference_steps = len(timesteps)
@@ -2816,8 +3139,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         if denoising_end is not None and type(denoising_end) == float and denoising_end > 0 and denoising_end < 1:
             discrete_timestep_cutoff = int(
                 round(
-                    self.scheduler.config.num_train_timesteps
-                    - (denoising_end * self.scheduler.config.num_train_timesteps)
+                    self.scheduler.config.num_train_timesteps # type: ignore[attr-defined]
+                    - (denoising_end * self.scheduler.config.num_train_timesteps) # type: ignore[attr-defined]
                 )
             )
             num_inference_steps = len(list(filter(lambda ts: ts >= discrete_timestep_cutoff, timesteps)))
@@ -2850,9 +3173,6 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 else:
                     encoding_steps += 1
 
-        if decode_intermediates:
-            decoding_steps += num_scheduled_inference_steps // latent_callback_steps # type: ignore
-
         num_frames = 1 if animation_frames is None else animation_frames
         overall_num_steps = num_chunks * (encoding_steps + (decoding_steps * num_frames) + (num_scheduled_inference_steps * num_temporal_chunks))
         logger.debug(
@@ -2866,7 +3186,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         # Create a callback which gets passed to stepped functions
         step_complete = self.get_step_complete_callback(overall_num_steps, progress_callback)
 
-        if self.config.force_full_precision_vae:
+        if self.config.force_full_precision_vae: # type: ignore[attr-defined]
             logger.debug(f"Configuration indicates VAE must be used in full precision")
             # make sure the VAE is in float32 mode, as it overflows in float16
             self.vae.to(dtype=torch.float32)
@@ -3011,315 +3331,320 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 for i in image:
                     prepared_image = torch.cat([prepared_image, self.image_processor.preprocess(i).unsqueeze(0)])
 
-            if prepared_image is not None and prepared_mask is not None:
-                # Inpainting
-                num_channels_latents = self.vae.config.latent_channels
+            # Build the weight builder
+            weight_builder = MaskWeightBuilder(device=device, dtype=prompt_embeds.dtype)
+            with weight_builder:
+                if prepared_image is not None and prepared_mask is not None:
+                    # Inpainting
+                    num_channels_latents = self.vae.config.latent_channels
 
-                if latents:
-                    prepared_latents = latents.to(device) * self.schedule.init_noise_sigma
-                else:
-                    prepared_latents = self.create_latents(
-                        batch_size,
-                        num_channels_latents,
-                        height,
-                        width,
-                        encoded_prompts.dtype,
-                        device,
-                        generator,
+                    if latents:
+                        prepared_latents = latents.to(device) * self.schedule.init_noise_sigma
+                    else:
+                        prepared_latents = self.create_latents(
+                            batch_size,
+                            num_channels_latents,
+                            height,
+                            width,
+                            encoded_prompts.dtype,
+                            device,
+                            generator,
+                            animation_frames=animation_frames
+                        )
+
+                    prepared_mask, prepared_image_latents = self.prepare_mask_latents(
+                        mask=prepared_mask.to(device=device),
+                        image=prepared_image.to(device=device),
+                        batch_size=batch_size,
+                        height=height,
+                        width=width,
+                        dtype=encoded_prompts.dtype,
+                        device=device,
+                        chunker=chunker,
+                        generator=generator,
+                        do_classifier_free_guidance=do_classifier_free_guidance,
+                        progress_callback=step_complete,
                         animation_frames=animation_frames
                     )
 
-                prepared_mask, prepared_image_latents = self.prepare_mask_latents(
-                    mask=prepared_mask.to(device=device),
-                    image=prepared_image.to(device=device),
-                    batch_size=batch_size,
-                    height=height,
-                    width=width,
-                    dtype=encoded_prompts.dtype,
-                    device=device,
-                    chunker=chunker,
-                    generator=generator,
-                    do_classifier_free_guidance=do_classifier_free_guidance,
-                    progress_callback=step_complete,
-                    animation_frames=animation_frames
-                )
-
-                if init_image is not None:
-                    for i, img in init_image:
-                        img = img.to(device=device, dtype=encoded_prompts.dtype)
-                        img = self.encode_image(
-                            img,
-                            device=device,
-                            dtype=encoded_prompts.dtype,
-                            chunker=chunker,
-                            generator=generator,
-                        )
-                        init_image[i] = img
-                # prepared_latents = noise or init latents + noise
-                # prepared_mask = only mask
-                # prepared_image_latents = masked image
-                # init_image = only image when not using inpainting unet
-            elif prepared_image is not None and strength is not None:
-                # img2img
-                prepared_latents = self.prepare_image_latents(
-                    image=prepared_image.to(device=device),
-                    timestep=timesteps[:1].repeat(batch_size),
-                    batch_size=batch_size,
-                    dtype=encoded_prompts.dtype,
-                    device=device,
-                    chunker=chunker,
-                    generator=generator,
-                    progress_callback=step_complete,
-                    add_noise=denoising_start is None,
-                    animation_frames=animation_frames
-                )
-                prepared_image_latents = None # Don't need to store these separately
-                # prepared_latents = img + noise
-            elif latents:
-                prepared_latents = latents.to(device) * self.scheduler.init_noise_sigma
-                # prepared_latents = passed latents + noise
-            else:
-                # txt2img
-                prepared_image_latents = None
-                prepared_latents = self.create_latents(
-                    batch_size=batch_size,
-                    num_channels_latents=self.unet.config.in_channels,
-                    height=height,
-                    width=width,
-                    dtype=encoded_prompts.dtype,
-                    device=device,
-                    generator=generator,
-                    animation_frames=animation_frames
-                )
-                # prepared_latents = noise
-
-            # Look for controlnet and conditioning image
-            prepared_control_images: PreparedControlImageArgType = {}
-            if control_images is not None:
-                if not self.controlnets:
-                    logger.warning("Control image passed, but no controlnet present. Ignoring.")
-                    prepared_control_images = None
-                else:
-                    for name in control_images:
-                        if name not in self.controlnets:
-                            raise RuntimeError(f"Control image mapped to ControlNet {name}, but it is not loaded.")
-
-                        image_list = control_images[name]
-                        if not isinstance(image_list, list):
-                            image_list = [image_list]
-
-                        for controlnet_image in image_list:
-                            if isinstance(controlnet_image, tuple):
-                                if len(controlnet_image) == 4:
-                                    controlnet_image, conditioning_scale, conditioning_start, conditioning_end = controlnet_image
-                                elif len(controlnet_image) == 3:
-                                    controlnet_image, conditioning_scale, conditioning_start = controlnet_image
-                                    conditioning_end = None
-                                elif len(controlnet_image) == 2:
-                                    controlnet_image, conditioning_scale = controlnet_image
-                                    conditioning_start, conditioning_end = None, None
-
-                            elif isinstance(controlnet_image, dict):
-                                conditioning_scale = controlnet_image.get("scale", 1.0)
-                                conditioning_start = controlnet_image.get("start", None)
-                                conditioning_end = controlnet_image.get("end", None)
-                                controlnet_image = controlnet_image["image"]
-                            else:
-                                conditioning_scale = 1.0
-                                conditioning_start, conditioning_end = None, None
-
-                            if isinstance(controlnet_image, str):
-                                controlnet_image = self.open_image(controlnet_image)
-
-                            prepared_controlnet_image = self.prepare_control_image(
-                                image=controlnet_image,
-                                height=height,
-                                width=width,
-                                batch_size=batch_size,
-                                num_results_per_prompt=num_results_per_prompt,
+                    if init_image is not None:
+                        for i, img in init_image:
+                            img = img.to(device=device, dtype=encoded_prompts.dtype)
+                            img = self.encode_image(
+                                img,
                                 device=device,
                                 dtype=encoded_prompts.dtype,
-                                do_classifier_free_guidance=do_classifier_free_guidance,
-                                animation_frames=animation_frames
+                                chunker=chunker,
+                                generator=generator,
                             )
-
-                            if name not in prepared_control_images: # type: ignore[operator]
-                                prepared_control_images[name] = [] # type: ignore[index]
-
-                            prepared_control_images[name].append( # type: ignore[index]
-                                (prepared_controlnet_image, conditioning_scale, conditioning_start, conditioning_end)
-                            )
-
-            # Should no longer be None
-            prepared_latents = cast(torch.Tensor, prepared_latents)
-
-            # Prepare extra step kwargs
-            extra_step_kwargs = self.prepare_extra_step_kwargs(generator, eta)
-
-            # Swap out VAE here if not needed for mostly free VRAM
-            if not decode_intermediates:
-                logger.debug("Intermediates are disabled, sending VAE to CPU during denoising")
-                self.vae.to("cpu")
-
-            # Get prompt embeds here if using ip adapter
-            if ip_adapter_tuples is not None:
-                image_prompt_embeds = torch.Tensor().to(
-                    device=device,
-                    dtype=prompt_embeds.dtype
-                )
-                image_uncond_prompt_embeds = torch.Tensor().to(
-                    device=device,
-                    dtype=prompt_embeds.dtype
-                )
-                for img, scale in ip_adapter_tuples:
-                    these_prompt_embeds, these_uncond_prompt_embeds = self.get_image_embeds(
-                        img,
-                        num_images_per_prompt
+                            init_image[i] = img
+                    # prepared_latents = noise or init latents + noise
+                    # prepared_mask = only mask
+                    # prepared_image_latents = masked image
+                    # init_image = only image when not using inpainting unet
+                elif prepared_image is not None and strength is not None:
+                    # img2img
+                    prepared_latents = self.prepare_image_latents(
+                        image=prepared_image.to(device=device),
+                        timestep=timesteps[:1].repeat(batch_size),
+                        batch_size=batch_size,
+                        dtype=encoded_prompts.dtype,
+                        device=device,
+                        chunker=chunker,
+                        generator=generator,
+                        progress_callback=step_complete,
+                        add_noise=denoising_start is None,
+                        animation_frames=animation_frames
                     )
-
-                    image_prompt_embeds = torch.cat([
-                        image_prompt_embeds,
-                        (these_prompt_embeds * scale / ip_adapter_scale)
-                    ], dim=1)
-
-                    image_uncond_prompt_embeds = torch.cat([
-                        image_uncond_prompt_embeds,
-                        (these_uncond_prompt_embeds * scale / ip_adapter_scale)
-                    ], dim=1)
-
-                if self.is_sdxl:
-                    negative_prompt_embeds = cast(torch.Tensor, negative_prompt_embeds)
-                    prompt_embeds = torch.cat([prompt_embeds, image_prompt_embeds], dim=1)
-                    negative_prompt_embeds = torch.cat([negative_prompt_embeds, image_uncond_prompt_embeds], dim=1)
+                    prepared_image_latents = None # Don't need to store these separately
+                    # prepared_latents = img + noise
+                elif latents:
+                    prepared_latents = latents.to(device) * self.scheduler.init_noise_sigma
+                    # prepared_latents = passed latents + noise
                 else:
-                    if do_classifier_free_guidance:
-                        _negative_prompt_embeds, _prompt_embeds = prompt_embeds.chunk(2)
+                    # txt2img
+                    prepared_image_latents = None
+                    prepared_latents = self.create_latents(
+                        batch_size=batch_size,
+                        num_channels_latents=self.unet.config.in_channels,
+                        height=height,
+                        width=width,
+                        dtype=encoded_prompts.dtype,
+                        device=device,
+                        generator=generator,
+                        animation_frames=animation_frames
+                    )
+                    # prepared_latents = noise
+
+                # Look for controlnet and conditioning image
+                prepared_control_images: PreparedControlImageArgType = {}
+                if control_images is not None:
+                    if not self.controlnets:
+                        logger.warning("Control image passed, but no controlnet present. Ignoring.")
+                        prepared_control_images = None
                     else:
-                        _negative_prompt_embeds, _prompt_embeds = negative_prompt_embeds, prompt_embeds # type: ignore
-                    prompt_embeds = torch.cat([_prompt_embeds, image_prompt_embeds], dim=1)
-                    negative_prompt_embeds = torch.cat([_negative_prompt_embeds, image_uncond_prompt_embeds], dim=1)
-                    if do_classifier_free_guidance:
-                        prompt_embeds = torch.cat([negative_prompt_embeds, prompt_embeds])
+                        for name in control_images:
+                            if name not in self.controlnets:
+                                raise RuntimeError(f"Control image mapped to ControlNet {name}, but it is not loaded.")
+                            image_list = control_images[name]
+                            if not isinstance(image_list, list):
+                                image_list = [image_list]
 
-                if ip_adapter_images:
-                    del ip_adapter_images
+                            for controlnet_image in image_list:
+                                if isinstance(controlnet_image, tuple):
+                                    if len(controlnet_image) == 4:
+                                        controlnet_image, conditioning_scale, conditioning_start, conditioning_end = controlnet_image
+                                    elif len(controlnet_image) == 3:
+                                        controlnet_image, conditioning_scale, conditioning_start = controlnet_image
+                                        conditioning_end = None
+                                    elif len(controlnet_image) == 2:
+                                        controlnet_image, conditioning_scale = controlnet_image
+                                        conditioning_start, conditioning_end = None, None
 
-            # Prepared added time IDs (SDXL)
-            added_cond_kwargs: Optional[Dict[str, Any]] = None
-            if self.is_sdxl:
-                added_cond_kwargs = {}
-                if self.config.requires_aesthetic_score:
-                    add_time_ids, add_neg_time_ids = self.get_add_time_ids(
-                        original_size=original_size,
-                        crops_coords_top_left=crops_coords_top_left,
-                        target_size=target_size,
-                        dtype=encoded_prompts.dtype,
-                        aesthetic_score=aesthetic_score,
-                        negative_aesthetic_score=negative_aesthetic_score,
+                                elif isinstance(controlnet_image, dict):
+                                    conditioning_scale = controlnet_image.get("scale", 1.0)
+                                    conditioning_start = controlnet_image.get("start", None)
+                                    conditioning_end = controlnet_image.get("end", None)
+                                    controlnet_image = controlnet_image["image"]
+                                else:
+                                    conditioning_scale = 1.0
+                                    conditioning_start, conditioning_end = None, None
+
+                                if isinstance(controlnet_image, str):
+                                    controlnet_image = PIL.Image.open(controlnet_image)
+
+                                if isinstance(controlnet_image, str):
+                                    controlnet_image = self.open_image(controlnet_image)
+
+                                prepared_controlnet_image = self.prepare_control_image(
+                                    image=controlnet_image,
+                                    height=height,
+                                    width=width,
+                                    batch_size=batch_size,
+                                    num_results_per_prompt=num_results_per_prompt,
+                                    device=device,
+                                    dtype=encoded_prompts.dtype,
+                                    do_classifier_free_guidance=do_classifier_free_guidance,
+                                    animation_frames=animation_frames
+                                )
+
+                                prepared_control_images[name].append( # type: ignore[index]
+                                    (prepared_controlnet_image, conditioning_scale, conditioning_start, conditioning_end)
+                                )
+
+                # Should no longer be None
+                prepared_latents = cast(torch.Tensor, prepared_latents)
+
+                # Prepare extra step kwargs
+                extra_step_kwargs = self.prepare_extra_step_kwargs(generator, eta)
+
+                # Prepared added time IDs (SDXL)
+                added_cond_kwargs: Optional[Dict[str, Any]] = None
+                if self.is_sdxl:
+                    added_cond_kwargs = {}
+                    if self.config.requires_aesthetic_score:
+                        add_time_ids, add_neg_time_ids = self.get_add_time_ids(
+                            original_size=original_size,
+                            crops_coords_top_left=crops_coords_top_left,
+                            target_size=target_size,
+                            dtype=encoded_prompts.dtype,
+                            aesthetic_score=aesthetic_score,
+                            negative_aesthetic_score=negative_aesthetic_score,
+                        )
+                        if do_classifier_free_guidance:
+                            add_time_ids = torch.cat([add_neg_time_ids, add_time_ids], dim=0)
+                    else:
+                        add_time_ids, _ = self.get_add_time_ids(
+                            original_size=original_size,
+                            crops_coords_top_left=crops_coords_top_left,
+                            target_size=target_size,
+                            dtype=encoded_prompts.dtype,
+                        )
+                        add_time_ids = torch.cat([add_time_ids, add_time_ids], dim=0)
+                    added_cond_kwargs["time_ids"] = add_time_ids.to(device)
+
+                # Make sure controlnet on device
+                if self.controlnets is not None:
+                    for name in self.controlnets:
+                        self.controlnets[name].to(device=device)
+
+                # Unload VAE, and maybe preview VAE
+                self.vae.to("cpu")
+                if decode_intermediates:
+                    self.vae_preview.to(device)
+                empty_cache()
+
+                # Inject noise
+                if noise_offset is not None and noise_offset > 0 and denoising_start is None:
+                    noise_timestep = timesteps[:1].repeat(batch_size).to("cpu", dtype=torch.int)
+                    schedule_factor = (1 - self.scheduler.alphas_cumprod[noise_timestep]) ** 0.5 # type: ignore
+                    schedule_factor = schedule_factor.flatten()[0] # type: ignore
+                    logger.debug(f"Adding {noise_method} noise by method {noise_blend_method} and factor {schedule_factor*noise_offset:.4f} - offset is {noise_offset:.2f}, scheduled alpha cumulative product is {schedule_factor:.4f}")
+                    noise_latents = make_noise(
+                        batch_size=prepared_latents.shape[0],
+                        channels=prepared_latents.shape[1],
+                        height=height // self.vae_scale_factor,
+                        width=width // self.vae_scale_factor,
+                        generator=noise_generator,
+                        device=device,
+                        dtype=prepared_latents.dtype,
+                        method=noise_method,
                     )
-                    if do_classifier_free_guidance:
-                        add_time_ids = torch.cat([add_neg_time_ids, add_time_ids], dim=0)
-                else:
-                    add_time_ids, _ = self.get_add_time_ids(
-                        original_size=original_size,
-                        crops_coords_top_left=crops_coords_top_left,
-                        target_size=target_size,
-                        dtype=encoded_prompts.dtype,
+                    prepared_latents = blend_latents(
+                        left=prepared_latents,
+                        right=noise_latents,
+                        time=noise_offset,
+                        method=noise_blend_method
                     )
-                    add_time_ids = torch.cat([add_time_ids, add_time_ids], dim=0)
-                added_cond_kwargs["time_ids"] = add_time_ids.to(device)
 
-            # Make sure controlnet on device
-            if self.controlnets is not None:
-                for name in self.controlnets:
-                    self.controlnets[name].to(device=device)
+                # Make sure unet is on device
+                self.align_unet(
+                    device=device,
+                    dtype=prompt_embeds.dtype,
+                    freeu_factors=freeu_factors,
+                    offload_models=offload_models
+                ) # May be overridden by RT
 
-            # Denoising loop
-            prepared_latents = self.denoise(
-                height=height,
-                width=width,
-                device=device,
-                num_inference_steps=num_inference_steps,
-                chunker=chunker,
-                timesteps=timesteps,
-                latents=prepared_latents,
-                encoded_prompts=encoded_prompts,
-                guidance_scale=guidance_scale,
-                do_classifier_free_guidance=do_classifier_free_guidance,
-                is_inpainting_unet=is_inpainting_unet,
-                mask=prepared_mask,
-                mask_image=prepared_image_latents,
-                image=init_image,
-                control_images=prepared_control_images,
-                progress_callback=step_complete,
-                latent_callback=latent_callback,
-                latent_callback_steps=latent_callback_steps,
-                latent_callback_type=latent_callback_type,
-                extra_step_kwargs=extra_step_kwargs,
-                cross_attention_kwargs=cross_attention_kwargs,
-                added_cond_kwargs=added_cond_kwargs,
-            )
+                # Denoising loop
+                prepared_latents = self.denoise(
+                    height=height,
+                    width=width,
+                    device=device,
+                    num_inference_steps=num_inference_steps,
+                    chunker=chunker,
+                    weight_builder=weight_builder,
+                    timesteps=timesteps,
+                    latents=prepared_latents,
+                    encoded_prompts=encoded_prompts,
+                    guidance_scale=guidance_scale,
+                    do_classifier_free_guidance=do_classifier_free_guidance,
+                    is_inpainting_unet=is_inpainting_unet,
+                    mask=prepared_mask,
+                    mask_image=prepared_image_latents,
+                    image=init_image,
+                    control_images=prepared_control_images,
+                    progress_callback=step_complete,
+                    latent_callback=latent_callback,
+                    latent_callback_steps=latent_callback_steps,
+                    latent_callback_type=latent_callback_type,
+                    extra_step_kwargs=extra_step_kwargs,
+                    cross_attention_kwargs=cross_attention_kwargs,
+                    added_cond_kwargs=added_cond_kwargs,
+                )
 
-            # Clear no longer needed tensors
-            del prepared_mask
-            del prepared_image_latents
+                # Clear no longer needed tensors
+                del prepared_mask
+                del prepared_image_latents
 
-            # Unload controlnets to free memory
-            if self.controlnets is not None:
-                for name in self.controlnets:
-                    self.controlnets[name].to("cpu")
-                del prepared_control_images
-            
-            if output_type != "latent":
-                if not decode_intermediates:
+                # Unload controlnets to free memory
+                if self.controlnets is not None:
+                    for name in self.controlnets:
+                        self.controlnets[name].to("cpu")
+                    del prepared_control_images
+
+                # Unload UNet to free memory
+                if offload_models:
+                    self.unet.to("cpu")
+
+                # Empty caches for more memory
+                empty_cache()
+
+                # Load VAE if decoding
+                if output_type != "latent":
                     self.vae.to(
-                        dtype=torch.float32 if self.config.force_full_precision_vae else prepared_latents.dtype,
+                        dtype=torch.float32 if self.config.force_full_precision_vae else prepared_latents.dtype, # type: ignore[attr-defined]
                         device=device
                     )
-                if self.is_sdxl:
-                    use_torch_2_0_or_xformers = self.vae.decoder.mid_block.attentions[0].processor in [
-                        AttnProcessor2_0,
-                        XFormersAttnProcessor,
-                        LoRAXFormersAttnProcessor,
-                        LoRAAttnProcessor2_0,
-                    ]
-                    # if xformers or torch_2_0 is used attention block does not need
-                    # to be in float32 which can save lots of memory
-                    if not use_torch_2_0_or_xformers:
-                        self.vae.post_quant_conv.to(prepared_latents.dtype)
-                        self.vae.decoder.conv_in.to(prepared_latents.dtype)
-                        self.vae.decoder.mid_block.to(prepared_latents.dtype)
-                    else:
-                        prepared_latents = prepared_latents.float()
+                    if self.is_sdxl:
+                        use_torch_2_0_or_xformers = self.vae.decoder.mid_block.attentions[0].processor in [
+                            AttnProcessor2_0,
+                            XFormersAttnProcessor,
+                            LoRAXFormersAttnProcessor,
+                            LoRAAttnProcessor2_0,
+                        ]
+                        # if xformers or torch_2_0 is used attention block does not need
+                        # to be in float32 which can save lots of memory
+                        if not use_torch_2_0_or_xformers:
+                            self.vae.post_quant_conv.to(prepared_latents.dtype)
+                            self.vae.decoder.conv_in.to(prepared_latents.dtype)
+                            self.vae.decoder.mid_block.to(prepared_latents.dtype)
+                        else:
+                            prepared_latents = prepared_latents.float()
 
-                prepared_latents = self.decode_latents(
-                    prepared_latents,
-                    device=device,
-                    chunker=chunker,
-                    progress_callback=step_complete,
-                )
+                if output_type == "latent":
+                    output = prepared_latents
+                elif animation_frames is not None:
+                    output = [] # type: ignore[assignment]
+                    for frame in self.decode_animation_frames(prepared_latents):
+                        output.extend(self.image_processor.numpy_to_pil(frame)) # type: ignore[attr-defined]
+                else:
+                    prepared_latents = self.decode_latents(
+                        prepared_latents,
+                        device=device,
+                        progress_callback=step_complete,
+                        weight_builder=weight_builder
+                    )
+                    output = self.denormalize_latents(prepared_latents)
+                    if output_type != "pt":
+                        output = self.image_processor.pt_to_numpy(output)
+                        output_nsfw = self.run_safety_checker(output, device, encoded_prompts.dtype)[1]
+                        if output_type == "pil":
+                            output = self.image_processor.numpy_to_pil(output)
 
-                if self.config.force_full_precision_vae:
+                if offload_models:
+                    # Offload VAE again
+                    self.vae.to("cpu")
+                    self.vae_preview.to("cpu")
+                    empty_cache()
+                elif self.config.force_full_precision_vae: #type: ignore[attr-defined]
                     self.vae.to(dtype=prepared_latents.dtype)
 
-        if output_type == "latent":
-            output = prepared_latents
-        elif animation_frames is not None:
-            output = [] # type: ignore[assignment]
-            for frame in self.decode_animation_frames(prepared_latents):
-                output.extend(self.image_processor.numpy_to_pil(frame)) # type: ignore[attr-defined]
-        else:
-            output = self.denormalize_latents(prepared_latents)
-            if output_type != "pt":
-                output = self.image_processor.pt_to_numpy(output)
-                output_nsfw = self.run_safety_checker(output, device, encoded_prompts.dtype)[1]
-                if output_type == "pil":
-                    output = self.image_processor.numpy_to_pil(output)
+            if hasattr(self, "final_offload_hook") and self.final_offload_hook is not None:
+                self.final_offload_hook.offload()
 
-        if hasattr(self, "final_offload_hook") and self.final_offload_hook is not None:
-            self.final_offload_hook.offload()
+            empty_cache()
 
-        if not return_dict:
-            return (output, output_nsfw)
+            if not return_dict:
+                return (output, output_nsfw)
 
-        return StableDiffusionPipelineOutput(images=output, nsfw_content_detected=output_nsfw)
+            return StableDiffusionPipelineOutput(images=output, nsfw_content_detected=output_nsfw) # type: ignore[arg-type]

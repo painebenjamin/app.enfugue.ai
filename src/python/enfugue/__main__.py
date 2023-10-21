@@ -51,15 +51,21 @@ def version() -> None:
 
     if torch.cuda.is_available():
         if torch.backends.cuda.is_built():
-            click.echo("CUDA: Ready")
+            click.echo(f"CUDA: v.{torch.version.cuda} Ready")
         else:
             click.echo("CUDA: Available, but not installed")
         if tensorrt_available():
-            click.echo("TensorRT: Ready")
+            import tensorrt
+            click.echo(f"TensorRT: v.{tensorrt.__version__} Ready")
         else:
             click.echo("TensorRT: Unavailable")
     else:
         click.echo("CUDA: Unavailable")
+
+    if torch.backends.cudnn.is_available():
+        click.echo(f"CUDNN: v.{torch.backends.cudnn.version()} Ready")
+    else:
+        click.echo("CUDNN: Unavailable")
 
     if directml_available():
         click.echo("DirectML: Ready")

@@ -42,11 +42,6 @@ class TableView extends View {
     static canSort = true;
 
     /**
-     * @var bool Whether or not copying text in cells is supported. Default true.
-     */
-    static canCopy = true;
-
-    /**
      * @var object<string, callable> An optional map of formatters for extending classes.
      */
     static columnFormatters = {};
@@ -75,7 +70,6 @@ class TableView extends View {
         this.sort = deepClone(this.constructor.sort);
         this.columnFormatters = deepClone(this.constructor.columnFormatters);
         this.columns = deepClone(this.constructor.columns);
-        this.canCopy = this.constructor.canCopy;
         if (!isEmpty(data)) {
             this.setData(data, isEmpty(this.columns));
         }
@@ -299,29 +293,13 @@ class TableView extends View {
         for (let i in columnNames) {
             let columnName = columnNames[i],
                 columnLabel = columnLabels[i],
-                canCopy = !!navigator.clipboard,
-                tooltip =
-                    columnLabel +
-                    "<br/><em class='note'>Left-click to toggle sort." +
-                    (canCopy ? ' Right-click to copy text.' : '') +
-                    '</em>';
+                tooltip = columnLabel + "<br/><em class='note'>Left-click to toggle sort.</em>";
 
             let headerItem = E.th()
                     .content(columnLabel)
                     .class(snakeCase(columnName))
                     .data('tooltip', tooltip),
                 headerSortIndex = -1;
-
-            if (canCopy && this.canCopy) {
-                headerItem.on('contextmenu', (e) => {
-                    if (navigator.clipboard) {
-                        navigator.clipboard.writeText(stripHTML(column));
-                        SimpleNotification.notify('Copied to Clipboard', 1000);
-                        e.preventDefault();
-                        e.stopPropagation();
-                    }
-                });
-            }
 
             for (let i = 0; i < this.sort.length; i++) {
                 let [sortColumn, reverse] = this.sort[i];
@@ -455,32 +433,14 @@ class TableView extends View {
             } else {
                 value = await this.columnFormatters[column].call(this, value, datum);
             }
-            let canCopy = !!navigator.clipboard,
-                tooltip;
 
-            if (typeof value === "string") {
-                tooltip = value;
-                if (canCopy) {
-                    tooltip += "<br/><em class='note'>Right-click to copy text.</em>";
-                }
-            }
-
-            let cell = E.td()
-                .content(value)
-                .class(snakeCase(column));
+            let tooltip = value,
+                cell = E.td()
+                    .content(value)
+                    .class(snakeCase(column));
             
-            if (!isEmpty(tooltip)) {
+            if (!isEmpty(tooltip) && typeof tooltip == "string") {
                 cell.data('tooltip', tooltip);
-                if (canCopy && this.canCopy) {
-                    cell.on('contextmenu', (e) => {
-                        if (navigator.clipboard) {
-                            navigator.clipboard.writeText(stripHTML(value));
-                            SimpleNotification.notify('Copied to Clipboard', 1000);
-                            e.preventDefault();
-                            e.stopPropagation();
-                        }
-                    });
-                }
             }
 
             dataRow.append(cell);

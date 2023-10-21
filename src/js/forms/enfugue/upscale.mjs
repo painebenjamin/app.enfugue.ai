@@ -2,21 +2,25 @@
 import { isEmpty, deepClone } from "../../base/helpers.mjs";
 import { FormView } from "../base.mjs";
 import { 
-    CheckboxInputView,
+    FormInputView,
     NumberInputView,
+    SelectInputView,
+    CheckboxInputView,
     MaskTypeInputView,
     SchedulerInputView,
-    FormInputView,
     RepeatableInputView,
+    NoiseOffsetInputView,
+    NoiseMethodInputView,
+    BlendMethodInputView,
     UpscaleAmountInputView,
     UpscaleMethodInputView,
-    UpscaleDiffusionControlnetInputView,
-    UpscaleDiffusionPromptInputView,
-    UpscaleDiffusionNegativePromptInputView,
     UpscaleDiffusionStepsInputView,
+    UpscaleDiffusionPromptInputView,
     UpscaleDiffusionStrengthInputView,
     UpscaleDiffusionPipelineInputView,
-    UpscaleDiffusionGuidanceScaleInputView
+    UpscaleDiffusionControlnetInputView,
+    UpscaleDiffusionGuidanceScaleInputView,
+    UpscaleDiffusionNegativePromptInputView,
 } from "../input.mjs";
 
 /**
@@ -70,18 +74,40 @@ class UpscaleFormView extends FormView {
             },
             "chunkingSize": {
                 "label": "Chunking Size",
-                "class": NumberInputView,
+                "class": SelectInputView,
                 "config": {
-                    "minimum": 32,
-                    "maximum": 512,
-                    "step": 8,
-                    "value": 128,
+                    "options": ["8", "16", "32", "64", "128", "256", "512"],
+                    "value": "128",
                     "tooltip": "The number of pixels to move the frame by during diffusion. Smaller values produce better results, but take longer."
                 }
             },
             "chunkingMaskType": {
                 "label": "Chunking Mask",
                 "class": MaskTypeInputView,
+            },
+            "noiseOffset": {
+                "label": "Noise Offset",
+                "class": NoiseOffsetInputView,
+                "config": {
+                    "value": 0.0,
+                    "min": 0.0,
+                    "max": 1.0,
+                    "step": 0.01,
+                }
+            },
+            "noiseMethod": {
+                "label": "Noise Method",
+                "class": NoiseMethodInputView,
+                "config": {
+                    "value": "perlin"
+                }
+            },
+            "noiseBlendMethod": {
+                "label": "Blend Method",
+                "class": BlendMethodInputView,
+                "config": {
+                    "value": "inject"
+                }
             }
         }
     };

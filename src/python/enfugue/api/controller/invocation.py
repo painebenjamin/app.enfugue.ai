@@ -22,6 +22,7 @@ from enfugue.diffusion.constants import (
     DEFAULT_INPAINTING_MODEL,
     DEFAULT_SDXL_MODEL,
     DEFAULT_SDXL_REFINER,
+    DEFAULT_SDXL_INPAINTING_MODEL,
 )
 from enfugue.util import find_file_in_directory
 from enfugue.api.controller.base import EnfugueAPIControllerBase
@@ -32,6 +33,7 @@ DEFAULT_MODEL_CKPT = os.path.basename(DEFAULT_MODEL)
 DEFAULT_INPAINTING_MODEL_CKPT = os.path.basename(DEFAULT_INPAINTING_MODEL)
 DEFAULT_SDXL_MODEL_CKPT = os.path.basename(DEFAULT_SDXL_MODEL)
 DEFAULT_SDXL_REFINER_CKPT = os.path.basename(DEFAULT_SDXL_REFINER)
+DEFAULT_SDXL_INPAINTING_CKPT = os.path.basename(DEFAULT_SDXL_INPAINTING_MODEL)
 
 class EnfugueAPIInvocationController(EnfugueAPIControllerBase):
     handlers = UserExtensionHandlerRegistry()
@@ -56,7 +58,26 @@ class EnfugueAPIInvocationController(EnfugueAPIControllerBase):
             return DEFAULT_SDXL_MODEL
         if base_model_name == DEFAULT_SDXL_REFINER_CKPT:
             return DEFAULT_SDXL_REFINER
+        if base_model_name == DEFAULT_SDXL_INPAINTING_CKPT:
+            return DEFAULT_SDXL_INPAINTING_MODEL
         return None
+
+    def get_default_size_for_model(self, model: Optional[str]) -> int:
+        """
+        Gets the default size for the model.
+        """
+        if model is None:
+            model = self.configuration.get("enfugue.model", DEFAULT_MODEL)
+        model_name = os.path.splitext(os.path.basename(model))[0]
+        diffusers_path = os.path.join(
+            self.configuration.get("enfugue.engine.diffusers", "~/.cache/enfugue/diffusers"),
+            model_name
+        )
+        if diffusers_path.startswith("~"):
+            diffusers_path = os.path.expanduser(diffusers_path)
+        if os.path.exists(diffusers_path) and os.path.exists(os.path.join(diffusers_path, "text_encoder_2")):
+            return 1024
+        return 1024 if "xl" in model_name.lower() else 512
 
     def check_find_model(self, model_type: str, model: str) -> str:
         """
@@ -145,17 +166,29 @@ class EnfugueAPIInvocationController(EnfugueAPIControllerBase):
                 "inpainter_vae",
             ]:
                 request.parsed.pop(ignored_arg, None)
-        elif model_name and model_type == "checkpoint":
-            plan_kwargs["model"] = self.check_find_model("checkpoint", model_name)
+        elif model_name and model_type in ["checkpoint", "diffusers", "checkpoint+diffusers"]:
+            if model_type == "diffusers":
+                plan_kwargs["model"] = model_name # Hope for the best
+            else:
+                plan_kwargs["model"] = self.check_find_model("checkpoint", model_name)
 
             refiner = request.parsed.pop("refiner", None)
-            plan_kwargs["refiner"] = self.check_find_model("checkpoint", refiner) if refiner else None
+            if refiner is not None:
+                if "." in refiner:
+                    plan_kwargs["refiner"] = self.check_find_model("checkpoint", refiner)
+                else:
+                    plan_kwargs["refiner"] = refiner
+
             if "refiner" not in plan_kwargs:
                 request.parsed.pop("refiner_size", None) # Don't allow override if not overriding checkpoint
                 request.parsed.pop("refiner_vae", None)
 
             inpainter = request.parsed.pop("inpainter", None)
-            plan_kwargs["inpainter"] = self.check_find_model("checkpoint", inpainter) if inpainter else None
+            if inpainter is not None:
+                if "." in inpainter:
+                    plan_kwargs["inpainter"] = self.check_find_model("checkpoint", inpainter)
+                else:
+                    plan_kwargs["inpainter"] = inpainter
 
             if "inpainter" not in plan_kwargs:
                 request.parsed.pop("inpainter_size", None)
@@ -169,6 +202,7 @@ class EnfugueAPIInvocationController(EnfugueAPIControllerBase):
 
             inversion = request.parsed.pop("inversion", [])
             plan_kwargs["inversion"] = self.check_find_adaptations("inversion", False, inversion) if inversion else None
+
         # Always take passed scheduler
         scheduler = request.parsed.pop("scheduler", None)
         if scheduler:
@@ -180,7 +214,12 @@ class EnfugueAPIInvocationController(EnfugueAPIControllerBase):
                 ui_state = value
             elif value is not None:
                 plan_kwargs[key] = value
+
+        if not plan_kwargs.get("size", None):
+            plan_kwargs["size"] = self.get_default_size_for_model(plan_kwargs.get("model", None))
+
         plan = DiffusionPlan.assemble(**plan_kwargs)
+
         return self.invoke(
             request.token.user.id,
             plan,

@@ -20,7 +20,8 @@ from enfugue.diffusion.constants import (
     DEFAULT_MODEL,
     DEFAULT_INPAINTING_MODEL,
     DEFAULT_SDXL_MODEL,
-    DEFAULT_SDXL_REFINER
+    DEFAULT_SDXL_REFINER,
+    DEFAULT_SDXL_INPAINTING_MODEL,
 )
 
 __all__ = ["SystemManagerThread", "SystemManager"]
@@ -157,10 +158,10 @@ class SystemManager:
     def engine_intermediate_steps(self) -> int:
         """
         Gets the number of steps to wait before decoding an intermediate
-        Default to 10; set to 1 to decode every intermediate (not recommended,)
+        Default to 5; set to 1 to decode every intermediate (not recommended,)
         or set to 0 to disable intermediate.
         """
-        return self.configuration.get("enfugue.engine.intermediates", 10)
+        return self.configuration.get("enfugue.engine.intermediates", 5)
 
     @property
     def engine_tensorrt_dir(self) -> str:
@@ -217,6 +218,15 @@ class SystemManager:
         return found if found else os.path.join(self.engine_checkpoint_dir, default_sdxl_refiner_ckpt)
 
     @property
+    def default_sdxl_inpaint_ckpt(self) -> str:
+        """
+        Returns the location where the default sdxl_refiner model should be.
+        """
+        default_sdxl_inpaint_ckpt = os.path.basename(DEFAULT_SDXL_INPAINTING_MODEL)
+        found = find_file_in_directory(self.engine_checkpoint_dir, default_sdxl_inpaint_ckpt)
+        return found if found else os.path.join(self.engine_checkpoint_dir, default_sdxl_inpaint_ckpt)
+
+    @property
     def pending_default_downloads(self) -> List[Tuple[str, str]]:
         """
         Gets default downloads that need to be started.
@@ -242,16 +252,20 @@ class SystemManager:
         """
         (
             default_sdxl_ckpt,
-            default_sdxl_refiner_ckpt
+            default_sdxl_refiner_ckpt,
+            default_sdxl_inpaint_ckpt,
         ) = (
             self.default_sdxl_ckpt,
-            self.default_sdxl_refiner_ckpt
+            self.default_sdxl_refiner_ckpt,
+            self.default_sdxl_inpaint_ckpt,
         )
         pending = []
         if not os.path.exists(default_sdxl_ckpt) and not self.is_downloading(DEFAULT_SDXL_MODEL):
             pending.append((DEFAULT_SDXL_MODEL, default_sdxl_ckpt))
         if not os.path.exists(default_sdxl_refiner_ckpt) and not self.is_downloading(DEFAULT_SDXL_REFINER):
             pending.append((DEFAULT_SDXL_REFINER, default_sdxl_refiner_ckpt))
+        if not os.path.exists(default_sdxl_inpaint_ckpt) and not self.is_downloading(DEFAULT_SDXL_INPAINTING_MODEL):
+            pending.append((DEFAULT_SDXL_INPAINTING_MODEL, default_sdxl_inpaint_ckpt))
         return pending
 
     @property

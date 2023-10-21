@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import re
+import gc
 
 from enfugue.util import logger, check_download
 from enfugue.diffusion.constants import *
@@ -315,11 +316,9 @@ class ModelMerger:
             f"Executing model merger with interpolation '{self.interpolation}', primary model {self.primary_model}, secondary model {self.secondary_model}, tertiary model {self.tertiary_model}"
         )
 
-        primary_state_dict = self.load_checkpoint(self.primary_model)
         secondary_state_dict = None if not self.secondary_model else self.load_checkpoint(self.secondary_model)
         tertiary_state_dict = None if not self.tertiary_model else self.load_checkpoint(self.tertiary_model)
 
-        theta_0 = primary_state_dict
         theta_1 = secondary_state_dict
 
         if self.interpolation == "add-difference":
@@ -334,11 +333,13 @@ class ModelMerger:
                 else:
                     theta_1[key] = torch.zeros_like(theta_1[key])
             del tertiary_state_dict
-
+            gc.collect()
         if self.interpolation == "add-difference":
             interpolate = self.add_weighted_difference
         else:
             interpolate = self.weighted_sum
+
+        theta_0 = self.load_checkpoint(self.primary_model)
 
         if theta_1 is not None:
             logger.debug("Merging primary and secondary models.")
