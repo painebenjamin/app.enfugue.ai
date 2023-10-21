@@ -22,14 +22,14 @@ def main() -> None:
 
         for noise_method in [
             "default", "crosshatch", "simplex",
-            "brownian_fractal", "white",
+            "brownian_fractal", "white", "perlin",
             "grey", "pink", "blue", "green",
             "velvet", "violet", "random_mix"
         ]:
             noise_latents = make_noise(
                 method=noise_method,
-                width=512 // 8,
-                height=512 // 8,
+                width=512 // 4,
+                height=512 // 4,
                 channels=3,
                 batch_size=1,
                 generator=manager.noise_generator,
