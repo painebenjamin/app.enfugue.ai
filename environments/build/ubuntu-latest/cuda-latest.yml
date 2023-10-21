@@ -12,6 +12,8 @@ dependencies:
   - numpy=1.24.3
   - make=4.3
   - nodejs=18.16.0
+  - ffmpeg=4.2.2
+  - opencv=4.6.0
   - pip:
     - torch==2.2.0.dev20230928+cu121
     - torchvision==0.17.0.dev20230928+cu121
@@ -22,7 +24,6 @@ dependencies:
     - numpy>=1.24.3
     - colored>=1.4,<1.5
     - albumentations>=0.4.3,<0.5
-    - opencv-python>=4.7.0.72,<4.8
     - pudb==2019.2
     - invisible-watermark>=0.2,<0.3
     - imageio>=2.31.1,<3.0
@@ -62,6 +63,7 @@ dependencies:
     - lycoris-lora>=1.8
     - openmim>=0.3.9,<0.4
     - opensimplex>=0.4.5,<0.5
+    - tensorflow[and-cuda]==2.14.0
     - git+https://github.com/CompVis/taming-transformers.git@master#egg=taming-transformers
     - git+https://github.com/openai/CLIP.git@main#egg=clip
     - git+https://github.com/CompVis/stable-diffusion.git@main#egg=latent-diffusion

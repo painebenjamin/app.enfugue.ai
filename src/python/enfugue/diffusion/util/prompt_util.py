@@ -244,7 +244,7 @@ class EncodedPrompts:
         get_embeds: PromptGetterCallable = lambda prompt, frames: prompt.get_negative_pooled_embeds(frames)
         return self.get_mean_tensor(frames, get_embeds)
 
-    def get_add_text_embeds(self, frames: Options[List[int]] = None) -> Optional[Tensor]:
+    def get_add_text_embeds(self, frames: Optional[List[int]] = None) -> Optional[Tensor]:
         """
         Gets added text embeds for SDXL.
         """

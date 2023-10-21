@@ -127,7 +127,7 @@ DEFAULT_OTHER_DIR = os.path.expanduser("~/.cache/enfugue/other")
 
 DEFAULT_SIZE = 512
 DEFAULT_CHUNKING_SIZE = 32
-DEFAULT_CHUNKING_MASK = "multilinear"
+DEFAULT_CHUNKING_MASK = "bilinear"
 DEFAULT_TEMPORAL_SIZE = 16
 DEFAULT_TEMPORAL_CHUNKING_SIZE = 12
 DEFAULT_SDXL_SIZE = 1024
@@ -157,7 +157,7 @@ CACHE_MODE_LITERAL = ["always", "xl", "tensorrt"]
 VAE_LITERAL = Literal["ema", "mse", "xl", "xl16"]
 DEVICE_LITERAL = Literal["cpu", "cuda", "dml", "mps"]
 PIPELINE_SWITCH_MODE_LITERAL = Literal["offload", "unload"]
-MASK_TYPE_LITERAL = Literal["constant", "multilinear", "gaussian"]
+MASK_TYPE_LITERAL = Literal["constant", "bilinear", "gaussian"]
 SCHEDULER_LITERAL = Literal[
     "ddim", "ddpm", "deis",
     "dpmsm", "dpmsmk", "dpmsmka",

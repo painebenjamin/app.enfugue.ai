@@ -13,7 +13,7 @@ from diffusers.models.modeling_utils import ModelMixin
 
 from einops import rearrange
 
-from enfugue.util import check_download_to_dir
+from enfugue.util import check_download_to_dir, find_file_in_directory
 from enfugue.diffusion.pipeline import EnfugueStableDiffusionPipeline
 
 from enfugue.diffusion.animate.diff.unet import UNet3DConditionModel as AnimateDiffUNet # type: ignore[attr-defined]
@@ -28,6 +28,7 @@ if TYPE_CHECKING:
     )
     from diffusers.models import (
         AutoencoderKL,
+        AutoencoderTiny,
         ControlNetModel,
         UNet2DConditionModel,
     )
@@ -35,9 +36,9 @@ if TYPE_CHECKING:
         StableDiffusionSafetyChecker
     )
     from diffusers.schedulers import KarrasDiffusionSchedulers
-    from enfugue.diffusers.support.ip import IPAdapter
-    from enfugue.diffusion.util import Chunker
-    from enfugue.diffusers.constants import MASK_TYPE_LITERAL
+    from enfugue.diffusion.support.ip import IPAdapter
+    from enfugue.diffusion.util import Chunker, MaskWeightBuilder
+    from enfugue.diffusion.constants import MASK_TYPE_LITERAL
 
 class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
     unet_3d: Optional[Union[AnimateDiffUNet, HotshotUNet]]
@@ -57,6 +58,7 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
     def __init__(
         self,
         vae: AutoencoderKL,
+        vae_preview: AutoencoderTiny,
         text_encoder: Optional[CLIPTextModel],
         text_encoder_2: Optional[CLIPTextModelWithProjection],
         tokenizer: Optional[CLIPTokenizer],
@@ -73,7 +75,7 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         ip_adapter: Optional[IPAdapter] = None,
         engine_size: Optional[int] = 512,  # Recommended even for machines that can handle more
         chunking_size: Optional[int] = 32,
-        chunking_mask_type: MASK_TYPE_LITERAL = "multilinear",
+        chunking_mask_type: MASK_TYPE_LITERAL = "bilinear",
         chunking_mask_kwargs: Dict[str, Any] = {},
         temporal_engine_size: Optional[int] = 16,
         temporal_chunking_size: Optional[int] = 4,
@@ -81,6 +83,7 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
     ) -> None:
         super(EnfugueAnimateStableDiffusionPipeline, self).__init__(
             vae=vae,
+            vae_preview=vae_preview,
             text_encoder=text_encoder,
             text_encoder_2=text_encoder_2,
             tokenizer=tokenizer,
@@ -159,6 +162,7 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         cache_dir: str,
         use_mm_v2: bool = True,
         motion_module: Optional[str] = None,
+        task_callback: Optional[Callable[[str], None]]=None,
         **unet_additional_kwargs: Any
     ) -> ModelMixin:
         """
@@ -169,6 +173,7 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
             return cls.create_hotshot_unet(
                 config=config,
                 cache_dir=cache_dir,
+                task_callback=task_callback,
                 **unet_additional_kwargs
             )
         return cls.create_diff_unet(
@@ -176,6 +181,7 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
             cache_dir=cache_dir,
             use_mm_v2=use_mm_v2,
             motion_module=motion_module,
+            task_callback=task_callback,
             **unet_additional_kwargs
         )
 
@@ -184,6 +190,7 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         cls,
         config: Dict[str, Any],
         cache_dir: str,
+        task_callback: Optional[Callable[[str], None]]=None,
         **unet_additional_kwargs: Any
     ) -> ModelMixin:
         """
@@ -211,6 +218,15 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
             subfolder="unet",
             cache_dir=cache_dir
         )
+        if task_callback is not None:
+            if not os.path.exists(
+                os.path.join(
+                    cache_dir,
+                    cls.HOTSHOT_XL_PATH.replace("/", "--"),
+                    "config.json"
+                )
+            ):
+                task_callback(f"Downloading Repository {cls.HOTSHOT_XL_PATH}")
 
         # Load base model into transformed 2d
         hotshot_state_dict = hotshot_unet.state_dict()
@@ -230,6 +246,7 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         cache_dir: str,
         use_mm_v2: bool = True,
         motion_module: Optional[str] = None,
+        task_callback: Optional[Callable[[str], None]]=None,
         **unet_additional_kwargs: Any
     ) -> ModelMixin:
         """
@@ -274,6 +291,9 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         model = AnimateDiffUNet.from_config(config, **unet_additional_kwargs)
         if not motion_module:
             motion_module = cls.MOTION_MODULE_V2 if use_mm_v2 else cls.MOTION_MODULE
+            if task_callback is not None:
+                if not os.path.exists(os.path.join(cache_dir, motion_module)):
+                    task_callback(f"Downloading {motion_module}")
             motion_module = check_download_to_dir(motion_module, cache_dir)
 
         from enfugue.diffusion.util.torch_util import load_state_dict
@@ -302,6 +322,7 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         self,
         latents: torch.Tensor,
         device: Union[str, torch.device],
+        weight_builder: MaskWeightBuilder,
         chunker: Chunker,
         progress_callback: Optional[Callable[[bool], None]] = None
     ) -> torch.Tensor:
@@ -321,6 +342,7 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
                 super(EnfugueAnimateStableDiffusionPipeline, self).decode_latents(
                     latents=latents[frame_index:frame_index+1],
                     device=device,
+                    weight_builder=weight_builder,
                     chunker=chunker,
                     progress_callback=progress_callback
                 )

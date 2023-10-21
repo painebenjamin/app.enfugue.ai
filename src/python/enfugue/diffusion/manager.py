@@ -2600,12 +2600,14 @@ class DiffusionPipelineManager:
 
         for i, (model, weight) in enumerate(lora):
             if model.startswith("http"):
-                model = self.check_download_model(self.engine_lora_dir, model)
+                find_model = self.check_download_model(self.engine_lora_dir, model)
             elif not os.path.isabs(model):
-                model = find_file_in_directory(self.engine_lora_dir, model) # type: ignore[assignment]
-            if not model:
+                find_model = find_file_in_directory(self.engine_lora_dir, model) # type: ignore[assignment]
+            else:
+                find_model = model
+            if not find_model:
                 raise ValueError(f"Cannot find LoRA model {model}")
-            lora[i] = (model, weight)
+            lora[i] = (find_model, weight)
 
         if getattr(self, "_lora", []) != lora:
             self.unload_pipeline("LoRA changing")

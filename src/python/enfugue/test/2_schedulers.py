@@ -3,6 +3,7 @@ Uses the engine to create a simple image using default settings
 """
 import os
 import PIL
+import traceback
 from typing import List, Any
 from pibble.util.log import DebugUnifiedLoggingContext
 from enfugue.util import logger
@@ -79,6 +80,7 @@ def main() -> None:
                 run_and_save(target_dir_multi, **multi_kwargs)
             except Exception as ex:
                 logger.error("Error with scheduler {0}: {1}({2})".format(scheduler, type(ex).__name__, ex))
+                logger.debug(traceback.format_exc())
 
 if __name__ == "__main__":
     main()

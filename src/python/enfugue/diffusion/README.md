@@ -30,7 +30,7 @@ def __init__(
     ip_adapter: Optional[IPAdapter] = None,
     engine_size: int = 512,
     chunking_size: int = 64,
-    chunking_mask_type: Literal['constant', 'multilinear', 'gaussian'] = 'multilinear',
+    chunking_mask_type: Literal['constant', 'bilinear', 'gaussian'] = 'bilinear',
     chunking_mask_kwargs: Dict[str, Any] = {},
     temporal_engine_size: int = 16,
     temporal_chunking_size: int = 4

@@ -64,7 +64,7 @@ def fit_image(
             elif left_part == "right":
                 left = width - image_width
 
-        blank_image = PIL.Image.new("RGBA", (width, height), (0, 0, 0, 0))
+        blank_image = Image.new("RGBA", (width, height), (0, 0, 0, 0))
 
         if offset_top is not None:
             top += offset_top
@@ -176,12 +176,13 @@ def tile_image(image: Image, tiles: Union[int, Tuple[int, int]]) -> Image:
     Given an image and number of tiles, create a tiled image.
     Accepts either an integer (squre tiles) or tuple (rectangular)
     """
+    from PIL import Image
     width, height = image.size
     if isinstance(tiles, tuple):
         width_tiles, height_tiles = tiles
     else:
         width_tiles, height_tiles = tiles, tiles
-    tiled = PIL.Image.new(image.mode, (width * width_tiles, height * height_tiles))
+    tiled = Image.new(image.mode, (width * width_tiles, height * height_tiles))
     for i in range(width_tiles):
         for j in range(height_tiles):
             tiled.paste(image, (i * width, j * height))
