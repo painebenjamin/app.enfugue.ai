@@ -64,7 +64,7 @@ class NoiseMaker:
         self,
         alpha: float = 1.0,
         scale: float = 1.0,
-        modulator: float = 0.05,
+        modulator: float = 0.1,
         noise_type: Literal[
             "white", "grey", "pink",
             "green", "blue", "violet",
