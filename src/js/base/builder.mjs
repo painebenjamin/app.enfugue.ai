@@ -40,7 +40,9 @@ let defaultTags = [
         'code',
         'style',
         'link',
-        'script'
+        'script',
+        'video',
+        'source',
     ],
     namespacedTags = {
         'http://www.w3.org/2000/svg': ['svg', 'path', 'rect', 'circle']
@@ -69,7 +71,11 @@ let defaultTags = [
         'name',
         'fill',
         'stroke',
-        'rel'
+        'rel',
+        'autoplay',
+        'controls',
+        'loop',
+        'muted'
     ],
     namespacedAttributes = { 'http://www.w3.org/2000/xlink': ['xref'] };
 

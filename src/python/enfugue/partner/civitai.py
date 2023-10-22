@@ -107,6 +107,7 @@ class CivitAI(JSONWebServiceAPIClient):
                 "LORA",
                 "Controlnet",
                 "Poses",
+                "MotionModule",
             ]
         ] = None,
         sort: Optional[Literal["Highest Rated", "Most Downloaded", "Newest"]] = None,

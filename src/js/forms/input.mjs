@@ -84,7 +84,10 @@ import {
     NoiseMethodInputView,
     BlendMethodInputView
 } from "./input/enfugue/noise.mjs";
-
+import {
+    AnimationLoopInputView,
+    AnimationInterpolationStepsInputView,
+} from "./input/enfugue/animation.mjs";
 export {
     InputView,
     HiddenInputView,
@@ -152,5 +155,7 @@ export {
     UpscaleDiffusionGuidanceScaleInputView,
     NoiseOffsetInputView,
     NoiseMethodInputView,
-    BlendMethodInputView
+    BlendMethodInputView,
+    AnimationLoopInputView,
+    AnimationInterpolationStepsInputView,
 };

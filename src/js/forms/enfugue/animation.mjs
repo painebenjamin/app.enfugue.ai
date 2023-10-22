@@ -2,7 +2,9 @@
 import { FormView } from "../base.mjs";
 import {
     NumberInputView,
-    CheckboxInputView
+    CheckboxInputView,
+    AnimationLoopInputView,
+    AnimationInterpolationStepsInputView,
 } from "../input.mjs";
 
 /**
@@ -78,10 +80,11 @@ class AnimationFormView extends FormView {
             },
             "animationLoop": {
                 "label": "Loop Animation",
-                "class": CheckboxInputView,
-                "config": {
-                    "tooltip": "When checked, the animation will loop seamless from start to finish. This takes longer to render than an animation that does not loop."
-                }
+                "class": AnimationLoopInputView
+            },
+            "animationInterpolation": {
+                "label": "Frame Interpolation",
+                "class": AnimationInterpolationStepsInputView,
             }
         }
     };
@@ -96,7 +99,19 @@ class AnimationFormView extends FormView {
         } else {
             this.addClass("no-animation");
         }
-        if (this.values.animationChunking) {
+
+        let useChunking = this.values.animationChunking,
+            chunkingInput = await this.getInputView("animationChunking");
+
+        if (this.values.animationLoop === "loop") {
+            useChunking = true;
+            chunkingInput.setValue(true, false);
+            chunkingInput.disable();
+        } else {
+            chunkingInput.enable();
+        }
+
+        if (useChunking) {
             this.removeClass("no-animation-chunking");
         } else {
             this.addClass("no-animation-chunking");

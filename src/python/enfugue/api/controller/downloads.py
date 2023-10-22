@@ -90,6 +90,7 @@ class EnfugueAPIDownloadsController(EnfugueAPIControllerBase):
             "poses": "Poses",
             "hypernetwork": "Hypetnetwork",
             "gradient": "AestheticGradient",
+            "motion": "MotionModule",
         }.get(lookup, None)
 
         if lookup_type is None:

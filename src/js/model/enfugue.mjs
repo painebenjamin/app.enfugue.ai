@@ -9,11 +9,29 @@ import { Model, ModelObject } from "./index.mjs";
  * @var array<string> $apiScope The scope(s) for this model (the variables that need to be 
  */
 class DiffusionModel extends ModelObject {
+    /**
+     * @var bool Always ask for inclusions
+     */
     static alwaysInclude = true;
-    static apiRoot = "models";
-    static apiScope = ["name"];
+
+    /**
+     * @var array Related models to include
+     */
     static apiInclude = ["refiner", "inpainter", "lora", "lycoris", "inversion", "scheduler", "vae", "config"];
 
+    /**
+     * @var string Model root
+     */
+    static apiRoot = "models";
+
+    /**
+     * @var array Scope for an individual item (i.e. primary keys)
+     */
+    static apiScope = ["name"];
+
+    /**
+     * Gets the status for a configured model
+     */
     getStatus() {
         return this.queryModel("get", `${this.url}/status`);
     }

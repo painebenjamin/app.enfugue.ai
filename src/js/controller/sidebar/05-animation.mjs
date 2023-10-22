@@ -26,7 +26,7 @@ class AnimationController extends Controller {
                 "animationChunking": true,
                 "animationSize": 16,
                 "animationStride": 8,
-                "animationLoop": false
+                "animationLoop": null
             }
         };
     }
@@ -49,14 +49,14 @@ class AnimationController extends Controller {
             if (values.animationEnabled) {
                 this.engine.animationFrames = values.animationFrames;
                 this.engine.animationRate = values.animationRate;
-                if (values.animationChunking) {
+                this.engine.animationLoop = values.animationLoop;
+                if (values.animationChunking || values.animationLoop === "loop") {
                     this.engine.animationSize = values.animationSize;
                     this.engine.animationStride = values.animationStride;
-                    this.engine.animationLoop = values.animationLoop;
                 } else {
                     this.engine.animationSize = null;
-                    this.engine.animationLoop = false;
                 }
+                this.engine.animationInterpolation = values.animationInterpolation;
             } else {
                 this.engine.animationFrames = 0;
             }

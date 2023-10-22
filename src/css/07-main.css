@@ -92,7 +92,7 @@ table tbody tr th {
 }
 
 table tbody tr:nth-child(2n + 1) {
-    background-color: rgba(0, 0, 0, 0.02);
+    background-color: rgba(0, 0, 0, 0.2);
 }
 
 table tbody tr td {

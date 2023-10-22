@@ -552,10 +552,12 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             path=checkpoint_path,
             extract_ema=extract_ema
         )
-
+        unet_keys = len(list(converted_unet_checkpoint.keys()))
+        logger.debug(f"Loading {unet_keys} UNet keys into state dict (non-strict)")
         unet.load_state_dict(converted_unet_checkpoint, strict=False)
 
         if offload_models:
+            logger.debug("Offloading enabled; sending UNet to CPU")
             unet.to("cpu")
             empty_cache()
 
@@ -576,6 +578,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
                 vae_config["scaling_factor"] = vae_scale_factor
                 vae = AutoencoderKL(**vae_config)
+                vae_keys = len(list(converted_vae_checkpoint.keys()))
+                logger.debug(f"Loading {vae_keys} VAE keys into Autoencoder state dict (strict)")
                 vae.load_state_dict(converted_vae_checkpoint)
             except KeyError as ex:
                 default_path = "stabilityai/sdxl-vae" if model_type in ["SDXL", "SDXL-Refiner"] else "stabilityai/sd-vae-ft-ema"
@@ -597,15 +601,25 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 vae = AutoencoderKL.from_config(
                     AutoencoderKL._dict_from_json_file(vae_config_path)
                 )
+                vae_state_dict = load_state_dict(vae_path)
+                vae_keys = len(list(vae_state_dict.keys()))
+                logget.debug(f"Loading {vae_keys} VAE keys into Autoencoder state dict (non-strict)")
                 vae.load_state_dict(load_state_dict(vae_path), strict=False)
             else:
+                logger.debug(f"Initializing Autoencoder from file {vae_path}")
                 vae = AutoencoderKL.from_single_file(
                     vae_path,
                     cache_dir=cache_dir,
                     from_safetensors = "safetensors" in vae_path
                 )
         else:
+            logger.debug(f"Initializing autoencoder from repository {vae_path}")
             vae = AutoencoderKL.from_pretrained(vae_path, cache_dir=cache_dir)
+
+        if offload_models:
+            logger.debug("Offloading enabled; sending VAE to CPU")
+            vae.to("cpu")
+            empty_cache()
 
         if vae_preview_path is None:
             if model_type in ["SDXL", "SDXL-Refiner"]:
@@ -616,25 +630,25 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         vae_preview_local_path = os.path.join(cache_dir, "models--{0}".format(vae_preview_path.replace("/", "--")))
         if not os.path.exists(vae_preview_local_path) and task_callback is not None:
             task_callback("Downloading preview VAE weights from repository {vae_preview_path}")
-        vae_preview = AutoencoderTiny.from_pretrained(vae_preview_path, cache_dir=cache_dir)
 
-        if offload_models:
-            vae.to("cpu")
-            empty_cache()
+        logger.debug(f"Initializing preview autoencoder from repository {vae_preview_path}")
+        vae_preview = AutoencoderTiny.from_pretrained(vae_preview_path, cache_dir=cache_dir)
 
         if load_safety_checker:
             safety_checker_path = "CompVis/stable-diffusion-safety-checker"
             safety_checker_local_path = os.path.join(cache_dir, "models--{0}".format(safety_checker_path.replace("/", "--")))
             if not os.path.exists(safety_checker_local_path) and task_callback is not None:
                 task_callback(f"Downloading safety checker weights from repository {safety_checker_path}")
-
+            logger.debug(f"Initializing safety checker from repository {safety_checker_path}")
             safety_checker = StableDiffusionSafetyChecker.from_pretrained(
                 safety_checker_path,
                 cache_dir=cache_dir
             )
             if offload_models:
+                logger.debug("Offloading enabled; sending safety checker to CPU")
                 safety_checker.to("cpu")
                 empty_cache()
+            logger.debug(f"Initializing feature extractor from repository {safety_checker_path}")
             feature_extractor = AutoFeatureExtractor.from_pretrained(
                 safety_checker_path,
                 cache_dir=cache_dir
@@ -647,6 +661,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         if model_type == "FrozenCLIPEmbedder":
             text_model = convert_ldm_clip_checkpoint(checkpoint)
             if offload_models:
+                logger.debug("Offloading enabled; sending text encoder to CPU")
                 text_model.to("cpu")
                 empty_cache()
 
@@ -655,6 +670,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             if not os.path.exists(tokenizer_local_path) and task_callback is not None:
                 task_callback(f"Downloading tokenizer weights from repository {tokenizer_path}")
 
+            logger.debug(f"Initializing tokenizer from repository {tokenizer_path}")
             tokenizer = CLIPTokenizer.from_pretrained(
                 tokenizer_path,
                 cache_dir=cache_dir
@@ -679,6 +695,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             if not os.path.exists(tokenizer_local_path) and task_callback is not None:
                 task_callback(f"Downloading tokenizer weights from repository {tokenizer_path}")
 
+            logger.debug(f"Initializing tokenizer 1 from repository {tokenizer_path}")
             tokenizer = CLIPTokenizer.from_pretrained(
                 tokenizer_path,
                 cache_dir=cache_dir
@@ -690,6 +707,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             if not os.path.exists(tokenizer_local_path) and task_callback is not None:
                 task_callback(f"Downloading tokenizer 2 weights from repository {tokenizer_2_path}")
 
+            logger.debug(f"Initializing tokenizer 2 from repository {tokenizer_2_path}")
             tokenizer_2 = CLIPTokenizer.from_pretrained(
                 tokenizer_2_path,
                 cache_dir=cache_dir,
@@ -704,6 +722,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             )
 
             if offload_models:
+                logger.debug("Offloading enabled; sending text encoder 1 and 2 to CPU")
                 text_encoder.to("cpu")
                 text_encoder_2.to("cpu")
                 empty_cache()
@@ -728,6 +747,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             if not os.path.exists(tokenizer_2_local_path) and task_callback is not None:
                 task_callback(f"Downloading tokenizer 2 weights from repository {tokenizer_2_path}")
 
+            logger.debug(f"Initializing tokenizer 2 from repository {tokenizer_2_path}")
             tokenizer_2 = CLIPTokenizer.from_pretrained(
                 tokenizer_2_path,
                 cache_dir=cache_dir,
@@ -742,6 +762,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             )
 
             if offload_models:
+                logger.debug("Offloading enabled; sending text encoder 2 to CPU")
                 text_encoder_2.to("cpu")
                 empty_cache()
 
@@ -2244,10 +2265,17 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                         device=device,
                     )
                     latent_callback_value = self.denormalize_latents(latent_callback_value)
-                    if latent_callback_type != "pt":
-                        latent_callback_value = self.image_processor.pt_to_numpy(latent_callback_value)
-                        if latent_callback_type == "pil":
-                            latent_callback_value = self.image_processor.numpy_to_pil(latent_callback_value)
+                    if num_frames is not None:
+                        output = [] # type: ignore[assignment]
+                        for frame in self.decode_animation_frames(latent_callback_value):
+                            output.extend(self.image_processor.numpy_to_pil(frame)) # type: ignore[attr-defined]
+                        latent_callback_value = output # type: ignore[assignment]
+                    else:
+                        if latent_callback_type != "pt":
+                            latent_callback_value = self.image_processor.pt_to_numpy(latent_callback_value)
+                            if latent_callback_type == "pil":
+                                latent_callback_value = self.image_processor.numpy_to_pil(latent_callback_value)
+
                 latent_callback(latent_callback_value)
 
         return latents
@@ -2489,7 +2517,9 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                         frame_indexes = list(range(start,end))
                     else:
                         frame_indexes = None
+
                     embeds = encoded_prompts.get_embeds(frame_indexes)
+
                     if embeds is None:
                         if self.text_encoder:
                             embeds = torch.zeros(samples, 77, self.text_encoder.config.hidden_size)
@@ -2651,6 +2681,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                             latent_callback_value = self.image_processor.pt_to_numpy(latent_callback_value)
                             if latent_callback_type == "pil":
                                 latent_callback_value = self.image_processor.numpy_to_pil(latent_callback_value)
+
                 latent_callback(latent_callback_value)
 
         return latents
@@ -2692,7 +2723,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 height_chunks = ceil(height / (max_size - overlap))
                 decoded_preview = torch.zeros(
                     (batch, 3, height*self.vae_scale_factor, width*self.vae_scale_factor),
-                    dtype=latents.dtype,
+                    dtype=tensor.dtype,
                     device=device
                 )
                 multiplier = torch.zeros_like(decoded_preview)
@@ -2726,14 +2757,14 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                             unfeather_bottom=end_h==height,
                         )
                         decoded_view = self.vae_preview.decode(
-                            latents[:, :, start_h:end_h, start_w:end_w],
+                            tensor[:, :, start_h:end_h, start_w:end_w],
                             return_dict=False
                         )[0].to(device)
                         decoded_preview[:, :, start_h_px:end_h_px, start_w_px:end_w_px] += decoded_view * mask
                         multiplier[:, :, start_h_px:end_h_px, start_w_px:end_w_px] += mask
                 return decoded_preview / multiplier
             else:
-                return self.vae_preview.decode(latents, return_dict=False)[0].to(device)
+                return self.vae_preview.decode(tensor, return_dict=False)[0].to(device)
 
         # If there are frames, decode them one at a time
         if frames is not None:
@@ -3090,9 +3121,11 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         if temporal_chunking_size is not None:
             self.temporal_chunking_size = temporal_chunking_size
 
-        # Check latent callback steps, disable if 0
+        # Check 0/None
         if latent_callback_steps == 0:
             latent_callback_steps = None
+        if animation_frames == 0:
+            animation_frames = None
 
         # Standardize IP adapter tuples
         ip_adapter_tuples: Optional[List[Tuple[PIL.Image.Image, float]]] = None

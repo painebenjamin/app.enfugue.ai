@@ -1106,6 +1106,18 @@ class DiffusionPipelineManager:
         return path
 
     @property
+    def engine_motion_dir(self) -> str:
+        """
+        Gets where motion modules are saved.
+        """
+        path = self.configuration.get("enfugue.engine.motion", "~/.cache/enfugue/motion")
+        if path.startswith("~"):
+            path = os.path.expanduser(path)
+        path = os.path.realpath(path)
+        check_make_directory(path)
+        return path
+
+    @property
     def model_tensorrt_dir(self) -> str:
         """
         Gets where tensorrt engines will be built per model.
@@ -2734,7 +2746,7 @@ class DiffusionPipelineManager:
         ):
             self.unload_animator("Motion module changing")
         if new_module is not None and not os.path.isabs(new_module):
-            new_module = os.path.join(self.engine_other_dir, new_module)
+            new_module = os.path.join(self.engine_motion_dir, new_module)
         if new_module is not None and not os.path.exists(new_module):
             raise IOError(f"Cannot find or access motion module at {new_module}")
         self._motion_module = new_module
@@ -2811,6 +2823,7 @@ class DiffusionPipelineManager:
         """
         return self.animator_diffusers_cache_dir is not None
 
+    @property
     def should_cache(self) -> bool:
         """
         Returns true if the model should always be cached.
@@ -4215,7 +4228,7 @@ class DiffusionPipelineManager:
                 kwargs["latent_callback"] = memoize_callback
         self.start_keepalive()
         try:
-            animating = kwargs.get("animation_frames", None) is not None
+            animating = kwargs.get("animation_frames", None) is not None and kwargs["animation_frames"] > 0
             inpainting = kwargs.get("mask", None) is not None
             refining = (
                 kwargs.get("image", None) is not None and

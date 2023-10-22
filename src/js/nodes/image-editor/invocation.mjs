@@ -1,6 +1,7 @@
-/** @module nodes/image-editor/invocation.mjs */
+/** @module nodes/image-editor/invocation */
 import { SimpleNotification } from "../../common/notify.mjs";
 import { isEmpty } from "../../base/helpers.mjs";
+import { View } from "../../view/base.mjs";
 import { ImageView } from "../../view/image.mjs";
 import { ToolbarView } from "../../view/menu.mjs";
 import {
@@ -49,13 +50,14 @@ class InvocationToolbarView extends ToolbarView {
 /**
  * Create a small extension of the ImageView to change the class name for CSS.
  */
-class CurrentInvocationImageView extends ImageView {
+class CurrentInvocationImageView extends View {
     /**
      * Constructed by the editor, pass reference so we can call other functions
      */
     constructor(editor) {
         super(editor.config);
         this.editor = editor;
+        this.imageView = new ImageView(this.config);
     }
 
     /**
@@ -185,10 +187,17 @@ class CurrentInvocationImageView extends ImageView {
      * Override parent setImage to also set the image on the adjustment canvas, if present
      */
     setImage(newImage) {
-        super.setImage(newImage);
+        this.imageView.setImage(newImage);
         if (!isEmpty(this.imageAdjuster)) {
             this.imageAdjuster.setImage(newImage);
         }
+    }
+
+    /**
+     * Pass through some functions to imageview
+     */
+    async waitForLoad() {
+        await this.imageView.waitForLoad();
     }
 
     /**
@@ -197,7 +206,7 @@ class CurrentInvocationImageView extends ImageView {
     async copyToClipboard() {
         navigator.clipboard.write([
             new ClipboardItem({
-                "image/png": await this.getBlob()
+                "image/png": await this.imageView.getBlob()
             })
         ]);
         SimpleNotification.notify("Copied to clipboard!", 2000);
@@ -208,7 +217,7 @@ class CurrentInvocationImageView extends ImageView {
      * Asks for a filename first
      */
     async saveToDisk() {
-        this.editor.application.saveBlobAs("Save Image", await this.getBlob(), ".png");
+        this.editor.application.saveBlobAs("Save Image", await this.imageView.getBlob(), ".png");
     }
 
     /**
@@ -217,7 +226,7 @@ class CurrentInvocationImageView extends ImageView {
      */
     async sendToCanvas() {
         this.editor.application.initializeStateFromImage(
-            await this.getImageAsDataURL(),
+            await this.imageView.getImageAsDataURL(),
             true, // Save history
             null, // Prompt for current state
             {
@@ -233,14 +242,14 @@ class CurrentInvocationImageView extends ImageView {
     async startImageDownscale() {
         if (this.checkActiveTool("downscale")) return;
 
-        let imageBeforeDownscale = this.src,
-            widthBeforeDownscale = this.width,
-            heightBeforeDownscale = this.height,
+        let imageBeforeDownscale = this.imageView.src,
+            widthBeforeDownscale = this.imageView.width,
+            heightBeforeDownscale = this.imageView.height,
             setDownscaleAmount = async (amount) => {
                 let image = new ImageView(this.config, imageBeforeDownscale);
                 await image.waitForLoad();
                 await image.downscale(amount);
-                this.setImage(image.src);
+                this.imageView.setImage(image.src);
                 this.editor.setDimension(image.width, image.height, false);
             },
             saveResults = false;
@@ -256,7 +265,7 @@ class CurrentInvocationImageView extends ImageView {
             this.imageDownscaleForm = null;
             this.imageDownscaleWindow = null;
             if (!saveResults) {
-                this.setImage(imageBeforeDownscale);
+                this.imageView.setImage(imageBeforeDownscale);
                 this.editor.setDimension(widthBeforeDownscale, heightBeforeDownscale, false);
             }
         });
@@ -291,7 +300,7 @@ class CurrentInvocationImageView extends ImageView {
         this.imageUpscaleForm.onCancel(() => this.imageUpscaleWindow.remove());
         this.imageUpscaleForm.onSubmit(async (values) => {
             await this.editor.application.initializeStateFromImage(
-                await this.getImageAsDataURL(),
+                await this.imageView.getImageAsDataURL(),
                 true, // Save history
                 true, // Keep current state, except for...
                 {
@@ -321,7 +330,7 @@ class CurrentInvocationImageView extends ImageView {
     async startImageFilter() {
         if (this.checkActiveTool("filter")) return;
 
-        this.imageFilterView = new ImageFilterView(this.config, this.src, this.node.element.parentElement),
+        this.imageFilterView = new ImageFilterView(this.config, this.imageView.src, this.node.element.parentElement),
         this.imageFilterWindow = await this.editor.application.windows.spawnWindow(
             "Filter Image",
             this.imageFilterView,
@@ -339,7 +348,7 @@ class CurrentInvocationImageView extends ImageView {
 
         this.imageFilterWindow.onClose(reset);
         this.imageFilterView.onSave(async () => {
-            this.setImage(this.imageFilterView.getImageSource());
+            this.imageView.setImage(this.imageFilterView.getImageSource());
             setTimeout(() => {
                 this.imageFilterWindow.remove();
                 reset();
@@ -358,7 +367,7 @@ class CurrentInvocationImageView extends ImageView {
     async startImageAdjustment() {
         if (this.checkActiveTool("adjust")) return;
 
-        this.imageAdjustmentView = new ImageAdjustmentView(this.config, this.src, this.node.element.parentElement),
+        this.imageAdjustmentView = new ImageAdjustmentView(this.config, this.imageView.src, this.node.element.parentElement),
         this.imageAdjustmentWindow = await this.editor.application.windows.spawnWindow(
             "Adjust Image",
             this.imageAdjustmentView,
@@ -376,7 +385,7 @@ class CurrentInvocationImageView extends ImageView {
 
         this.imageAdjustmentWindow.onClose(reset);
         this.imageAdjustmentView.onSave(async () => {
-            this.setImage(this.imageAdjustmentView.getImageSource());
+            this.imageView.setImage(this.imageAdjustmentView.getImageSource());
             await this.waitForLoad();
             setTimeout(() => {
                 this.imageAdjustmentWindow.remove();
@@ -511,6 +520,8 @@ class CurrentInvocationImageView extends ImageView {
      */
     async build() {
         let node = await super.build();
+        node.content(await this.imageView.getNode());
+        console.log(node);
         node.on("mouseenter", (e) => this.onMouseEnter(e));
         node.on("mouseleave", (e) => this.onMouseLeave(e));
         return node;

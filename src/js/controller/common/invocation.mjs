@@ -580,7 +580,7 @@ class InvocationController extends Controller {
         }
         this.kwargs.refiner_strength = newRefinerStrength;
     }
-    
+
     /**
      * @return float The guidance scale of the refiner when using SDXL
      */
@@ -597,7 +597,7 @@ class InvocationController extends Controller {
         }
         this.kwargs.refiner_guidance_scale = newRefinerGuidanceScale;
     }
-    
+
     /**
      * @return float The aesthetic score of the refiner when using SDXL
      */
@@ -614,7 +614,7 @@ class InvocationController extends Controller {
         }
         this.kwargs.refiner_aesthetic_score = newAestheticScore;
     }
-    
+
     /**
      * @return float The negative aesthetic score of the refiner
      */
@@ -631,7 +631,7 @@ class InvocationController extends Controller {
         }
         this.kwargs.refiner_negative_aesthetic_score = newNegativeAestheticScore;
     }
-    
+
     /**
      * @return string Optional inpainter when not using preconfigured models
      */
@@ -648,7 +648,7 @@ class InvocationController extends Controller {
         }
         this.kwargs.inpainter = newInpainter;
     }
-    
+
     /**
      * @return int Optional inpainting engine size when not using preconfigured models
      */
@@ -803,57 +803,6 @@ class InvocationController extends Controller {
     }
 
     /**
-     * @return string Optional animator when not using preconfigured models
-     */
-    get animator() {
-        return this.kwargs.animator || null;
-    }
-
-    /**
-     * @param array<object> The new value of animator for when not using preconfigured models
-     */
-    set animator(newAnimator) {
-        if(this.animator !== newAnimator) {
-            this.publish("engineAnimatorChange", newAnimator);
-        }
-        this.kwargs.animator = newAnimator;
-    }
-    
-    /**
-     * @return int Optional inpainting engine size when not using preconfigured models
-     */
-    get animatorSize() {
-        return this.kwargs.animator_size || null;
-    }
-
-    /**
-     * @param int Optional inpainting engine size when not using preconfigured models
-     */
-    set animatorSize(newAnimatorSize) {
-        if(this.animatorSize !== newAnimatorSize) {
-            this.publish("engineAnimatorSizeChange", newAnimatorSize);
-        }
-        this.kwargs.animator_size = newAnimatorSize;
-    }
-    
-    /**
-     * @return int Optional animator VAE when not using preconfigured models
-     */
-    get animatorVae() {
-        return this.kwargs.animator_vae || null;
-    }
-
-    /**
-     * @param int Optional animator VAE when not using preconfigured models
-     */
-    set animatorVae(newVae) {
-        if(this.animatorVae !== newVae) {
-            this.publish("engineAnimatorVaeChange", newVae);
-        }
-        this.kwargs.animator_vae = newVae;
-    }
-
-    /**
      * @return int Optional number of animation frames when rendering animation
      */
     get animationFrames() {
@@ -922,20 +871,37 @@ class InvocationController extends Controller {
     }
     
     /**
-     * @return bool Whether or not to loop the animation
+     * @return string loop mode, null, reflect or loop
      */
     get animationLoop() {
-        return this.kwargs.loop || false;
+        return this.kwargs.loop || null;
     }
 
     /**
-     * @param bool Whether or not to loop the animation
+     * @param string loop mode, null reflect or loop
      */
     set animationLoop(newLoop) {
         if (this.animationLoop !== newLoop) {
             this.publish("engineAnimationLoopChange", newLoop);
         }
         this.kwargs.loop = newLoop;
+    }
+
+    /**
+     * @return array<int> interpolation frames
+     */
+    get animationInterpolation() {
+        return this.kwargs.interpolation_frames || null;
+    }
+
+    /**
+     * @param array<int> interpolation frames
+     */
+    set animationInterpolation(newFrames) {
+        if (!isEquivalent(this.animationInterpolation, newFrames)) {
+            this.publish("engineAnimationInterpolationChange", newFrames);
+        }
+        this.kwargs.interpolation_rames = newFrames;
     }
 
     /**
@@ -1196,6 +1162,14 @@ class InvocationController extends Controller {
             this.images.setCurrentInvocationImage(images[this.invocationSampleIndex]);
         }
         this.invocationSampleChooser.show().render();
+    }
+
+    /**
+     * Sets the sample frames on the canvas time scrubber
+     */
+    setSampleFrames(images) {
+        this.images.hideCurrentInvocation();
+        this.invocationSampleChooser.empty().hide();
     }
 
     /**

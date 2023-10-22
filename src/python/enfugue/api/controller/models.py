@@ -1,17 +1,20 @@
+from __future__ import annotations
+
+import re
 import os
 import glob
 import PIL
 import PIL.Image
 import shutil
 
-from typing import List, Dict, Any
+from typing import List, Dict, Optional, Any
 from webob import Request, Response
 
 from pibble.api.exceptions import BadRequestError, NotFoundError
 from pibble.util.files import load_json
 from pibble.ext.user.server.base import UserExtensionHandlerRegistry
 
-from enfugue.util import find_files_in_directory, find_file_in_directory
+from enfugue.util import find_files_in_directory, find_file_in_directory, logger
 from enfugue.api.controller.base import EnfugueAPIControllerBase
 from enfugue.database.models import DiffusionModel
 from enfugue.diffusion.manager import DiffusionPipelineManager
@@ -28,7 +31,10 @@ __all__ = ["EnfugueAPIModelsController"]
 
 
 class EnfugueAPIModelsController(EnfugueAPIControllerBase):
-    handlers = UserExtensionHandlerRegistry()
+    XL_BASE_KEY =    "conditioner.embedders.1.model.transformer.resblocks.9.mlp.c_proj.bias"
+    XL_REFINER_KEY = "conditioner.embedders.0.model.transformer.resblocks.9.mlp.c_proj.bias"
+
+    INPUT_BLOCK_KEY = "model.diffusion_model.input_blocks.0.0.weight"
 
     MODEL_DEFAULT_FIELDS = [
         "width",
@@ -60,7 +66,10 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         os.path.basename(DEFAULT_SDXL_INPAINTING_MODEL),
     ]
 
-    def get_models_in_directory(self, directory: str) -> List[str]:
+    handlers = UserExtensionHandlerRegistry()
+
+    @staticmethod
+    def get_models_in_directory(directory: str) -> List[str]:
         """
         Gets stored AI model networks in a directory (.safetensors, .ckpt, etc.)
         """
@@ -70,6 +79,78 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
                 pattern = r"^.+\.(safetensors|pt|pth|bin|ckpt)$"
             )
         )
+
+    def check_name(self, name: str) -> None:
+        """
+        Raises an exception if a name contains invalid characters
+        """
+        if re.match(r".*[./\\].*", name):
+            raise BadRequestError("Name cannot contain the following characters: ./\\")
+
+    def get_model_metadata(self, model: str) -> Optional[Dict[str, Any]]:
+        """
+        Gets metadata for a checkpoint if it exists
+        ONLY reads safetensors files
+        """
+        directory = self.get_configured_directory("checkpoint")
+        model_path = find_file_in_directory(directory, model)
+        if model_path is None:
+            return None
+
+        # Start with dumb name checks, we'll do better checks in a moment
+        model_name, model_ext = os.path.splitext(model)
+        model_metadata = {
+            "xl": "xl" in model_name.lower(),
+            "refiner": "refiner" in model_name.lower(),
+            "inpainter": "inpaint" in model_name.lower()
+        }
+
+        if model_name in self.get_diffusers_models():
+            # Read diffusers cache
+            diffusers_cache_dir = os.path.join(self.get_configured_directory("diffusers"), model_name)
+            model_metadata["xl"] = os.path.exists(os.path.join(diffusers_cache_dir, "text_encoder_2"))
+            model_metadata["refiner"] = (
+                model_metadata["xl"] and not
+                os.path.exists(os.path.join(diffusers_cache_dir, "text_encoder"))
+            )
+            unet_config_file = os.path.join(diffusers_cache_dir, "unet", "config.json")
+            if os.path.exists(unet_config_file):
+                unet_config = load_json(unet_config_file)
+                model_metadata["inpainter"] = unet_config.get("in_channels", 4) == 9
+            else:
+                logger.warning(f"Diffusers model {model_name} with no UNet is unexpected, errors may occur.")
+                model_metadata["inpainter"] = False
+        elif model_ext == ".safetensors":
+            # Reads safetensors metadata
+            import safetensors
+            with safetensors.safe_open(model_path, framework="pt", device="cpu") as f:
+                keys = list(f.keys())
+                xl_base = self.XL_BASE_KEY in keys
+                xl_refiner = self.XL_REFINER_KEY in keys
+                model_metadata["xl"] = xl_base or xl_refiner
+                model_metadata["refiner"] = xl_refiner
+                if self.INPUT_BLOCK_KEY in keys:
+                    input_weights = f.get_tensor(self.INPUT_BLOCK_KEY)
+                    model_metadata["inpainter"] = input_weights.shape[1] == 9 # type: ignore[union-attr]
+                else:
+                    logger.warning(f"Checkpoint file {model_path} with no input block shape is unexpected, errors may occur.")
+                    model_metadata["inpainter"] = False
+
+        return model_metadata
+
+    def get_diffusers_models(self) -> List[str]:
+        """
+        Gets diffusers models in the configured directory.
+        """
+        diffusers_dir = self.get_configured_directory("diffusers")
+        diffusers_models = []
+        if os.path.exists(diffusers_dir):
+            diffusers_models = [
+                dirname
+                for dirname in os.listdir(diffusers_dir)
+                if os.path.exists(os.path.join(diffusers_dir, dirname, "model_index.json"))
+            ]
+        return diffusers_models
 
     @handlers.path("^/api/checkpoints$")
     @handlers.methods("GET")
@@ -269,17 +350,25 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
             raise NotFoundError(f"Couldn't find {engine_type} TensorRT engine for {model_name} with key {engine_key}")
         shutil.rmtree(engine_dir)
 
-    @handlers.path("^/api/models/(?P<model_name>[^\/]+)/status$")
+    @handlers.path("^/api/models/(?P<model_name_or_ckpt>[^\/]+)/status$")
     @handlers.methods("GET")
     @handlers.format()
     @handlers.secured("DiffusionModel", "read")
-    def get_model_status(self, request: Request, response: Response, model_name: str) -> Dict[str, Any]:
+    def get_model_status(self, request: Request, response: Response, model_name_or_ckpt: str) -> Dict[str, Any]:
         """
         Gets status for a particular model
         """
+        if "." in model_name_or_ckpt:
+            return {
+                "model": model_name_or_ckpt,
+                "metadata": {
+                    "base": self.get_model_metadata(model_name_or_ckpt)
+                }
+            }
+
         model = (
             self.database.query(self.orm.DiffusionModel)
-            .filter(self.orm.DiffusionModel.name == model_name)
+            .filter(self.orm.DiffusionModel.name == model_name_or_ckpt)
             .one_or_none()
         )
         if not model:
@@ -293,9 +382,11 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
             [(lycoris.model, lycoris.weight) for lycoris in model.lycoris],
             [inversion.model for inversion in model.inversion],
         )
+        main_model_metadata = self.get_model_metadata(model.model)
 
         if model.inpainter:
             inpainter_model = model.inpainter[0].model
+            inpainter_model_metadata = self.get_model_metadata(inpainter_model)
             inpainter_model_status = DiffusionPipelineManager.get_status(
                 self.engine_root,
                 model.inpainter[0].model,
@@ -304,6 +395,7 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         else:
             model_name, ext = os.path.splitext(model.model)
             inpainter_model = f"{model_name}-inpainting{ext}"
+            inpainter_model_metadata = self.get_model_metadata(inpainter_model)
             inpainter_model_status = DiffusionPipelineManager.get_status(
                 self.engine_root,
                 inpainter_model,
@@ -312,6 +404,7 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
 
         if model.refiner:
             refiner_model = model.refiner[0].model
+            refiner_model_metadata = self.get_model_metadata(refiner_model)
             refiner_model_status = DiffusionPipelineManager.get_status(
                 self.engine_root,
                 refiner_model,
@@ -319,6 +412,7 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
             )
         else:
             refiner_model = None
+            refiner_model_metadata = None
             refiner_model_status = None
 
         return {
@@ -330,6 +424,11 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
                 "inpainter": inpainter_model_status,
                 "refiner": refiner_model_status,
             },
+            "metadata": {
+                "base": main_model_metadata,
+                "inpainter": inpainter_model_metadata,
+                "refiner": refiner_model_metadata
+            }
         }
 
     @handlers.path("^/api/models/(?P<model_name>[^\/]+)/tensorrt/(?P<network_name>[^\/]+)$")
@@ -379,8 +478,12 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
     @handlers.secured("DiffusionModel", "update")
     def modify_model(self, request: Request, response: Response, model_name: str) -> DiffusionModel:
         """
-        Asks the pipeline manager for information about models.
+        Modifies a model
         """
+        # Check arguments
+        if "name" in request.parsed:
+            self.check_name(request.parsed["name"])
+
         model = (
             self.database.query(self.orm.DiffusionModel)
             .filter(self.orm.DiffusionModel.name == model_name)
@@ -427,7 +530,7 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         model.size = request.parsed.get("size", model.size)
         model.prompt = request.parsed.get("prompt", model.prompt)
         model.negative_prompt = request.parsed.get("negative_prompt", model.negative_prompt)
-        
+
         self.database.commit()
 
         refiner = request.parsed.get("refiner", None)
@@ -561,80 +664,87 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         Creates a new model.
         """
         try:
-            new_model = self.orm.DiffusionModel(
-                name=request.parsed["name"],
-                model=request.parsed["checkpoint"],
-                size=request.parsed.get("size", 512),
-                prompt=request.parsed.get("prompt", ""),
-                negative_prompt=request.parsed.get("negative_prompt", ""),
-            )
-            self.database.add(new_model)
-            self.database.commit()
-            refiner = request.parsed.get("refiner", None)
-            if refiner:
-                new_refiner = self.orm.DiffusionModelRefiner(
-                    diffusion_model_name=new_model.name, model=refiner, size=request.parsed.get("refiner_size", None)
-                )
-                self.database.add(new_refiner)
-                self.database.commit()
-            inpainter = request.parsed.get("inpainter", None)
-            if inpainter:
-                new_inpainter = self.orm.DiffusionModelInpainter(
-                    diffusion_model_name=new_model.name,
-                    model=inpainter,
-                    size=request.parsed.get("inpainter_size", None),
-                )
-                self.database.add(new_inpainter)
-                self.database.commit()
-            scheduler = request.parsed.get("scheduler", None)
-            if scheduler:
-                new_scheduler = self.orm.DiffusionModelScheduler(diffusion_model_name=new_model.name, name=scheduler)
-                self.database.add(new_scheduler)
-                self.database.commit()
-            vae = request.parsed.get("vae", None)
-            if vae:
-                new_vae = self.orm.DiffusionModelVAE(diffusion_model_name=new_model.name, name=vae)
-                self.database.add(new_vae)
-                self.database.commit()
-            refiner_vae = request.parsed.get("refiner_vae", None)
-            if refiner_vae:
-                new_refiner_vae = self.orm.DiffusionModelRefinerVAE(diffusion_model_name=new_model.name, name=refiner_vae)
-                self.database.add(new_refiner_vae)
-                self.database.commit()
-            inpainter_vae = request.parsed.get("inpainter_vae", None)
-            if inpainter_vae:
-                new_inpainter_vae = self.orm.DiffusionModelInpainterVAE(diffusion_model_name=new_model.name, name=inpainter_vae)
-                self.database.add(new_inpainter_vae)
-                self.database.commit()
-            for lora in request.parsed.get("lora", []):
-                new_lora = self.orm.DiffusionModelLora(
-                    diffusion_model_name=new_model.name, model=lora["model"], weight=lora["weight"]
-                )
-                self.database.add(new_lora)
-                self.database.commit()
-            for lycoris in request.parsed.get("lycoris", []):
-                new_lycoris = self.orm.DiffusionModelLycoris(
-                    diffusion_model_name=new_model.name, model=lycoris["model"], weight=lycoris["weight"]
-                )
-                self.database.add(new_lycoris)
-                self.database.commit()
-            for inversion in request.parsed.get("inversion", []):
-                new_inversion = self.orm.DiffusionModelInversion(diffusion_model_name=new_model.name, model=inversion)
-                self.database.add(new_inversion)
-                self.database.commit()
-            for field_name in self.MODEL_DEFAULT_FIELDS:
-                field_value = request.parsed.get(field_name, None)
-                if field_value is not None:
-                    new_config = self.orm.DiffusionModelDefaultConfiguration(
-                        diffusion_model_name=new_model.name,
-                        configuration_key=field_name,
-                        configuration_value=field_value,
-                    )
-                    self.database.add(new_config)
-                    self.database.commit()
-            return new_model
+            name = request.parsed["name"]
+            model = request.parsed["checkpoint"]
+            size = request.parsed.get("size", 512)
+            prompt = request.parsed.get("prompt", "")
+            negative_prompt = request.parsed.get("negative_prompt", "")
+            self.check_name(name)
         except KeyError as ex:
             raise BadRequestError(f"Missing required parameter {ex}")
+
+        new_model = self.orm.DiffusionModel(
+            name=name,
+            model=model,
+            size=size,
+            prompt=prompt,
+            negative_prompt=negative_prompt,
+        )
+        self.database.add(new_model)
+        self.database.commit()
+        refiner = request.parsed.get("refiner", None)
+        if refiner:
+            new_refiner = self.orm.DiffusionModelRefiner(
+                diffusion_model_name=new_model.name, model=refiner, size=request.parsed.get("refiner_size", None)
+            )
+            self.database.add(new_refiner)
+            self.database.commit()
+        inpainter = request.parsed.get("inpainter", None)
+        if inpainter:
+            new_inpainter = self.orm.DiffusionModelInpainter(
+                diffusion_model_name=new_model.name,
+                model=inpainter,
+                size=request.parsed.get("inpainter_size", None),
+            )
+            self.database.add(new_inpainter)
+            self.database.commit()
+        scheduler = request.parsed.get("scheduler", None)
+        if scheduler:
+            new_scheduler = self.orm.DiffusionModelScheduler(diffusion_model_name=new_model.name, name=scheduler)
+            self.database.add(new_scheduler)
+            self.database.commit()
+        vae = request.parsed.get("vae", None)
+        if vae:
+            new_vae = self.orm.DiffusionModelVAE(diffusion_model_name=new_model.name, name=vae)
+            self.database.add(new_vae)
+            self.database.commit()
+        refiner_vae = request.parsed.get("refiner_vae", None)
+        if refiner_vae:
+            new_refiner_vae = self.orm.DiffusionModelRefinerVAE(diffusion_model_name=new_model.name, name=refiner_vae)
+            self.database.add(new_refiner_vae)
+            self.database.commit()
+        inpainter_vae = request.parsed.get("inpainter_vae", None)
+        if inpainter_vae:
+            new_inpainter_vae = self.orm.DiffusionModelInpainterVAE(diffusion_model_name=new_model.name, name=inpainter_vae)
+            self.database.add(new_inpainter_vae)
+            self.database.commit()
+        for lora in request.parsed.get("lora", []):
+            new_lora = self.orm.DiffusionModelLora(
+                diffusion_model_name=new_model.name, model=lora["model"], weight=lora["weight"]
+            )
+            self.database.add(new_lora)
+            self.database.commit()
+        for lycoris in request.parsed.get("lycoris", []):
+            new_lycoris = self.orm.DiffusionModelLycoris(
+                diffusion_model_name=new_model.name, model=lycoris["model"], weight=lycoris["weight"]
+            )
+            self.database.add(new_lycoris)
+            self.database.commit()
+        for inversion in request.parsed.get("inversion", []):
+            new_inversion = self.orm.DiffusionModelInversion(diffusion_model_name=new_model.name, model=inversion)
+            self.database.add(new_inversion)
+            self.database.commit()
+        for field_name in self.MODEL_DEFAULT_FIELDS:
+            field_value = request.parsed.get(field_name, None)
+            if field_value is not None:
+                new_config = self.orm.DiffusionModelDefaultConfiguration(
+                    diffusion_model_name=new_model.name,
+                    configuration_key=field_name,
+                    configuration_value=field_value,
+                )
+                self.database.add(new_config)
+                self.database.commit()
+        return new_model
 
     @handlers.path("^/api/model-options$")
     @handlers.methods("GET")
@@ -665,14 +775,7 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
                 })
 
         # Get diffusers caches
-        diffusers_dir = self.get_configured_directory("diffusers")
-        diffusers_models = []
-        if os.path.exists(diffusers_dir):
-            diffusers_models = [
-                dirname
-                for dirname in os.listdir(diffusers_dir)
-                if os.path.exists(os.path.join(diffusers_dir, dirname, "model_index.json"))
-            ]
+        diffusers_models = self.get_diffusers_models()
         diffusers_caches = []
         for model in diffusers_models:
             found = False

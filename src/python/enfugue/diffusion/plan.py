@@ -782,7 +782,18 @@ class DiffusionPlan:
         noise_offset: Optional[float] = None,
         noise_method: NOISE_METHOD_LITERAL = "perlin",
         noise_blend_method: LATENT_BLEND_METHOD_LITERAL = "inject",
+        tile: Union[bool, Tuple[bool, bool], List[bool]] = False,
+        animation_frames: Optional[int] = None,
+        animation_rate: int = 8,
+        temporal_engine_size: Optional[int] = 16,
+        temporal_chunking_size: Optional[int] = 4,
+        loop: Optional[LOOP_TYPE_LITERAL] = None,
+        interpolate_frames: Optional[Union[int, Tuple[int, ...], List[int]]] = None,
+        motion_module: Optional[str] = None,
     ) -> None:
+        """
+        Plans an entire multi-step execution
+        """
         self.size = size
         self.inpainter_size = inpainter_size
         self.refiner_size = refiner_size
@@ -821,6 +832,14 @@ class DiffusionPlan:
         self.noise_offset = noise_offset
         self.noise_method = noise_method
         self.noise_blend_method = noise_blend_method
+        self.tile = tile
+        self.loop = loop
+        self.animation_frames = animation_frames
+        self.animation_rate = animation_rate
+        self.temporal_engine_size = temporal_engine_size
+        self.temporal_chunking_size = temporal_chunking_size
+        self.interpolate_frames = interpolate_frames
+        self.motion_module = motion_module
 
     @property
     def kwargs(self) -> Dict[str, Any]:
@@ -839,6 +858,10 @@ class DiffusionPlan:
             "noise_offset": self.noise_offset,
             "noise_method": self.noise_method,
             "noise_blend_method": self.noise_blend_method,
+            "tile": tuple(self.tile[:2]) if isinstance(self.tile, list) else self.tile,
+            "loop": self.loop == "loop",
+            "animation_frames": self.animation_frames,
+            "temporal_chunking_size": self.temporal_chunking_size
         }
 
     @property
@@ -1112,19 +1135,32 @@ class DiffusionPlan:
         Assigns pipeline-level variables.
         """
         pipeline.start_keepalive() # Make sure this is going
-        pipeline.model = self.model
+
+        if self.animation_frames is not None and self.animation_frames > 0:
+            pipeline.animator = self.model
+            pipeline.animator_vae = self.vae
+            pipeline.animator_size = self.size
+        else:
+            pipeline.model = self.model
+            pipeline.vae = self.vae
+            pipeline.size = self.size
+
         pipeline.refiner = self.refiner
+        pipeline.refiner_vae = self.refiner_vae
+        pipeline.refiner_size = self.refiner_size
+
         pipeline.inpainter = self.inpainter
+        pipeline.inpainter_vae = self.inpainter_vae
+        pipeline.inpainter_size = self.inpainter_size
+
         pipeline.lora = self.lora
         pipeline.lycoris = self.lycoris
         pipeline.inversion = self.inversion
-        pipeline.size = self.size
         pipeline.scheduler = self.scheduler
-        pipeline.vae = self.vae
-        pipeline.refiner_vae = self.refiner_vae
-        pipeline.refiner_size = self.refiner_size
-        pipeline.inpainter_vae = self.inpainter_vae
-        pipeline.inpainter_size = self.inpainter_size
+
+        pipeline.motion_module = self.motion_module
+        pipeline.temporal_engine_size = self.temporal_engine_size
+
         if self.build_tensorrt:
             pipeline.build_tensorrt = True
 
@@ -1160,9 +1196,15 @@ class DiffusionPlan:
             # Set up the RNG
             pipeline.seed = self.seed
 
-        images = [PIL.Image.new("RGBA", (self.width, self.height)) for i in range(self.samples * self.iterations)]
+        total_images = self.iterations
+        if self.animation_frames is not None and self.animation_frames > 0:
+            total_images *= self.animation_frames
+        else:
+            total_images *= self.samples
+
+        images = [PIL.Image.new("RGBA", (self.width, self.height)) for i in range(total_images)]
         image_draw = [PIL.ImageDraw.Draw(image) for image in images]
-        nsfw_content_detected = [False] * self.samples * self.iterations
+        nsfw_content_detected = [False] * total_images
 
         # Keep a final mask of all nodes to outpaint in the end
         outpaint_mask = PIL.Image.new("RGB", (self.width, self.height), (255, 255, 255))
@@ -1369,6 +1411,14 @@ class DiffusionPlan:
             "noise_offset": self.noise_offset,
             "noise_method": self.noise_method,
             "noise_blend_method": self.noise_blend_method,
+            "animation_frames": self.animation_frames,
+            "animation_rate": self.animation_rate,
+            "temporal_engine_size": self.temporal_engine_size,
+            "temporal_chunking_size": self.temporal_chunking_size,
+            "interpolate_frames": self.interpolate_frames,
+            "motion_module": self.motion_module,
+            "loop": self.loop,
+            "tile": self.tile,
         }
 
     @staticmethod
@@ -1416,6 +1466,14 @@ class DiffusionPlan:
             "noise_offset",
             "noise_method",
             "noise_blend_method",
+            "animation_frames",
+            "animation_rate",
+            "temporal_engine_size",
+            "temporal_chunking_size",
+            "interpolate_frames",
+            "motion_module",
+            "loop",
+            "tile"
         ]:
             if arg in plan_dict:
                 kwargs[arg] = plan_dict[arg]
@@ -1467,6 +1525,7 @@ class DiffusionPlan:
         """
         if kwargs:
             logger.warning(f"Plan `upscale_image` keyword arguments ignored: {kwargs}")
+
         width, height = image.size
         nodes: List[NodeDict] = [
             {
@@ -1565,6 +1624,14 @@ class DiffusionPlan:
         noise_offset: Optional[float] = None,
         noise_method: NOISE_METHOD_LITERAL = "perlin",
         noise_blend_method: LATENT_BLEND_METHOD_LITERAL = "inject",
+        tile: Union[bool, Tuple[bool, bool], List[bool]] = False,
+        animation_frames: Optional[int] = None,
+        animation_rate: int = 8,
+        temporal_engine_size: Optional[int] = 16,
+        temporal_chunking_size: Optional[int] = 4,
+        loop: Optional[LOOP_TYPE_LITERAL] = None,
+        interpolate_frames: Optional[Union[int, Tuple[int, ...], List[int]]] = None,
+        motion_module: Optional[str] = None,
         **kwargs: Any,
     ) -> DiffusionPlan:
         """
@@ -1607,6 +1674,14 @@ class DiffusionPlan:
             noise_offset=noise_offset,
             noise_method=noise_method,
             noise_blend_method=noise_blend_method,
+            tile=tile,
+            animation_frames=animation_frames,
+            animation_rate=animation_rate,
+            temporal_engine_size=temporal_engine_size,
+            temporal_chunking_size=temporal_chunking_size,
+            loop=loop,
+            interpolate_frames=interpolate_frames,
+            motion_module=motion_module,
             nodes=[],
         )
 

@@ -233,6 +233,7 @@ class ModelMerger:
         """
         Halves a tensor if necessary
         """
+        import torch
         if tensor.dtype == torch.float:
             return tensor.half()
         return tensor

@@ -74,6 +74,7 @@ __all__ = [
     "PIPELINE_SWITCH_MODE_LITERAL",
     "UPSCALE_LITERAL",
     "MASK_TYPE_LITERAL",
+    "LOOP_TYPE_LITERAL",
     "DEFAULT_CHECKPOINT_DIR",
     "DEFAULT_INVERSION_DIR",
     "DEFAULT_LORA_DIR",
@@ -185,7 +186,12 @@ MOTION_LORA_LITERAL = [
     "tilt-up", "tilt-down",
     "zoom-in", "zoom-out"
 ]
-MASK_TYPE_LITERAL = Literal["constant", "bilinear", "gaussian"]
+LOOP_TYPE_LITERAL = Literal[
+    "loop", "reflect"
+]
+MASK_TYPE_LITERAL = Literal[
+    "constant", "bilinear", "gaussian"
+]
 LATENT_BLEND_METHOD_LITERAL = Literal[
     "add", "bislerp", "cosine", "cubic",
     "difference", "inject", "lerp", "slerp",
