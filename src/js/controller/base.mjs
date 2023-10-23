@@ -38,7 +38,7 @@ class Controller {
     }
 
     /**
-     * @return models/view/nodes/images.ImageEditorView A getter for the canvas
+     * @return view/nodes/images.ImageEditorView A getter for the canvas
      */
     get images() {
         return this.application.images;

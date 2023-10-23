@@ -521,7 +521,6 @@ class CurrentInvocationImageView extends View {
     async build() {
         let node = await super.build();
         node.content(await this.imageView.getNode());
-        console.log(node);
         node.on("mouseenter", (e) => this.onMouseEnter(e));
         node.on("mouseleave", (e) => this.onMouseLeave(e));
         return node;

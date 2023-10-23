@@ -22,6 +22,7 @@ import { ControlsHelperView } from "../view/controls.mjs";
 import { FileNameFormView } from "../forms/enfugue/files.mjs";
 import { StringInputView } from "../forms/input.mjs";
 import { InvocationController } from "../controller/common/invocation.mjs";
+import { SamplesController } from "../controller/common/samples.mjs";
 import { ModelPickerController } from "../controller/common/model-picker.mjs";
 import { ModelManagerController } from "../controller/common/model-manager.mjs";
 import { DownloadsController } from "../controller/common/downloads.mjs";
@@ -203,6 +204,7 @@ class Application {
         await this.registerAnimationsControllers();
         await this.registerModelControllers();
         await this.registerInvocationControllers();
+        await this.registerSampleControllers();
         await this.registerMenuControllers();
         await this.registerSidebarControllers();
         await this.registerToolbarControllers();
@@ -396,6 +398,14 @@ class Application {
     async registerInvocationControllers() {
         this.engine = new InvocationController(this);
         await this.engine.initialize();
+    }
+
+    /**
+     * Creates the samples manager.
+     */
+    async registerSampleControllers() {
+        this.samples = new SamplesController(this);
+        await this.samples.initialize();
     }
 
     /**

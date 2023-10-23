@@ -1340,7 +1340,7 @@ enfugue-image-browser span {
 
 .controls-helper-view {
     position: fixed;
-    bottom: 85px;
+    bottom: 135px;
     left: 40px;
     color: var(--theme-color-primary);
     font-weight: bold;

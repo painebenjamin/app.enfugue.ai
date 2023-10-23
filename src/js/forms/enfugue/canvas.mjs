@@ -62,7 +62,8 @@ class CanvasFormView extends FormView {
                     "max": 16384,
                     "value": defaultWidth,
                     "step": 8,
-                    "tooltip": "The width of the canvas in pixels."
+                    "tooltip": "The width of the canvas in pixels.",
+                    "allowNull": false
                 }
             },
             "height": {
@@ -73,7 +74,8 @@ class CanvasFormView extends FormView {
                     "max": 16384,
                     "value": defaultHeight,
                     "step": 8,
-                    "tooltip": "The height of the canvas in pixels."
+                    "tooltip": "The height of the canvas in pixels.",
+                    "allowNull": false
                 }
             },
             "tileHorizontally": {

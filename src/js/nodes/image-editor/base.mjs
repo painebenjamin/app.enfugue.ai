@@ -25,12 +25,12 @@ class ImageEditorNodeView extends NodeView {
     /**
      * @var int The minimum height, much smaller than normal minimum.
      */
-    static minHeight = 32;
+    static minHeight = 64;
     
     /**
      * @var int The minimum width, much smaller than normal minimum.
      */
-    static minWidth = 32;
+    static minWidth = 64;
 
     /**
      * @var int Change snap size from 10 to 8

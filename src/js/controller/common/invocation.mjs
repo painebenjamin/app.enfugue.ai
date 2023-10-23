@@ -1115,6 +1115,7 @@ class InvocationController extends Controller {
      * Sets the sample images on the canvas and chooser
      */
     setSampleImages(images) {
+        this.application.samples.setSamples(images, !isEmpty(this.animationFrames) && this.animationFrames > 0);
         let currentSampleCount = this.invocationSampleChooser.children().length;
         if (isEmpty(images)) {
             this.images.hideCurrentInvocation();
