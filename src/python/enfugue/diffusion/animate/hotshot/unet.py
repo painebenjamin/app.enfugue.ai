@@ -477,6 +477,11 @@ class UNet3DConditionModel(ModelMixin, ConfigMixin, UNet2DConditionLoadersMixin)
         self.conv_out = Conv3d(block_out_channels[0], out_channels, kernel_size=conv_out_kernel,
                                padding=conv_out_padding)
 
+    def set_motion_attention_scale(self, scale: float = 1.0) -> None:
+        for block in self.down_blocks + self.up_blocks + [self.mid_block]:
+            if not isinstance(block, UNetMidBlock3DCrossAttn):
+                block.set_temporal_attention_scale(scale)
+
     def temporal_parameters(self) -> list:
         output = []
         all_blocks = self.down_blocks + self.up_blocks + [self.mid_block]

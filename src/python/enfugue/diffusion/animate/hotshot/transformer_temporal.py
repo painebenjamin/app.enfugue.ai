@@ -53,6 +53,10 @@ class TemporalAttention(Attention):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.pos_encoder = PositionalEncoding(kwargs["query_dim"], dropout=0)
+        self.set_scale_multiplier(kwargs.get("attention_scale_multiplier", 1.0))
+
+    def set_scale_multiplier(self, multiplier: float = 1.0) -> None:
+        self.scale = math.sqrt((math.log(48) / math.log(48//4)) / (self.inner_dim // self.heads)) * multiplier
 
     def forward(self, hidden_states, encoder_hidden_states=None, attention_mask=None, number_of_frames=8):
         sequence_length = hidden_states.shape[1]
@@ -109,6 +113,10 @@ class TransformerTemporal(nn.Module):
             ]
         )
         self.proj_out = nn.Linear(inner_dim, in_channels)
+
+    def set_attention_scale_multiplier(self, attention_scale: float = 1.0) -> None:
+        for block in self.transformer_blocks:
+            block.set_attention_scale_multiplier(attention_scale)
 
     def forward(self, hidden_states, encoder_hidden_states=None):
         _, num_channels, f, height, width = hidden_states.shape
@@ -171,6 +179,10 @@ class TransformerBlock(nn.Module):
 
         self.ff = FeedForward(dim, dropout=dropout, activation_fn=activation_fn)
         self.ff_norm = nn.LayerNorm(dim)
+
+    def set_attention_scale_multiplier(self, attention_scale: float = 1.0) -> None:
+        for block in self.attention_blocks:
+            block.set_scale_multiplier(attention_scale)
 
     def forward(self, hidden_states, encoder_hidden_states=None, attention_mask=None, number_of_frames=None):
 

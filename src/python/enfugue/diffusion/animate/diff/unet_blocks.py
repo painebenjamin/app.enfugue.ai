@@ -268,6 +268,10 @@ class UNetMidBlock3DCrossAttn(nn.Module):
         self.resnets = nn.ModuleList(resnets)
         self.motion_modules = nn.ModuleList(motion_modules)
 
+    def set_motion_module_attention_scale(self, scale: float = 1.0) -> None:
+        for motion_module in self.motion_modules:
+            motion_module.set_attention_scale_multiplier(scale)
+
     def forward(self, hidden_states, temb=None, encoder_hidden_states=None, attention_mask=None):
         hidden_states = self.resnets[0](hidden_states, temb)
         for attn, resnet, motion_module in zip(self.attentions, self.resnets[1:], self.motion_modules):
@@ -379,6 +383,10 @@ class CrossAttnDownBlock3D(nn.Module):
 
         self.gradient_checkpointing = False
 
+    def set_motion_module_attention_scale(self, scale: float = 1.0) -> None:
+        for motion_module in self.motion_modules:
+            motion_module.set_attention_scale_multiplier(scale)
+
     def forward(self, hidden_states, temb=None, encoder_hidden_states=None, attention_mask=None):
         output_states = ()
 
@@ -489,6 +497,10 @@ class DownBlock3D(nn.Module):
             self.downsamplers = None
 
         self.gradient_checkpointing = False
+
+    def set_motion_module_attention_scale(self, scale: float = 1.0) -> None:
+        for motion_module in self.motion_modules:
+            motion_module.set_attention_scale_multiplier(scale)
 
     def forward(self, hidden_states, temb=None, encoder_hidden_states=None):
         output_states = ()
@@ -618,6 +630,10 @@ class CrossAttnUpBlock3D(nn.Module):
 
         self.gradient_checkpointing = False
 
+    def set_motion_module_attention_scale(self, scale: float = 1.0) -> None:
+        for motion_module in self.motion_modules:
+            motion_module.set_attention_scale_multiplier(scale)
+
     def forward(
         self,
         hidden_states,
@@ -731,6 +747,10 @@ class UpBlock3D(nn.Module):
             self.upsamplers = None
 
         self.gradient_checkpointing = False
+
+    def set_motion_module_attention_scale(self, scale: float = 1.0) -> None:
+        for motion_module in self.motion_modules:
+            motion_module.set_attention_scale_multiplier(scale)
 
     def forward(self, hidden_states, res_hidden_states_tuple, temb=None, upsample_size=None, encoder_hidden_states=None,):
         for resnet, motion_module in zip(self.resnets, self.motion_modules):

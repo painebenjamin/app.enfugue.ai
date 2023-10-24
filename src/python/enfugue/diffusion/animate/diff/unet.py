@@ -317,6 +317,10 @@ class UNet3DConditionModel(ModelMixin, ConfigMixin):
         if isinstance(module, (CrossAttnDownBlock3D, DownBlock3D, CrossAttnUpBlock3D, UpBlock3D)):
             module.gradient_checkpointing = value
 
+    def set_motion_attention_scale(self, scale: float = 1.0) -> None:
+        for block in self.down_blocks + self.up_blocks + [self.mid_block]:
+            block.set_motion_module_attention_scale(scale)
+
     def forward(
         self,
         sample: torch.FloatTensor,

@@ -381,6 +381,10 @@ class CrossAttnDownBlock3D(nn.Module):
             output_states += (hidden_states,)
 
         return hidden_states, output_states
+    
+    def set_temporal_attention_scale(self, scale: float = 1.0) -> None:
+        for temporal_attention in self.temporal_attentions:
+            temporal_attention.set_attention_scale_multiplier(scale)
 
     def temporal_parameters(self) -> list:
         output = []
@@ -451,6 +455,10 @@ class DownBlock3D(nn.Module):
             self.downsamplers = None
 
         self.gradient_checkpointing = False
+    
+    def set_temporal_attention_scale(self, scale: float = 1.0) -> None:
+        for temporal_attention in self.temporal_attentions:
+            temporal_attention.set_attention_scale_multiplier(scale)
 
     def forward(self, hidden_states, temb=None, encoder_hidden_states=None, enable_temporal_attentions: bool = True):
         output_states = ()
@@ -577,6 +585,10 @@ class CrossAttnUpBlock3D(nn.Module):
             self.upsamplers = None
 
         self.gradient_checkpointing = False
+    
+    def set_temporal_attention_scale(self, scale: float = 1.0) -> None:
+        for temporal_attention in self.temporal_attentions:
+            temporal_attention.set_attention_scale_multiplier(scale)
 
     def forward(
             self,
@@ -700,6 +712,10 @@ class UpBlock3D(nn.Module):
             self.upsamplers = None
 
         self.gradient_checkpointing = False
+
+    def set_temporal_attention_scale(self, scale: float = 1.0) -> None:
+        for temporal_attention in self.temporal_attentions:
+            temporal_attention.set_attention_scale_multiplier(scale)
 
     def forward(self, hidden_states, res_hidden_states_tuple, temb=None, upsample_size=None, encoder_hidden_states=None,
                 enable_temporal_attentions: bool = True):
