@@ -409,7 +409,6 @@ class BasicTransformerBlock(nn.Module):
 
         # 4. Temporal-Attention
         if self.unet_use_temporal_attention:
-            print("using temporal attention")
             d = hidden_states.shape[1]
             hidden_states = rearrange(hidden_states, "(b f) d c -> (b d) f c", f=video_length)
             norm_hidden_states = (

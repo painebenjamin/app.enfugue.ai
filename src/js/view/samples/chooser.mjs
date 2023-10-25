@@ -1,9 +1,9 @@
-/** @module view/samples */
-import { isEmpty } from "../base/helpers.mjs";
-import { View } from "./base.mjs";
-import { ImageView } from "./image.mjs";
-import { ElementBuilder } from "../base/builder.mjs";
-import { NumberInputView } from "../forms/input.mjs";
+/** @module view/samples/chooser */
+import { isEmpty } from "../../base/helpers.mjs";
+import { View } from "../base.mjs";
+import { ImageView } from "../image.mjs";
+import { ElementBuilder } from "../../base/builder.mjs";
+import { NumberInputView } from "../../forms/input.mjs";
 
 const E = new ElementBuilder();
 
@@ -138,10 +138,10 @@ class SampleChooserView extends View {
     }
 
     /**
-     * Adds a callback to the tile horizontal button
+     * Adds a callback to the tile vertical button
      */
-    onTileHorizontal(callback) {
-        this.tileHorizontalCallbacks.push(callback);
+    onTileVertical(callback) {
+        this.tileVerticalCallbacks.push(callback);
     }
 
     /**
@@ -278,7 +278,7 @@ class SampleChooserView extends View {
      */
     setPlaybackRate(playbackRate, updateDom = true) {
         this.playbackRate = playbackRate;
-        for (let callback in this.setPlaybackRateCallbacks) {
+        for (let callback of this.setPlaybackRateCallbacks) {
             callback(playbackRate);
         }
         if (updateDom) {
@@ -292,7 +292,9 @@ class SampleChooserView extends View {
     async setSamples(samples) {
         this.samples = samples;
         if (isEmpty(this.node)) {
-            samplesContainer.content(E.div().class("no-samples").content(this.constructor.noSamplesLabel));
+            samplesContainer.content(
+                E.div().class("no-samples").content(this.constructor.noSamplesLabel)
+            );
         } else {
             let samplesContainer = await this.node.find(".samples");
             samplesContainer.empty();
@@ -367,7 +369,11 @@ class SampleChooserView extends View {
                     this.setPlayAnimation(playAnimation.hasClass("active"), false);
                 }),
             samplesContainer = E.div()
-                .class("samples");
+                .class("samples")
+                .on("wheel", (e) => {
+                    e.preventDefault();
+                    samplesContainer.element.scrollLeft += e.deltaY / 10;
+                });
 
         if (isEmpty(this.samples)) {
             samplesContainer.append(E.div().class("no-samples").content(this.constructor.noSamplesLabel));

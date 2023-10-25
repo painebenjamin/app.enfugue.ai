@@ -48,6 +48,8 @@ class CanvasController extends Controller {
             this.images.setDimension(values.width, values.height);
             this.engine.width = values.width;
             this.engine.height = values.height;
+            this.engine.tileHorizontal = values.tileHorizontal;
+            this.engine.tileVertical = values.tileVertical;
             if (values.useChunking) {
                 this.engine.chunkingSize = values.chunkingSize
                 this.engine.chunkingMaskType = values.chunkingMaskType;

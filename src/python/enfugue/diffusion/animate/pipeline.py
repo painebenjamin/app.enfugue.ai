@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import os
 import torch
+import torch.nn.functional as F
 
 from typing import Optional, Dict, Any, Union, Callable, List, TYPE_CHECKING
 
@@ -45,9 +46,10 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
     vae: AutoencoderKL
 
     STATIC_SCHEDULER_KWARGS = {
+        "timestep_spacing": "leading",
         "num_train_timesteps": 1000,
         "beta_start": 0.00085,
-        "beta_end": 0.012,
+        "beta_end": 0.011,
         "beta_schedule": "linear"
     }
 
@@ -191,6 +193,8 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         config: Dict[str, Any],
         cache_dir: str,
         task_callback: Optional[Callable[[str], None]]=None,
+        position_encoder_truncate_length: Optional[int]=None,
+        position_encoder_scale_length: Optional[int]=None,
         **unet_additional_kwargs: Any
     ) -> ModelMixin:
         """
@@ -207,17 +211,13 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
             "CrossAttnUpBlock3D",
             "UpBlock3D"
         ]
-        config["mid_block_type"] = "UNetMidBlock3DCrossAttn"
+        if position_encoder_scale_length:
+            config["positional_encoding_max_length"] = position_encoder_scale_length
 
         # Instantiate from 2D model config
         model = HotshotUNet.from_config(config)
 
         # Get base model
-        hotshot_unet = HotshotUNet.from_pretrained(
-            cls.HOTSHOT_XL_PATH,
-            subfolder="unet",
-            cache_dir=cache_dir
-        )
         if task_callback is not None:
             if not os.path.exists(
                 os.path.join(
@@ -228,11 +228,27 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
             ):
                 task_callback(f"Downloading Repository {cls.HOTSHOT_XL_PATH}")
 
+        # Instantiate pretrained model
+        hotshot_unet = HotshotUNet.from_pretrained(
+            cls.HOTSHOT_XL_PATH,
+            subfolder="unet",
+            cache_dir=cache_dir,
+        )
+
         # Load base model into transformed 2d
         hotshot_state_dict = hotshot_unet.state_dict()
         for key in list(hotshot_state_dict.keys()):
             if "temporal" not in key:
                 hotshot_state_dict.pop(key)
+            elif key.endswith(".positional_encoding"):
+                if position_encoder_truncate_length is not None:
+                    hotshot_state_dict[key] = hotshot_state_dict[key][:, :position_encoder_truncate_length]
+                if position_encoder_scale_length is not None:
+                    tensor_shape = hotshot_state_dict[key].shape
+                    tensor = rearrange(hotshot_state_dict[key], "(t b) f d -> t b f d", t=1)
+                    tensor = F.interpolate(tensor, size=(position_encoder_scale_length, tensor_shape[-1]), mode="bilinear")
+                    hotshot_state_dict[key] = rearrange(tensor, "t b f d -> (t b) f d")
+                    del tensor
 
         model.load_state_dict(hotshot_state_dict, strict=False)
         del hotshot_state_dict
@@ -244,9 +260,11 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         cls,
         config: Dict[str, Any],
         cache_dir: str,
-        use_mm_v2: bool = True,
-        motion_module: Optional[str] = None,
+        use_mm_v2: bool=True,
+        motion_module: Optional[str]=None,
         task_callback: Optional[Callable[[str], None]]=None,
+        position_encoder_truncate_length: Optional[int]=None,
+        position_encoder_scale_length: Optional[int]=None,
         **unet_additional_kwargs: Any
     ) -> ModelMixin:
         """
@@ -267,6 +285,10 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         ]
 
         config["mid_block_type"] = "UNetMidBlock3DCrossAttn"
+        default_position_encoder_len = 32 if use_mm_v2 else 24
+        position_encoder_len = default_position_encoder_len
+        if position_encoder_scale_length:
+            position_encoder_len = position_encoder_scale_length
 
         unet_additional_kwargs["use_inflated_groupnorm"] = use_mm_v2
         unet_additional_kwargs["unet_use_cross_frame_attention"] = False
@@ -284,7 +306,7 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
                 "Temporal_Self"
             ],
             "temporal_position_encoding": True,
-            "temporal_position_encoding_max_len": 32 if use_mm_v2 else 24,
+            "temporal_position_encoding_max_len": position_encoder_len,
             "temporal_attention_dim_div": 1
         }
 
@@ -298,7 +320,21 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
 
         from enfugue.diffusion.util.torch_util import load_state_dict
         state_dict = load_state_dict(motion_module)
+
+        if position_encoder_truncate_length is not None or position_encoder_scale_length is not None:
+            for key in state_dict:
+                if key.endswith(".pe"):
+                    if position_encoder_truncate_length is not None:
+                        state_dict[key] = state_dict[key][:, :position_encoder_truncate_length]
+                    if position_encoder_scale_length is not None:
+                        tensor_shape = state_dict[key].shape
+                        tensor = rearrange(state_dict[key], "(t b) f d -> t b f d", t=1)
+                        tensor = F.interpolate(tensor, size=(position_encoder_scale_length, tensor_shape[-1]), mode="bilinear")
+                        state_dict[key] = rearrange(tensor, "t b f d -> (t b) f d")
+                        del tensor
+
         model.load_state_dict(state_dict, strict=False)
+        del state_dict
 
         return model
 

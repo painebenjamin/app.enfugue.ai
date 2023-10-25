@@ -49,6 +49,7 @@ def get_down_block(
         cross_attention_norm=None,
         attention_head_dim=None,
         downsample_type=None,
+        positional_encoding_max_length=24,
 ):
     down_block_type = down_block_type[7:] if down_block_type.startswith("UNetRes") else down_block_type
     if down_block_type == "DownBlock3D":
@@ -63,10 +64,12 @@ def get_down_block(
             resnet_groups=resnet_groups,
             downsample_padding=downsample_padding,
             resnet_time_scale_shift=resnet_time_scale_shift,
+            positional_encoding_max_length=positional_encoding_max_length,
         )
     elif down_block_type == "CrossAttnDownBlock3D":
         if cross_attention_dim is None:
             raise ValueError("cross_attention_dim must be specified for CrossAttnDownBlock3D")
+
         return CrossAttnDownBlock3D(
             num_layers=num_layers,
             in_channels=in_channels,
@@ -85,6 +88,7 @@ def get_down_block(
             only_cross_attention=only_cross_attention,
             upcast_attention=upcast_attention,
             resnet_time_scale_shift=resnet_time_scale_shift,
+            positional_encoding_max_length=positional_encoding_max_length,
         )
     raise ValueError(f"{down_block_type} does not exist.")
 
@@ -113,6 +117,7 @@ def get_up_block(
         cross_attention_norm=None,
         attention_head_dim=None,
         upsample_type=None,
+        positional_encoding_max_length=24,
 ):
     up_block_type = up_block_type[7:] if up_block_type.startswith("UNetRes") else up_block_type
     if up_block_type == "UpBlock3D":
@@ -127,6 +132,7 @@ def get_up_block(
             resnet_act_fn=resnet_act_fn,
             resnet_groups=resnet_groups,
             resnet_time_scale_shift=resnet_time_scale_shift,
+            positional_encoding_max_length=positional_encoding_max_length,
         )
     elif up_block_type == "CrossAttnUpBlock3D":
         if cross_attention_dim is None:
@@ -149,6 +155,7 @@ def get_up_block(
             only_cross_attention=only_cross_attention,
             upcast_attention=upcast_attention,
             resnet_time_scale_shift=resnet_time_scale_shift,
+            positional_encoding_max_length=positional_encoding_max_length,
         )
     raise ValueError(f"{up_block_type} does not exist.")
 
@@ -230,8 +237,15 @@ class UNetMidBlock3DCrossAttn(nn.Module):
         self.attentions = nn.ModuleList(attentions)
         self.resnets = nn.ModuleList(resnets)
 
-    def forward(self, hidden_states, temb=None, encoder_hidden_states=None, attention_mask=None,
-                cross_attention_kwargs=None, enable_temporal_attentions: bool = True):
+    def forward(
+        self,
+        hidden_states,
+        temb=None,
+        encoder_hidden_states=None,
+        attention_mask=None,
+        cross_attention_kwargs=None,
+        enable_temporal_attentions: bool = True
+    ):
         hidden_states = self.resnets[0](hidden_states, temb)
         for attn, resnet in zip(self.attentions, self.resnets[1:]):
             hidden_states = attn(hidden_states, encoder_hidden_states=encoder_hidden_states).sample
@@ -262,6 +276,7 @@ class CrossAttnDownBlock3D(nn.Module):
             output_scale_factor=1.0,
             downsample_padding=1,
             add_downsample=True,
+            positional_encoding_max_length=24,
             dual_cross_attention=False,
             use_linear_projection=False,
             only_cross_attention=False,
@@ -312,6 +327,7 @@ class CrossAttnDownBlock3D(nn.Module):
                     attention_head_dim=out_channels // 8,
                     in_channels=out_channels,
                     cross_attention_dim=None,
+                    positional_encoding_max_length=positional_encoding_max_length,
                 )
             )
 
@@ -410,6 +426,7 @@ class DownBlock3D(nn.Module):
             output_scale_factor=1.0,
             add_downsample=True,
             downsample_padding=1,
+            positional_encoding_max_length=24,
     ):
         super().__init__()
         resnets = []
@@ -436,7 +453,8 @@ class DownBlock3D(nn.Module):
                     num_attention_heads=8,
                     attention_head_dim=out_channels // 8,
                     in_channels=out_channels,
-                    cross_attention_dim=None
+                    cross_attention_dim=None,
+                    positional_encoding_max_length=positional_encoding_max_length
                 )
             )
 
@@ -524,6 +542,7 @@ class CrossAttnUpBlock3D(nn.Module):
             use_linear_projection=False,
             only_cross_attention=False,
             upcast_attention=False,
+            positional_encoding_max_length=24,
     ):
         super().__init__()
         resnets = []
@@ -571,7 +590,8 @@ class CrossAttnUpBlock3D(nn.Module):
                     num_attention_heads=8,
                     attention_head_dim=out_channels // 8,
                     in_channels=out_channels,
-                    cross_attention_dim=None
+                    cross_attention_dim=None,
+                    positional_encoding_max_length=positional_encoding_max_length
                 )
             )
 
@@ -671,6 +691,7 @@ class UpBlock3D(nn.Module):
             resnet_pre_norm: bool = True,
             output_scale_factor=1.0,
             add_upsample=True,
+            positional_encoding_max_length=24,
     ):
         super().__init__()
         resnets = []
@@ -699,7 +720,8 @@ class UpBlock3D(nn.Module):
                     num_attention_heads=8,
                     attention_head_dim=out_channels // 8,
                     in_channels=out_channels,
-                    cross_attention_dim=None
+                    cross_attention_dim=None,
+                    positional_encoding_max_length=positional_encoding_max_length
                 )
             )
 

@@ -905,6 +905,44 @@ class InvocationController extends Controller {
     }
 
     /**
+     * @return bool Tile along the horizontal dimension
+     */
+    get tileHorizontal() {
+        let tile = this.kwargs.tile;
+        if (isEmpty(tile)) return false;
+        return tile[0];
+    }
+
+    /**
+     * @param bool Tile along the horizontal dimension
+     */
+    set tileHorizontal(newTile) {
+        if (newTile !== this.tileHorizontal) {
+            this.publish("engineTileHorizontalChange", newTile);
+        }
+        this.kwargs.tile = [newTile, this.tileVertical];
+    }
+
+    /**
+     * @return bool Tile along the vertical dimension
+     */
+    get tileHorizontal() {
+        let tile = this.kwargs.tile;
+        if (isEmpty(tile)) return false;
+        return tile[1];
+    }
+
+    /**
+     * @param bool Tile along the horizontal dimension
+     */
+    set tileVertical(newTile) {
+        if (newTile !== this.tileVertical) {
+            this.publish("engineTileVerticalChange", newTile);
+        }
+        this.kwargs.tile = [this.tileHorizontal, newTile];
+    }
+
+    /**
      * On initialization, create DOM elements related to invocations.
      */
     async initialize() {

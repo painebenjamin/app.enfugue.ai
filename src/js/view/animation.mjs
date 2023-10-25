@@ -40,13 +40,13 @@ class AnimationView extends View {
         this.loaded = false;
         this.images = images;
         this.imageViews = images.map(
-            (image) => new ImageView(config, image)
+            (image) => new ImageView(this.config, image, false)
         );
         Promise.all(
             this.imageViews.map(
                 (imageView) => imageView.waitForLoad()
             )
-        ).then(() => this.imageLoaded());
+        ).then(() => this.imagesLoaded());
     }
 
     /**
@@ -55,7 +55,7 @@ class AnimationView extends View {
     async imagesLoaded() {
         this.loaded = true;
 
-        this.width = this.imagesViews[0].width;
+        this.width = this.imageViews[0].width;
         this.height = this.imageViews[0].height;
 
         this.canvas.width = this.width;

@@ -1209,7 +1209,7 @@ class DiffusionPipelineManager:
         """
         if not self.animator_name:
             raise ValueError("No animator set")
-        path = os.path.join(self.engine_diffusers_dir, self.animator_name)
+        path = os.path.join(self.engine_diffusers_dir, f"{self.animator_name}-animator")
         check_make_directory(path)
         return path
 
@@ -4228,7 +4228,7 @@ class DiffusionPipelineManager:
                 kwargs["latent_callback"] = memoize_callback
         self.start_keepalive()
         try:
-            animating = kwargs.get("animation_frames", None) is not None and kwargs["animation_frames"] > 0
+            animating = bool(kwargs.get("animation_frames", None))
             inpainting = kwargs.get("mask", None) is not None
             refining = (
                 kwargs.get("image", None) is not None and

@@ -81,7 +81,7 @@ class EncodedPrompt:
         Gets the encoded embeds.
         """
         return self.check_get_tensor(frames, self.embeds)
-    
+
     def get_negative_embeds(
         self,
         frames: Optional[List[int]] = None
@@ -90,7 +90,7 @@ class EncodedPrompt:
         Gets the encoded negative embeds.
         """
         return self.check_get_tensor(frames, self.negative_embeds)
-    
+
     def get_pooled_embeds(
         self,
         frames: Optional[List[int]] = None

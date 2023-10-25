@@ -51,7 +51,7 @@ class ImageView extends View {
                 });
             } else {
                 this.image = new Image();
-                this.image.onload = this.imageLoaded();
+                this.image.onload = () => this.imageLoaded();
                 this.image.src = this.src;
             }
         }

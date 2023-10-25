@@ -26,8 +26,6 @@ class ImageEditorView extends NodeEditorView {
     constructor(application) {
         super(application.config, window.innerWidth-300, window.innerHeight-70);
         this.application = application;
-        this.currentInvocation = new CurrentInvocationImageView(this);
-        this.currentInvocation.hide();
     }
 
     /**
@@ -96,53 +94,6 @@ class ImageEditorView extends NodeEditorView {
         if (this.focusedNode === node) {
             this.focusedNode = null;
             this.application.menu.removeCategory("Node");
-        }
-    }
-
-    /**
-     * Removes the current invocation from the canvas view.
-     */
-    hideCurrentInvocation() {
-        this.currentInvocation.hide();
-        if (this.hasClass("has-image")) {
-            this.removeClass("has-image");
-            this.application.menu.removeCategory("Image");
-        }
-        this.resetDimension(false);
-    }
-
-    /**
-     * Resets the editor to the previous set of dimensions
-     */
-    resetDimension(resetNodes = true) {
-        if (!isEmpty(this.configuredWidth) && !isEmpty(this.configuredHeight)) {
-            this.setDimension(this.configuredWidth, this.configuredHeight, resetNodes);
-            this.configuredHeight = null;
-            this.configuredWidth = null;
-        }
-    }
-
-    /**
-     * Sets a current invocation on the canvas view.
-     * @param string $href The image source.
-     */
-    async setCurrentInvocationImage(href) {
-        this.currentInvocation.setImage(href);
-        await this.currentInvocation.waitForLoad();
-        if (this.currentInvocation.width != this.width || this.currentInvocation.height != this.height) {
-            if (isEmpty(this.configuredWidth)) {
-                this.configuredWidth = this.width;
-            }
-            if (isEmpty(this.configuredHeight)) {
-                this.configuredHeight = this.height;
-            }
-            this.setDimension(this.currentInvocation.width, this.currentInvocation.height, false);
-        }
-        this.currentInvocation.show();
-        if (!this.hasClass("has-image")) {
-            this.addClass("has-image");
-            let menuCategory = await this.application.menu.addCategory("Image", "e");
-            await this.currentInvocation.prepareMenu(menuCategory);
         }
     }
 
@@ -228,7 +179,7 @@ class ImageEditorView extends NodeEditorView {
     async build() {
         let node = await super.build(),
             grid = E.createElement("enfugue-image-editor-grid");
-        node.find("enfugue-node-canvas").append(grid, await this.currentInvocation.getNode());
+        node.find("enfugue-node-canvas").append(grid);
         return node;
     }
 

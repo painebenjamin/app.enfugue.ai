@@ -130,6 +130,7 @@ class UNet3DConditionModel(ModelMixin, ConfigMixin, UNet2DConditionLoadersMixin)
             mid_block_only_cross_attention: Optional[bool] = None,
             cross_attention_norm: Optional[str] = None,
             addition_embed_type_num_heads=64,
+            positional_encoding_max_length=24,
     ):
         super().__init__()
 
@@ -346,7 +347,7 @@ class UNet3DConditionModel(ModelMixin, ConfigMixin, UNet2DConditionLoadersMixin)
             blocks_time_embed_dim = time_embed_dim * 2
         else:
             blocks_time_embed_dim = time_embed_dim
-
+        
         # down
         output_channel = block_out_channels[0]
         for i, down_block_type in enumerate(down_block_types):
@@ -378,6 +379,7 @@ class UNet3DConditionModel(ModelMixin, ConfigMixin, UNet2DConditionLoadersMixin)
                 resnet_out_scale_factor=resnet_out_scale_factor,
                 cross_attention_norm=cross_attention_norm,
                 attention_head_dim=attention_head_dim[i] if attention_head_dim[i] is not None else output_channel,
+                positional_encoding_max_length=positional_encoding_max_length,
             )
             self.down_blocks.append(down_block)
 
@@ -456,6 +458,7 @@ class UNet3DConditionModel(ModelMixin, ConfigMixin, UNet2DConditionLoadersMixin)
                 resnet_out_scale_factor=resnet_out_scale_factor,
                 cross_attention_norm=cross_attention_norm,
                 attention_head_dim=attention_head_dim[i] if attention_head_dim[i] is not None else output_channel,
+                positional_encoding_max_length=positional_encoding_max_length,
             )
             self.up_blocks.append(up_block)
             prev_output_channel = output_channel

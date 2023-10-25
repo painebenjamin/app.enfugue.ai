@@ -284,8 +284,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             elif isinstance(value, dict):
                 for k in value:
                     cls.debug_tensors(**{f"{key}_{k}": value[k]})
-            else:
-                logger.debug(f"{key} = {value.shape} ({value.dtype})")
+            elif isinstance(value, torch.Tensor):
+                logger.debug(f"{key} = {value.shape} ({value.dtype}) on {value.device}")
 
     @classmethod
     def scale_image(
@@ -850,6 +850,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         self,
         device: torch.device,
         dtype: torch.dtype,
+        animation_frames: Optional[int] = None,
+        animation_scale: float = 1.0,
         freeu_factors: Optional[Tuple[float, float, float, float]] = None,
         offload_models: bool = False
     ) -> None:
@@ -869,6 +871,11 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             s1, s2, b1, b2 = freeu_factors
             self.unet.enable_freeu(s1=s1, s2=s2, b1=b1, b2=b2)
             self._freeu_enabled = True
+        if animation_frames:
+            try:
+                self.unet.set_motion_attention_scale(animation_scale)
+            except AttributeError:
+                raise RuntimeError("Couldn't set motion attention scale - was this pipeline initialized with the right UNet?")
         self.unet.to(device=device, dtype=dtype)
 
     def run_safety_checker(
@@ -1551,7 +1558,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         """
         Creates random latents of a particular shape and type.
         """
-        if animation_frames is None:
+        if not animation_frames:
             shape = (
                 batch_size,
                 num_channels_latents,
@@ -1712,6 +1719,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                         generator=generator,
                         dtype=dtype,
                         chunker=chunker,
+                        weight_builder=weight_builder,
                         progress_callback=progress_callback
                     )
 
@@ -1742,14 +1750,14 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
         # add noise in accordance with timesteps
         if add_noise:
-            shape = init_latents.shape
+            shape = latents.shape
             noise = randn_tensor(
                 shape,
                 generator=generator,
                 device=torch.device(device) if isinstance(device, str) else device,
                 dtype=dtype
             )
-            return self.scheduler.add_noise(init_latents, noise, timestep) # type: ignore[attr-defined]
+            return self.scheduler.add_noise(latents, noise, timestep) # type: ignore[attr-defined]
         else:
             logger.debug("Not adding noise; starting from noised image.")
             return latents
@@ -1797,6 +1805,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     generator=generator,
                     dtype=dtype,
                     chunker=chunker,
+                    weight_builder=weight_builder,
                     progress_callback=progress_callback
                 ).unsqueeze(0).to(device=device, dtype=dtype)
             ])
@@ -1941,6 +1950,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         kwargs = {}
         if added_cond_kwargs is not None:
             kwargs["added_cond_kwargs"] = added_cond_kwargs
+
         return self.unet(
             latents,
             timestep,
@@ -2148,10 +2158,11 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             # Get embeds
             embeds = encoded_prompts.get_embeds()
             if embeds is None:
+                logger.warning("No text embeds, using zeros")
                 if self.text_encoder:
-                    embeds = torch.zeros(samples, 77, self.text_encoder.config.hidden_size)
+                    embeds = torch.zeros(samples, 77, self.text_encoder.config.hidden_size).to(device)
                 elif self.text_encoder_2:
-                    embeds = torch.zeros(samples, 77, self.text_encoder_2.config.hidden_size)
+                    embeds = torch.zeros(samples, 77, self.text_encoder_2.config.hidden_size).to(device)
                 else:
                     raise IOError("No embeds and no text encoder.")
             embeds = embeds.to(device=device)
@@ -2521,10 +2532,11 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     embeds = encoded_prompts.get_embeds(frame_indexes)
 
                     if embeds is None:
+                        logger.warning(f"Warning: no prompts found for frame window {frame_indexes}")
                         if self.text_encoder:
-                            embeds = torch.zeros(samples, 77, self.text_encoder.config.hidden_size)
+                            embeds = torch.zeros(samples, 77, self.text_encoder.config.hidden_size).to(device)
                         elif self.text_encoder_2:
-                            embeds = torch.zeros(samples, 77, self.text_encoder_2.config.hidden_size)
+                            embeds = torch.zeros(samples, 77, self.text_encoder_2.config.hidden_size).to(device)
                         else:
                             raise IOError("No embeds and no text encoder.")
 
@@ -3048,6 +3060,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         guidance_scale: float = 7.5,
         num_results_per_prompt: int = 1,
         animation_frames: Optional[int] = None,
+        animation_scale: float = 1.0,
         loop: bool = False,
         tile: Union[bool, Tuple[bool, bool]] = False,
         eta: float = 0.0,
@@ -3250,7 +3263,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 else:
                     encoding_steps += 1
 
-        num_frames = 1 if animation_frames is None else animation_frames
+        num_frames = 1 if not animation_frames else animation_frames
         overall_num_steps = num_chunks * (encoding_steps + (decoding_steps * num_frames) + (num_scheduled_inference_steps * num_temporal_chunks))
         logger.debug(
             " ".join([
@@ -3458,6 +3471,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                                 device=device,
                                 dtype=encoded_prompts.dtype,
                                 chunker=chunker,
+                                weight_builder=weight_builder,
                                 generator=generator,
                             )
                             init_image[i] = img
@@ -3474,6 +3488,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                         dtype=encoded_prompts.dtype,
                         device=device,
                         chunker=chunker,
+                        weight_builder=weight_builder,
                         generator=generator,
                         progress_callback=step_complete,
                         add_noise=denoising_start is None,
@@ -3625,6 +3640,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     device=device,
                     dtype=encoded_prompts.dtype,
                     freeu_factors=freeu_factors,
+                    animation_frames=animation_frames,
+                    animation_scale=animation_scale,
                     offload_models=offload_models
                 ) # May be overridden by RT
 
@@ -3704,7 +3721,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                         progress_callback=step_complete,
                         weight_builder=weight_builder
                     )
-                    if animation_frames is None:
+                    if not animation_frames:
                         output = self.denormalize_latents(prepared_latents)
                         if output_type != "pt":
                             output = self.image_processor.pt_to_numpy(output)

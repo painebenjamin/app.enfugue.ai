@@ -515,7 +515,6 @@ enfugue-node-editor.image-editor enfugue-sample-chooser {
     height: 50px;
     background-color: var(--dark-color);
     position: absolute;
-    border-left: 1px solid rgba(255,255,255,0.1);
     border-top: 1px solid rgba(255,255,255,0.1);
     border-bottom: 1px solid rgba(0,0,0,0.2);
     border-right: 1px solid rgba(0,0,0,0.2);
@@ -527,8 +526,8 @@ enfugue-node-editor.image-editor enfugue-sample-chooser i {
     flex-flow: row nowrap;
     align-items: center;
     justify-content: center;
-    border-left: 1px solid rgba(0,0,0,0.2);
-    border-right: 1px solid rgba(255,255,255,0.1);
+    border-right: 1px solid rgba(0,0,0,0.2);
+    border-left: 1px solid rgba(255,255,255,0.1);
     cursor: pointer;
     font-size: 20px;
     padding: 0 15px;
@@ -567,7 +566,19 @@ enfugue-node-editor.image-editor enfugue-sample-chooser .samples {
     padding: 2px;
     flex-grow: 1;
     flex-basis: 100%;
-    border-left: 1px solid rgba(0,0,0,0.2);
+    border-left: 1px solid rgba(255,255,255,0.1);
+    overflow-y: hidden;
+    overflow-x: auto;
+}
+
+enfugue-node-editor.image-editor enfugue-sample-chooser .samples::-webkit-scrollbar
+{
+    background: var(--dark-color);
+}
+
+enfugue-node-editor.image-editor enfugue-sample-chooser .samples::-webkit-scrollbar-corner 
+{
+    background: var(--dark-color);
 }
 
 enfugue-node-editor.image-editor enfugue-sample-chooser .samples img
@@ -601,8 +612,8 @@ enfugue-node-editor.image-editor enfugue-sample-chooser .playback-rate {
     justify-content: center;
     align-items: center;
     padding-right: 8px;
-    border-left: 1px solid rgba(0,0,0,0.2);
-    border-right: 1px solid rgba(255,255,255,0.1);
+    border-left: 1px solid rgba(255,255,255,0.1);
+    border-right: 1px solid rgba(0,0,0,0.2);
 }
 
 enfugue-node-editor.image-editor enfugue-sample-chooser .playback-rate span {
@@ -622,14 +633,86 @@ enfugue-node-editor.image-editor enfugue-sample-chooser i.play
 
 enfugue-node-editor.image-editor enfugue-sample-chooser.animation div.playback-rate,
 enfugue-node-editor.image-editor enfugue-sample-chooser.animation i.loop,
-enfugue-node-editor.image-editor enfugue-sample-chooser.animation i.play,
+enfugue-node-editor.image-editor enfugue-sample-chooser.animation i.play
 {
     display: flex;
 }
 
 enfugue-node-editor.image-editor enfugue-sample-chooser.animation .samples
 {
-    border-right: 1px solid rgba(255,255,255,0.1);
+    border-right: 1px solid rgba(0,0,0,0.1);
+}
+
+enfugue-node-editor.image-editor enfugue-sample,
+enfugue-node-editor.image-editor enfugue-sample > div,
+enfugue-node-editor.image-editor enfugue-sample > div > img,
+enfugue-node-editor.image-editor enfugue-sample > div > enfugue-animation-view {
+    display: block;
+    width: 100%;
+    height: 100%;
+    position: absolute;
+    left: 0;
+    top: 0;
+    padding: 0;
+    margin: 0;
+}
+
+enfugue-node-editor.image-editor enfugue-sample > div > img:nth-child(1),
+enfugue-node-editor.image-editor enfugue-sample > div > enfugue-animation-view:nth-child(1)
+{
+    left: auto;
+    top: auto;
+    right: 100%;
+    bottom: 100%;
+}
+
+enfugue-node-editor.image-editor enfugue-sample > div > img:nth-child(2),
+enfugue-node-editor.image-editor enfugue-sample > div > enfugue-animation-view:nth-child(2)
+{
+    top: auto;
+    bottom: 100%;
+}
+
+enfugue-node-editor.image-editor enfugue-sample > div > img:nth-child(3),
+enfugue-node-editor.image-editor enfugue-sample > div > enfugue-animation-view:nth-child(3)
+{
+    left: 100%;
+    top: auto;
+    bottom: 100%;
+}
+
+enfugue-node-editor.image-editor enfugue-sample > div > img:nth-child(4),
+enfugue-node-editor.image-editor enfugue-sample > div > enfugue-animation-view:nth-child(4)
+{
+    left: auto;
+    right: 100%;
+}
+
+enfugue-node-editor.image-editor enfugue-sample > div > img:nth-child(6),
+enfugue-node-editor.image-editor enfugue-sample > div > enfugue-animation-view:nth-child(6)
+{
+    left: 100%;
+}
+
+enfugue-node-editor.image-editor enfugue-sample > div > img:nth-child(7),
+enfugue-node-editor.image-editor enfugue-sample > div > enfugue-animation-view:nth-child(7)
+{
+    top: 100%;
+    right: 100%;
+    left: auto;
+}
+
+enfugue-node-editor.image-editor enfugue-sample > div > img:nth-child(8),
+enfugue-node-editor.image-editor enfugue-sample > div > enfugue-animation-view:nth-child(8)
+{
+    top: 100%;
+}
+
+enfugue-node-editor.image-editor enfugue-sample > div > img:nth-child(9),
+enfugue-node-editor.image-editor enfugue-sample > div > enfugue-animation-view:nth-child(9)
+{
+    top: 100%;
+    left: 100%;
 }
 
 enfugue-node-editor.image-editor enfugue-invocation-sample-chooser {

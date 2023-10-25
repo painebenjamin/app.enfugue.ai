@@ -50,13 +50,21 @@ class PositionalEncoding(nn.Module):
 
 
 class TemporalAttention(Attention):
-    def __init__(self, *args, **kwargs):
+    def __init__(
+        self,
+        positional_encoding_max_length: int = 24,
+        *args,
+        **kwargs
+    ):
         super().__init__(*args, **kwargs)
-        self.pos_encoder = PositionalEncoding(kwargs["query_dim"], dropout=0)
-        self.set_scale_multiplier(kwargs.get("attention_scale_multiplier", 1.0))
+        self.pos_encoder = PositionalEncoding(
+            kwargs["query_dim"],
+            dropout=0,
+            max_length=positional_encoding_max_length
+        )
 
     def set_scale_multiplier(self, multiplier: float = 1.0) -> None:
-        self.scale = math.sqrt((math.log(48) / math.log(48//4)) / (self.inner_dim // self.heads)) * multiplier
+        self.scale = math.sqrt((math.log(48) / math.log(48//8)) / (self.inner_dim // self.heads)) * multiplier
 
     def forward(self, hidden_states, encoder_hidden_states=None, attention_mask=None, number_of_frames=8):
         sequence_length = hidden_states.shape[1]
@@ -88,6 +96,7 @@ class TransformerTemporal(nn.Module):
             cross_attention_dim: Optional[int] = None,
             attention_bias: bool = False,
             activation_fn: str = "geglu",
+            positional_encoding_max_length: int = 24,
             upcast_attention: bool = False,
     ):
         super().__init__()
@@ -107,7 +116,8 @@ class TransformerTemporal(nn.Module):
                     activation_fn=activation_fn,
                     attention_bias=attention_bias,
                     upcast_attention=upcast_attention,
-                    cross_attention_dim=cross_attention_dim
+                    cross_attention_dim=cross_attention_dim,
+                    positional_encoding_max_length=positional_encoding_max_length
                 )
                 for _ in range(num_layers)
             ]
@@ -151,6 +161,7 @@ class TransformerBlock(nn.Module):
             attention_bias=False,
             upcast_attention=False,
             depth=2,
+            positional_encoding_max_length=24,
             cross_attention_dim: Optional[int] = None
     ):
         super().__init__()
@@ -170,6 +181,7 @@ class TransformerBlock(nn.Module):
                     dropout=dropout,
                     bias=attention_bias,
                     upcast_attention=upcast_attention,
+                    positional_encoding_max_length=positional_encoding_max_length
                 )
             )
             norms.append(nn.LayerNorm(dim))
