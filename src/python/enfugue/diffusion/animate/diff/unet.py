@@ -321,6 +321,10 @@ class UNet3DConditionModel(ModelMixin, ConfigMixin):
         for block in self.down_blocks + self.up_blocks + [self.mid_block]:
             block.set_motion_module_attention_scale(scale)
 
+    def reset_motion_attention_scale(self) -> None:
+        for block in self.down_blocks + self.up_blocks + [self.mid_block]:
+            block.reset_motion_module_attention_scale()
+
     def forward(
         self,
         sample: torch.FloatTensor,

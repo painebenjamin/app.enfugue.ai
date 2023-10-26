@@ -170,11 +170,13 @@ class HistoryController extends MenuController {
             if (!isEmpty(item.state.images)) {
                 let nodeNumber = 1,
                     nodes;
+
                 if (Array.isArray(item.state.images)) {
                     nodes = item.state.images;
                 } else {
                     nodes = item.state.images.nodes;
                 }
+
                 for (let node of nodes) {
                     let nodeSummaryParts = {};
                     switch (node.classname) {
@@ -241,6 +243,7 @@ class HistoryController extends MenuController {
                 this.resetHistory();
             }, this.constructor.searchHistoryDebounceDelay);
         });
+
         this.historyTable = new HistoryTableView(this.config, await this.getHistory());
         
         let container = new ParentView(this.config);

@@ -485,6 +485,11 @@ class UNet3DConditionModel(ModelMixin, ConfigMixin, UNet2DConditionLoadersMixin)
             if not isinstance(block, UNetMidBlock3DCrossAttn):
                 block.set_temporal_attention_scale(scale)
 
+    def reset_motion_attention_scale(self) -> None:
+        for block in self.down_blocks + self.up_blocks + [self.mid_block]:
+            if not isinstance(block, UNetMidBlock3DCrossAttn):
+                block.set_temporal_attention_scale()
+
     def temporal_parameters(self) -> list:
         output = []
         all_blocks = self.down_blocks + self.up_blocks + [self.mid_block]

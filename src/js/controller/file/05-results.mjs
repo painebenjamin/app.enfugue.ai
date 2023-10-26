@@ -77,17 +77,31 @@ class InvocationTableView extends ModelTableView {
         "outputs": async function(outputCount, datum) {
             if (outputCount > 0) {
                 let outputContainer = E.invocationOutputs();
-                for (let i = 0; i < outputCount; i++) {
-                    let imageName = `${datum.id}_${i}.png`,
-                        imageSource = `/api/invocation/images/${imageName}`,
-                        thumbnailSource = `/api/invocation/thumbnails/${imageName}`,
-                        imageView = new ImageView(this.config, thumbnailSource, false),
+                if (!isEmpty(datum.plan.animation_frames) && datum.plan.animation_frames > 0) {
+                    let thumbnailVideoSource = `/api/invocation/animation/thumbnails/${datum.id}.mp4`,
                         imageContainer = E.invocationOutput()
-                            .content(await imageView.getNode())
-                            .on("click", async () => {
-                                InvocationTableView.setCurrentInvocationImage(imageSource); // Set at init
-                            });
-                    outputContainer.append(imageContainer);
+                            .content(
+                                E.video()
+                                    .content(E.source().src(thumbnailVideoSource))
+                                    .autoplay(true)
+                                    .muted(true)
+                                    .loop(true)
+                            );
+
+                     outputContainer.append(imageContainer);
+                } else {
+                    for (let i = 0; i < outputCount; i++) {
+                        let imageName = `${datum.id}_${i}.png`,
+                            imageSource = `/api/invocation/images/${imageName}`,
+                            thumbnailSource = `/api/invocation/thumbnails/${imageName}`,
+                            imageView = new ImageView(this.config, thumbnailSource, false),
+                            imageContainer = E.invocationOutput()
+                                .content(await imageView.getNode())
+                                .on("click", async () => {
+                                    InvocationTableView.setCurrentInvocationImage(imageSource); // Set at init
+                                });
+                        outputContainer.append(imageContainer);
+                    }
                 }
                 return outputContainer;
             } else if(!isEmpty(datum.error)) {

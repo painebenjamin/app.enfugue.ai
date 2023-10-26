@@ -136,6 +136,13 @@ class Controller {
     }
 
     /**
+     * Sets default state.
+     */
+    resetState() {
+        this.setState(this.getDefaultState());
+    }
+
+    /**
      * Sets state; controllers can use as they wish
      */
     setState(state) { };

@@ -161,7 +161,7 @@ PIPELINE_SWITCH_MODE_LITERAL = Literal["offload", "unload"]
 MASK_TYPE_LITERAL = Literal["constant", "bilinear", "gaussian"]
 SCHEDULER_LITERAL = Literal[
     "ddim", "ddpm", "deis",
-    "dpmsm", "dpmsmk", "dpmsmka",
+    "dpmsm", "dpmsms", "dpmsmk", "dpmsmka",
     "dpmss", "dpmssk", "heun",
     "dpmd", "dpmdk", "adpmd",
     "adpmdk", "dpmsde", "unipc",

@@ -377,12 +377,12 @@ class DiffusionPipelineManager:
         kwargs: Dict[str, Any] = {}
         if not scheduler:
             return None
-        elif scheduler in ["dpmsm", "dpmsmk", "dpmsmka"]:
+        elif scheduler in ["dpmsm", "dpmsms", "dpmsmk", "dpmsmka"]:
             from diffusers.schedulers import DPMSolverMultistepScheduler
+            if scheduler in ["dpmsms", "dpmsmka"]:
+                kwargs["algorithm_type"] = "sde-dpmsolver++"
             if scheduler in ["dpmsmk", "dpmsmka"]:
                 kwargs["use_karras_sigmas"] = True
-                if scheduler == "dpmsmka":
-                    kwargs["algorithm_type"] = "sde-dpmsolver++"
             return (DPMSolverMultistepScheduler, kwargs)
         elif scheduler in ["dpmss", "dpmssk"]:
             from diffusers.schedulers import DPMSolverSinglestepScheduler
@@ -2724,6 +2724,20 @@ class DiffusionPipelineManager:
         return [os.path.splitext(os.path.basename(inversion))[0] for inversion in self.inversion]
 
     @property
+    def reload_motion_module(self) -> bool:
+        """
+        Returns true if the motion module should be reloaded.
+        """
+        return getattr(self, "_reload_motion_module", False)
+
+    @reload_motion_module.setter
+    def reload_motion_module(self, reload: bool) -> bool:
+        """
+        Sets if the motion module should be reloaded.
+        """
+        self._reload_motion_module = reload
+
+    @property
     def motion_module(self) -> Optional[str]:
         """
         Gets optional configured non-default motion module.
@@ -2744,12 +2758,60 @@ class DiffusionPipelineManager:
                 self.motion_module != new_module
             )
         ):
-            self.unload_animator("Motion module changing")
+            self.reload_motion_module = True
         if new_module is not None and not os.path.isabs(new_module):
             new_module = os.path.join(self.engine_motion_dir, new_module)
         if new_module is not None and not os.path.exists(new_module):
             raise IOError(f"Cannot find or access motion module at {new_module}")
         self._motion_module = new_module
+
+    @property
+    def position_encoder_truncate_length(self) -> Optional[int]:
+        """
+        An optional length (frames) to truncate position encoder tensors to
+        """
+        return getattr(self, "_position_encoder_truncate_length", None)
+
+    @position_encoder_truncate_length.setter
+    def position_encoder_truncate_length(self, new_length: Optional[int]) -> None:
+        """
+        Sets position encoder truncate length.
+        """
+        if (
+            self.position_encoder_truncate_length is None and new_length is not None or
+            self.position_encoder_truncate_length is not None and new_length is None or
+            (
+                self.position_encoder_truncate_length is not None and 
+                new_length is not None and
+                self.position_encoder_truncate_length != new_length
+            )
+        ):
+            self.reload_motion_module = True
+        self._position_encoder_truncate_length = new_length
+
+    @property
+    def position_encoder_scale_length(self) -> Optional[int]:
+        """
+        An optional length (frames) to scale position encoder tensors to
+        """
+        return getattr(self, "_position_encoder_scale_length", None)
+
+    @position_encoder_scale_length.setter
+    def position_encoder_scale_length(self, new_length: Optional[int]) -> None:
+        """
+        Sets position encoder scale length.
+        """
+        if (
+            self.position_encoder_scale_length is None and new_length is not None or
+            self.position_encoder_scale_length is not None and new_length is None or
+            (
+                self.position_encoder_scale_length is not None and 
+                new_length is not None and
+                self.position_encoder_scale_length != new_length
+            )
+        ):
+            self.reload_motion_module = True
+        self._position_encoder_scale_length = new_length
 
     @property
     def model_diffusers_cache_dir(self) -> Optional[str]:
@@ -3440,6 +3502,9 @@ class DiffusionPipelineManager:
 
             if self.animator.startswith("http"):
                 self.animator = self.check_download_checkpoint(self.animator)
+            
+            # Disable reloading if it was set
+            self.reload_motion_module = False
 
             kwargs = {
                 "cache_dir": self.engine_cache_dir,
@@ -3453,7 +3518,10 @@ class DiffusionPipelineManager:
                 "controlnets": self.animator_controlnets,
                 "force_full_precision_vae": self.animator_is_sdxl and self.animator_vae_name not in ["xl16", VAE_XL16],
                 "ip_adapter": self.ip_adapter,
-                "motion_module": self.motion_module
+                "task_callback": getattr(self, "_task_callback", None),
+                "motion_module": self.motion_module,
+                "position_encoder_truncate_length": self.position_encoder_truncate_length,
+                "position_encoder_scale_length": self.position_encoder_scale_length,
             }
 
             vae = self.animator_vae
@@ -4312,6 +4380,18 @@ class DiffusionPipelineManager:
                     self.offload_inpainter(intention) # type: ignore
 
                     pipe = self.animator_pipeline
+
+                    if self.reload_motion_module:
+                        if task_callback is not None:
+                            task_callback("Reloading motion module")
+                        pipe.load_motion_module_weights(
+                            cache_dir=self.engine_cache_dir,
+                            motion_module=self.motion_module,
+                            task_callback=task_callback,
+                            position_encoder_truncate_length=self.position_encoder_truncate_length,
+                            position_encoder_scale_length=self.position_encoder_scale_length,
+                        )
+                        self.reload_motion_module = False
                 else:
                     if inpainting:
                         logger.info(f"No inpainter set and creation is disabled; using base pipeline for inpainting.")

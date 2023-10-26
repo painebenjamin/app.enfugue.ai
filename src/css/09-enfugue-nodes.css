@@ -492,15 +492,15 @@ enfugue-node-editor.image-editor enfugue-node-canvas enfugue-image-editor-grid {
     transition: 0.1s ease-in-out;
 }
 
-enfugue-node-editor.image-editor.has-image enfugue-node-canvas enfugue-image-editor-grid {
+enfugue-node-editor.image-editor.has-sample enfugue-node-canvas enfugue-image-editor-grid {
     opacity: 0;
 }
 
-enfugue-node-editor.image-editor.has-image enfugue-node-canvas:hover enfugue-image-editor-grid {
+enfugue-node-editor.image-editor.has-sample enfugue-node-canvas:hover enfugue-image-editor-grid {
     opacity: 1;
 }
 
-enfugue-node-editor.image-editor.has-image enfugue-node-canvas enfugue-node {
+enfugue-node-editor.image-editor.has-sample enfugue-node-canvas enfugue-node {
     display: none;
 }
 
@@ -531,10 +531,12 @@ enfugue-node-editor.image-editor enfugue-sample-chooser i {
     cursor: pointer;
     font-size: 20px;
     padding: 0 15px;
+    transition: all 0.15s ease-in-out;
 }
 
 enfugue-node-editor.image-editor enfugue-sample-chooser i.active {
     background-color: rgba(255,255,255,0.1);
+    color: var(--theme-color-primary);
 }
 
 enfugue-node-editor.image-editor enfugue-sample-chooser .tile-buttons {
@@ -571,6 +573,15 @@ enfugue-node-editor.image-editor enfugue-sample-chooser .samples {
     overflow-x: auto;
 }
 
+enfugue-node-editor.image-editor enfugue-sample-chooser .samples .no-samples {
+    flex-grow: 1;
+    width: 100%;
+    padding: 15px 0;
+    font-size: 10px;
+    color: var(--theme-color-tertiary);
+    text-align: center;
+}
+
 enfugue-node-editor.image-editor enfugue-sample-chooser .samples::-webkit-scrollbar
 {
     background: var(--dark-color);
@@ -586,13 +597,15 @@ enfugue-node-editor.image-editor enfugue-sample-chooser .samples img
     height: 100%;
     border-radius: 3px;
     cursor: pointer;
-    opacity: 0.75;
-    transition: opacity 0.25s ease-in-out;
+    outline-style: solid;
+    outline-width: 1px;
+    outline-offset: -1px;
+    outline-color: transparent;
 }
 
 enfugue-node-editor.image-editor enfugue-sample-chooser .samples img.active
 {
-    opacity: 1.0;
+    outline-color: var(--theme-color-tertiary);
 }
 
 enfugue-node-editor.image-editor enfugue-sample-chooser input {
@@ -641,6 +654,22 @@ enfugue-node-editor.image-editor enfugue-sample-chooser.animation i.play
 enfugue-node-editor.image-editor enfugue-sample-chooser.animation .samples
 {
     border-right: 1px solid rgba(0,0,0,0.1);
+    overflow-x: hidden;
+    gap: 0;
+    padding: 0;
+    cursor: pointer;
+}
+
+enfugue-node-editor.image-editor enfugue-sample-chooser.animation .samples img
+{
+    flex-shrink: 1;
+    flex-grow: 1;
+    flex-basis: 100%;
+    opacity: 1.0;
+    border-radius: 0;
+    width: auto;
+    object-fit: cover;
+    pointer-events: none;
 }
 
 enfugue-node-editor.image-editor enfugue-sample,
@@ -1181,12 +1210,6 @@ enfugue-model-table-paging ul li:hover::before {
     opacity: 0.1;
 }
 
-enfugue-invocation-outputs {
-    display: flex;
-    flex-flow: row wrap;
-    gap: 5px;
-}
-
 enfugue-model-table.invocation-history {
     margin-bottom: 5px;
 }
@@ -1398,10 +1421,17 @@ enfugue-log-glance-view .logs {
     overflow: hidden;
 }
 
+enfugue-invocation-outputs {
+    display: flex;
+    flex-flow: row wrap;
+    gap: 5px;
+}
+
 enfugue-invocation-outputs enfugue-invocation-output {
     cursor: pointer;
 }
 
-enfugue-invocation-outputs enfugue-invocation-output img {
+enfugue-invocation-outputs enfugue-invocation-output img,
+enfugue-invocation-outputs enfugue-invocation-output video {
     max-height: 50px;
 }

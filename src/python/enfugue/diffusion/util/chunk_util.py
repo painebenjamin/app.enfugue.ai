@@ -93,7 +93,7 @@ class Chunker:
         else:
             tile_x = self.tile
         if tile_x:
-            return ceil(self.latent_width / self.latent_stride[0])
+            return max(ceil(self.latent_width / self.latent_stride[0]), 1)
         return max(ceil((self.latent_width - self.latent_size[0]) / self.latent_stride[0] + 1), 1)
 
     @property
@@ -108,7 +108,7 @@ class Chunker:
         else:
             tile_y = self.tile
         if tile_y:
-            return ceil(self.latent_height / self.latent_stride[1])
+            return max(ceil(self.latent_height / self.latent_stride[1]), 1)
         return max(ceil((self.latent_height - self.latent_size[1]) / self.latent_stride[1] + 1), 1)
 
     @property
@@ -126,8 +126,8 @@ class Chunker:
         if not self.frames or not self.frame_size or not self.frame_stride:
             return 1
         if self.loop:
-            return ceil(self.frames / self.frame_stride)
-        return ceil((self.frames - self.frame_size) / self.frame_stride + 1)
+            return max(ceil(self.frames / self.frame_stride), 1)
+        return max(ceil((self.frames - self.frame_size) / self.frame_stride + 1), 1)
 
     @property
     def tile_x(self) -> bool:

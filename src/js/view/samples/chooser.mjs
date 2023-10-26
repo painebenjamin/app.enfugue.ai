@@ -1,5 +1,5 @@
 /** @module view/samples/chooser */
-import { isEmpty } from "../../base/helpers.mjs";
+import { isEmpty, isEquivalent } from "../../base/helpers.mjs";
 import { View } from "../base.mjs";
 import { ImageView } from "../image.mjs";
 import { ElementBuilder } from "../../base/builder.mjs";
@@ -76,7 +76,7 @@ class SampleChooserView extends View {
     /**
      * @var string Text to show when there are no samples
      */
-    static noSamplesLabel = "No samples yet. When you generate 1 or more images, their thumbnails will appear here.";
+    static noSamplesLabel = "No samples yet. When you generate one or more images, their thumbnails will appear here.";
 
     /**
      * Constructor creates arrays for callbacks
@@ -164,6 +164,7 @@ class SampleChooserView extends View {
      * Calls show canvas callbacks
      */
     showCanvas() {
+        this.setActiveIndex(null);
         for (let callback of this.showCanvasCallbacks) {
             callback();
         }
@@ -290,38 +291,54 @@ class SampleChooserView extends View {
      * Sets samples after initialization
      */
     async setSamples(samples) {
+        let isChanged = !isEquivalent(this.samples, samples);
         this.samples = samples;
-        if (isEmpty(this.node)) {
-            samplesContainer.content(
-                E.div().class("no-samples").content(this.constructor.noSamplesLabel)
-            );
-        } else {
+
+        if (!isEmpty(this.node)) {
             let samplesContainer = await this.node.find(".samples");
-            samplesContainer.empty();
-            for (let i in this.samples) {
-                let imageView,
-                    imageViewNode,
-                    sample = this.samples[i];
+            if (isEmpty(this.samples)) {
+                samplesContainer.content(
+                    E.div().class("no-samples").content(this.constructor.noSamplesLabel)
+                );
+            } else if (isChanged) {
+                let samplesContainer = await this.node.find(".samples");
+                samplesContainer.empty();
+                for (let i in this.samples) {
+                    let imageView,
+                        imageViewNode,
+                        sample = this.samples[i];
 
-                if (this.imageViews.length <= i) {
-                    imageView = new ImageView(this.config, sample, !this.isAnimation);
-                    imageViewNode = await imageView.getNode();
-                    imageViewNode.on("click", () => {
-                        this.setActiveIndex(i);
-                    });
-                    this.imageViews.push(imageView);
-                } else {
-                    imageView = this.imageViews[i];
-                    imageView.setImage(sample);
-                    imageViewNode = await imageView.getNode();
-                }
-                if (this.activeIndex !== null && this.activeIndex == i) {
-                    imageView.addClass("active");
-                } else {
-                    imageView.removeClass("active");
-                }
+                    if (this.imageViews.length <= i) {
+                        imageView = new ImageView(this.config, sample, false);
+                        await imageView.waitForLoad();
+                        imageViewNode = await imageView.getNode();
+                        imageViewNode.on("click", () => {
+                            this.setActiveIndex(i);
+                        });
+                        this.imageViews.push(imageView);
+                    } else {
+                        imageView = this.imageViews[i];
+                        imageView.setImage(sample);
+                        await imageView.waitForLoad();
+                        imageViewNode = await imageView.getNode();
+                    }
 
-                samplesContainer.append(imageViewNode);
+                    if (this.activeIndex !== null && this.activeIndex == i) {
+                        imageView.addClass("active");
+                    } else {
+                        imageView.removeClass("active");
+                    }
+
+                    if (this.isAnimation) {
+                        let widthPercentage = 100.0 / this.samples.length;
+                        imageViewNode.css("width", `${widthPercentage}%`);
+                    } else {
+                        imageViewNode.css("width", null);
+                    }
+
+                    samplesContainer.append(imageViewNode);
+                }
+                samplesContainer.render();
             }
         }
     }
@@ -368,15 +385,52 @@ class SampleChooserView extends View {
                     playAnimation.toggleClass("active");
                     this.setPlayAnimation(playAnimation.hasClass("active"), false);
                 }),
-            samplesContainer = E.div()
-                .class("samples")
-                .on("wheel", (e) => {
+            samplesContainer = E.div().class("samples");
+
+        let isScrubbing = false,
+            getFrameIndexFromMousePosition = (e) => {
+                let sampleContainerWidth = samplesContainer.element.getBoundingClientRect().width,
+                    clickRatio = e.offsetX / sampleContainerWidth;
+                return Math.floor(clickRatio * this.samples.length);
+            };
+
+        samplesContainer
+            .on("wheel", (e) => {
+                e.preventDefault();
+                samplesContainer.element.scrollLeft += e.deltaY / 10;
+            })
+            .on("mouseleave", (e) => {
+                isScrubbing = false;
+            })
+            .on("mousedown", (e) => {
+                if (this.isAnimation) {
                     e.preventDefault();
-                    samplesContainer.element.scrollLeft += e.deltaY / 10;
-                });
+                    e.stopPropagation();
+                    isScrubbing = true;
+                    this.setActiveIndex(getFrameIndexFromMousePosition(e));
+                }
+            })
+            .on("mousemove", (e) => {
+                if (this.isAnimation) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (isScrubbing) {
+                        this.setActiveIndex(getFrameIndexFromMousePosition(e));
+                    }
+                }
+            })
+            .on("mouseup", (e) => {
+                if (this.isAnimation) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    isScrubbing = false;
+                }
+            });
 
         if (isEmpty(this.samples)) {
-            samplesContainer.append(E.div().class("no-samples").content(this.constructor.noSamplesLabel));
+            samplesContainer.append(
+                E.div().class("no-samples").content(this.constructor.noSamplesLabel)
+            );
         } else {
             for (let i in this.samples) {
                 let imageView,
@@ -384,7 +438,7 @@ class SampleChooserView extends View {
                     sample = this.samples[i];
 
                 if (this.imageViews.length <= i) {
-                    imageView = new ImageView(this.config, sample, !this.isAnimation);
+                    imageView = new ImageView(this.config, sample, false);
                     imageViewNode = await imageView.getNode();
                     imageViewNode.on("click", () => {
                         this.setActiveIndex(i);

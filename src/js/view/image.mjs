@@ -254,12 +254,10 @@ class ImageView extends View {
     async build() {
         let node = await super.build();
         if (!isEmpty(this.src)) {
-            await this.waitForLoad();
             node.attr("src", this.src);
         }
         return node;
     }
-
 }
 
 /**

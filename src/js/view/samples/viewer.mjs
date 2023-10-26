@@ -27,7 +27,7 @@ class SampleView extends View {
     constructor(config) {
         super(config);
         this.animationViews = (new Array(9)).fill(null).map(() => new AnimationView(this.config));
-        this.imageViews = (new Array(9)).fill(null).map(() => new ImageView(this.config));
+        this.imageViews = (new Array(9)).fill(null).map((_, i) => new ImageView(this.config, null, i === 4));
         this.image = null;
         this.tileHorizontal = false;
         this.tileVertical = false;
@@ -87,9 +87,18 @@ class SampleView extends View {
                 animationView.setImages(image);
                 animationView.setFrame(0);
             }
-        } else {
+            this.show();
+        } else if (!isEmpty(this.image)) {
             for (let imageView of this.imageViews) {
                 imageView.setImage(image);
+            }
+            Promise.all(this.imageViews.map((v) => v.waitForLoad())).then(
+                () => this.show()
+            );
+        } else {
+            this.hide();
+            for (let animationView of this.animationViews) {
+                animationView.clearCanvas();
             }
         }
         window.requestAnimationFrame(() => this.checkVisibility());

@@ -64,7 +64,10 @@ class TemporalAttention(Attention):
         )
 
     def set_scale_multiplier(self, multiplier: float = 1.0) -> None:
-        self.scale = math.sqrt((math.log(48) / math.log(48//8)) / (self.inner_dim // self.heads)) * multiplier
+        self.scale = math.sqrt((math.log(24) / math.log(24//4)) / (self.inner_dim // self.heads)) * multiplier
+
+    def reset_scale_multiplier(self) -> None:
+        self.scale = (self.inner_dim // self.heads) ** -0.5
 
     def forward(self, hidden_states, encoder_hidden_states=None, attention_mask=None, number_of_frames=8):
         sequence_length = hidden_states.shape[1]
@@ -127,6 +130,10 @@ class TransformerTemporal(nn.Module):
     def set_attention_scale_multiplier(self, attention_scale: float = 1.0) -> None:
         for block in self.transformer_blocks:
             block.set_attention_scale_multiplier(attention_scale)
+
+    def reset_attention_scale_multiplier(self) -> None:
+        for block in self.transformer_blocks:
+            block.reset_attention_scale_multiplier()
 
     def forward(self, hidden_states, encoder_hidden_states=None):
         _, num_channels, f, height, width = hidden_states.shape
@@ -195,6 +202,10 @@ class TransformerBlock(nn.Module):
     def set_attention_scale_multiplier(self, attention_scale: float = 1.0) -> None:
         for block in self.attention_blocks:
             block.set_scale_multiplier(attention_scale)
+
+    def reset_attention_scale_multiplier(self) -> None:
+        for block in self.attention_blocks:
+            block.reset_scale_multiplier()
 
     def forward(self, hidden_states, encoder_hidden_states=None, attention_mask=None, number_of_frames=None):
 

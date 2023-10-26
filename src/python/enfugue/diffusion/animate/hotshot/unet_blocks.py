@@ -402,6 +402,10 @@ class CrossAttnDownBlock3D(nn.Module):
         for temporal_attention in self.temporal_attentions:
             temporal_attention.set_attention_scale_multiplier(scale)
 
+    def reset_temporal_attention_scale(self) -> None:
+        for temporal_attention in self.temporal_attentions:
+            temporal_attention.reset_attention_scale_multiplier()
+
     def temporal_parameters(self) -> list:
         output = []
         for block in self.temporal_attentions:
@@ -477,6 +481,10 @@ class DownBlock3D(nn.Module):
     def set_temporal_attention_scale(self, scale: float = 1.0) -> None:
         for temporal_attention in self.temporal_attentions:
             temporal_attention.set_attention_scale_multiplier(scale)
+    
+    def reset_temporal_attention_scale(self) -> None:
+        for temporal_attention in self.temporal_attentions:
+            temporal_attention.reset_attention_scale_multiplier()
 
     def forward(self, hidden_states, temb=None, encoder_hidden_states=None, enable_temporal_attentions: bool = True):
         output_states = ()
@@ -610,6 +618,10 @@ class CrossAttnUpBlock3D(nn.Module):
         for temporal_attention in self.temporal_attentions:
             temporal_attention.set_attention_scale_multiplier(scale)
 
+    def reset_temporal_attention_scale(self) -> None:
+        for temporal_attention in self.temporal_attentions:
+            temporal_attention.reset_attention_scale_multiplier()
+
     def forward(
             self,
             hidden_states,
@@ -738,6 +750,10 @@ class UpBlock3D(nn.Module):
     def set_temporal_attention_scale(self, scale: float = 1.0) -> None:
         for temporal_attention in self.temporal_attentions:
             temporal_attention.set_attention_scale_multiplier(scale)
+
+    def reset_temporal_attention_scale(self) -> None:
+        for temporal_attention in self.temporal_attentions:
+            temporal_attention.reset_attention_scale_multiplier()
 
     def forward(self, hidden_states, res_hidden_states_tuple, temb=None, upsample_size=None, encoder_hidden_states=None,
                 enable_temporal_attentions: bool = True):

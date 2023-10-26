@@ -15,10 +15,6 @@ import {
     DownscaleFormView
 } from "../../forms/enfugue/upscale.mjs";
 
-const testImages = (new Array(16)).fill(null).map((v,i) => {
-    return `/api/invocation/images/395270d8d3924875909d6f79b2186335_${i}.png`
-});
-
 /**
  * This is the main controller that manages state and views
  */
@@ -443,14 +439,50 @@ class SamplesController extends Controller {
     }
 
     /**
+     * Gets sample IDs mapped to images
+     */
+    get sampleUrls() {
+        return isEmpty(this.samples)
+            ? []
+            : this.isIntermediate
+                ? this.samples.map((v) => `${this.model.api.baseUrl}/invocation/intermediates/${v}.png`)
+                : this.samples.map((v) => `${this.model.api.baseUrl}/invocation/images/${v}.png`);
+    }
+
+    /**
+     * Gets sample IDs mapped to thumbnails
+     */
+    get thumbnailUrls() {
+        return isEmpty(this.samples)
+            ? []
+            : this.isIntermediate
+                ? this.samples.map((v) => `${this.model.api.baseUrl}/invocation/intermediates/${v}.png`)
+                : this.samples.map((v) => `${this.model.api.baseUrl}/invocation/thumbnails/${v}.png`);
+    }
+
+    /**
      * Sets samples
      */
-    setSamples(samples, isAnimation) {
+    setSamples(sampleImages, isAnimation) {
+        // Get IDs from samples
+        if (isEmpty(sampleImages)) {
+            this.samples = null;
+            this.images.removeClass("has-sample");
+        } else {
+            this.samples = sampleImages.map((v) => v.split("/").slice(-1)[0].split(".")[0]);
+            this.images.addClass("has-sample");
+        }
+
+        this.isIntermediate = !isEmpty(this.samples) && sampleImages[0].indexOf("intermediate") !== -1;
         this.isAnimation = isAnimation;
-        this.samples = samples;
         this.sampleChooser.setIsAnimation(isAnimation);
-        this.sampleChooser.setSamples(samples);
-        this.sampleViewer.setImage(isAnimation ? samples : samples[0]);
+        this.sampleChooser.setSamples(this.thumbnailUrls).then(() => {
+            this.sampleChooser.setActiveIndex(this.activeIndex, false);
+        });
+        this.sampleViewer.setImage(isAnimation ? this.sampleUrls : isEmpty(this.activeIndex) ? null : this.sampleUrls[this.activeIndex]);
+        if (this.isAnimation) {
+            this.sampleViewer.setFrame(this.activeIndex);
+        }
     }
 
     /**
@@ -466,9 +498,16 @@ class SamplesController extends Controller {
     setActive(activeIndex) {
         this.activeIndex = activeIndex;
         if (this.isAnimation) {
+            this.sampleChooser.setActiveIndex(activeIndex, false);
             this.sampleViewer.setFrame(activeIndex);
         } else {
-            // set image
+            this.sampleViewer.setImage(this.sampleUrls[this.activeIndex]);
+        }
+        if (isEmpty(activeIndex)) {
+            this.images.removeClass("has-sample");
+        } else {
+            this.images.addClass("has-sample");
+            this.sampleViewer.show();
         }
     }
 
@@ -476,6 +515,7 @@ class SamplesController extends Controller {
      * Ticks the animation to the next frame
      */
     tickAnimation() {
+        if (isEmpty(this.samples)) return;
         let frameStart = (new Date()).getTime();
         requestAnimationFrame(() => {
             let activeIndex = this.activeIndex,
@@ -492,7 +532,11 @@ class SamplesController extends Controller {
                     return;
                 }
                 let frameTime = (new Date()).getTime() - frameStart;
-                setTimeout(() => this.tickAnimation(), this.frameTime - frameTime);
+                clearTimeout(this.tick);
+                this.tick = setTimeout(
+                    () => this.tickAnimation(),
+                    this.frameTime - frameTime
+                );
             }
         });
     }
@@ -517,7 +561,13 @@ class SamplesController extends Controller {
                 // Reset animation
                 this.setActive(0);
             }
-            setTimeout(() => this.tickAnimation(), this.frameTime);
+            clearTimeout(this.tick);
+            this.tick = setTimeout(
+                () => this.tickAnimation(),
+                this.frameTime
+            );
+        } else {
+            clearTimeout(this.tick);
         }
         if (updateChooser) {
             this.sampleChooser.setPlayAnimation(playing);
@@ -563,6 +613,17 @@ class SamplesController extends Controller {
     }
 
     /**
+     * Shows the canvas, hiding samples
+     */
+    async showCanvas(updateChooser = true) {
+        this.setPlay(false);
+        this.sampleViewer.hide();
+        if (updateChooser) {
+            this.sampleChooser.setActiveIndex(null);
+        }
+    }
+
+    /**
      * On initialize, add DOM nodes
      */
     async initialize() {
@@ -591,10 +652,51 @@ class SamplesController extends Controller {
 
         // Add sample viewer to canvas
         imageEditor.find("enfugue-node-canvas").append(await this.sampleViewer.getNode());
-        
-        setTimeout(() => {
-            this.setSamples(testImages, true);
-        }, 1000);
+    }
+
+    /**
+     * Gets default state, no samples
+     */
+    getDefaultState() {
+        return {
+            "samples": {
+                "urls": null,
+                "active": null,
+                "animation": false
+            }
+        };
+    }
+
+    /**
+     * Get state is only for UI; only use the sample choosers here
+     */
+    getState(includeImages = true) {
+        if (!includeImages) {
+            return this.getDefaultState();
+        }
+
+        return {
+            "samples": {
+                "urls": this.sampleUrls,
+                "active": this.activeIndex,
+                "animation": this.isAnimation
+            }
+        };
+    }
+
+    /**
+     * Set state is only for UI; set the sample choosers here
+     */
+    setState(newState) {
+        if (isEmpty(newState) || isEmpty(newState.samples) || isEmpty(newState.samples.urls)) {
+            this.setSamples(null);
+        } else {
+            this.activeIndex = newState.samples.active;
+            this.setSamples(
+                newState.samples.urls,
+                newState.samples.animation === true
+            );
+        }
     }
 }
 

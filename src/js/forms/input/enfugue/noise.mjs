@@ -27,7 +27,7 @@ class NoiseMethodInputView extends SelectInputView {
     /**
      * @var string Default value
      */
-    static defaultValue = "perlin";
+    static defaultValue = "simplex";
 
     /**
      * @var string tooltip

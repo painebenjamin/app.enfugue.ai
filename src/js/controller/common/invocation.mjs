@@ -11,8 +11,6 @@ const E = new ElementBuilder({
     "invocationDuration": "enfugue-invocation-duration",
     "invocationIterations": "enfugue-invocation-iterations",
     "invocationRemaining": "enfugue-invocation-remaining",
-    "invocationSampleChooser": "enfugue-invocation-sample-chooser",
-    "invocationSample": "enfugue-invocation-sample",
     "engineStop": "enfugue-engine-stop"
 });
 
@@ -926,7 +924,7 @@ class InvocationController extends Controller {
     /**
      * @return bool Tile along the vertical dimension
      */
-    get tileHorizontal() {
+    get tileVertical() {
         let tile = this.kwargs.tile;
         if (isEmpty(tile)) return false;
         return tile[1];
@@ -953,9 +951,8 @@ class InvocationController extends Controller {
             E.invocationTask().hide(),
             E.invocationRemaining().hide()
         );
-        this.invocationSampleChooser = E.invocationSampleChooser().hide();
         this.engineStop = E.engineStop().content("Stop Engine").on("click", () => { this.stopEngine() });
-        (await this.images.getNode()).append(this.loadingBar).append(this.invocationSampleChooser);
+        (await this.images.getNode()).append(this.loadingBar);
         this.application.container.appendChild(await this.engineStop.render());
         this.subscribe("engineReady", () => {
             this.enableStop();
@@ -966,13 +963,6 @@ class InvocationController extends Controller {
         this.subscribe("engineIdle", () => {
             this.disableStop();
         });
-    }
-
-    /**
-     * Hides the sample chooser from outside the controller.
-     */
-    hideSampleChooser() {
-        this.invocationSampleChooser.hide();
     }
 
     /**
@@ -1027,6 +1017,8 @@ class InvocationController extends Controller {
                     parseInt(invocationPayload.height) || 512
                 );
             } else {
+                this.startAnimation = !isEmpty(invocationPayload.animation_frames) && invocationPayload.animation_frames > 0;
+                this.application.samples.resetState();
                 await this.canvasInvocation(result.uuid);
             }
         }
@@ -1050,6 +1042,22 @@ class InvocationController extends Controller {
                 else if (!isEmpty(e.title)) errorMessage = e.title;
                 this.notify("error", "Error", `Received an error when stopping. The engine may still be stopped, wait a moment and check again. ${errorMessage}`);
             }
+        }
+    }
+
+    /**
+     * Sets the sample images on the canvas and chooser
+     */
+    setSampleImages(images) {
+        // Get IDs from images
+        this.application.samples.setSamples(
+            images,
+            !isEmpty(this.animationFrames) && this.animationFrames > 0
+        );
+        if (this.startAnimation) {
+            this.application.samples.setLoop(true);
+            this.application.samples.setPlay(true);
+            this.startAnimation = false;
         }
     }
 
@@ -1147,68 +1155,6 @@ class InvocationController extends Controller {
                 }
             };
         checkInvocation();
-    }
-
-    /**
-     * Sets the sample images on the canvas and chooser
-     */
-    setSampleImages(images) {
-        this.application.samples.setSamples(images, !isEmpty(this.animationFrames) && this.animationFrames > 0);
-        let currentSampleCount = this.invocationSampleChooser.children().length;
-        if (isEmpty(images)) {
-            this.images.hideCurrentInvocation();
-            this.invocationSampleChooser.empty().hide();
-            return;
-        } else if (currentSampleCount === 0) {
-            if (this.invocationSampleIndex === null) {
-                this.invocationSampleIndex = 0;
-            }
-            this.invocationSampleChooser.append(
-                E.invocationSample().class("no-sample").content("×").on("click", () => {
-                    this.invocationSampleIndex = null;
-                    this.images.hideCurrentInvocation();
-                })
-            );
-        } else {
-            currentSampleCount--;
-        }
-
-        for (let i = 0; i < images.length; i++) {
-            let imageNode = new Image();
-            if (i >= currentSampleCount) {
-                // Go ahead and add it right away
-                imageNode.src = images[i];
-                let sampleNode = E.invocationSample().content(imageNode).on("click", () => {
-                    this.images.setCurrentInvocationImage(images[i]);
-                    this.invocationSampleIndex = i;
-                });
-                this.invocationSampleChooser.append(sampleNode);
-            } else {
-                // Wait for it to load to avoid flash
-                let imageContainer = this.invocationSampleChooser.getChild(i+1);
-                imageContainer.off("click").on("click", () => {
-                    this.images.setCurrentInvocationImage(images[i]);
-                    this.invocationSampleIndex = i;
-                });
-                imageNode.onload = () => {
-                    imageContainer.content(imageNode);
-                }
-                imageNode.src = images[i];
-            }
-        }
-
-        if (!isEmpty(this.invocationSampleIndex)) {
-            this.images.setCurrentInvocationImage(images[this.invocationSampleIndex]);
-        }
-        this.invocationSampleChooser.show().render();
-    }
-
-    /**
-     * Sets the sample frames on the canvas time scrubber
-     */
-    setSampleFrames(images) {
-        this.images.hideCurrentInvocation();
-        this.invocationSampleChooser.empty().hide();
     }
 
     /**
@@ -1348,9 +1294,6 @@ class InvocationController extends Controller {
             };
 
         this.loadingBar.addClass("loading");
-        this.images.hideCurrentInvocation();
-        this.invocationSampleChooser.empty();
-        this.invocationSampleIndex = null;
 
         window.requestAnimationFrame(() => updateEstimate());
         this.monitorInvocation(uuid, onTaskChanged, onImagesReceived, onError, onEstimatedDuration);
@@ -1407,47 +1350,6 @@ class InvocationController extends Controller {
             onError = () => receivedFirstImage = true;
         this.monitorInvocation(uuid, onImagesReceived, onError);
         await waitFor(() => receivedFirstImage === true);
-    }
-
-    /**
-     * Gets default state, no samples
-     */
-    getDefaultState() {
-        return {
-            "samples": null,
-            "sample": null
-        };
-    }
-
-    /**
-     * Get state is only for UI; only use the sample choosers here
-     */
-    getState(includeImages = true) {
-        if (!includeImages) {
-            return this.getDefaultState();
-        }
-        let chooserChildren = this.invocationSampleChooser.children();
-        if (chooserChildren.length < 2) {
-            return this.getDefaultState();
-        }
-        return {
-            "sample": this.invocationSampleIndex,
-            "samples": chooserChildren.slice(1).map((container) => container.getChild(0).src)
-        };
-    }
-
-    /**
-     * Set state is only for UI; set the sample choosers here
-     */
-    setState(newState) {
-        this.invocationSampleChooser.empty();
-        if (isEmpty(newState) || isEmpty(newState.samples)) {
-            this.invocationSampleIndex = null;
-            this.invocationSampleChooser.hide();
-        } else {
-            this.invocationSampleIndex = newState.sample;
-            this.setSampleImages(newState.samples);
-        }
     }
 }
 

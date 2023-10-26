@@ -184,36 +184,6 @@ class ImageEditorView extends NodeEditorView {
     }
 
     /**
-     * Get state, includes current invocation
-     */
-    getState(includeImages = true) {
-        let state = super.getState(includeImages);
-        if (this.hasClass("has-image") && includeImages) {
-            return {
-                "image": this.currentInvocation.src,
-                "nodes": state
-            };
-        }
-        return state;
-    }
-
-    /**
-     * Set state, may include current invocation
-     */
-    setState(newState) {
-        if (Array.isArray(newState)) {
-            this.hideCurrentInvocation();
-            return super.setState(newState);
-        }
-        if (isEmpty(newState.image)) {
-            this.hideCurrentInvocation();
-        } else {
-            this.setCurrentInvocationImage(newState.image);
-        }
-        return super.setState(newState.nodes);
-    }
-
-    /**
      * Gets base state when initializing from an image
      */
     static getNodeDataForImage(image) {

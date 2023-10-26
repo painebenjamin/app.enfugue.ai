@@ -122,7 +122,7 @@ class CanvasFormView extends FormView {
     async submit() {
         await super.submit();
         let chunkInput = (await this.getInputView("useChunking"));
-        if (this.values.tileHorizontally || this.values.tileVertically) {
+        if (this.values.tileHorizontal || this.values.tileVertical) {
             this.removeClass("no-chunking");
             chunkInput.setValue(true, false);
             chunkInput.disable();

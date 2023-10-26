@@ -37,16 +37,21 @@ class AnimationView extends View {
      * On set image, wait for load then trigger callbacks
      */
     setImages(images) {
-        this.loaded = false;
         this.images = images;
-        this.imageViews = images.map(
-            (image) => new ImageView(this.config, image, false)
-        );
-        Promise.all(
-            this.imageViews.map(
-                (imageView) => imageView.waitForLoad()
-            )
-        ).then(() => this.imagesLoaded());
+        if (isEmpty(images)) {
+            this.loaded = true;
+            this.clearCanvas();
+        } else {
+            this.loaded = false;
+            this.imageViews = images.map(
+                (image) => new ImageView(this.config, image, false)
+            );
+            Promise.all(
+                this.imageViews.map(
+                    (imageView) => imageView.waitForLoad()
+                )
+            ).then(() => this.imagesLoaded());
+        }
     }
 
     /**
@@ -55,20 +60,22 @@ class AnimationView extends View {
     async imagesLoaded() {
         this.loaded = true;
 
-        this.width = this.imageViews[0].width;
-        this.height = this.imageViews[0].height;
+        if (!isEmpty(this.imageViews)) {
+            this.width = this.imageViews[0].width;
+            this.height = this.imageViews[0].height;
 
-        this.canvas.width = this.width;
-        this.canvas.height = this.height;
+            this.canvas.width = this.width;
+            this.canvas.height = this.height;
 
-        let context = this.canvas.getContext("2d");
-        context.drawImage(this.imageViews[0].image, 0, 0);
+            let context = this.canvas.getContext("2d");
+            context.drawImage(this.imageViews[0].image, 0, 0);
 
-        if (this.node !== undefined) {
-            this.node.css({
-                "width": this.width,
-                "height": this.height
-            });
+            if (this.node !== undefined) {
+                this.node.css({
+                    "width": this.width,
+                    "height": this.height
+                });
+            }
         }
 
         for (let callback of this.loadedCallbacks) {
@@ -87,6 +94,7 @@ class AnimationView extends View {
      * Sets the frame index
      */
     setFrame(index) {
+        if (isEmpty(index)) index = 0;
         this.frame = index;
         if (this.loaded) {
             let context = this.canvas.getContext("2d");
@@ -94,6 +102,14 @@ class AnimationView extends View {
         } else {
             this.waitForLoad().then(() => this.setFrame(index));
         }
+    }
+
+    /**
+     * Clears the canvas
+     */
+    clearCanvas() {
+        let context = this.canvas.getContext("2d");
+        context.clearRect(0, 0, this.canvas.width, this.canvas.height);
     }
 
     /**

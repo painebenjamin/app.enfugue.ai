@@ -43,7 +43,7 @@ class EnfugueAPIInvocationController(EnfugueAPIControllerBase):
         """
         Gets the height of thumbnails.
         """
-        return self.configuration.get("enfugue.thumbnail", 200)
+        return self.configuration.get("enfugue.thumbnail", 150)
 
     def get_default_model(self, model: str) -> Optional[str]:
         """
@@ -280,12 +280,61 @@ class EnfugueAPIInvocationController(EnfugueAPIControllerBase):
             raise NotFoundError(f"No image at {file_path}")
         return image_path
 
+    @handlers.path("^/api/invocation/animation/images/(?P<file_path>.+)$")
+    @handlers.download()
+    @handlers.methods("GET")
+    @handlers.compress()
+    @handlers.cache()
+    @handlers.reverse("Animation", "/api/invocation/animation/images/{file_path}")
+    @handlers.bypass(
+        UserRESTExtensionServerBase,
+        UserExtensionServerBase,
+        ORMMiddlewareBase,
+        SessionExtensionServerBase,
+        UserExtensionTemplateServer,
+    )  # bypass processing for speed
+    def download_animation(self, request: Request, response: Response, file_path: str) -> str:
+        """
+        Downloads all results of an invocation as a video
+        """
+        video_path = os.path.join(self.manager.engine_image_dir, file_path)
+        if not os.path.exists(video_path) or bool(request.params.get("overwrite", 0)):
+            from enfugue.diffusion.util import Video
+
+            images = []
+            image_id, _ = os.path.splitext(os.path.basename(video_path))
+            frame = 0
+
+            while True:
+                image_path = os.path.join(self.manager.engine_image_dir, f"{image_id}_{frame}.png")
+                if not os.path.exists(image_path):
+                    break
+                from enfugue.util import logger
+                logger.error(f"{image_path} exists")
+                images.append(image_path)
+                frame += 1
+
+            if not images:
+                raise NotFoundError(f"No images for ID {image_id}")
+            try:
+                rate = float(request.params.get("rate", 8.0))
+            except:
+                rate = 8.0
+
+            frames = [
+                PIL.Image.open(image) for image in images
+            ]
+
+            Video(frames).save(video_path, rate=rate, overwrite=True)
+
+        return video_path
+
     @handlers.path("^/api/invocation/thumbnails/(?P<file_path>.+)$")
     @handlers.download()
     @handlers.methods("GET")
     @handlers.compress()
     @handlers.cache()
-    @handlers.reverse("Image", "/api/invocation/thumbnails/{file_path}")
+    @handlers.reverse("Thumbnail", "/api/invocation/thumbnails/{file_path}")
     @handlers.bypass(
         UserRESTExtensionServerBase,
         UserExtensionServerBase,
@@ -308,6 +357,57 @@ class EnfugueAPIInvocationController(EnfugueAPIControllerBase):
             scale = self.thumbnail_height / height
             image.resize((int(width * scale), int(height * scale))).save(thumbnail_path)
         return thumbnail_path
+
+    @handlers.path("^/api/invocation/animation/thumbnails/(?P<file_path>.+)$")
+    @handlers.download()
+    @handlers.methods("GET")
+    @handlers.compress()
+    @handlers.cache()
+    @handlers.reverse("AnimationThumbnail", "/api/invocation/animation/thumbnails/{file_path}")
+    @handlers.bypass(
+        UserRESTExtensionServerBase,
+        UserExtensionServerBase,
+        ORMMiddlewareBase,
+        SessionExtensionServerBase,
+        UserExtensionTemplateServer,
+    )  # bypass processing for speed
+    def download_animation_thumbnail(self, request: Request, response: Response, file_path: str) -> str:
+        """
+        Downloads all results of an invocation as a thumbnail video
+        """
+        video_path = os.path.join(self.manager.engine_image_dir, file_path)
+        if not os.path.exists(video_path) or bool(request.params.get("overwrite", 0)):
+            from enfugue.diffusion.util import Video
+            images = []
+            image_id, _ = os.path.splitext(os.path.basename(video_path))
+            frame = 0
+
+            while True:
+                image_path = os.path.join(self.manager.engine_image_dir, f"{image_id}_{frame}.png")
+                if not os.path.exists(image_path):
+                    break
+                from enfugue.util import logger
+                logger.error(f"{image_path} exists")
+                images.append(image_path)
+                frame += 1
+
+            if not images:
+                raise NotFoundError(f"No images for ID {image_id}")
+
+            frames = []
+            for image in images:
+                image = PIL.Image.open(image)
+                width, height = image.size
+                scale = self.thumbnail_height / height
+                frames.append(image.resize((int(width * scale), int(height * scale))))
+            try:
+                rate = float(request.params.get("rate", 8.0))
+            except:
+                rate = 8.0
+
+            Video(frames).save(video_path, rate=rate, overwrite=True)
+
+        return video_path
 
     @handlers.path("^/api/invocation/nsfw$")
     @handlers.methods("GET")

@@ -74,11 +74,11 @@ class VanillaTemporalModule(nn.Module):
         if zero_initialize:
             self.temporal_transformer.proj_out = zero_module(self.temporal_transformer.proj_out)
 
-    def set_pe_length(self, pe_len: int) -> None:
-        self.temporal_transformer.set_pe_length(pe_len)
-
     def set_attention_scale_multiplier(self, attention_scale: float = 1.0) -> None:
         self.temporal_transformer.set_attention_scale_multiplier(attention_scale)
+
+    def reset_attention_scale_multiplier(self) -> None:
+        self.temporal_transformer.reset_attention_scale_multiplier()
 
     def forward(self, input_tensor, temb, encoder_hidden_states, attention_mask=None, anchor_frame_idx=None):
         hidden_states = input_tensor
@@ -138,13 +138,13 @@ class TemporalTransformer3DModel(nn.Module):
         )
         self.proj_out = nn.Linear(inner_dim, in_channels)
 
-    def set_pe_length(self, pe_len: int) -> None:
-        for block in self.transformer_blocks:
-            block.set_pe_length(pe_len)
-
     def set_attention_scale_multiplier(self, attention_scale: float = 1.0) -> None:
         for block in self.transformer_blocks:
             block.set_attention_scale_multiplier(attention_scale)
+
+    def reset_attention_scale_multiplier(self) -> None:
+        for block in self.transformer_blocks:
+            block.reset_attention_scale_multiplier()
 
     def forward(self, hidden_states, encoder_hidden_states=None, attention_mask=None):
         assert hidden_states.dim() == 5, f"Expected hidden_states to have ndim=5, but got ndim={hidden_states.dim()}."
@@ -222,13 +222,13 @@ class TemporalTransformerBlock(nn.Module):
         self.ff = FeedForward(dim, dropout=dropout, activation_fn=activation_fn)
         self.ff_norm = nn.LayerNorm(dim)
 
-    def set_pe_length(self, pe_len: int) -> None:
-        for block in self.attention_blocks:
-            block.set_pe_length(pe_len)
-
     def set_attention_scale_multiplier(self, attention_scale: float = 1.0) -> None:
         for block in self.attention_blocks:
             block.set_scale_multiplier(attention_scale)
+
+    def reset_attention_scale_multiplier(self) -> None:
+        for block in self.attention_blocks:
+            block.reset_scale_multiplier()
 
     def forward(self, hidden_states, encoder_hidden_states=None, attention_mask=None, video_length=None):
         for attention_block, norm in zip(self.attention_blocks, self.norms):
@@ -261,13 +261,6 @@ class PositionalEncoding(nn.Module):
         pe[0, :, 1::2] = torch.cos(position * div_term)
         self.register_buffer('pe', pe)
 
-    def set_pe_length(self, pe_len: int) -> None:
-        current_len = self.pe.shape[1]
-        tensor = rearrage(self.pe, "(t b) f d -> t b f d", t=1)
-        tensor = F.interpolate(tensor, size=(pe_len, pe_shape[-1]), mode="bilinear")
-        self.pe = rearrange(tensor, "t b f d -> (t b) f d", t=1)
-        del tensor
-
     def forward(self, x):
         x = x + self.pe[:, :x.size(1)]
         return self.dropout(x)
@@ -296,10 +289,13 @@ class VersatileAttention(Attention):
         ) if (temporal_position_encoding and attention_mode == "Temporal") else None
 
     def set_scale_multiplier(self, multiplier: float = 1.0) -> None:
+        if not hasattr(self, "_default_scale"):
+            self._default_scale = self.scale
         self.scale = math.sqrt((math.log(24) / math.log(24//4)) / (self.inner_dim // self.heads)) * multiplier
 
-    def set_pe_length(self, pe_len: int) -> None:
-        self.pos_encoder.set_pe_length(pe_len)
+    def reset_scale_multiplier(self) -> None:
+        if hasattr(self, "_default_scale"):
+            self.scale = self._default_scale
 
     def reshape_heads_to_batch_dim(self, tensor):
         batch_size, seq_len, dim = tensor.shape

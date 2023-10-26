@@ -857,7 +857,7 @@ class Application {
                 return;
             }
         }
-        this.images.hideCurrentInvocation();
+        this.samples.showCanvas();
         this.images.addImageNode(imageView, name);
     }
 
@@ -877,7 +877,7 @@ class Application {
      * Gets all stateful controllers
      */
     getStatefulControllers() {
-        let controllerArray = [this.modelPicker, this.engine].concat(this.toolbarControllers).concat(this.sidebarControllers);
+        let controllerArray = [this.modelPicker, this.samples].concat(this.toolbarControllers).concat(this.sidebarControllers);
         for (let controllerName in this.menuControllers) {
             controllerArray = controllerArray.concat(this.menuControllers[controllerName]);
         }

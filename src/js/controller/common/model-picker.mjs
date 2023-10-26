@@ -268,7 +268,7 @@ class ModelPickerController extends Controller {
     setState(newState) {
         if (!isEmpty(newState.model)) {
             this.modelPickerFormView.suppressDefaults = true;
-            this.modelPickerFormView.setValues(newState.model).then(
+            this.modelPickerFormView.setValues(newState.model, false).then(
                 () => this.modelPickerFormView.submit()
             );
         }
@@ -366,8 +366,10 @@ class ModelPickerController extends Controller {
                             tensorRTStatus = {supported: false};
 
                         fullModel.status = modelStatus;
+
                         if (suppressDefaults) {
                             fullModel._relationships.config = null;
+                            fullModel._relationships.scheduler = null;
                         }
 
                         this.publish("modelPickerChange", fullModel);
