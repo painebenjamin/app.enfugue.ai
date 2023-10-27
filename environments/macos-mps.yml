@@ -13,7 +13,7 @@ dependencies:
     - torchvision==0.17.0.dev20230910
     - cheroot>=9.0.0
     - nvidia-pyindex>=1.0.9
-    - pibble[cherrypy]>=0.6
+    - pibble[cherrypy]>=0.7
     - numpy>=1.24.3
     - colored>=1.4,<1.5
     - albumentations>=0.4.3,<0.5

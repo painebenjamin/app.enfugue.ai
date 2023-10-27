@@ -607,7 +607,6 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         if model_type in ["SDXL", "SDXL-Refiner"] and num_in_channels == 9:
             logger.debug(f"Scaling VAE scaling factor by {cls.xl_inpainting_latent_scale_factor}")
             vae.config.scaling_factor *= cls.xl_inpainting_latent_scale_factor
-            logger.critical(vae.config.sample_size)
             vae.config.sample_size = 512
 
         if offload_models:
@@ -1241,28 +1240,11 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         Call the appropriate adapted fix based on pipeline class
         """
         try:
-            if self.is_sdxl:
-                # Call SDXL fix
-                return self.load_sdxl_lora_weights(
-                    pretrained_model_name_or_path_or_dict,
-                    multiplier=multiplier,
-                    dtype=dtype,
-                    **kwargs
-                )
-            elif (
-                isinstance(pretrained_model_name_or_path_or_dict, str) and
-                pretrained_model_name_or_path_or_dict.endswith(".safetensors")
-            ):
-                # Call safetensors fix
-                return self.load_safetensors_lora_weights(
-                    pretrained_model_name_or_path_or_dict,
-                    multiplier=multiplier,
-                    dtype=dtype,
-                    **kwargs
-                )
-            # Return parent
-            return super(EnfugueStableDiffusionPipeline, self).load_lora_weights( # type: ignore[misc]
-                pretrained_model_name_or_path_or_dict, **kwargs
+            return self.load_flexible_lora_weights(
+                pretrained_model_name_or_path_or_dict,
+                multiplier=multiplier,
+                dtype=dtype,
+                **kwargs
             )
         except (AttributeError, KeyError) as ex:
             if self.is_sdxl:
@@ -1285,26 +1267,47 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             unet_config=self.unet.config,
             **kwargs,
         )
-        self.load_lora_into_unet(state_dict, network_alphas=network_alphas, unet=self.unet) # type: ignore[attr-defined]
+        self.load_lora_into_unet(
+            state_dict,
+            network_alphas=network_alphas,
+            unet=self.unet,
+            _pipeline=self,
+        ) # type: ignore[attr-defined]
 
-        text_encoder_state_dict = {k: v for k, v in state_dict.items() if "text_encoder." in k}
-        if len(text_encoder_state_dict) > 0:
+        text_encoder_state_dict = dict([
+            (k, v)
+            for k, v in state_dict.items()
+            if "text_encoder." in k
+        ])
+        text_encoder_keys = len(text_encoder_state_dict)
+
+        if text_encoder_keys > 0:
+            logger.debug(f"Loading {text_encoder_keys} keys into primary text encoder with multiplier {multiplier}")
             self.load_lora_into_text_encoder( # type: ignore[attr-defined]
                 text_encoder_state_dict,
                 network_alphas=network_alphas,
                 text_encoder=self.text_encoder,
                 prefix="text_encoder",
                 lora_scale=multiplier,
+                _pipeline=self,
             )
 
-        text_encoder_2_state_dict = {k: v for k, v in state_dict.items() if "text_encoder_2." in k}
-        if len(text_encoder_2_state_dict) > 0:
+        text_encoder_2_state_dict = dict([
+            (k, v)
+            for k, v in state_dict.items()
+            if "text_encoder_2." in k
+        ])
+        text_encoder_2_keys = len(text_encoder_2_state_dict)
+
+        if text_encoder_2_keys > 0:
+            logger.debug(f"Loading {text_encoder_2_keys} keys into secondary text encoder with multiplier {multiplier}")
             self.load_lora_into_text_encoder( # type: ignore[attr-defined]
                 text_encoder_2_state_dict,
                 network_alphas=network_alphas,
                 text_encoder=self.text_encoder_2,
                 prefix="text_encoder_2",
                 lora_scale=multiplier,
+                _pipeline=self,
             )
 
     def load_motion_lora_weights(
@@ -1314,24 +1317,9 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         dtype: torch.dtype = torch.float32
     ) -> None:
         """
-        Loads motion LoRA checkpoint into the unet
+        Don't do anything in base pipeline
         """
-        for key in state_dict:
-            if "up." in key:
-                continue
-            up_key = key.replace(".down.", ".up.")
-            model_key = key.replace("processor.", "").replace("_lora", "").replace("down.", "").replace("up.", "")
-            model_key = model_key.replace("to_out.", "to_out.0.")
-            layer_infos = model_key.split(".")[:-1]
-
-            curr_layer = self.unet
-            while len(layer_infos) > 0:
-                temp_name = layer_infos.pop(0)
-                curr_layer = curr_layer.__getattr__(temp_name)
-
-            weight_down = state_dict[key].to(dtype)
-            weight_up   = state_dict[up_key].to(dtype)
-            curr_layer.weight.data += multiplier * torch.mm(weight_up, weight_down).to(curr_layer.weight.data.device)
+        logger.warning("Ignoring motion LoRA for non-animation pipeline")
 
     def load_flexible_lora_weights(
         self,
@@ -1352,6 +1340,12 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
         if any(["motion_module" in key for key in state_dict.keys()]):
             return self.load_motion_lora_weights(
+                state_dict,
+                multiplier=multiplier,
+                dtype=dtype
+            )
+        if self.is_sdxl:
+            return self.load_sdxl_lora_weights(
                 state_dict,
                 multiplier=multiplier,
                 dtype=dtype
@@ -2440,7 +2434,9 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     bottom_idx = bottom * scale_factor
                     height_idx = latent_height * scale_factor
                     width_idx = latent_width * scale_factor
+
                     tensor_for_view = torch.clone(tensor)
+
                     if wrap_x:
                         if num_frames is None:
                             tensor_for_view = torch.cat([tensor_for_view[:, :, :, left_idx:width_idx], tensor_for_view[:, :, :, :right_idx]], dim=3)
@@ -2460,10 +2456,12 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                         tensor_for_view = tensor_for_view[:, :, top_idx:bottom_idx, :]
                     else:
                         tensor_for_view = tensor_for_view[:, :, :, top_idx:bottom_idx, :]
+
                     if wrap_t:
                         tensor_for_view = torch.cat([tensor_for_view[:, :, start:num_frames, :, :], tensor_for_view[:, :, :end, :, :]], dim=2)
                     elif num_frames is not None:
                         tensor_for_view = tensor_for_view[:, :, start:end, :, :]
+
                     return tensor_for_view
 
                 def fill_value(tensor: torch.Tensor, multiplier: torch.Tensor) -> None:
@@ -2682,7 +2680,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 latent_callback is not None
                 and latent_callback_steps is not None
                 and steps_since_last_callback >= latent_callback_steps
-                and (i == num_steps - 1 or ((i + 1) > num_warmup_steps and (i + 1 ) % self.scheduler.order == 0))
+                and (i == num_steps - 1 or ((i + 1) > num_warmup_steps and (i + 1) % self.scheduler.order == 0))
             ):
                 latent_callback_value = latents
 
@@ -3143,7 +3141,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         """
         Invokes the pipeline.
         """
-        motion_scale = 1.25
+        motion_scale = 10
         # 0. Standardize arguments
         image = self.standardize_image(
             image,
@@ -3668,7 +3666,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                             dtype=encoded_prompts.dtype,
                         )
                         add_time_ids = torch.cat([add_time_ids, add_time_ids], dim=0)
-                    added_cond_kwargs["time_ids"] = add_time_ids.to(device)
+                    add_time_ids = add_time_ids.to(device).repeat(batch_size, 1)
+                    added_cond_kwargs["time_ids"] = add_time_ids
 
                 # Make sure controlnet on device
                 if self.controlnets is not None:

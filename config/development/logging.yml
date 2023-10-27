@@ -4,5 +4,11 @@ handler: stream
 stream: stdout
 level: debug
 silenced:
-    - sqlalchemy.pool.impl.NullPool # This emits errors that have been handled and doesn't give us any useful information, ignore it
+    - sqlalchemy.pool.impl.NullPool
     - http.client
+    - huggingface_hub.utils._http
+    - h5py._conv
+    - tensorflow
+    - diffusers
+    - urllib3.connectionpool
+    - torch.distributed.nn.jit.instantiator

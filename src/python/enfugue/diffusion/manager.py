@@ -796,7 +796,7 @@ class DiffusionPipelineManager:
                     self.unload_animator("VAE changing")
                 elif hasattr(self, "_animator_pipeline"):
                     logger.debug(f"Hot-swapping animator pipeline VAE to {new_vae}")
-                    self._animator_pipeline.vae = self._vae
+                    self._animator_pipeline.vae = self._animator_vae
                     if self.animator_is_sdxl:
                         self._animator_pipeline.register_to_config(
                             force_full_precision_vae = new_vae in ["xl", "stabilityai/sdxl-vae"]
@@ -941,35 +941,35 @@ class DiffusionPipelineManager:
             self._animator_size = new_animator_size
     
     @property
-    def temporal_size(self) -> int:
+    def temporal_engine_size(self) -> int:
         """
         Gets the animator temporal engine size in frames when chunking (default always.)
         """
-        if not hasattr(self, "_temporal_size"):
-            self._temporal_size = self.configuration.get("enfugue.frames", DiffusionPipelineManager.DEFAULT_TEMPORAL_SIZE)
-        return self._temporal_size
+        if not hasattr(self, "_temporal_engine_size"):
+            self._temporal_engine_size = self.configuration.get("enfugue.frames", DiffusionPipelineManager.DEFAULT_TEMPORAL_SIZE)
+        return self._temporal_engine_size
 
-    @temporal_size.setter
-    def temporal_size(self, new_temporal_size: Optional[int]) -> None:
+    @temporal_engine_size.setter
+    def temporal_engine_size(self, new_temporal_engine_size: Optional[int]) -> None:
         """
         Sets the animator engine size in pixels.
         """
-        if new_temporal_size is None:
-            if hasattr(self, "_temporal_size"):
-                if self._temporal_size != self.temporal_size and self.tensorrt_is_ready:
+        if new_temporal_engine_size is None:
+            if hasattr(self, "_temporal_engine_size"):
+                if self._temporal_engine_size != self.temporal_engine_size and self.tensorrt_is_ready:
                     self.unload_animator("engine temporal size changing")
                 elif hasattr(self, "_animator_pipeline"):
                     logger.debug("Setting animator engine size in-place.")
-                    self._animator_pipeline.temporal_engine_size = new_temporal_size # type: ignore[assignment]
-                delattr(self, "_temporal_size")
-        elif hasattr(self, "_temporal_size") and self._temporal_size != new_temporal_size:
+                    self._animator_pipeline.temporal_engine_size = new_temporal_engine_size # type: ignore[assignment]
+                delattr(self, "_temporal_engine_size")
+        elif hasattr(self, "_temporal_engine_size") and self._temporal_engine_size != new_temporal_engine_size:
             if self.tensorrt_is_ready:
                 self.unload_animator("engine size changing")
             elif hasattr(self, "_animator_pipeline"):
                 logger.debug("Setting animator temporal engine size in-place.")
-                self._animator_pipeline.temporal_engine_size = new_temporal_size
-        if new_temporal_size is not None:
-            self._temporal_size = new_temporal_size
+                self._animator_pipeline.temporal_engine_size = new_temporal_engine_size
+        if new_temporal_engine_size is not None:
+            self._temporal_engine_size = new_temporal_engine_size
 
     @property
     def chunking_size(self) -> int:
@@ -3510,7 +3510,7 @@ class DiffusionPipelineManager:
                 "cache_dir": self.engine_cache_dir,
                 "engine_size": self.animator_size,
                 "chunking_size": self.chunking_size,
-                "temporal_engine_size": self.temporal_size,
+                "temporal_engine_size": self.temporal_engine_size,
                 "temporal_chunking_size": self.temporal_chunking_size,
                 "torch_dtype": self.dtype,
                 "requires_safety_checker": self.safe,

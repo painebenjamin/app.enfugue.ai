@@ -332,7 +332,10 @@ class DiffusionEngineProcess(Process):
 
         catcher = OutputCatcher()
 
-        with ConfigurationLoggingContext(self.configuration, prefix="enfugue.engine.logging."):
+        with ConfigurationLoggingContext(
+            self.configuration,
+            prefix="enfugue.engine.logging."
+        ):
             with catcher:
                 last_data = datetime.datetime.now()
                 idle_seconds = 0.0

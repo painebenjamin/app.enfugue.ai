@@ -825,7 +825,7 @@ class Application {
         let pastedItems = (e.clipboardData || e.originalEvent.clipboardData).items;
         for (let item of pastedItems) {
             if (item.kind === "file") {
-                this.loadImage(item.getAsFile());
+                this.loadFile(item.getAsFile());
             } else {
                 item.getAsString((text) => this.onTextPaste(text));
             }
@@ -843,22 +843,58 @@ class Application {
     }
 
     /**
-     * The onImagePaste handlers put an image on the canvas, or loads metadata.
-     * @param string $image The image source as a Data URI
+     * This handler reads the file passed and determines what it is,
+     * then loads it onto the canvas if possible.
      */
-    async loadImage(image, name = "Pasted Image") {
-        let imageView = new ImageView(this.config, image);
-        await imageView.waitForLoad();
-        let stateData = this.getStateFromMetadata(imageView.metadata);
-        if (!isEmpty(stateData)) {
-            if (await this.yesNo("It looks like this image was made with Enfugue. Would you like to load the identified generation settings?")) {
-                await this.setState(stateData);
-                this.notifications.push("info", "Generation Settings Loaded", "Image generation settings were successfully retrieved from image metadata.");
-                return;
+    async loadFile(file) {
+        let reader = new FileReader();
+        reader.addEventListener("load", async () => {
+            let fileType = reader.result.substring(5, reader.result.indexOf(";")),
+                contentStart = fileType.length + 13,
+                contentAsText = () => atob(reader.result.substring(contentStart)),
+                name = "Image",
+                imageView;
+
+            switch (fileType) {
+                case "application/json":
+                    await this.setState(JSON.parse(contentAsText()));
+                    this.notifications.push("info", "Generation Settings Loaded", "Image generation settings were successfully retrieved from image metadata.");
+                    break;
+                    break;
+                case "image/png":
+                    imageView = new ImageView(this.config, reader.result);
+                    await imageView.waitForLoad();
+                    let stateData = this.getStateFromMetadata(imageView.metadata);
+                    if (!isEmpty(stateData)) {
+                        if (await this.yesNo("It looks like this image was made with Enfugue. Would you like to load the identified generation settings?")) {
+                            await this.setState(stateData);
+                            this.notifications.push("info", "Generation Settings Loaded", "Image generation settings were successfully retrieved from image metadata.");
+                            return;
+                        }
+                    }
+                case "image/gif":
+                case "image/avif":
+                case "image/jpeg":
+                case "image/bmp":
+                case "image/tiff":
+                case "image/x-icon":
+                case "image/webp":
+                    if (isEmpty(imageView)) {
+                        imageView = new ImageView(this.config, reader.result, false);
+                    }
+                    this.samples.showCanvas();
+                    this.images.addImageNode(imageView, name);
+                    break;
+                case "video/mp4":
+                    this.samples.showCanvas();
+                    this.images.addImageNode(reader.result, "Video");
+                    break;
+                default:
+                    this.notifications.push("warn", "Unhandled File Type", `File type "${fileType}" is not handled by Enfugue.`);
+                    break;
             }
-        }
-        this.samples.showCanvas();
-        this.images.addImageNode(imageView, name);
+        });
+        reader.readAsDataURL(file);
     }
 
     /**
@@ -1038,13 +1074,13 @@ class Application {
     }
 
     /**
-     * On drop, treat as image paste.
+     * On drop, treat as file paste.
      */
     onDrop(e) {
         e.preventDefault();
         e.stopPropagation();
         try {
-            this.loadImage(e.dataTransfer.files[0]);
+            this.loadFile(e.dataTransfer.files[0]);
         } catch(e) {
             console.warn(e);
         }

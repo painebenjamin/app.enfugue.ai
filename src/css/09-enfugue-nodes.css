@@ -1097,8 +1097,18 @@ form.no-animation .field-container:not(.checkbox-input-view-animation-enabled)
 }
 
 form.no-animation-chunking .field-container.number-input-view-animation-size,
-form.no-animation-chunking .field-container.number-input-view-animation-stride,
-form.no-animation-chunking .field-container.checkbox-input-view-animation-loop
+form.no-animation-chunking .field-container.number-input-view-animation-stride
+{
+    display: none;
+}
+
+form.no-animation-scaling .field-container.number-input-view-animation-motion-scale
+{
+    display: none;
+}
+
+form.no-position-slicing .field-container.number-input-view-animation-position-encoding-truncate-length,
+form.no-position-slicing .field-container.number-input-view-animation-position-encoding-scale-length
 {
     display: none;
 }

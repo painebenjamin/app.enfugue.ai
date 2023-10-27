@@ -19,13 +19,7 @@ from enfugue.api.controller.base import EnfugueAPIControllerBase
 from enfugue.database.models import DiffusionModel
 from enfugue.diffusion.manager import DiffusionPipelineManager
 from enfugue.diffusion.plan import DiffusionPlan, DiffusionStep, DiffusionNode
-from enfugue.diffusion.constants import (
-    DEFAULT_MODEL,
-    DEFAULT_INPAINTING_MODEL,
-    DEFAULT_SDXL_MODEL,
-    DEFAULT_SDXL_REFINER,
-    DEFAULT_SDXL_INPAINTING_MODEL,
-)
+from enfugue.diffusion.constants import *
 
 __all__ = ["EnfugueAPIModelsController"]
 
@@ -64,6 +58,17 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         os.path.basename(DEFAULT_SDXL_MODEL),
         os.path.basename(DEFAULT_SDXL_REFINER),
         os.path.basename(DEFAULT_SDXL_INPAINTING_MODEL),
+    ]
+
+    DEFAULT_LORA = [
+        os.path.basename(MOTION_LORA_PAN_LEFT),
+        os.path.basename(MOTION_LORA_PAN_RIGHT),
+        os.path.basename(MOTION_LORA_ROLL_CLOCKWISE),
+        os.path.basename(MOTION_LORA_ROLL_ANTI_CLOCKWISE),
+        os.path.basename(MOTION_LORA_TILT_UP),
+        os.path.basename(MOTION_LORA_TILT_DOWN),
+        os.path.basename(MOTION_LORA_ZOOM_IN),
+        os.path.basename(MOTION_LORA_ZOOM_OUT),
     ]
 
     handlers = UserExtensionHandlerRegistry()
@@ -189,6 +194,10 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
             }
             for filename in self.get_models_in_directory(lora_dir)
         ]
+        for default_lora in self.DEFAULT_LORA:
+            if default_lora not in [l["name"] for l in lora]:
+                lora.append({"name": default_lora, "directory": "available for download"})
+
         return lora
 
     @handlers.path("^/api/lycoris$")

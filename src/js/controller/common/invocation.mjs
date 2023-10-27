@@ -869,14 +869,14 @@ class InvocationController extends Controller {
     }
     
     /**
-     * @return string loop mode, null, reflect or loop
+     * @return bool loop animation
      */
     get animationLoop() {
-        return this.kwargs.loop || null;
+        return this.kwargs.loop || false
     }
 
     /**
-     * @param string loop mode, null reflect or loop
+     * @param bool loop animation
      */
     set animationLoop(newLoop) {
         if (this.animationLoop !== newLoop) {
@@ -899,7 +899,68 @@ class InvocationController extends Controller {
         if (!isEquivalent(this.animationInterpolation, newFrames)) {
             this.publish("engineAnimationInterpolationChange", newFrames);
         }
-        this.kwargs.interpolation_rames = newFrames;
+        this.kwargs.interpolation_frames = newFrames;
+    }
+
+    /**
+     * @return ?float Motion scaling factor
+     */
+    get animationMotionScale() {
+        return this.kwargs.motion_scale || null;
+    }
+
+    /**
+     * @param ?float Motion scaling factor
+     */
+    set animationMotionScale(newMotionScale) {
+        if (this.animationMotionScale !== newMotionScale) {
+            this.publish("engineAnimationMotionScaleChange", newMotionScale);
+        }
+        this.kwargs.motion_scale = newMotionScale;
+    }
+
+    /**
+     * @return ?int Position encoding truncate length
+     */
+    get animationPositionEncodingTruncateLength() {
+        return this.kwargs.position_encoding_truncate_length || null;
+    }
+
+    /**
+     * @param ?float Position encoding truncate length
+     */
+    set animationPositionEncodingTruncateLength(newTruncateLength) {
+        if (this.animationPositionEncodingTruncateLength !== newTruncateLength) {
+            this.publish("engineAnimationPositionEncodingTruncateLengthChange", newTruncateLength);
+        }
+        this.kwargs.position_encoding_truncate_length = newTruncateLength;
+    }
+
+    /**
+     * @return ?int Position encoding scale length
+     */
+    get animationPositionEncodingScaleLength() {
+        return this.kwargs.position_encoding_scale_length || null;
+    }
+
+    /**
+     * @param ?int Scale position encoding length
+     */
+    set animationPositionEncodingScaleLength(newScaleLength) {
+        if (this.animationPositionEncodingScaleLength !== newScaleLength) {
+            this.publish("engineAnimationPositionEncodingScaleLengthChange", newScaleLength);
+        }
+        this.kwargs.position_encoding_scale_length = newScaleLength;
+    }
+
+    /**
+     * @param array<int> interpolation frames
+     */
+    set animationInterpolation(newFrames) {
+        if (!isEquivalent(this.animationInterpolation, newFrames)) {
+            this.publish("engineAnimationInterpolationChange", newFrames);
+        }
+        this.kwargs.interpolation_frames = newFrames;
     }
 
     /**

@@ -107,6 +107,7 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
             temporal_engine_size=temporal_engine_size,
             temporal_chunking_size=temporal_chunking_size
         )
+
         if override_scheduler_config:
             self.scheduler_config = {
                 **self.scheduler_config,
@@ -115,7 +116,8 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
             self.scheduler.register_to_config(
                 **EnfugueAnimateStableDiffusionPipeline.STATIC_SCHEDULER_KWARGS
             )
-        if not isinstance(self.scheduler, EulerDiscreteScheduler):
+
+        if not self.is_sdxl and not isinstance(self.scheduler, EulerDiscreteScheduler):
             logger.debug(f"Animation pipeline changing default scheduler from {type(self.scheduler).__name__} to Euler Discrete")
             self.scheduler = EulerDiscreteScheduler.from_config(self.scheduler_config)
 
@@ -217,6 +219,8 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         """
         Creates a UNet3DConditionModel then loads hotshot into it
         """
+        position_encoder_truncate_length = 16
+        position_encoder_scale_length = 32
         config["_class_name"] = "UNet3DConditionModel"
         config["down_block_types"] = [
             "DownBlock3D",
@@ -265,7 +269,7 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
             if not os.path.exists(
                 os.path.join(
                     cache_dir,
-                    cls.HOTSHOT_XL_PATH.replace("/", "--"),
+                    "models--" + cls.HOTSHOT_XL_PATH.replace("/", "--"),
                     "refs",
                     "main"
                 )
@@ -441,21 +445,31 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
                 position_encoder_scale_length=position_encoder_scale_length
             )
 
-    def load_lora_weights(
+    def load_motion_lora_weights(
         self,
-        model: str,
+        state_dict: Dict[str, torch.Tensor],
         multiplier: float = 1.0,
-        dtype: torch.dtype = torch.float32,
-        **kwargs: Any
+        dtype: torch.dtype = torch.float32
     ) -> None:
         """
-        Always use flexible loader
+        Loads motion LoRA checkpoint into the unet
         """
-        return self.load_flexible_lora_weights(
-            model,
-            multiplier,
-            dtype
-        )
+        for key in state_dict:
+            if "up." in key:
+                continue
+            up_key = key.replace(".down.", ".up.")
+            model_key = key.replace("processor.", "").replace("_lora", "").replace("down.", "").replace("up.", "")
+            model_key = model_key.replace("to_out.", "to_out.0.")
+            layer_infos = model_key.split(".")[:-1]
+
+            curr_layer = self.unet
+            while len(layer_infos) > 0:
+                temp_name = layer_infos.pop(0)
+                curr_layer = curr_layer.__getattr__(temp_name)
+
+            weight_down = state_dict[key].to(dtype)
+            weight_up   = state_dict[up_key].to(dtype)
+            curr_layer.weight.data += multiplier * torch.mm(weight_up, weight_down).to(curr_layer.weight.data.device)
 
     def decode_latents(
         self,
