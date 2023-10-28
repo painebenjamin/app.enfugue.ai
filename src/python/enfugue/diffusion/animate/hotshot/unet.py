@@ -1,4 +1,5 @@
 # type: ignore
+from __future__ import annotations
 # Copyright 2023 The HuggingFace Team. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,7 +19,7 @@
 # - Unet now supports SDXL
 
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union, Dict
 
 import torch
 import torch.nn as nn
@@ -513,7 +514,7 @@ class UNet3DConditionModel(ModelMixin, ConfigMixin, UNet2DConditionLoadersMixin)
         def fn_recursive_add_processors(name: str, module: torch.nn.Module, processors: Dict[str, AttentionProcessor]):
 
             if not include_temporal_layers:
-                if 'temporal' in name:
+                if 'temporal' in name or 'motion' in name:
                     return processors
 
             if hasattr(module, "set_processor"):
@@ -554,7 +555,7 @@ class UNet3DConditionModel(ModelMixin, ConfigMixin, UNet2DConditionLoadersMixin)
         def fn_recursive_attn_processor(name: str, module: torch.nn.Module, processor):
 
             if not include_temporal_layers:
-                if "temporal" in name:
+                if "temporal" in name or "motion" in name:
                     return
 
             if hasattr(module, "set_processor"):

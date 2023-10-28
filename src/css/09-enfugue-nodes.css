@@ -518,6 +518,7 @@ enfugue-node-editor.image-editor enfugue-sample-chooser {
     border-top: 1px solid rgba(255,255,255,0.1);
     border-bottom: 1px solid rgba(0,0,0,0.2);
     border-right: 1px solid rgba(0,0,0,0.2);
+    z-index: 2;
 }
 
 enfugue-node-editor.image-editor enfugue-sample-chooser i {
@@ -569,8 +570,7 @@ enfugue-node-editor.image-editor enfugue-sample-chooser .samples {
     flex-grow: 1;
     flex-basis: 100%;
     border-left: 1px solid rgba(255,255,255,0.1);
-    overflow-y: hidden;
-    overflow-x: auto;
+    overflow: hidden;
 }
 
 enfugue-node-editor.image-editor enfugue-sample-chooser .samples .no-samples {
@@ -580,16 +580,6 @@ enfugue-node-editor.image-editor enfugue-sample-chooser .samples .no-samples {
     font-size: 10px;
     color: var(--theme-color-tertiary);
     text-align: center;
-}
-
-enfugue-node-editor.image-editor enfugue-sample-chooser .samples::-webkit-scrollbar
-{
-    background: var(--dark-color);
-}
-
-enfugue-node-editor.image-editor enfugue-sample-chooser .samples::-webkit-scrollbar-corner 
-{
-    background: var(--dark-color);
 }
 
 enfugue-node-editor.image-editor enfugue-sample-chooser .samples img

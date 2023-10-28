@@ -120,7 +120,10 @@ class Invocation:
                             self.results.append(image_path)
                         else:
                             self.results.append("unsaved")
-                elif "error" in result:
+                if "video" in result:
+                    # TODO: Interpolated video
+                    ...
+                if "error" in result:
                     error_type = resolve(result["error"])
                     self.error = error_type(result["message"])
                     if "traceback" in result:
@@ -252,6 +255,7 @@ class Invocation:
             }
             if self.metadata:
                 formatted["metadata"] = self.metadata
+
             return formatted
 
     def __str__(self) -> str:

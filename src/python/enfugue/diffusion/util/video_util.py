@@ -204,7 +204,7 @@ class Video:
         encoder: str = "avc1",
     ) -> int:
         """
-        Saves PIL image frames to an .mp4 video.
+        Saves PIL image frames to a video.
         Returns the total size of the video in bytes.
         """
         import cv2
@@ -259,7 +259,7 @@ class Video:
             raise IOError(f"Video at path {path} not found or inaccessible")
         
         basename, ext = os.path.splitext(os.path.basename(path))
-        if ext in [".gif", ".png", ".tiff", ".webp"]:
+        if ext in [".gif", ".png", ".apng", ".tiff", ".webp", ".avif"]:
             from PIL import Image
             image = Image.open(path)
             for i in range(image.n_frames):

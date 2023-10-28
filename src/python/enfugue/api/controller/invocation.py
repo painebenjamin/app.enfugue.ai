@@ -209,6 +209,7 @@ class EnfugueAPIInvocationController(EnfugueAPIControllerBase):
         scheduler = request.parsed.pop("scheduler", None)
         if scheduler:
             plan_kwargs["scheduler"] = scheduler
+
         disable_decoding = request.parsed.pop("intermediates", None) == False
         ui_state: Optional[str] = None
         for key, value in request.parsed.items():
@@ -218,7 +219,9 @@ class EnfugueAPIInvocationController(EnfugueAPIControllerBase):
                 plan_kwargs[key] = value
 
         if not plan_kwargs.get("size", None):
-            plan_kwargs["size"] = self.get_default_size_for_model(plan_kwargs.get("model", None))
+            plan_kwargs["size"] = self.get_default_size_for_model(
+                plan_kwargs.get("model", None)
+            )
 
         plan = DiffusionPlan.assemble(**plan_kwargs)
 

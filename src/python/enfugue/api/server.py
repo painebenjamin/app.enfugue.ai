@@ -157,6 +157,15 @@ class EnfugueAPIServerBase(
         """
         Formats a plan for inserting into the database
         """
+        def get_image_metadata(image: PIL.Image.Image) -> Dict[str, Any]:
+            """
+            Gets metadata from an image
+            """
+            width, height = image.size
+            metadata = {"width": width, "height": height, "mode": image.mode}
+            if hasattr(image, "filename"):
+                metadata["filename"] = image.filename
+            return metadata
 
         def replace_images(serialized: Dict[str, Any]) -> Dict[str, Any]:
             """
@@ -164,15 +173,18 @@ class EnfugueAPIServerBase(
             """
             for key, value in serialized.items():
                 if isinstance(value, PIL.Image.Image):
-                    width, height = value.size
-                    metadata = {"width": width, "height": height, "mode": value.mode}
-                    if hasattr(value, "filename"):
-                        metadata["filename"] = value.filename
-                    serialized[key] = metadata
+                    serialized[key] = get_image_metadata(value)
                 elif isinstance(value, dict):
                     serialized[key] = replace_images(value)
                 elif isinstance(value, list):
-                    serialized[key] = [replace_images(part) if isinstance(part, dict) else part for part in value]
+                    serialized[key] = [
+                        replace_images(part)
+                        if isinstance(part, dict)
+                        else get_image_metadata(part)
+                        if isinstance(part, PIL.Image.Image)
+                        else part
+                        for part in value
+                    ]
             return serialized
 
         return replace_images(plan.get_serialization_dict())

@@ -541,6 +541,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         )
         unet_keys = len(list(converted_unet_checkpoint.keys()))
         logger.debug(f"Loading {unet_keys} keys into UNet state dict (non-strict)")
+
         unet.load_state_dict(converted_unet_checkpoint, strict=False)
 
         if offload_models:
@@ -1602,6 +1603,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         if self.config.force_full_precision_vae: # type: ignore[attr-defined]
             self.vae.to(dtype=torch.float32)
             image = image.float()
+        else:
+            image = image.to(dtype=self.vae.dtype)
         latents = self.vae.encode(image).latent_dist.sample(generator) * self.vae.config.scaling_factor # type: ignore[attr-defined]
         if self.config.force_full_precision_vae: # type: ignore[attr-defined]
             self.vae.to(dtype=dtype)
@@ -1743,8 +1746,6 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             raise ValueError(
                 f"Cannot duplicate `image` of batch size {latents.shape[0]} to {batch_size} text prompts."
             )
-        #else:
-        #    latents = torch.cat([latents], dim=0)
 
         if animation_frames and animation_frames > latents.shape[2]:
             # duplicate last image to match animation length
@@ -1816,9 +1817,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             ])
 
         if animation_frames:
-            # Change from collapsing on batch dim to temporal dim
-            latents = rearrange(latents, 't c h w -> c t h w').unsqueeze(0)
-            mask_latents = rearrange(mask_latents, 't c h w -> c t h w').unsqueeze(0)
+            latents = rearrange(latents, "t b c h w -> b c t h w")
+            mask_latents = rearrange(mask_latents, "t b c h w -> b c t h w")
 
         # duplicate mask and latents for each generation per prompt, using mps friendly method
         if mask_latents.shape[0] < batch_size:
@@ -2123,7 +2123,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         control_images: PreparedControlImageArgType = None,
         progress_callback: Optional[Callable[[bool], None]] = None,
         latent_callback: Optional[Callable[[Union[torch.Tensor, np.ndarray, List[PIL.Image.Image]]], None]] = None,
-        latent_callback_steps: Optional[int] = 1,
+        latent_callback_steps: Optional[int] = None,
         latent_callback_type: Literal["latent", "pt", "np", "pil"] = "latent",
         extra_step_kwargs: Optional[Dict[str, Any]] = None,
         cross_attention_kwargs: Optional[Dict[str, Any]] = None,
@@ -2198,6 +2198,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                                 controlnet_conds[controlnet_name] = []
 
                             controlnet_conds[controlnet_name].append((control_image, conditioning_scale))
+
                 if not controlnet_conds:
                     down_block, mid_block = None, None
                 else:
@@ -2221,13 +2222,13 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
             # predict the noise residual
             noise_pred = self.predict_noise_residual(
-                latent_model_input,
-                t,
-                embeds,
-                cross_attention_kwargs,
-                added_cond_kwargs,
-                down_block,
-                mid_block,
+                latents=latent_model_input,
+                timestep=t,
+                embeddings=embeds,
+                cross_attention_kwargs=cross_attention_kwargs,
+                added_cond_kwargs=added_cond_kwargs,
+                down_block_additional_residuals=down_block,
+                mid_block_additional_residual=mid_block,
             )
 
             # perform guidance
@@ -2323,14 +2324,13 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         weight_builder: MaskWeightBuilder,
         guidance_scale: float,
         do_classifier_free_guidance: bool = False,
-        s_inpainting_unet: bool = False,
         mask: Optional[torch.Tensor] = None,
         mask_image: Optional[torch.Tensor] = None,
         image: Optional[torch.Tensor] = None,
         control_images: PreparedControlImageArgType = None,
         progress_callback: Optional[Callable[[bool], None]] = None,
         latent_callback: Optional[Callable[[Union[torch.Tensor, np.ndarray, List[PIL.Image.Image]]], None]] = None,
-        latent_callback_steps: Optional[int] = 1,
+        latent_callback_steps: Optional[int] = None,
         latent_callback_type: Literal["latent", "pt", "np", "pil"] = "latent",
         extra_step_kwargs: Optional[Dict[str, Any]] = None,
         cross_attention_kwargs: Optional[Dict[str, Any]] = None,
@@ -2690,13 +2690,13 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                         weight_builder=weight_builder,
                         device=device,
                     )
+                    latent_callback_value = self.denormalize_latents(latent_callback_value)
                     if num_frames is not None:
                         output = [] # type: ignore[assignment]
                         for frame in self.decode_animation_frames(latent_callback_value):
                             output.extend(self.image_processor.numpy_to_pil(frame)) # type: ignore[attr-defined]
                         latent_callback_value = output # type: ignore[assignment]
                     else:
-                        latent_callback_value = self.denormalize_latents(latent_callback_value)
                         if latent_callback_type != "pt":
                             latent_callback_value = self.image_processor.pt_to_numpy(latent_callback_value)
                             if latent_callback_type == "pil":
@@ -3077,6 +3077,110 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
         return images
 
+    def standardize_ip_adapter_images(
+        self,
+        images: ImagePromptArgType=None,
+        animation_frames: Optional[int]=None,
+    ) -> Optional[List[Tuple[List[Image], float]]]:
+        """
+        Standardizes IP adapter args to list
+        """
+        if not images:
+            return None
+
+        if not isinstance(images, list):
+            images = [images]
+
+        ip_adapter_tuples = []
+
+        for image in images:
+            if isinstance(image, tuple):
+                img, scale = image
+            elif isinstance(image, dict):
+                img = image["image"]
+                scale = image["scale"]
+            elif isinstance(image, str):
+                img = self.open_image(img)
+                scale = 1.0
+            
+            if not isinstance(img, list):
+                img = [img]
+
+            if animation_frames:
+                image_len = len(img)
+                if image_len < animation_frames:
+                    img += [
+                        img[image_len-1]
+                        for i in range(animation_frames - image_len)
+                    ]
+            else:
+                img = img[:1]
+
+            ip_adapter_tuples.append((img, scale))
+
+        return ip_adapter_tuples
+
+    def standardize_control_images(
+        self,
+        control_images: ControlImageArgType=None,
+    ) -> Optional[
+        Dict[
+            str,
+            List[Tuple[List[PIL.Image.Image], float, Optional[float], Optional[float]]]
+        ]
+    ]:
+        """
+        Standardizes control images to dict of list of tuple
+        """
+        if control_images is None:
+            return None
+
+        standardized: Dict[str, List[Tuple[List[PIL.Image.Image], float, Optional[float], Optional[float]]]] = {}
+
+        for name in control_images:
+            if name not in self.controlnets:
+                raise RuntimeError(f"Control image mapped to ControlNet {name}, but it is not loaded.")
+
+            standardized[name] = []
+
+            image_list = control_images[name]
+            if not isinstance(image_list, list):
+                image_list = [image_list]
+
+            for controlnet_image in image_list:
+                if isinstance(controlnet_image, tuple):
+                    if len(controlnet_image) == 4:
+                        controlnet_image, conditioning_scale, conditioning_start, conditioning_end = controlnet_image
+                    elif len(controlnet_image) == 3:
+                        controlnet_image, conditioning_scale, conditioning_start = controlnet_image
+                        conditioning_end = 1.0
+                    elif len(controlnet_image) == 2:
+                        controlnet_image, conditioning_scale = controlnet_image
+                        conditioning_start, conditioning_end = None, None
+
+                elif isinstance(controlnet_image, dict):
+                    conditioning_scale = controlnet_image.get("scale", 1.0)
+                    conditioning_start = controlnet_image.get("start", None)
+                    conditioning_end = controlnet_image.get("end", None)
+                    controlnet_image = controlnet_image["image"]
+                else:
+                    conditioning_scale = 1.0
+                    conditioning_start, conditioning_end = None, None
+
+                if isinstance(controlnet_image, str):
+                    controlnet_image = self.open_image(controlnet_image)
+
+                if not isinstance(controlnet_image, list):
+                    controlnet_image = [controlnet_image]
+
+                standardized[name].append((
+                    controlnet_image,
+                    conditioning_scale,
+                    conditioning_start,
+                    conditioning_end
+                ))
+        return standardized
+
     @torch.no_grad()
     def __call__(
         self,
@@ -3141,7 +3245,6 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         """
         Invokes the pipeline.
         """
-        motion_scale = 10
         # 0. Standardize arguments
         image = self.standardize_image(
             image,
@@ -3151,17 +3254,17 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             mask,
             animation_frames=animation_frames
         )
-        """
-        TODO
-        control_images = self.standardize_control_images(
-            control_images,
-            animation_frames=animation_frames
-        )
-        ip_adapter_images = self.standardize_ip_adapter_images(
-            ip_adapter_images,
-            animation_frames=animation_frames
-        )
-        """
+        control_images = self.standardize_control_images(control_images)
+
+        if ip_adapter_images is not None:
+            ip_adapter_scale = max([scale for _, scale in ip_adapter_images])
+            ip_adapter_images = self.standardize_ip_adapter_images(
+                ip_adapter_images,
+                animation_frames=animation_frames
+            )
+        else:
+            ip_adapter_scale = None
+
         # 1. Default height and width to image or unet config
         if not height:
             if isinstance(image, list):
@@ -3201,27 +3304,6 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             latent_callback_steps = None
         if animation_frames == 0:
             animation_frames = None
-
-        # Standardize IP adapter tuples
-        ip_adapter_tuples: Optional[List[Tuple[PIL.Image.Image, float]]] = None
-        if ip_adapter_images:
-            ip_adapter_tuples = []
-            for ip_adapter_argument in (ip_adapter_images if isinstance(ip_adapter_images, list) else [ip_adapter_images]):
-                if isinstance(ip_adapter_argument, dict):
-                    ip_adapter_tuples.append((
-                        ip_adapter_argument["image"],
-                        ip_adapter_argument.get("scale", 1.0)
-                    ))
-                elif isinstance(ip_adapter_argument, list):
-                    ip_adapter_tuples.append(tuple(ip_adapter_argument)) # type: ignore[arg-type]
-                elif isinstance(ip_adapter_argument, tuple):
-                    ip_adapter_tuples.append(ip_adapter_argument) # type: ignore[arg-type]
-                else:
-                    ip_adapter_tuples.append((ip_adapter_argument, 1.0))
-            ip_adapter_scale = max([scale for img, scale in ip_adapter_tuples])
-        else:
-            ip_adapter_tuples = None
-            ip_adapter_scale = None
 
         # Convenient bool for later
         decode_intermediates = latent_callback_steps is not None and latent_callback is not None
@@ -3321,13 +3403,20 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     encoding_steps +=len(image)
                 else:
                     encoding_steps += 1
+        if ip_adapter_images is not None:
+            image_prompt_probes = sum([
+                len(images) for images, scale in ip_adapter_images
+            ])
+        else:
+            image_prompt_probes = 0
 
         num_frames = 1 if not animation_frames else animation_frames
-        overall_num_steps = num_chunks * (encoding_steps + (decoding_steps * num_frames) + (num_scheduled_inference_steps * num_temporal_chunks))
+        overall_num_steps = num_chunks * (encoding_steps + (decoding_steps * num_frames) + (num_scheduled_inference_steps * num_temporal_chunks)) + image_prompt_probes
         logger.debug(
             " ".join([
-                f"Calculated overall steps to be {overall_num_steps} ",
-                f"[{num_chunks} chunk(s) * ({encoding_steps} encoding step(s) + ({decoding_steps} decoding step(s) * {num_frames} frame(s)) + " +
+                f"Calculated overall steps to be {overall_num_steps} -",
+                f"{image_prompt_probes} image prompt embedding probe(s) +",
+                f"[{num_chunks} chunk(s) * ({encoding_steps} encoding step(s) + ({decoding_steps} decoding step(s) * {num_frames} frame(s)) +",
                 f"({num_temporal_chunks} temporal chunk(s) * {num_scheduled_inference_steps} inference step(s))]"
             ])
         )
@@ -3365,6 +3454,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                         weight=None
                     )
                 ]
+
             encoded_prompt_list = []
             # Iterate over given prompts and encode
             for given_prompt in prompts:
@@ -3419,12 +3509,6 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 image_prompt_embeds=None, # Will be set later
                 image_uncond_prompt_embeds=None # Will be set later
             )
-
-            # Normalize to lists of images
-            if isinstance(image, PIL.Image.Image):
-                image = [image]
-            if isinstance(mask, PIL.Image.Image):
-                mask = [mask]
 
             # Scale images if requested
             if scale_image and image is not None and not isinstance(image, torch.Tensor):
@@ -3524,7 +3608,12 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     )
 
                     if init_image is not None:
-                        for i, img in init_image:
+                        init_image_encoded = torch.Tensor().to(
+                            device=device,
+                            dtype=encoded_prompts.dtype
+                        )
+
+                        for i, img in enumerate(init_image):
                             img = img.to(device=device, dtype=encoded_prompts.dtype)
                             img = self.encode_image(
                                 img,
@@ -3534,7 +3623,15 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                                 weight_builder=weight_builder,
                                 generator=generator,
                             )
-                            init_image[i] = img
+                            init_image_encoded = torch.cat([
+                                init_image_encoded,
+                                img.unsqueeze(0)
+                            ], dim=0)
+                        init_image = init_image_encoded
+                        if animation_frames:
+                            init_image = rearrange(init_image, "t c b h w -> b c t h w")
+                        else:
+                            init_image = init_image[0]
                     # prepared_latents = noise or init latents + noise
                     # prepared_mask = only mask
                     # prepared_image_latents = masked image
@@ -3574,7 +3671,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     )
                     # prepared_latents = noise
 
-                # Look for controlnet and conditioning image
+                # Look for controlnet and conditioning image, prepare
                 prepared_control_images: PreparedControlImageArgType = {}
                 if control_images is not None:
                     if not self.controlnets:
@@ -3582,38 +3679,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                         prepared_control_images = None
                     else:
                         for name in control_images:
-                            if name not in self.controlnets:
-                                raise RuntimeError(f"Control image mapped to ControlNet {name}, but it is not loaded.")
-                            image_list = control_images[name]
-                            if not isinstance(image_list, list):
-                                image_list = [image_list]
-
-                            for controlnet_image in image_list:
-                                if isinstance(controlnet_image, tuple):
-                                    if len(controlnet_image) == 4:
-                                        controlnet_image, conditioning_scale, conditioning_start, conditioning_end = controlnet_image
-                                    elif len(controlnet_image) == 3:
-                                        controlnet_image, conditioning_scale, conditioning_start = controlnet_image
-                                        conditioning_end = None
-                                    elif len(controlnet_image) == 2:
-                                        controlnet_image, conditioning_scale = controlnet_image
-                                        conditioning_start, conditioning_end = None, None
-
-                                elif isinstance(controlnet_image, dict):
-                                    conditioning_scale = controlnet_image.get("scale", 1.0)
-                                    conditioning_start = controlnet_image.get("start", None)
-                                    conditioning_end = controlnet_image.get("end", None)
-                                    controlnet_image = controlnet_image["image"]
-                                else:
-                                    conditioning_scale = 1.0
-                                    conditioning_start, conditioning_end = None, None
-
-                                if isinstance(controlnet_image, str):
-                                    controlnet_image = PIL.Image.open(controlnet_image)
-
-                                if isinstance(controlnet_image, str):
-                                    controlnet_image = self.open_image(controlnet_image)
-
+                            prepared_control_images[name] = []
+                            for controlnet_image, conditioning_scale, conditioning_start, conditioning_end in control_images[name]:
                                 prepared_controlnet_image = self.prepare_control_image(
                                     image=controlnet_image,
                                     height=height,
@@ -3642,6 +3709,57 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
                 # Prepare extra step kwargs
                 extra_step_kwargs = self.prepare_extra_step_kwargs(generator, eta)
+
+                # Get prompt embeds here if using IP adapter
+                if ip_adapter_images is not None:
+                    logger.debug(f"Performing {image_prompt_probes} image prompt probe(s)")
+                    ip_adapter_image_embeds = torch.Tensor().to(
+                        device=device,
+                        dtype=encoded_prompts.dtype
+                    )
+                    ip_adapter_image_uncond_embeds = torch.Tensor().to(
+                        device=device,
+                        dtype=encoded_prompts.dtype
+                    )
+                    for images, scale in ip_adapter_images:
+                        image_prompt_embeds = torch.Tensor().to(
+                            device=device,
+                            dtype=encoded_prompts.dtype
+                        )
+                        image_uncond_prompt_embeds = torch.Tensor().to(
+                            device=device,
+                            dtype=encoded_prompts.dtype
+                        )
+                        for img in images:
+                            image_embeds, uncond_embeds = self.get_image_embeds(
+                                img,
+                                num_results_per_prompt
+                            )
+                            step_complete(True)
+                            image_prompt_embeds = torch.cat([
+                                image_prompt_embeds,
+                                image_embeds.unsqueeze(0)
+                            ], dim=0)
+                            image_uncond_prompt_embeds = torch.cat([
+                                image_uncond_prompt_embeds,
+                                uncond_embeds.unsqueeze(0)
+                            ], dim=0)
+
+                        image_prompt_embeds *= scale / ip_adapter_scale
+                        image_uncond_prompt_embeds *= scale / ip_adapter_scale
+
+                        ip_adapter_image_embeds = torch.cat([
+                            ip_adapter_image_embeds,
+                            image_prompt_embeds.unsqueeze(0)
+                        ], dim=0)
+                        ip_adapter_image_uncond_embeds = torch.cat([
+                            ip_adapter_image_uncond_embeds,
+                            image_uncond_prompt_embeds.unsqueeze(0)
+                        ], dim=0)
+
+                    # Assign to helper data class
+                    encoded_prompts.image_prompt_embeds = ip_adapter_image_embeds
+                    encoded_prompts.image_uncond_prompt_embeds = ip_adapter_image_uncond_embeds
 
                 # Prepared added time IDs (SDXL)
                 added_cond_kwargs: Optional[Dict[str, Any]] = None
@@ -3678,6 +3796,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 self.vae.to("cpu")
                 if decode_intermediates:
                     self.vae_preview.to(device)
+
                 empty_cache()
 
                 # Inject noise
@@ -3754,9 +3873,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 # Unload UNet to free memory
                 if offload_models:
                     self.unet.to("cpu")
-
-                # Empty caches for more memory
-                empty_cache()
+                    empty_cache()
 
                 # Load VAE if decoding
                 if output_type != "latent":
@@ -3806,7 +3923,6 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     # Offload VAE again
                     self.vae.to("cpu")
                     self.vae_preview.to("cpu")
-                    empty_cache()
                 elif self.config.force_full_precision_vae: #type: ignore[attr-defined]
                     self.vae.to(dtype=prepared_latents.dtype)
 

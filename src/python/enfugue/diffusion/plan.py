@@ -48,11 +48,57 @@ if TYPE_CHECKING:
 
 __all__ = ["NodeDict", "DiffusionStep", "DiffusionPlan"]
 
+# Helper methods
+def get_frames_or_image(
+    image: Union[PIL.Image.Image, List[PIL.Image.Image]]
+) -> Union[PIL.Image.Image, List[PIL.Image.Image]]:
+    """
+    Makes sure an image is a list of images if it has more than one frame
+    """
+    if not isinstance(image, list):
+        if getattr(image, "n_frames", 1) > 1:
+            def get_frame(i: int) -> PIL.Image.Image:
+                image.seek(i)
+                return image.copy().convert("RGB")
+            return [
+                get_frame(i)
+                for i in range(image.n_frames)
+            ]
+    return image
+
+def save_frames_or_image(
+    image: Union[PIL.Image.Image, List[PIL.Image.Image]],
+    directory: str
+) -> str:
+    """
+    Saves frames or image to video
+    """
+    image = get_frames_or_image(image)
+    if isinstance(image, list):
+        from enfugue.diffusion.util.video_util import Video
+        path = os.path.join(directory, f"{get_uuid()}.webp")
+        Video(image).save(path)
+    else:
+        path = os.path.join(directory, f"{get_uuid()}.png")
+        image.save(path)
+    return path
+
+def get_frames_or_image_from_file(
+    path: str
+) -> Union[PIL.Image.Image, List[PIL.Image.Image]]:
+    """
+    Opens a file to a single image or multiple
+    """
+    if path.endswith(".webp"):
+        from enfugue.diffusion.util.video_util import Video
+        return list(Video.file_to_frames(path))
+    else:
+        return PIL.Image.open(path)
+
 class DiffusionStep:
     """
     A step represents most of the inputs to describe what the image is and how to control inference
     """
-
     result: StableDiffusionPipelineOutput
 
     def __init__(
@@ -170,8 +216,7 @@ class DiffusionStep:
                     serialize_children.append(child)
                     serialized[key] = len(serialize_children) - 1
             elif child is not None and image_directory is not None:
-                path = os.path.join(image_directory, f"{get_uuid()}.png")
-                child.save(path)
+                path = save_frames_or_image(child, image_directory)
                 serialized[key] = path
             else:
                 serialized[key] = child
@@ -191,9 +236,11 @@ class DiffusionStep:
                         serialize_children.append(adapter_image["image"])
                         image_dict["image"] = len(serialize_children) - 1
                 elif adapter_image["image"] is not None and image_directory is not None:
-                    path = os.path.join(image_directory, f"{get_uuid()}.png")
-                    adapter_image["image"].save(path)
-                    image_dict["image"] = path # type: ignore
+                    ip_path = save_frames_or_image(
+                        adapter_image["image"],
+                        image_directory
+                    )
+                    image_dict["image"] = ip_path # type: ignore
                 else:
                     image_dict["image"] = adapter_image["image"]
                 adapter_images.append(image_dict)
@@ -217,19 +264,19 @@ class DiffusionStep:
                         serialize_children.append(control_image["image"])
                         image_dict["image"] = len(serialize_children) - 1
                 elif control_image["image"] is not None and image_directory is not None:
-                    if isinstance(control_image["image"], list):
-                        from enfugue.diffusion.util import Video
-                        path = os.path.join(image_directory, f"{get_uuid()}.mp4")
-                        Video(control_image["image"]).save(path)
-                    else:
-                        path = os.path.join(image_directory, f"{get_uuid()}.png")
-                        control_image["image"].save(path)
-                    image_dict["image"] = path # type:ignore[assignment]
+                    control_path = save_frames_or_image(
+                        control_image["image"],
+                        image_directory
+                    )
+                    image_dict["image"] = control_path # type:ignore[assignment]
                 else:
                     image_dict["image"] = control_image["image"] # type: ignore
                 control_images.append(image_dict)
             serialized["control_images"] = control_images
-        serialized["children"] = [child.get_serialization_dict(image_directory) for child in serialize_children]
+        serialized["children"] = [
+            child.get_serialization_dict(image_directory)
+            for child in serialize_children
+        ]
         return serialized
 
     @property
@@ -350,26 +397,26 @@ class DiffusionStep:
         if isinstance(self.image, DiffusionStep):
             image = self.image.execute(pipeline, samples=1, **kwargs)["images"][0]
         elif isinstance(self.image, str):
-            image = PIL.Image.open(self.image)
+            image = get_frames_or_image_from_file(self.image)
         else:
             image = self.image
 
         if isinstance(self.mask, DiffusionStep):
             mask = self.mask.execute(pipeline, samples=1, **kwargs)["images"][0]
         elif isinstance(self.mask, str):
-            mask = PIL.Image.open(self.mask)
+            mask = get_frames_or_mask_from_file(self.mask)
         else:
             mask = self.mask
         
         if self.ip_adapter_images is not None:
-            ip_adapter_images: List[Tuple[PIL.Image.Image, float]] = []
+            ip_adapter_images: List[Tuple[Union[PIL.Image.Image, List[PIL.Image.Image]], float]] = []
             for adapter_image_dict in self.ip_adapter_images:
                 adapter_image = adapter_image_dict["image"]
 
                 if isinstance(adapter_image, DiffusionStep):
                     adapter_image = adapter_image.execute(pipeline, samples=1, **kwargs)["images"][0]
                 elif isinstance(adapter_image, str):
-                    adapter_image = PIL.Image.open(adapter_image)
+                    adapter_image = get_frames_or_image_from_file(adapter_image)
 
                 adapter_scale = adapter_image_dict.get("scale", 1.0)
                 ip_adapter_images.append((
@@ -380,7 +427,7 @@ class DiffusionStep:
             ip_adapter_images = None # type: ignore[assignment]
 
         if self.control_images is not None:
-            control_images: Dict[str, List[Tuple[PIL.Image.Image, float, Optional[float], Optional[float]]]] = {}
+            control_images: Dict[str, List[Tuple[Union[PIL.Image.Image, List[PIL.Image.Image]], float, Optional[float], Optional[float]]]] = {}
             for control_image_dict in self.control_images:
                 control_image = control_image_dict["image"]
                 controlnet = control_image_dict["controlnet"]
@@ -388,16 +435,25 @@ class DiffusionStep:
                 if isinstance(control_image, DiffusionStep):
                     control_image = control_image.execute(pipeline, samples=1, **kwargs)["images"][0]
                 elif isinstance(control_image, str):
-                    control_image = PIL.Image.open(control_image)
+                    control_image = get_frames_or_image_from_file(control_image)
 
                 conditioning_scale = control_image_dict.get("scale", 1.0)
                 conditioning_start = control_image_dict.get("start", None)
                 conditioning_end = control_image_dict.get("end", None)
 
-                if control_image_dict.get("process", True):
-                    control_image = pipeline.control_image_processor(controlnet, control_image)
-                elif control_image_dict.get("invert", False):
-                    control_image = PIL.ImageOps.invert(control_image)
+                if isinstance(control_image, list):
+                    with pipeline.control_image_processor.processor(controlnet) as process:
+                        for i, img in enumerate(control_image):
+                            if control_image_dict.get("process", True):
+                                img = process(img)
+                            elif img_dict.get("invert", False):
+                                img = PIL.ImageOps.invert(img)
+                            control_image[i] = img
+                else:
+                    if control_image_dict.get("process", True):
+                        control_image = pipeline.control_image_processor(controlnet, control_image)
+                    elif control_image_dict.get("invert", False):
+                        control_image = PIL.ImageOps.invert(control_image)
 
                 if controlnet not in control_images:
                     control_images[controlnet] = [] # type: ignore[assignment]
@@ -418,16 +474,32 @@ class DiffusionStep:
            not ip_adapter_images
         ):
             if image:
-                if self.remove_background:
-                    with pipeline.background_remover.remover() as remove_background:
-                        image = remove_background(image)
-
-                samples = kwargs.get("num_results_per_prompt", 1)
                 from diffusers.pipelines.stable_diffusion import StableDiffusionPipelineOutput
+                if isinstance(image, list):
+                    if self.remove_background:
+                        with pipeline.background_remover.remover() as remove_background:
+                            for i, img in image:
+                                image[i] = remove_background(img)
 
-                self.result = StableDiffusionPipelineOutput(
-                    images=[image] * samples, nsfw_content_detected=[False] * samples
-                )
+                    given_frames = len(image)
+                    requested_frames = kwargs.get("animation_frames", given_frames)
+
+                    for i in range(requested_frames - given_frames - 1):
+                        image.append(image[-1].copy())
+
+                    self.result = StableDiffusionPipelineOutput(
+                        images=image, nsfw_content_detected=[False] * requested_frames
+                    )
+                else:
+                    if self.remove_background:
+                        with pipeline.background_remover.remover() as remove_background:
+                            image = remove_background(image)
+
+                    samples = kwargs.get("num_results_per_prompt", 1)
+                    self.result = StableDiffusionPipelineOutput(
+                        images=[image] * samples, nsfw_content_detected=[False] * samples
+                    )
+
                 return self.result
             raise ValueError("No prompt or image in this step; cannot invoke or pass through.")
 
@@ -438,60 +510,120 @@ class DiffusionStep:
         image_width, image_height, image_background, image_position = None, None, None, None
 
         if image is not None:
-            if self.remove_background and self.fill_background:
-                # Execute remove background here
-                with pipeline.background_remover.remover() as remove_background:
-                    image = remove_background(image)
-                    white = PIL.Image.new("RGB", image.size, (255, 255, 255))
-                    black = PIL.Image.new("RGB", image.size, (0, 0, 0))
-                    image_mask = white.copy()
-                    alpha = image.split()[-1]
-                    alpha_clamp = PIL.Image.eval(alpha, lambda a: 255 if a > 128 else 0)
-                    image_mask.paste(black, mask=alpha)
-                    if mask is not None:
-                        assert mask.size == image.size, "image and mask must be the same size"
-                        # Merge mask and alpha
-                        image_mask.paste(mask)
-                        inverse_alpha = PIL.Image.eval(alpha_clamp, lambda a: 255 - a)
-                        image_mask.paste(white, mask=inverse_alpha)
-                    mask = image_mask
-            image_width, image_height = image.size
+            if isinstance(image, list):
+                image_width, image_height = image[0].size
+                if self.remove_background and self.fill_background:
+                    # Execute remove background here
+                    with pipeline.background_remover.remover() as remove_background:
+                        for i, img in enumerate(image):
+                            img = remove_background(img)
+                            white = PIL.Image.new("RGB", img.size, (255, 255, 255))
+                            black = PIL.Image.new("RGB", img.size, (0, 0, 0))
+                            img_mask = white.copy()
+                            alpha = img.split()[-1]
+                            alpha_clamp = PIL.Image.eval(alpha, lambda a: 255 if a > 128 else 0)
+                            img_mask.paste(black, mask=alpha)
+                            if mask is not None:
+                                if not isinstance(mask, list):
+                                    mask = [mask]
+                                if i > len(mask):
+                                    mask.append(white.copy())
+                                assert mask[i].size == img[i].size, "img and mask must be the same size"
+                                # Merge mask and alpha
+                                img_mask.paste(mask[i])
+                                inverse_alpha = PIL.Image.eval(alpha_clamp, lambda a: 255 - a)
+                                img_mask.paste(white, mask=inverse_alpha)
+                                mask[i] = img_mask
+                            else:
+                                mask = [img_mask]
+            else:
+                image_width, image_height = image.size
+                if self.remove_background and self.fill_background:
+                    # Execute remove background here
+                    with pipeline.background_remover.remover() as remove_background:
+                        image = remove_background(image)
+                        white = PIL.Image.new("RGB", image.size, (255, 255, 255))
+                        black = PIL.Image.new("RGB", image.size, (0, 0, 0))
+                        image_mask = white.copy()
+                        alpha = image.split()[-1]
+                        alpha_clamp = PIL.Image.eval(alpha, lambda a: 255 if a > 128 else 0)
+                        image_mask.paste(black, mask=alpha)
+                        if mask is not None:
+                            if isinstance(mask, list):
+                                mask = mask[0]
+                            assert mask.size == image.size, "image and mask must be the same size"
+                            # Merge mask and alpha
+                            image_mask.paste(mask)
+                            inverse_alpha = PIL.Image.eval(alpha_clamp, lambda a: 255 - a)
+                            image_mask.paste(white, mask=inverse_alpha)
+                        mask = image_mask
             invocation_kwargs["image"] = image
 
         if mask is not None:
-            mask_width, mask_height = mask.size
+            if isinstance(mask, list):
+                mask_width, mask_height = mask[0].size
+            else:
+                mask_width, mask_height = mask.size
+
             if (
                 self.crop_inpaint
                 and (mask_width > pipeline_size or mask_height > pipeline.size)
                 and image is not None
             ):
-                (x0, y0), (x1, y1) = self.get_inpaint_bounding_box(pipeline_size)
+                # Make sure image and mask are the same type/length
+                if isinstance(image, list):
+                    if not isinstance(mask, list):
+                        mask = [mask]
+                    for i in range(len(image)-len(mask)):
+                        mask.append(mask[-1].copy())
+
+                # Find bounding box
+                (x0, y0) = (0, 0)
+                (x1, y1) = (0, 0)
+                for mask_image in (mask if isinstance(mask, list) else [mask]):
+                    (frame_x0, frame_y0), (frame_x1, frame_y1) = self.get_inpaint_bounding_box(pipeline_size)
+                    x0 = max(x0, frame_x0)
+                    y0 = max(y0, frame_y0)
+                    x1 = max(x1, frame_x1)
+                    y1 = max(y1, frame_y1)
 
                 bbox_width = x1 - x0
                 bbox_height = y1 - y0
-
                 pixel_ratio = (bbox_height * bbox_width) / (mask_width * mask_height)
                 pixel_savings = (1.0 - pixel_ratio) * 100
+
                 if pixel_ratio < 0.75:
                     logger.debug(f"Calculated pixel area savings of {pixel_savings:.1f}% by cropping to ({x0}, {y0}), ({x1}, {y1}) ({bbox_width}px by {bbox_height}px)")
                     # Disable refining
                     invocation_kwargs["refiner_strength"] = 0
                     invocation_kwargs["refiner_start"] = 1
                     image_position = (x0, y0)
-                    image_background = image.copy()
-                    image = image.crop((x0, y0, x1, y1))
-                    mask = mask.crop((x0, y0, x1, y1))
+                    if isinstance(image, list):
+                        image_background = [
+                            img.copy()
+                            for img in image
+                        ]
+                        image = [
+                            img.crop((x0, y0, x1, y1))
+                            for img in image
+                        ]
+                        mask = [
+                            img.crop((x0, y0, x1, y1))
+                            for img in mask
+                        ]
+                    else:
+                        image_background = image.copy()
+                        image = image.crop((x0, y0, x1, y1))
+                        mask = mask.crop((x0, y0, x1, y1))
+
                     image_width, image_height = bbox_width, bbox_height
                     invocation_kwargs["image"] = image  # Override what was set above
                 else:
                     logger.debug(
                         f"Calculated pixel area savings of {pixel_savings:.1f}% are insufficient, will not crop"
                     )
+
             invocation_kwargs["mask"] = mask
-            if image is not None:
-                assert image.size == mask.size, "image and mask must be the same size"
-            else:
-                image_width, image_height = mask.size
 
         if control_images is not None:
             for controlnet_name in control_images:
@@ -506,15 +638,33 @@ class DiffusionStep:
                         x0, y0 = image_position
                         x1 = x0 + image_width
                         y1 = y0 + image_height
-                        control_image = control_image.crop((x0, y0, x1, y1))
+                        if isinstance(control_image, list):
+                            control_image = [
+                                img.crop((x0, y0, x1, y1))
+                                for img in control_image
+                            ]
+                        else:
+                            control_image = control_image.crop((x0, y0, x1, y1))
+                        # Override control image in list
                         control_images[controlnet_name][i] = (control_image, conditioning_scale, conditioning_start, conditioning_end)
+                    # Assert size
                     if image_width is None or image_height is None:
-                        image_width, image_height = control_image.size
+                        if isinstance(control_image, list):
+                            image_width, image_height = control_image[0].size
+                        else:
+                            image_width, image_height = control_image.size
+                    elif isinstance(control_image, list):
+                        for img in control_image:
+                            this_width, this_height = img.size
+                            assert image_width == this_width and image_height == this_height, "all images must be the same size"
                     else:
                         this_width, this_height = control_image.size
                         assert image_width == this_width and image_height == this_height, "all images must be the same size"
+
             invocation_kwargs["control_images"] = control_images
-            if mask is not None:
+            if kwargs.get("animation_frames", None):
+                pipeline.animator_controlnets = list(control_images.keys())
+            elif mask is not None:
                 pipeline.inpainter_controlnets = list(control_images.keys())
             else:
                 pipeline.controlnets = list(control_images.keys())
@@ -569,7 +719,11 @@ class DiffusionStep:
 
         if image_background is not None and image_position is not None:
             for i, image in enumerate(result["images"]):
-                result["images"][i] = self.paste_inpaint_image(image_background, image, image_position)
+                result["images"][i] = self.paste_inpaint_image(
+                    image_background[i] if isinstance(image_background, list) else image_background,
+                    image,
+                    image_position
+                )
 
         if self.remove_background and not self.fill_background:
             with pipeline.background_remover.remover() as remove_background:
@@ -630,29 +784,31 @@ class DiffusionStep:
             if key in step_dict:
                 kwargs[key] = step_dict[key]
 
-        deserialized_children = [DiffusionStep.deserialize_dict(child) for child in step_dict.get("children", [])]
+        deserialized_children = [
+            DiffusionStep.deserialize_dict(child)
+            for child in step_dict.get("children", [])
+        ]
+
         for key in ["image", "mask"]:
             if key not in step_dict:
                 continue
             if isinstance(step_dict[key], int):
                 kwargs[key] = deserialized_children[step_dict[key]]
             elif isinstance(step_dict[key], str) and os.path.exists(step_dict[key]):
-                kwargs[key] = PIL.Image.open(step_dict[key])
-            elif isinstance(step_dict[key], list):
-                kwargs[key] = [
-                    PIL.Image.open(path)
-                    for path in step_dict[key]
-                ]
+                kwargs[key] = get_frames_or_image_from_file(step_dict[key])
             else:
                 kwargs[key] = step_dict[key]
+
         if "control_images" in step_dict:
             control_images: List[Dict[str, Any]] = []
             for control_image_dict in step_dict["control_images"]:
                 control_image = control_image_dict["image"]
+
                 if isinstance(control_image, int):
                     control_image = deserialized_children[control_image]
                 elif isinstance(control_image, str):
-                    control_image = PIL.Image.open(control_image)
+                    control_image = get_frames_or_image_from_file(control_image)
+
                 control_images.append({
                     "image": control_image,
                     "controlnet": control_image_dict["controlnet"],
@@ -668,15 +824,18 @@ class DiffusionStep:
             ip_adapter_images: List[Dict[str, Any]] = []
             for ip_adapter_image_dict in step_dict["ip_adapter_images"]:
                 ip_adapter_image = ip_adapter_image_dict["image"]
+
                 if isinstance(ip_adapter_image, int):
                     ip_adapter_image = deserialized_children[ip_adapter_image]
                 elif isinstance(ip_adapter_image, str):
-                    ip_adapter_image = PIL.Image.open(ip_adapter_image)
+                    ip_adapter_image = get_frames_or_image_from_file(ip_adapter_image)
+
                 ip_adapter_images.append({
                     "image": ip_adapter_image,
                     "scale": ip_adapter_image_dict.get("scale", 1.0),
                 })
             kwargs["ip_adapter_images"] = ip_adapter_images
+
         return DiffusionStep(**kwargs)
 
 class DiffusionNode:
@@ -790,6 +949,9 @@ class DiffusionPlan:
         loop: bool=False,
         interpolate_frames: Optional[Union[int, Tuple[int, ...], List[int]]]=None,
         motion_module: Optional[str]=None,
+        motion_scale: Optional[float]=None,
+        position_encoding_truncate_length: Optional[int]=None,
+        position_encoding_scale_length: Optional[int]=None,
     ) -> None:
         """
         Plans an entire multi-step execution
@@ -840,6 +1002,9 @@ class DiffusionPlan:
         self.temporal_chunking_size = temporal_chunking_size
         self.interpolate_frames = interpolate_frames
         self.motion_module = motion_module
+        self.motion_scale = motion_scale
+        self.position_encoding_truncate_length = position_encoding_truncate_length
+        self.position_encoding_scale_length = position_encoding_scale_length
 
     @property
     def kwargs(self) -> Dict[str, Any]:
@@ -861,7 +1026,10 @@ class DiffusionPlan:
             "tile": tuple(self.tile[:2]) if isinstance(self.tile, list) else self.tile,
             "loop": self.loop,
             "animation_frames": self.animation_frames,
-            "temporal_chunking_size": self.temporal_chunking_size
+            "temporal_chunking_size": self.temporal_chunking_size,
+            "motion_scale": self.motion_scale,
+            "position_encoding_truncate_length": self.position_encoding_truncate_length,
+            "position_encoding_scale_length": self.position_encoding_scaling_length,
         }
 
     @property
@@ -894,6 +1062,7 @@ class DiffusionPlan:
         # We import here so this file can be imported by processes without initializing torch
         from diffusers.utils.pil_utils import PIL_INTERPOLATION
         from diffusers.pipelines.stable_diffusion import StableDiffusionPipelineOutput
+
         if task_callback is None:
             task_callback = lambda arg: None
 
@@ -1077,16 +1246,25 @@ class DiffusionPlan:
         pipeline.stop_keepalive() # Make sure this is stopped
         return self.format_output(images, nsfw)
 
-    def get_image_metadata(self, image: PIL.Image.Image) -> Dict[str, Any]:
+    def get_image_metadata(self, image: Union[PIL.Image.Image, List[PIL.Image.Image]]) -> Dict[str, Any]:
         """
         Gets metadata from an image
         """
-        (width, height) = image.size
-        return {
-            "width": width,
-            "height": height,
-            "metadata": getattr(image, "text", {})
-        }
+        if isinstance(image, list):
+            (width, height) = image[0].size
+            return {
+                "width": width,
+                "height": height,
+                "frames": len(image),
+                "metadata": getattr(image[0], "text", {}),
+            }
+        else:
+            (width, height) = image.size
+            return {
+                "width": width,
+                "height": height,
+                "metadata": getattr(image, "text", {})
+            }
 
     def redact_images_from_metadata(self, metadata: Dict[str, Any]) -> None:
         """
@@ -1096,6 +1274,7 @@ class DiffusionPlan:
             image = metadata.get(key, None)
             if image is not None:
                 metadata[key] = self.get_image_metadata(metadata[key])
+
         if "control_images" in metadata:
             for i, control_dict in enumerate(metadata["control_images"]):
                 control_dict["image"] = self.get_image_metadata(control_dict["image"])
@@ -1181,6 +1360,7 @@ class DiffusionPlan:
                 raise ValueError("No image and no steps; cannot execute plan.")
             return [self.image], [False]
 
+        from enfugue.diffusion.util import empty_cache
         # Define progress and latent callback kwargs, we'll add task callbacks ourself later
         callback_kwargs = {
             "progress_callback": progress_callback,
@@ -1202,8 +1382,14 @@ class DiffusionPlan:
         else:
             total_images *= self.samples
 
-        images = [PIL.Image.new("RGBA", (self.width, self.height)) for i in range(total_images)]
-        image_draw = [PIL.ImageDraw.Draw(image) for image in images]
+        images = [
+            PIL.Image.new("RGBA", (self.width, self.height))
+            for i in range(total_images)
+        ]
+        image_draw = [
+            PIL.ImageDraw.Draw(image)
+            for image in images
+        ]
         nsfw_content_detected = [False] * total_images
 
         # Keep a final mask of all nodes to outpaint in the end
@@ -1263,7 +1449,7 @@ class DiffusionPlan:
                     use_cached=False,
                     **invocation_kwargs
                 )
-                
+
                 for j, image in enumerate(result["images"]):
                     image_index = (it * self.samples) + j
                     image = node.resize_image(image)
@@ -1287,9 +1473,13 @@ class DiffusionPlan:
                 if image_callback is not None:
                     image_callback(images)
 
+                # Empty any leftover cache
+                empty_cache()
+
         # Determine if there's anything left to outpaint
         outpaint_mask = outpaint_mask.convert("L")
         image_r_min, image_r_max = outpaint_mask.getextrema()
+
         if image_r_max > 0 and self.prompt and self.outpaint:
             # Outpaint
             del invocation_kwargs["num_results_per_prompt"]
@@ -1419,6 +1609,9 @@ class DiffusionPlan:
             "motion_module": self.motion_module,
             "loop": self.loop,
             "tile": self.tile,
+            "motion_scale": self.motion_scale,
+            "temporal_encoding_truncate_length": self.temporal_encoding_truncate_length,
+            "temporal_encoding_scale_length": self.temporal_encoding_scale_length,
         }
 
     @staticmethod
@@ -1473,7 +1666,10 @@ class DiffusionPlan:
             "interpolate_frames",
             "motion_module",
             "loop",
-            "tile"
+            "tile",
+            "motion_scale",
+            "temporal_encoding_truncate_length",
+            "temporal_encoding_scale_length",
         ]:
             if arg in plan_dict:
                 kwargs[arg] = plan_dict[arg]
@@ -1488,7 +1684,14 @@ class DiffusionPlan:
         return result
 
     @staticmethod
-    def create_mask(width: int, height: int, left: int, top: int, right: int, bottom: int) -> PIL.Image.Image:
+    def create_mask(
+        width: int,
+        height: int,
+        left: int,
+        top: int,
+        right: int,
+        bottom: int
+    ) -> PIL.Image.Image:
         """
         Creates a mask from 6 dimensions
         """
@@ -1632,6 +1835,9 @@ class DiffusionPlan:
         loop: bool=False,
         interpolate_frames: Optional[Union[int, Tuple[int, ...], List[int]]]=None,
         motion_module: Optional[str]=None,
+        motion_scale: Optional[float]=None,
+        position_encoding_truncate_length: Optional[int]=None,
+        position_encoding_scale_length: Optional[int]=None,
         **kwargs: Any,
     ) -> DiffusionPlan:
         """
@@ -1682,6 +1888,9 @@ class DiffusionPlan:
             loop=loop,
             interpolate_frames=interpolate_frames,
             motion_module=motion_module,
+            motion_scale=motion_scale,
+            position_encoding_scale_length=position_encoding_scale_length,
+            position_encoding_truncate_length=position_encoding_truncate_length,
             nodes=[],
         )
 
@@ -2072,11 +2281,11 @@ class DiffusionPlan:
             outpainted_images: Dict[int, PIL.Image.Image] = {}
 
             def prepare_image(
-                image: PIL.Image.Image,
-                outpaint_if_necessary: bool = False,
-                mask: Optional[PIL.Image.Image] = None,
-                fit: Optional[IMAGE_FIT_LITERAL] = None,
-                anchor: Optional[IMAGE_ANCHOR_LITERAL] = None
+                image: Union[PIL.Image.Image, List[PIL.Image.Image]],
+                outpaint_if_necessary: bool=False,
+                mask: Optional[Union[PIL.Image.Image, List[PIL.Image.Image]]]=None,
+                fit: Optional[IMAGE_FIT_LITERAL]=None,
+                anchor: Optional[IMAGE_ANCHOR_LITERAL]=None
             )-> Union[Tuple[PIL.Image.Image, PIL.Image.Image], Tuple[DiffusionStep, Any]]:
                 """
                 Checks if the image needs to be outpainted
@@ -2086,26 +2295,67 @@ class DiffusionPlan:
                     if images_are_equal(outpainted_image, image):
                         return outpaint_steps[step_index], 0
 
-                image_mask = PIL.Image.new("RGB", (node_width, node_height), (255, 255, 255)) # Mask for outpainting if needed
+                image_needs_outpainting = False
                 fitted_image = fit_image(image, node_width, node_height, fit, anchor)
-                fitted_alpha = fitted_image.split()[-1]
-                fitted_alpha_clamp = PIL.Image.eval(fitted_alpha, lambda a: 255 if a > 128 else 0)
 
-                image_mask.paste(black, mask=fitted_alpha)
+                if isinstance(fitted_image, list):
+                    if not animation_frames:
+                        fitted_image = fitted_image[0]
+                    else:
+                        fitted_image = fitted_image[:animation_frames]
 
-                if mask:
-                    image_mask.paste(mask)
-                    fitted_inverse_alpha = PIL.Image.eval(fitted_alpha_clamp, lambda a: 255 - a)
-                    image_mask.paste(white, mask=fitted_inverse_alpha)
+                if isinstance(fitted_image, list):
+                    image_mask = [
+                        PIL.Image.new("RGB", (node_width, node_height), (255, 255, 255)) # Mask for outpainting if needed
+                        for i in range(len(fitted_image))
+                    ]
+                else:
+                    image_mask = PIL.Image.new("RGB", (node_width, node_height), (255, 255, 255)) # Mask for outpainting if needed
 
-                image_mask_r_min, image_mask_r_max = image_mask.getextrema()[1]
-                image_needs_outpainting = image_mask_r_max > 0
+                if isinstance(fitted_image, list):
+                    for i, img in enumerate(fitted_image):
+                        fitted_alpha = img.split()[-1]
+                        fitted_alpha_clamp = PIL.Image.eval(fitted_alpha, lambda a: 255 if a > 128 else 0)
+
+                        image_mask[i].paste(black, mask=fitted_alpha)
+
+                        if mask:
+                            if isinstance(mask, list):
+                                if len(mask) <= i:
+                                    this_mask = mask[-1]
+                                else:
+                                    this_mask = mask[i]
+                            else:
+                                this_mask = mask
+
+                            image_mask[i].paste(this_mask)
+                            fitted_inverse_alpha = PIL.Image.eval(fitted_alpha_clamp, lambda a: 255 - a)
+                            image_mask[i].paste(white, mask=fitted_inverse_alpha)
+
+                        image_mask_r_min, image_mask_r_max = image_mask[i].getextrema()[1]
+                        if image_mask_r_max > 0:
+                            image_mask[i].save("./what.png")
+                            raise ValueError("FUCK")
+                        image_needs_outpainting = image_needs_outpainting or image_mask_r_max > 0
+                else:
+                    fitted_alpha = fitted_image.split()[-1]
+                    fitted_alpha_clamp = PIL.Image.eval(fitted_alpha, lambda a: 255 if a > 128 else 0)
+
+                    image_mask.paste(black, mask=fitted_alpha)
+
+                    if mask:
+                        image_mask.paste(mask)
+                        fitted_inverse_alpha = PIL.Image.eval(fitted_alpha_clamp, lambda a: 255 - a)
+                        image_mask.paste(white, mask=fitted_inverse_alpha)
+
+                    image_mask_r_min, image_mask_r_max = image_mask.getextrema()[1]
+                    image_needs_outpainting = image_mask_r_max > 0
 
                 if image_needs_outpainting and outpaint_if_necessary:
                     step = DiffusionStep(
                         name=f"Outpaint Node {i+1}",
                         image=fitted_image,
-                        mask=feather_mask(image_mask.convert("1")),
+                        mask=feather_mask(image_mask),
                         prompt=str(node_prompt_tokens),
                         prompt_2=str(node_prompt_2_tokens),
                         negative_prompt=str(node_negative_prompt_tokens),
@@ -2184,11 +2434,19 @@ class DiffusionPlan:
             node_prompt_2_str = str(node_prompt_2_tokens)
             node_negative_prompt_str = str(node_negative_prompt_tokens)
             node_negative_prompt_2_str = str(node_negative_prompt_2_tokens)
-
+ 
             if node_inpaint_mask:
-                node_inpaint_mask = node_inpaint_mask.convert("L")
-                node_inpaint_mask_r_min, node_inpaint_mask_r_max = node_inpaint_mask.getextrema()
-                image_needs_inpainting = node_inpaint_mask_r_max > 0
+                if isinstance(node_inpaint_mask, list):
+                    image_needs_inpainting = False
+                    for i, img in enumerate(node_inpaint_mask):
+                        img = img.convert("L")
+                        img_r_min, img_r_max = img.getextrema()
+                        image_needs_inpainting = image_needs_inpainting or img_r_max > 0
+                        node_inpaint_mask[i] = img
+                else:
+                    node_inpaint_mask = node_inpaint_mask.convert("L")
+                    node_inpaint_mask_r_min, node_inpaint_mask_r_max = node_inpaint_mask.getextrema()
+                    image_needs_inpainting = node_inpaint_mask_r_max > 0
             else:
                 image_needs_inpainting = False
 
@@ -2263,5 +2521,7 @@ class DiffusionPlan:
 
             # Add step to plan
             plan.nodes.append(DiffusionNode(node_bounds, step))
+
+        # Set upscale steps 
         plan.upscale_steps = get_upscale_steps()
         return plan

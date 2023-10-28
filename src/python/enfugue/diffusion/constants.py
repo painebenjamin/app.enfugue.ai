@@ -158,7 +158,6 @@ CACHE_MODE_LITERAL = ["always", "xl", "tensorrt"]
 VAE_LITERAL = Literal["ema", "mse", "xl", "xl16"]
 DEVICE_LITERAL = Literal["cpu", "cuda", "dml", "mps"]
 PIPELINE_SWITCH_MODE_LITERAL = Literal["offload", "unload"]
-MASK_TYPE_LITERAL = Literal["constant", "bilinear", "gaussian"]
 SCHEDULER_LITERAL = Literal[
     "ddim", "ddpm", "deis",
     "dpmsm", "dpmsms", "dpmsmk", "dpmsmka",

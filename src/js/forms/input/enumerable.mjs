@@ -562,6 +562,7 @@ class SearchListInputView extends EnumerableInputView {
         this.stringInput = new this.constructor.stringInputClass(config, "autofill", {placeholder: this.constructor.placeholder});
         this.stringInput.onInput((searchValue) => this.searchChanged(searchValue));
         this.stringInput.onFocus(async () => {
+            await this.search(await this.stringInput.getValue());
             let stringInputNode = await this.stringInput.getNode(),
                 listInputNode = await this.listInput.getNode(),
                 inputPosition = this.node.element.getBoundingClientRect(),

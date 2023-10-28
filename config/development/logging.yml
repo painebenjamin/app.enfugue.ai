@@ -11,4 +11,5 @@ silenced:
     - tensorflow
     - diffusers
     - urllib3.connectionpool
-    - torch.distributed.nn.jit.instantiator
+    - PIL.PngImagePlugin
+    - torch.distributed.nn.jit

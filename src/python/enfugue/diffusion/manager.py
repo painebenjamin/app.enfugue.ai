@@ -3132,7 +3132,10 @@ class DiffusionPipelineManager:
                     kwargs["tokenizer_2"] = None
                     kwargs["text_encoder_2"] = None
 
-                kwargs["build_half"] = "16" in str(self.dtype)
+                if "16" in str(self.dtype):
+                    kwargs["build_half"] = True
+                    kwargs["variant"] = "fp16"
+
                 logger.debug(
                     f"Initializing TensorRT pipeline from diffusers cache directory at {self.model_diffusers_cache_dir}. Arguments are {redact(kwargs)}"
                 )
@@ -3150,9 +3153,14 @@ class DiffusionPipelineManager:
                     kwargs["text_encoder_2"] = None
                 if vae is not None:
                     kwargs["vae"] = vae
+
+                if "16" in str(self.dtype):
+                    kwargs["variant"] = "fp16"
+
                 logger.debug(
                     f"Initializing pipeline from diffusers cache directory at {self.model_diffusers_cache_dir}. Arguments are {redact(kwargs)}"
                 )
+
                 pipeline = self.pipeline_class.from_pretrained(
                     self.model_diffusers_cache_dir,
                     local_files_only=self.offline,
@@ -3259,7 +3267,10 @@ class DiffusionPipelineManager:
                     kwargs["text_encoder_2"] = None
                     kwargs["tokenizer_2"] = None
 
-                kwargs["build_half"] = "16" in str(self.dtype)
+                if "16" in str(self.dtype):
+                    kwargs["build_half"] = True
+                    kwargs["variant"] = "fp16"
+
                 logger.debug(
                     f"Initializing refiner TensorRT pipeline from diffusers cache directory at {self.refiner_diffusers_cache_dir}. Arguments are {redact(kwargs)}"
                 )
@@ -3280,11 +3291,17 @@ class DiffusionPipelineManager:
                 else:
                     kwargs["text_encoder_2"] = None
                     kwargs["tokenizer_2"] = None
+
                 if vae is not None:
                     kwargs["vae"] = vae
+
+                if "16" in str(self.dtype):
+                    kwargs["variant"] = "fp16"
+
                 logger.debug(
                     f"Initializing refiner pipeline from diffusers cache directory at {self.refiner_diffusers_cache_dir}. Arguments are {redact(kwargs)}"
                 )
+
                 refiner_pipeline = self.refiner_pipeline_class.from_pretrained(
                     self.refiner_diffusers_cache_dir,
                     safety_checker=None,
@@ -3304,6 +3321,7 @@ class DiffusionPipelineManager:
                     load_safety_checker=False,
                     **kwargs,
                 )
+
                 if refiner_pipeline.is_sdxl and "16" not in self.refiner and (self.refiner_vae_name is None or "16" not in self.refiner_vae_name):
                     refiner_pipeline.register_to_config(force_full_precision_vae=True)
                 if self.should_cache_refiner:
@@ -3416,10 +3434,14 @@ class DiffusionPipelineManager:
                     kwargs["text_encoder_2"] = None
                     kwargs["tokenizer_2"] = None
 
-                kwargs["build_half"] = "16" in str(self.dtype)
+                if "16" in str(self.dtype):
+                    kwargs["variant"] = "fp16"
+                    kwargs["build_half"] = True
+
                 logger.debug(
                     f"Initializing inpainter TensorRT pipeline from diffusers cache directory at {self.inpainter_diffusers_cache_dir}. Arguments are {redact(kwargs)}"
                 )
+
                 inpainter_pipeline = self.inpainter_pipeline_class.from_pretrained(
                     self.inpainter_diffusers_cache_dir,
                     local_files_only=self.offline,
@@ -3436,6 +3458,8 @@ class DiffusionPipelineManager:
                     kwargs["tokenizer_2"] = None
                 if vae is not None:
                     kwargs["vae"] = vae
+                if "16" in str(self.dtype):
+                    kwargs["variant"] = "fp16"
                 
                 logger.debug(
                     f"Initializing inpainter pipeline from diffusers cache directory at {self.inpainter_diffusers_cache_dir}. Arguments are {redact(kwargs)}"
@@ -3551,6 +3575,9 @@ class DiffusionPipelineManager:
                 if not self.animator_is_sdxl:
                     kwargs["text_encoder_2"] = None
                     kwargs["tokenizer_2"] = None
+                if "16" in str(self.dtype):
+                    kwargs["variant"] = "fp16"
+                    kwargs["build_half"] = True
 
                 logger.debug(
                     f"Initializing animator TensorRT pipeline from diffusers cache directory at {self.animator_diffusers_cache_dir}. Arguments are {redact(kwargs)}"
@@ -3569,6 +3596,8 @@ class DiffusionPipelineManager:
                     kwargs["tokenizer_2"] = None
                 if vae is not None:
                     kwargs["vae"] = vae
+                if "16" in str(self.dtype):
+                    kwargs["variant"] = "fp16"
                 
                 logger.debug(
                     f"Initializing animator pipeline from diffusers cache directory at {self.animator_diffusers_cache_dir}. Arguments are {redact(kwargs)}"
@@ -4320,7 +4349,7 @@ class DiffusionPipelineManager:
 
             if animating and self.has_animator:
                 size = self.animator_size
-            if inpainting and (self.has_inpainter or self.create_inpainter):
+            elif inpainting and (self.has_inpainter or self.create_inpainter):
                 size = self.inpainter_size
             elif refining:
                 size = self.refiner_size
@@ -4365,16 +4394,11 @@ class DiffusionPipelineManager:
                     logger.info(f"IP adapter requested, TensorRT is not compatible, disabling.")
                     self.tensorrt_is_enabled = False
 
-                if inpainting and (self.has_inpainter or self.create_inpainter):
-                    self.offload_pipeline(intention) # type: ignore
-                    self.offload_refiner(intention) # type: ignore
-                    self.offload_animator(intention) # type: ignore
-
-                    pipe = self.inpainter_pipeline
-                elif animating:
+                if animating:
                     if not self.has_animator:
                         logger.debug(f"Animation requested but no animator set, setting animator to the same as the base model")
                         self.animator = self.model
+
                     self.offload_pipeline(intention) # type: ignore
                     self.offload_refiner(intention) # type: ignore
                     self.offload_inpainter(intention) # type: ignore
@@ -4409,9 +4433,12 @@ class DiffusionPipelineManager:
                         kwargs["output_type"] = "latent"
 
                 # Check IP adapter for downloads
-                if kwargs.get("ip_adapter_scale", None) is not None:
+                if kwargs.get("ip_adapter_images", None) is not None:
                     self.ip_adapter.check_download(
                         is_sdxl=pipe.is_sdxl,
+                        use_fine_grained=kwargs.get("ip_adapter_plus", False),
+                        use_face_model=kwargs.get("ip_adapter_face", False),
+                        task_callback=task_callback,
                     )
 
                 self.stop_keepalive()

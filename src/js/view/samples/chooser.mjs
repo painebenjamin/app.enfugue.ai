@@ -300,9 +300,15 @@ class SampleChooserView extends View {
                 samplesContainer.content(
                     E.div().class("no-samples").content(this.constructor.noSamplesLabel)
                 );
+                this.imageViews = [];
             } else if (isChanged) {
-                let samplesContainer = await this.node.find(".samples");
-                samplesContainer.empty();
+                let samplesContainer = await this.node.find(".samples"),
+                    render = false;
+
+                if (isEmpty(this.imageViews)) {
+                    samplesContainer.empty();
+                    render = true;
+                }
                 for (let i in this.samples) {
                     let imageView,
                         imageViewNode,
@@ -316,6 +322,8 @@ class SampleChooserView extends View {
                             this.setActiveIndex(i);
                         });
                         this.imageViews.push(imageView);
+                        samplesContainer.append(imageViewNode);
+                        render = true;
                     } else {
                         imageView = this.imageViews[i];
                         imageView.setImage(sample);
@@ -335,10 +343,10 @@ class SampleChooserView extends View {
                     } else {
                         imageViewNode.css("width", null);
                     }
-
-                    samplesContainer.append(imageViewNode);
                 }
-                samplesContainer.render();
+                if (render) {
+                    samplesContainer.render();
+                }
             }
         }
     }
@@ -389,8 +397,12 @@ class SampleChooserView extends View {
 
         let isScrubbing = false,
             getFrameIndexFromMousePosition = (e) => {
-                let sampleContainerWidth = samplesContainer.element.getBoundingClientRect().width,
-                    clickRatio = e.offsetX / sampleContainerWidth;
+                let sampleContainerPosition = samplesContainer.element.getBoundingClientRect(),
+                    clickRatio = e.clientX < sampleContainerPosition.left
+                        ? 0
+                        : e.clientX > sampleContainerPosition.left + sampleContainerPosition.width
+                            ? 1
+                            : (e.clientX - sampleContainerPosition.left) / sampleContainerPosition.width;
                 return Math.floor(clickRatio * this.samples.length);
             };
 
@@ -399,15 +411,30 @@ class SampleChooserView extends View {
                 e.preventDefault();
                 samplesContainer.element.scrollLeft += e.deltaY / 10;
             })
-            .on("mouseleave", (e) => {
-                isScrubbing = false;
-            })
             .on("mousedown", (e) => {
                 if (this.isAnimation) {
                     e.preventDefault();
                     e.stopPropagation();
                     isScrubbing = true;
                     this.setActiveIndex(getFrameIndexFromMousePosition(e));
+                    let onWindowMouseMove = (e2) => {
+                        e2.preventDefault();
+                        e2.stopPropagation();
+                        if (isScrubbing) {
+                            this.setActiveIndex(getFrameIndexFromMousePosition(e2));
+                        }
+                    };
+                    let onWindowMouseUpOrLeave = (e2) => {
+                        e2.preventDefault();
+                        e2.stopPropagation();
+                        isScrubbing = false;
+                        window.removeEventListener("mouseup", onWindowMouseUpOrLeave, true);
+                        window.removeEventListener("mouseleave", onWindowMouseUpOrLeave, true);
+                        window.removeEventListener("mousemove", onWindowMouseMove, true);
+                    };
+                    window.addEventListener("mousemove", onWindowMouseMove, true);
+                    window.addEventListener("mouseup", onWindowMouseUpOrLeave, true);
+                    window.addEventListener("mouseleave", onWindowMouseUpOrLeave, true);
                 }
             })
             .on("mousemove", (e) => {

@@ -18,7 +18,8 @@ engine:
             - tensorflow
             - diffusers
             - urllib3.connectionpool
-            - torch.distributed.nn.jit.instantiator
+            - PIL.PngImagePlugin
+            - torch.distributed.nn.jit
 downloads:
     concurrent: 2
     queue: 10

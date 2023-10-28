@@ -40,16 +40,17 @@ class IPAdapter(SupportModel):
     XL_ADAPTER_PATH = "https://huggingface.co/h94/IP-Adapter/resolve/main/sdxl_models/ip-adapter_sdxl.bin"
 
     FINE_GRAINED_XL_ADAPTER_PATH = "https://huggingface.co/h94/IP-Adapter/resolve/main/sdxl_models/ip-adapter-plus_sdxl_vit-h.bin"
+    FACE_XL_ADAPTER_PATH = "https://huggingface.co/h94/IP-Adapter/resolve/main/sdxl_models/ip-adapter-plus-face_sdxl_vit-h.bin"
 
     def load(
         self,
         unet: UNet2DConditionModel,
-        is_sdxl: bool = False,
-        use_fine_grained: bool = False,
-        use_face_model: bool = False,
-        scale: float = 1.0,
-        keepalive_callback: Optional[Callable[[],None]] = None,
-        controlnets: Optional[Dict[str, ControlNetModel]] = None,
+        is_sdxl: bool=False,
+        use_fine_grained: bool=False,
+        use_face_model: bool=False,
+        scale: float=1.0,
+        keepalive_callback: Optional[Callable[[],None]]=None,
+        controlnets: Optional[Dict[str, ControlNetModel]]=None,
     ) -> None:
         """
         Loads the IP adapter.
@@ -148,10 +149,29 @@ class IPAdapter(SupportModel):
                         new_processors[key] = CNAttentionProcessor()
                 controlnets[controlnet].set_attn_processor(new_processors)
 
-    def check_download(self, is_sdxl: bool) -> None:
+    def check_download(
+        self,
+        is_sdxl: bool=False,
+        use_fine_grained: bool=False,
+        use_face_model: bool=False,
+        task_callback: Optional[Callable[[str], None]]=None,
+    ) -> None:
         """
-        Downloads necessary files for either pipeline
+        Downloads necessary files for any pipeline
         """
+        # Gather previous state
+        _task_callback = self.task_callback
+        _is_sdxl = self.is_sdxl
+        _use_fine_grained = self.use_fine_grained
+        _use_face_model = self.use_face_model
+
+        # Set new state
+        self.task_callback = task_callback
+        self.is_sdxl = is_sdxl
+        self.use_fine_grained = use_fine_grained
+        self.task_callback = task_callback
+
+        # Trigger getters
         if is_sdxl:
             _ = self.xl_encoder_config
             _ = self.xl_encoder_model
@@ -161,15 +181,21 @@ class IPAdapter(SupportModel):
             _ = self.default_encoder_model
             _ = self.default_image_prompt_checkpoint
 
+        # Reset state
+        self.task_callback = _task_callback
+        self.is_sdxl = _is_sdxl
+        self.use_fine_grained = _use_fine_grained
+        self.use_face_model = _use_face_model
+
     def set_scale(
         self,
         unet: UNet2DConditionModel,
         new_scale: float,
-        is_sdxl: bool = False,
-        use_fine_grained: bool = False,
-        use_face_model: bool = False,
-        keepalive_callback: Optional[Callable[[],None]] = None,
-        controlnets: Optional[Dict[str, ControlNetModel]] = None,
+        is_sdxl: bool=False,
+        use_fine_grained: bool=False,
+        use_face_model: bool=False,
+        keepalive_callback: Optional[Callable[[],None]]=None,
+        controlnets: Optional[Dict[str, ControlNetModel]]=None,
     ) -> int:
         """
         Sets the scale on attention processors.
@@ -275,6 +301,7 @@ class IPAdapter(SupportModel):
         """
         if self.use_fine_grained:
             return self.default_encoder_model
+
         return self.get_model_file(
             self.XL_ENCODER_PATH,
             filename="ip-adapter_sdxl_encoder.pth",
@@ -289,6 +316,7 @@ class IPAdapter(SupportModel):
         """
         if self.use_fine_grained:
             return self.default_encoder_config
+
         return self.get_model_file(
             self.XL_ENCODER_CONFIG_PATH,
             filename="ip-adapter_sdxl_encoder_config.json"
@@ -300,9 +328,19 @@ class IPAdapter(SupportModel):
         Gets the path to the IP checkpoint for XL
         Downloads if needed
         """
+        if self.use_fine_grained and self.use_face_model:
+            model_url = self.FACE_XL_ADAPTER_PATH
+            filename = "ip-adapter-plus-face_sdxl_vit-h.pth"
+        elif self.use_fine_grained:
+            model_url = self.FINE_GRAINED_XL_ADAPTER_PATH
+            filename = "ip-adapter-plus_sdxl_vit-h.pth"
+        else:
+            model_url = self.XL_ADAPTER_PATH
+            filename = "ip-adapter_sdxl.pth"
+            
         return self.get_model_file(
-            self.FINE_GRAINED_XL_ADAPTER_PATH if self.use_fine_grained else self.XL_ADAPTER_PATH,
-            filename="ip-adapter-plus_sdxl_vit-h.pth" if self.use_fine_grained else "ip-adapter_sdxl.pth",
+            model_url,
+            filename=filename,
             extensions=[".bin", ".pth", ".safetensors"]
         )
 

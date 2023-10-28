@@ -1,9 +1,10 @@
 # type: ignore
+from __future__ import annotations
 # Adapted from https://github.com/guoyww/AnimateDiff/blob/main/animatediff/models/unet.py
 # Adapted from https://github.com/huggingface/diffusers/blob/main/src/diffusers/models/unet_2d_condition.py
 
 from dataclasses import dataclass
-from typing import List, Optional, Tuple, Union, Any
+from typing import List, Optional, Tuple, Union, Any, Dict
 
 import os
 import json
@@ -333,6 +334,8 @@ class UNet3DConditionModel(ModelMixin, ConfigMixin):
         class_labels: Optional[torch.Tensor] = None,
         attention_mask: Optional[torch.Tensor] = None,
         return_dict: bool = True,
+        down_block_additional_residuals: Optional[Tuple[torch.Tensor]] = None,
+        mid_block_additional_residual: Optional[torch.Tensor] = None,
         **kwargs: Any
     ) -> Union[UNet3DConditionOutput, Tuple]:
         r"""
@@ -359,7 +362,6 @@ class UNet3DConditionModel(ModelMixin, ConfigMixin):
         upsample_size = None
 
         if any(s % default_overall_up_factor != 0 for s in sample.shape[-2:]):
-            logger.info("Forward upsample size to force interpolation output size.")
             forward_upsample_size = True
 
         # prepare attention_mask
@@ -423,10 +425,24 @@ class UNet3DConditionModel(ModelMixin, ConfigMixin):
 
             down_block_res_samples += res_samples
 
+        # down controlnet
+        if down_block_additional_residuals is not None:
+            new_down_block_res_samples = ()
+            for down_block_res_sample, down_block_additional_residual in zip(
+                down_block_res_samples, down_block_additional_residuals
+            ):
+                down_block_res_sample = down_block_res_sample + down_block_additional_residual
+                new_down_block_res_samples = new_down_block_res_samples + (down_block_res_sample,)
+            down_block_res_samples = new_down_block_res_samples
+
         # mid
         sample = self.mid_block(
             sample, emb, encoder_hidden_states=encoder_hidden_states, attention_mask=attention_mask
         )
+
+        # mid controlnet
+        if mid_block_additional_residual is not None:
+            sample = sample + mid_block_additional_residual
 
         # up
         for i, upsample_block in enumerate(self.up_blocks):
@@ -504,3 +520,76 @@ class UNet3DConditionModel(ModelMixin, ConfigMixin):
         print(f"### Temporal Module Parameters: {sum(params) / 1e6} M")
         
         return model
+
+    @property
+    def attn_processors(self) -> Dict[str, AttentionProcessor]:
+        return self.get_attn_processors(include_temporal_layers=False)
+
+    def get_attn_processors(self, include_temporal_layers=True) -> Dict[str, AttentionProcessor]:
+        r"""
+        Returns:
+            `dict` of attention processors: A dictionary containing all attention processors used in the model with
+            indexed by its weight name.
+        """
+        # set recursively
+        processors = {}
+
+        def fn_recursive_add_processors(name: str, module: torch.nn.Module, processors: Dict[str, AttentionProcessor]):
+
+            if not include_temporal_layers:
+                if 'temporal' in name:
+                    return processors
+
+            if hasattr(module, "set_processor"):
+                processors[f"{name}.processor"] = module.processor
+
+            for sub_name, child in module.named_children():
+                fn_recursive_add_processors(f"{name}.{sub_name}", child, processors)
+
+            return processors
+
+        for name, module in self.named_children():
+            fn_recursive_add_processors(name, module, processors)
+
+        return processors
+
+    def set_attn_processor(self, processor: Union[AttentionProcessor, Dict[str, AttentionProcessor]],
+                           include_temporal_layers=False):
+        r"""
+        Sets the attention processor to use to compute attention.
+
+        Parameters:
+            processor (`dict` of `AttentionProcessor` or only `AttentionProcessor`):
+                The instantiated processor class or a dictionary of processor classes that will be set as the processor
+                for **all** `Attention` layers.
+
+                If `processor` is a dict, the key needs to define the path to the corresponding cross attention
+                processor. This is strongly recommended when setting trainable attention processors.
+
+        """
+        count = len(self.get_attn_processors(include_temporal_layers=include_temporal_layers).keys())
+
+        if isinstance(processor, dict) and len(processor) != count:
+            raise ValueError(
+                f"A dict of processors was passed, but the number of processors {len(processor)} does not match the"
+                f" number of attention layers: {count}. Please make sure to pass {count} processor classes."
+            )
+
+        def fn_recursive_attn_processor(name: str, module: torch.nn.Module, processor):
+
+            if not include_temporal_layers:
+                if "temporal" in name:
+                    return
+
+            if hasattr(module, "set_processor"):
+                if not isinstance(processor, dict):
+                    module.set_processor(processor)
+                else:
+                    module.set_processor(processor.pop(f"{name}.processor"))
+
+            for sub_name, child in module.named_children():
+                fn_recursive_attn_processor(f"{name}.{sub_name}", child, processor)
+
+        for name, module in self.named_children():
+            fn_recursive_attn_processor(name, module, processor)
+

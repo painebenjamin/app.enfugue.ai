@@ -16,6 +16,8 @@ if TYPE_CHECKING:
     from diffusers import (
         AutoencoderKL,
         ControlNetModel,
+    )
+    from diffusers.schedulers.scheduling_utils import (
         KarrasDiffusionSchedulers
     )
 

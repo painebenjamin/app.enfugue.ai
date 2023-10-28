@@ -3,7 +3,7 @@ from __future__ import annotations
 import io
 import math
 
-from typing import Optional, Literal, Union, Tuple, TYPE_CHECKING
+from typing import Optional, Literal, Union, List, Tuple, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from PIL.Image import Image
@@ -34,7 +34,7 @@ IMAGE_ANCHOR_LITERAL = Literal[
 ]
 
 def fit_image(
-    image: Image,
+    image: Union[Image, List[Image]],
     width: int,
     height: int,
     fit: Optional[IMAGE_FIT_LITERAL] = None,
@@ -45,7 +45,29 @@ def fit_image(
     """
     Given an image of unknown size, make it a known size with optional fit parameters.
     """
+    if not isinstance(image, list):
+        if getattr(image, "n_frames", 1) > 1:
+            frames = []
+            for i in range(image.n_frames):
+                image.seek(i)
+                frames.append(image.copy().convert("RGBA"))
+            image = frames
+    if isinstance(image, list):
+        return [
+            fit_image(
+                img,
+                width=width,
+                height=height,
+                fit=fit,
+                anchor=anchor,
+                offset_left=offset_left,
+                offset_top=offset_top,
+            )
+            for img in image
+        ]
+
     from PIL import Image
+
     if fit is None or fit == "actual":
         left, top = 0, 0
         crop_left, crop_top = 0, 0
@@ -152,10 +174,25 @@ def fit_image(
     else:
         raise ValueError(f"Unknown fit {fit}")
 
-def feather_mask(image: Image) -> Image:
+def feather_mask(
+    image: Union[Image, List[Image]]
+) -> Union[Image, List[Image]]:
     """
     Given an image, create a feathered binarized mask by 'growing' the black/white pixel sections.
     """
+    if not isinstance(image, list):
+        if getattr(image, "n_frames", 1) > 1:
+            frames = []
+            for i in range(image.n_frames):
+                image.seek(i)
+                frames.append(image.copy().convert("RGBA"))
+            image = frames
+    if isinstance(image, list):
+        return [
+            feather_mask(img)
+            for img in image
+        ]
+
     width, height = image.size
 
     mask = image.convert("L")
