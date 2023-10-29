@@ -200,7 +200,7 @@ class InstallationSummaryView extends View {
         let node = await super.build();
         await this.update();
         return node.content(
-            E.h2().content("Weights and Configuration"),
+            E.h2().content("Installation Directories"),
             await this.summaryTable.getNode(),
             E.h2().content("TensorRT Engines"),
             await this.engineTable.getNode()

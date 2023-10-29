@@ -431,6 +431,8 @@ class EnfugueAPIServerBase(
                     "inversion",
                     "other",
                     "tensorrt",
+                    "images",
+                    "intermediates",
                 ]:
                     directories[dirname] = self.configuration.get(
                         f"enfugue.engine.{dirname}", os.path.join(self.engine_root, dirname)

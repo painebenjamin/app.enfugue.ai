@@ -367,9 +367,7 @@ class DiffusionEngineProcess(Process):
                     instruction_action = instruction["action"]
                     instruction_payload = instruction.get("payload", None)
 
-                    logger.debug(f"Received instruction {instruction_id}, action {instruction_action}")
                     if instruction_action == "ping":
-                        logger.debug("Responding with 'pong'")
                         self.results.put(Serializer.serialize({"id": instruction_id, "result": "pong"}))
                     elif instruction_action in ["exit", "stop"]:
                         logger.debug("Exiting process")
@@ -383,6 +381,7 @@ class DiffusionEngineProcess(Process):
                             if instruction_action == "plan":
                                 intermediate_dir = instruction_payload.get("intermediate_dir", None)
                                 intermediate_steps = instruction_payload.get("intermediate_steps", None)
+                                logger.debug("Received invocation payload, constructing plan.")
                                 plan = self.get_diffusion_plan(instruction_payload)
                                 response["result"] = self.execute_diffusion_plan(
                                     instruction_id,
@@ -391,6 +390,7 @@ class DiffusionEngineProcess(Process):
                                     intermediate_steps=intermediate_steps,
                                 )
                             else:
+                                logger.debug("Received direct invocation payload, executing.")
                                 payload = self.check_invoke_kwargs(instruction_id, **instruction_payload)
                                 response["result"] = self.pipemanager(**payload)
                         except Exception as ex:

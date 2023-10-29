@@ -390,18 +390,30 @@ class ModelPickerController extends Controller {
                     }
                 } else {
                     // Query for metadata
-                    let modelMetadata = await this.model.get(`/models/${selectedName}/status`);
-                    if (modelMetadata.metadata.base.inpainter) {
-                        this.notify("warn", "Unexpected Configuration", "You've selected an inpainting model as your base model. This will work as expected for inpainting, but if you aren't inpainting, results will be poorer than desired. Expand 'Additional Models' and put your model under 'Inpainting Checkpoint' to only use it when inpainting.");
+                    try {
+                        let modelMetadata = await this.model.get(`/models/${selectedName}/status`);
+                        if (!isEmpty(modelMetadata.metadata.base)) {
+                            if (modelMetadata.metadata.base.inpainter) {
+                                this.notify("warn", "Unexpected Configuration", "You've selected an inpainting model as your base model. This will work as expected for inpainting, but if you aren't inpainting, results will be poorer than desired. Expand 'Additional Models' and put your model under 'Inpainting Checkpoint' to only use it when inpainting.");
+                            }
+                            if (modelMetadata.metadata.base.refiner) {
+                                this.notify("warn", "Unexpected Configuration", "You've selected a refining model as your base model. This will work as expected for refining, but if you aren't refining, results will be poorer than desired. Expand 'Additional Models' and put your model under 'Refining Checkpoint' to only use it when refining.");
+                            }
+                        }
+                        this.abridgedModelFormView.show();
+                        this.abridgedModelFormView.submit();
+                        this.modelPickerFormView.setTensorRTStatus({supported: false});
+                        this.publish("modelPickerChange", {"status": modelMetadata, "defaultConfiguration": {}});
+                    } catch(e) {
+                        let errorMessage = "This model's metadata could not be read. It may still work, but it's possible the file is corrupt or otherwise unsupported.";
+                        if (!isEmpty(e.title)) {
+                            errorMessage += ` The error was: ${e.title}`;
+                            if (!isEmpty(e.detail)) {
+                                errorMessage += `(${e.detail})`;
+                            }
+                        }
+                        this.notify("warn", "Metadata Error", errorMessage);
                     }
-                    if (modelMetadata.metadata.base.refiner) {
-                        this.notify("warn", "Unexpected Configuration", "You've selected a refining model as your base model. This will work as expected for refining, but if you aren't refining, results will be poorer than desired. Expand 'Additional Models' and put your model under 'Refining Checkpoint' to only use it when refining.");
-                    }
-
-                    this.abridgedModelFormView.show();
-                    this.abridgedModelFormView.submit();
-                    this.modelPickerFormView.setTensorRTStatus({supported: false});
-                    this.publish("modelPickerChange", {"status": modelMetadata, "defaultConfiguration": {}});
                 }
             } else {
                 this.modelPickerFormView.setTensorRTStatus({supported: false});

@@ -1,7 +1,7 @@
 import os
 import requests
 
-from typing import Optional
+from typing import Optional, Callable
 
 from enfugue.util.log import logger
 
@@ -11,7 +11,8 @@ def check_download(
     remote_url: str,
     local_path: str,
     chunk_size: int=8192,
-    check_size: bool=True
+    check_size: bool=True,
+    progress_callback: Optional[Callable[[int, int], None]]=None,
 ) -> None:
     """
     Checks if a file exists.
@@ -30,17 +31,24 @@ def check_download(
     if not os.path.exists(local_path):
         logger.info(f"Downloading file from {remote_url}. Will write to {local_path}")
         response = requests.get(remote_url, allow_redirects=True, stream=True)
+        content_length = response.headers.get("Content-Length", None)
+        if content_length is not None:
+            content_length = int(content_length)
         with open(local_path, "wb") as fh:
+            written_bytes = 0
             for chunk in response.iter_content(chunk_size=chunk_size):
                 fh.write(chunk)
-
+                if progress_callback is not None and content_length is not None:
+                    written_bytes = min(written_bytes + chunk_size, content_length)
+                    progress_callback(written_bytes, content_length)
 
 def check_download_to_dir(
     remote_url: str,
     local_dir: str,
     file_name: Optional[str]=None,
     chunk_size: int=8192,
-    check_size: bool=True
+    check_size: bool=True,
+    progress_callback: Optional[Callable[[int, int], None]]=None,
 ) -> str:
     """
     Checks if a file exists in a directory based on a remote path.
@@ -50,5 +58,11 @@ def check_download_to_dir(
     if file_name is None:
         file_name = os.path.basename(remote_url)
     local_path = os.path.join(local_dir, file_name)
-    check_download(remote_url, local_path, chunk_size=chunk_size, check_size=check_size)
+    check_download(
+        remote_url,
+        local_path,
+        chunk_size=chunk_size,
+        check_size=check_size,
+        progress_callback=progress_callback
+    )
     return local_path

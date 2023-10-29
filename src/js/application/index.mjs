@@ -26,8 +26,8 @@ import { SamplesController } from "../controller/common/samples.mjs";
 import { ModelPickerController } from "../controller/common/model-picker.mjs";
 import { ModelManagerController } from "../controller/common/model-manager.mjs";
 import { DownloadsController } from "../controller/common/downloads.mjs";
+import { LayersController } from "../controller/common/layers.mjs";
 import { AnimationsController } from "../controller/common/animations.mjs";
-import { LogsController } from "../controller/common/logs.mjs";
 import { AnnouncementsController } from "../controller/common/announcements.mjs";
 import { HistoryDatabase } from "../common/history.mjs";
 import { SimpleNotification } from "../common/notify.mjs";
@@ -205,12 +205,12 @@ class Application {
         await this.registerModelControllers();
         await this.registerInvocationControllers();
         await this.registerSampleControllers();
+        await this.registerLayersControllers();
         await this.registerMenuControllers();
         await this.registerSidebarControllers();
         await this.registerToolbarControllers();
         await this.startAutosave();
         await this.startAnnouncements();
-        await this.startLogs();
         await this.startKeepalive();
         await this.registerLogout();
 
@@ -223,15 +223,6 @@ class Application {
         document.addEventListener("keydown", (e) => this.onKeyDown(e));
         this.publish("applicationReady");
         this.container.classList.remove("loading");
-    }
-
-    /**
-     * Starts the logs controller which will read engine logs and display a limited
-     * set of information on the screen, with a way to get more details.
-     */
-    async startLogs() {
-        this.logs = new LogsController(this);
-        await this.logs.initialize();
     }
 
     /**
@@ -406,6 +397,14 @@ class Application {
     async registerSampleControllers() {
         this.samples = new SamplesController(this);
         await this.samples.initialize();
+    }
+
+    /**
+     * Creates the layers manager (handles multiple images/prompts)
+     */
+    async registerLayersControllers() {
+        this.layersController = new LayersController(this);
+        await this.layersController.initialize();
     }
 
     /**

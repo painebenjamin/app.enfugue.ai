@@ -1371,56 +1371,6 @@ enfugue-logs-view > input {
     margin-top: 1em;
 }
 
-enfugue-log-glance-view {
-    position: absolute;
-    display: block;
-    right: 300px;
-    top: 40px;
-    max-width: 450px;
-    width: calc((100vw - 340px) / 2);
-    padding: 0 5px 5px 0;
-    opacity: 0.5;
-    transition: opacity 0.25s ease-in-out;
-    overflow: hidden;
-    z-index: 4;
-}
-
-enfugue-log-glance-view:hover {
-    opacity: 1.0;
-}
-
-enfugue-log-glance-view .log-header {
-    display: flex;
-    flex-flow: row nowrap;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 2px;
-}
-
-enfugue-log-glance-view .log-header h2,
-enfugue-log-glance-view .log-header a {
-    font-size: 12px;
-    padding: 0;
-    margin: 0;
-    font-weight: bold;
-}
-
-enfugue-log-glance-view .log-header h2 {
-    text-transform: uppercase;
-}
-
-enfugue-log-glance-view .log-header a {
-    pointer-events: auto;
-}
-
-enfugue-log-glance-view .logs {
-    white-space: pre-wrap;
-    font-size: 11px;
-    font-family: var(--monospace-font);
-    max-height: 80px;
-    overflow: hidden;
-}
-
 enfugue-invocation-outputs {
     display: flex;
     flex-flow: row wrap;

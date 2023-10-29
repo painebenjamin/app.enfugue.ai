@@ -282,7 +282,7 @@ class DownloadsController extends Controller {
                     highestDownloadRatio = thisDownloadRatio;
                 }
                 activeDownloads++;
-            } else if(download.status === "pending") {
+            } else if(download.status === "queued") {
                 activeDownloads++;
             }
         }

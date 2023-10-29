@@ -1028,8 +1028,6 @@ class DiffusionPlan:
             "animation_frames": self.animation_frames,
             "temporal_chunking_size": self.temporal_chunking_size,
             "motion_scale": self.motion_scale,
-            "position_encoding_truncate_length": self.position_encoding_truncate_length,
-            "position_encoding_scale_length": self.position_encoding_scaling_length,
         }
 
     @property
@@ -1319,6 +1317,8 @@ class DiffusionPlan:
             pipeline.animator = self.model
             pipeline.animator_vae = self.vae
             pipeline.animator_size = self.size
+            pipeline.position_encoding_truncate_length = self.position_encoding_truncate_length
+            pipeline.position_encoding_scale_length = self.position_encoding_scale_length
         else:
             pipeline.model = self.model
             pipeline.vae = self.vae
@@ -1610,8 +1610,8 @@ class DiffusionPlan:
             "loop": self.loop,
             "tile": self.tile,
             "motion_scale": self.motion_scale,
-            "temporal_encoding_truncate_length": self.temporal_encoding_truncate_length,
-            "temporal_encoding_scale_length": self.temporal_encoding_scale_length,
+            "position_encoding_truncate_length": self.position_encoding_truncate_length,
+            "position_encoding_scale_length": self.position_encoding_scale_length,
         }
 
     @staticmethod
@@ -1668,8 +1668,8 @@ class DiffusionPlan:
             "loop",
             "tile",
             "motion_scale",
-            "temporal_encoding_truncate_length",
-            "temporal_encoding_scale_length",
+            "position_encoding_truncate_length",
+            "position_encoding_scale_length",
         ]:
             if arg in plan_dict:
                 kwargs[arg] = plan_dict[arg]

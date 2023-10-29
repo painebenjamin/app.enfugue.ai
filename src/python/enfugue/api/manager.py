@@ -141,7 +141,10 @@ class SystemManager:
         """
         Gets the location for image result outputs.
         """
-        directory = os.path.join(self.engine_root_dir, "images")
+        directory = self.configuration.get(
+            "enfugue.engine.images",
+            os.path.join(self.engine_root_dir, "images")
+        )
         check_make_directory(directory)
         return directory
 
@@ -150,7 +153,10 @@ class SystemManager:
         """
         Gets the location for image intermediate outputs.
         """
-        directory = os.path.join(self.engine_root_dir, "intermediates")
+        directory = self.configuration.get(
+            "enfugue.engine.intermediates",
+            os.path.join(self.engine_root_dir, "intermediates")
+        )
         check_make_directory(directory)
         return directory
     
@@ -328,7 +334,10 @@ class SystemManager:
         Gets a list of active downloads
         """
         return [
-            download for download_list in self.downloads.values() for download in download_list if not download.complete and download.started
+            download
+            for download_list in self.downloads.values()
+            for download in download_list
+            if not download.complete and download.started
         ]
 
     @property

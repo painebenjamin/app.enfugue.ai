@@ -19,7 +19,7 @@ enfugue-application > enfugue-node-editor {
 
 enfugue-application > enfugue-node-editor.image-editor {
     left: 40px;
-    right: 300px;
+    right: 250px;
     bottom: 30px;
     z-index: 3;
 }
@@ -70,6 +70,7 @@ enfugue-menu > enfugue-menu-category:not(:first-of-type) {
 enfugue-menu-category-header {
     font-family: var(--monospace-font), monospace;
     padding: 0 5px;
+    font-size: 13px;
 }
 
 enfugue-menu-item {
@@ -129,8 +130,9 @@ enfugue-sidebar {
     border-top: 1px solid rgba(255,255,255,0.1);
     border-left: 1px solid rgba(255,255,255,0.1);
     border-bottom: 1px solid rgba(0,0,0,0.2);
-    width: 300px;
+    width: 250px;
     overflow-y: auto;
+    padding-top: 10px;
 }
 
 enfugue-sidebar::-webkit-scrollbar {
@@ -145,9 +147,63 @@ enfugue-sidebar::-webkit-scrollbar-thumb:hover {
     background-color: rgba(0,0,0,0.7);
 }
 
+enfugue-sidebar::before {
+    position: absolute;
+    left: 12px;
+    top: 7px;
+    content: "GLOBAL";
+    color: var(--theme-color-secondary);
+    font-family: var(--monospace-font);
+    font-size: 11px;
+}
+
+enfugue-log-glance-view {
+    flex-shrink: 0;
+    display: block;
+    overflow: hidden;
+    background-color: var(--darker-color);
+    border: 1px solid var(--darkest-color);
+    border-radius: 4px;
+    padding: 0.75em;
+    margin: 1em 1em 0 1em;
+    margin-top: auto;
+}
+
+enfugue-log-glance-view .log-header {
+    display: flex;
+    flex-flow: row nowrap;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2px;
+}
+
+enfugue-log-glance-view .log-header h2,
+enfugue-log-glance-view .log-header a {
+    font-size: 12px;
+    padding: 0;
+    margin: 0;
+    font-weight: bold;
+}
+
+enfugue-log-glance-view .log-header h2 {
+    text-transform: uppercase;
+}
+
+enfugue-log-glance-view .log-header a {
+    pointer-events: auto;
+}
+
+enfugue-log-glance-view .logs {
+    white-space: pre-wrap;
+    font-size: 11px;
+    font-family: var(--monospace-font);
+    height: 100px;
+    margin-top: 5px;
+    overflow: hidden;
+}
+
 enfugue-sidebar input.invoke {
     margin: 1em;
-    margin-top: auto;
 }
 
 enfugue-sidebar .invoke-loader {
@@ -273,7 +329,6 @@ enfugue-sidebar-item {
     color: var(--theme-color-secondary);
     position: relative;
     text-transform: uppercase;
-    font-size: 14px;
     font-weight: bold;
     height: 45px;
     padding: 0 10px;
@@ -351,6 +406,10 @@ enfugue-sidebar-item i {
     flex-grow: 1;
     text-align: right;
     font-size: 18px;
+}
+
+enfugue-sidebar > form:last-of-type {
+    margin-bottom: 1em;
 }
 
 enfugue-notification-center {

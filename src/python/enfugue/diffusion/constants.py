@@ -55,10 +55,12 @@ __all__ = [
     "CONTROLNET_POSE",
     "CONTROLNET_POSE_XL",
     "CONTROLNET_PIDI",
+    "CONTROLNET_PIDI_XL",
     "CONTROLNET_LINE",
     "CONTROLNET_ANIME",
     "CONTROLNET_TEMPORAL",
     "CONTROLNET_QR",
+    "CONTROLNET_QR_XL",
     "CONTROLNET_LITERAL",
     "MOTION_LORA_ZOOM_IN",
     "MOTION_LORA_ZOOM_OUT",
@@ -280,6 +282,10 @@ CONTROLNET_PIDI = (
     "lllyasviel/control_v11p_sd15_softedge",
     "control_v11p_sd15_softedge",
 )
+CONTROLNET_PIDI_XL = (
+    "SargeZT/controlnet-sd-xl-1.0-softedge-dexined",
+    "controlnet-sd-xl-1.0-softedge-dexined"
+)
 CONTROLNET_LINE = (
     "lllyasviel/control_v11p_sd15_lineart",
     "control_v11p_sd15_lineart",
@@ -296,6 +302,16 @@ CONTROLNET_QR = (
     "https://huggingface.co/monster-labs/control_v1p_sd15_qrcode_monster/resolve/main/v2/control_v1p_sd15_qrcode_monster_v2.safetensors",
     "control_v1p_sd15_qrcode_monster_v2",
     "control_v1p_sd15_qrcode_monster",
+)
+CONTROLNET_QR_XL = (
+    "https://huggingface.co/Nacholmo/controlnet-qr-pattern-sdxl/resolve/main/automatic1111/control_v10e_sdxl_opticalpattern.safetensors",
+    "control_v10e_sdxl_opticalpattern",
+    "control_v04u_sdxl_opticalpattern-half",
+    "control_v03u_sdxl_opticalpattern",
+    "control_v02u_sdxl_qrpattern",
+    "control_v02u_sdxl_opticalpattern",
+    "control_v01u_sdxl_opticalpattern",
+    "control_v01u_sdxl_qrpattern",
 )
 CONTROLNET_CANNY_XL = (
     "diffusers/controlnet-canny-sdxl-1.0",

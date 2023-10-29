@@ -16,6 +16,7 @@ from hashlib import md5
 from pibble.api.configuration import APIConfiguration
 from pibble.api.exceptions import ConfigurationError
 from pibble.util.files import dump_json, load_json
+from pibble.util.numeric import human_size
 
 from enfugue.util import logger, check_download, check_make_directory, find_file_in_directory
 from enfugue.diffusion.constants import *
@@ -156,6 +157,8 @@ class DiffusionPipelineManager:
         """
         if getattr(self, "_task_callback", None) is not None:
             self._task_callback(message) # type: ignore[misc]
+        else:
+            logger.debug(message)
 
     def check_download_model(self, local_dir: str, remote_url: str) -> str:
         """
@@ -169,7 +172,14 @@ class DiffusionPipelineManager:
         if self.offline:
             raise ValueError(f"File {output_file} does not exist in {local_dir} and offline mode is enabled, refusing to download from {remote_url}")
         self.task_callback(f"Downloading {remote_url}")
-        check_download(remote_url, output_path)
+        def progress_callback(written_bytes: int, total_bytes: int) -> None:
+            percentage = (written_bytes / total_bytes) * 100.0
+            self.task_callback(f"Downloading {remote_url}: {percentage:d}% ({human_size(written_bytes)}/{human_size(total_bytes)})")
+        check_download(
+            remote_url,
+            output_path,
+            progress_callback=progress_callback
+        )
         return output_path
 
     @classmethod
@@ -210,7 +220,21 @@ class DiffusionPipelineManager:
         """
         if val != getattr(self, "_safe", None):
             self._safe = val
-            self.unload_pipeline("safety checking enabled or disabled")
+            if hasattr(self, "_pipeline"):
+                if self._pipeline.safety_checker is None and val:
+                    self.unload_pipeline("safety checking enabled")
+                else:
+                    self._pipeline.safety_checking_disabled = not val
+            if hasattr(self, "_inpainter_pipeline"):
+                if self._inpainter_pipeline.safety_checker is None and val:
+                    self.unload_inpainter_pipeline("safety checking enabled")
+                else:
+                    self._inpainter_pipeline.safety_checking_disabled = not val
+            if hasattr(self, "_animator_pipeline"):
+                if self._animator_pipeline.safety_checker is None and val:
+                    self.unload_animator_pipeline("safety checking enabled")
+                else:
+                    self._animator_pipeline.safety_checking_disabled = not val
 
     @property
     def device(self) -> torch.device:
@@ -3181,17 +3205,17 @@ class DiffusionPipelineManager:
                     # We can fix that here, though, by forcing full precision VAE
                     pipeline.register_to_config(force_full_precision_vae=True)
                 if self.should_cache:
-                    logger.debug("Saving pipeline to pretrained.")
+                    self.task_callback("Saving pipeline to pretrained cache.")
                     pipeline.save_pretrained(self.model_diffusers_dir)
             if not self.tensorrt_is_ready:
                 for lora, weight in self.lora:
-                    logger.debug(f"Adding LoRA {lora} to pipeline with weight {weight}")
+                    self.task_callback(f"Adding LoRA {lora} to pipeline with weight {weight}")
                     pipeline.load_lora_weights(lora, multiplier=weight)
                 for lycoris, weight in self.lycoris:
-                    logger.debug(f"Adding lycoris {lycoris} to pipeline")
+                    self.task_callback(f"Adding lycoris {lycoris} to pipeline")
                     pipeline.load_lycoris_weights(lycoris, multiplier=weight)
                 for inversion in self.inversion:
-                    logger.debug(f"Adding textual inversion {inversion} to pipeline")
+                    self.task_callback(f"Adding textual inversion {inversion} to pipeline")
                     pipeline.load_textual_inversion(inversion)
 
             # load scheduler
@@ -3325,8 +3349,9 @@ class DiffusionPipelineManager:
                 if refiner_pipeline.is_sdxl and "16" not in self.refiner and (self.refiner_vae_name is None or "16" not in self.refiner_vae_name):
                     refiner_pipeline.register_to_config(force_full_precision_vae=True)
                 if self.should_cache_refiner:
-                    logger.debug("Saving pipeline to pretrained.")
+                    self.task_callback("Saving pipeline to pretrained.")
                     refiner_pipeline.save_pretrained(self.refiner_diffusers_dir)
+
             # load scheduler
             if self.scheduler is not None:
                 logger.debug(f"Setting refiner scheduler to {self.scheduler.__name__}") # type: ignore[attr-defined]
@@ -3486,18 +3511,19 @@ class DiffusionPipelineManager:
                 if inpainter_pipeline.is_sdxl and "16" not in self.inpainter and (self.inpainter_vae_name is None or "16" not in self.inpainter_vae_name):
                     inpainter_pipeline.register_to_config(force_full_precision_vae=True)
                 if self.should_cache_inpainter:
-                    logger.debug("Saving inpainter pipeline to pretrained cache.")
+                    self.task_callback("Saving inpainter pipeline to pretrained cache.")
                     inpainter_pipeline.save_pretrained(self.inpainter_diffusers_dir)
             if not self.inpainter_tensorrt_is_ready:
                 for lora, weight in self.lora:
-                    logger.debug(f"Adding LoRA {lora} to inpainter pipeline with weight {weight}")
+                    self.task_callback(f"Adding LoRA {lora} to inpainter pipeline with weight {weight}")
                     inpainter_pipeline.load_lora_weights(lora, multiplier=weight)
                 for lycoris, weight in self.lycoris:
-                    logger.debug(f"Adding lycoris {lycoris} to inpainter pipeline")
+                    self.task_callback(f"Adding lycoris {lycoris} to inpainter pipeline")
                     inpainter_pipeline.load_lycoris_weights(lycoris, multiplier=weight)
                 for inversion in self.inversion:
-                    logger.debug(f"Adding textual inversion {inversion} to inpainter pipeline")
+                    self.task_callback(f"Adding textual inversion {inversion} to inpainter pipeline")
                     inpainter_pipeline.load_textual_inversion(inversion)
+
             # load scheduler
             if self.scheduler is not None:
                 logger.debug(f"Setting inpainter scheduler to {self.scheduler.__name__}") # type: ignore[attr-defined]
@@ -3525,7 +3551,7 @@ class DiffusionPipelineManager:
                 raise ValueError("No animator set!")
 
             if self.animator.startswith("http"):
-                self.animator = self.check_download_checkpoint(self.animator)
+                self.animator = self.check_download_model(self.engine_checkpoints_dir, self.animator)
             
             # Disable reloading if it was set
             self.reload_motion_module = False
@@ -3620,17 +3646,17 @@ class DiffusionPipelineManager:
                 if animator_pipeline.is_sdxl and self.animator_vae_name not in ["xl16", VAE_XL16]:
                     animator_pipeline.register_to_config(force_full_precision_vae=True)
                 if self.should_cache_animator:
-                    logger.debug("Saving animator pipeline to pretrained cache.")
+                    self.task_callback("Saving animator pipeline to pretrained cache.")
                     animator_pipeline.save_pretrained(self.animator_diffusers_dir)
             if not self.animator_tensorrt_is_ready:
                 for lora, weight in self.lora:
-                    logger.debug(f"Adding LoRA {lora} to animator pipeline with weight {weight}")
+                    self.task_callback(f"Adding LoRA {lora} to animator pipeline with weight {weight}")
                     animator_pipeline.load_lora_weights(lora, multiplier=weight)
                 for lycoris, weight in self.lycoris:
-                    logger.debug(f"Adding lycoris {lycoris} to animator pipeline")
+                    self.task_callback(f"Adding lycoris {lycoris} to animator pipeline")
                     animator_pipeline.load_lycoris_weights(lycoris, multiplier=weight)
                 for inversion in self.inversion:
-                    logger.debug(f"Adding textual inversion {inversion} to animator pipeline")
+                    self.task_callback(f"Adding textual inversion {inversion} to animator pipeline")
                     animator_pipeline.load_textual_inversion(inversion)
             # load scheduler
             if self.scheduler is not None:

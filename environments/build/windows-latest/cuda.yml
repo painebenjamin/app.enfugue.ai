@@ -13,6 +13,8 @@ dependencies:
   - 7zip=19.00
   - make=4.3
   - nodejs=18.16.0
+  - ffmpeg=4.2.2
+  - opencv=4.6.0
   - pip:
     - torch>=2.0.1+cu118
     - torchvision>=0.15.2+cu118
@@ -64,6 +66,7 @@ dependencies:
     - certifi>=2023.5.7
     - openmim>=0.3.9,<0.4
     - opensimplex>=0.4.5,<0.5
+    - tensorflow[and-cuda]
     - git+https://github.com/CompVis/taming-transformers.git@master#egg=taming-transformers
     - git+https://github.com/openai/CLIP.git@main#egg=clip
     - git+https://github.com/CompVis/stable-diffusion.git@main#egg=latent-diffusion

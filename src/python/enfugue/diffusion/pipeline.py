@@ -173,9 +173,10 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
     text_encoder: Optional[CLIPTextModel]
     text_encoder_2: Optional[CLIPTextModelWithProjection]
     vae_scale_factor: int
-    safety_checker: StableDiffusionSafetyChecker
+    safety_checker: Optional[StableDiffusionSafetyChecker]
     config: OmegaConf
     xl_inpainting_latent_scale_factor: float = 1.25
+    safety_checking_disabled: bool = False
 
     def __init__(
         self,
@@ -351,7 +352,10 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         That's why we override it for this method - most of this is copied from
         https://github.com/huggingface/diffusers/blob/49949f321d9b034440b52e54937fd2df3027bf0a/src/diffusers/pipelines/stable_diffusion/convert_from_ckpt.py
         """
-        logger.debug(f"Reading checkpoint file {checkpoint_path}")
+        if task_callback is None:
+            task_callback = lambda msg: logger.debug(msg)
+
+        task_callback(f"Loading checkpoint file {checkpoint_path}")
         checkpoint = load_state_dict(checkpoint_path)
 
         # Sometimes models don't have the global_step item
@@ -518,6 +522,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         else:
             raise ValueError(f"Scheduler of type {scheduler_type} doesn't exist!")
 
+        task_callback("Loading UNet")
+
         unet_config = create_unet_diffusers_config(original_config, image_size=image_size)
         unet_config["upcast_attention"] = upcast_attention
 
@@ -552,6 +558,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         # Convert the VAE model.
         if vae_path is None:
             try:
+                task_callback("Loading Default VAE")
                 vae_config = create_vae_diffusers_config(original_config, image_size=image_size)
                 converted_vae_checkpoint = convert_ldm_vae_checkpoint(checkpoint, vae_config)
 
@@ -575,8 +582,10 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 pretrained_save_path = os.path.join(cache_dir, "models--{0}".format(
                     default_path.replace("/", "--")
                 ))
-                if not os.path.exists(pretrained_save_path) and task_callback is not None:
+                if not os.path.exists(pretrained_save_path):
                     task_callback(f"Downloading default VAE weights from repository {default_path}")
+                else:
+                    task_callback(f"Loading VAE from cache {default_path}")
                 vae = AutoencoderKL.from_pretrained(default_path, cache_dir=cache_dir)
         elif os.path.exists(vae_path):
             if model_type in ["SDXL", "SDXL-Refiner"]:
@@ -586,6 +595,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     vae_config_path,
                     check_size=False
                 )
+                task_callback("Loading VAE")
                 vae = AutoencoderKL.from_config(
                     AutoencoderKL._dict_from_json_file(vae_config_path)
                 )
@@ -595,6 +605,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 vae.load_state_dict(load_state_dict(vae_path), strict=False)
             else:
                 logger.debug(f"Initializing Autoencoder from file {vae_path}")
+                task_callback("Loading VAE")
                 vae = AutoencoderKL.from_single_file(
                     vae_path,
                     cache_dir=cache_dir,
@@ -622,10 +633,12 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 vae_preview_path = "madebyollin/taesd"
 
         vae_preview_local_path = os.path.join(cache_dir, "models--{0}".format(vae_preview_path.replace("/", "--")))
-        if not os.path.exists(vae_preview_local_path) and task_callback is not None:
-            task_callback("Downloading preview VAE weights from repository {vae_preview_path}")
+        if not os.path.exists(vae_preview_local_path):
+            task_callback(f"Downloading preview VAE weights from repository {vae_preview_path}")
+        else:
+            task_callback(f"Loading preview VAE weights from cache {vae_preview_path}")
 
-        logger.debug(f"Initializing preview autoencoder from repository {vae_preview_path}")
+        task_callback("Loading preview VAE")
         vae_preview = AutoencoderTiny.from_pretrained(
             vae_preview_path,
             cache_dir=cache_dir
@@ -634,9 +647,10 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         if load_safety_checker:
             safety_checker_path = "CompVis/stable-diffusion-safety-checker"
             safety_checker_local_path = os.path.join(cache_dir, "models--{0}".format(safety_checker_path.replace("/", "--")))
-            if not os.path.exists(safety_checker_local_path) and task_callback is not None:
+            if not os.path.exists(safety_checker_local_path):
                 task_callback(f"Downloading safety checker weights from repository {safety_checker_path}")
-            logger.debug(f"Initializing safety checker from repository {safety_checker_path}")
+            else:
+                task_callback(f"Loading safety checker weights from cache {safety_checker_path}")
             safety_checker = StableDiffusionSafetyChecker.from_pretrained(
                 safety_checker_path,
                 cache_dir=cache_dir
@@ -645,7 +659,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 logger.debug("Offloading enabled; sending safety checker to CPU")
                 safety_checker.to("cpu")
                 empty_cache()
-            logger.debug(f"Initializing feature extractor from repository {safety_checker_path}")
+            task_callback(f"Initializing feature extractor from repository {safety_checker_path}")
             feature_extractor = AutoFeatureExtractor.from_pretrained(
                 safety_checker_path,
                 cache_dir=cache_dir
@@ -664,10 +678,11 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
             tokenizer_path = "openai/clip-vit-large-patch14"
             tokenizer_local_path = os.path.join(cache_dir, "models--{0}".format(tokenizer_path.replace("/", "--")))
-            if not os.path.exists(tokenizer_local_path) and task_callback is not None:
+            if not os.path.exists(tokenizer_local_path):
                 task_callback(f"Downloading tokenizer weights from repository {tokenizer_path}")
+            else:
+                task_callback(f"Loading tokenizer weights from cache {tokenizer_path}")
 
-            logger.debug(f"Initializing tokenizer from repository {tokenizer_path}")
             tokenizer = CLIPTokenizer.from_pretrained(
                 tokenizer_path,
                 cache_dir=cache_dir
@@ -689,22 +704,25 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         elif model_type == "SDXL":
             tokenizer_path = "openai/clip-vit-large-patch14"
             tokenizer_local_path = os.path.join(cache_dir, "models--{0}".format(tokenizer_path.replace("/", "--")))
-            if not os.path.exists(tokenizer_local_path) and task_callback is not None:
-                task_callback(f"Downloading tokenizer weights from repository {tokenizer_path}")
+            if not os.path.exists(tokenizer_local_path):
+                task_callback(f"Downloading tokenizer 1 weights from repository {tokenizer_path}")
+            else:
+                task_callback(f"Loading tokenizer 1 weights from cache {tokenizer_path}")
 
-            logger.debug(f"Initializing tokenizer 1 from repository {tokenizer_path}")
             tokenizer = CLIPTokenizer.from_pretrained(
                 tokenizer_path,
                 cache_dir=cache_dir
             )
+
             text_encoder = convert_ldm_clip_checkpoint(checkpoint)
 
             tokenizer_2_path = "laion/CLIP-ViT-bigG-14-laion2B-39B-b160k"
             tokenizer_2_local_path = os.path.join(cache_dir, "models--{0}".format(tokenizer_2_path.replace("/", "--")))
-            if not os.path.exists(tokenizer_local_path) and task_callback is not None:
+            if not os.path.exists(tokenizer_local_path):
                 task_callback(f"Downloading tokenizer 2 weights from repository {tokenizer_2_path}")
+            else:
+                task_callback(f"Loading tokenizer 2 from cache {tokenizer_2_path}")
 
-            logger.debug(f"Initializing tokenizer 2 from repository {tokenizer_2_path}")
             tokenizer_2 = CLIPTokenizer.from_pretrained(
                 tokenizer_2_path,
                 cache_dir=cache_dir,
@@ -741,10 +759,11 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         elif model_type == "SDXL-Refiner":
             tokenizer_2_path = "laion/CLIP-ViT-bigG-14-laion2B-39B-b160k"
             tokenizer_2_local_path = os.path.join(cache_dir, "models--{0}".format(tokenizer_2_path.replace("/", "--")))
-            if not os.path.exists(tokenizer_2_local_path) and task_callback is not None:
-                task_callback(f"Downloading tokenizer 2 weights from repository {tokenizer_2_path}")
+            if not os.path.exists(tokenizer_2_local_path):
+                task_callback(f"Downloading tokenizer weights from repository {tokenizer_2_path}")
+            else:
+                task_callback(f"Loading tokenizer weights from cache {tokenizer_2_path}")
 
-            logger.debug(f"Initializing tokenizer 2 from repository {tokenizer_2_path}")
             tokenizer_2 = CLIPTokenizer.from_pretrained(
                 tokenizer_2_path,
                 cache_dir=cache_dir,
@@ -898,6 +917,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         """
         Override parent run_safety_checker to make sure safety checker is aligned
         """
+        if self.safety_checking_disabled:
+            return (output, [False] * len(output)) # Disabled after being enabled (likely temporary)
         if self.safety_checker is not None:
             self.safety_checker.to(device)
         return super(EnfugueStableDiffusionPipeline, self).run_safety_checker(output, device, dtype) # type: ignore[misc]
