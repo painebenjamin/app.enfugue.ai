@@ -3953,8 +3953,12 @@ class DiffusionPipelineManager:
                 return CONTROLNET_CANNY_XL
             elif name == "depth":
                 return CONTROLNET_DEPTH_XL
+            elif name == "pidi":
+                return CONTROLNET_PIDI_XL
             elif name == "pose":
                 return CONTROLNET_POSE_XL
+            elif name == "qr":
+                return CONTROLNET_QR_XL
             else:
                 raise ValueError(f"Sorry, ControlNet “{name}” is not yet supported by SDXL. Check back soon!")
         else:

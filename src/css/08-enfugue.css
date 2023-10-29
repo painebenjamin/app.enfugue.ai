@@ -132,7 +132,7 @@ enfugue-sidebar {
     border-bottom: 1px solid rgba(0,0,0,0.2);
     width: 250px;
     overflow-y: auto;
-    padding-top: 10px;
+    padding-top: 13px;
 }
 
 enfugue-sidebar::-webkit-scrollbar {
@@ -154,7 +154,7 @@ enfugue-sidebar::before {
     content: "GLOBAL";
     color: var(--theme-color-secondary);
     font-family: var(--monospace-font);
-    font-size: 11px;
+    font-size: 12px;
 }
 
 enfugue-log-glance-view {
