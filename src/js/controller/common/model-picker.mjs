@@ -226,6 +226,41 @@ class ModelPickerFormView extends FormView {
     };
 };
 
+/**
+ * This class holds the forms for chosen model and quick-set models
+ */
+class ModelPickerFormsView extends View {
+    /**
+     * @var string tag name
+     */
+    static tagName = "enfugue-model-picker";
+
+    /**
+     * Constructor registers forms
+     */
+    constructor(config, pickerForm, configForm) {
+        super(config);
+        this.pickerForm = pickerForm;
+        this.configForm = configForm;
+        this.preConfigured = false;
+    }
+
+    /**
+     * On build, append forms
+     */
+    async build() {
+        let node = await super.build(),
+            showMore = E.button().content("Adaptations and Modifications");
+
+        node.content(
+            await this.pickerForm.getNode(),
+            await this.configForm.getNode(),
+            showMore
+        );
+        return node;
+    }
+}
+
 
 /**
  * The ModelPickerController appends the model chooser input to the image editor view.
@@ -350,6 +385,11 @@ class ModelPickerController extends Controller {
 
         this.modelPickerFormView = new ModelPickerFormView(this.config);
         this.abridgedModelFormView = new AbridgedModelFormView(this.config);
+        this.formsView = new ModelPickerFormsView(
+            this.config,
+            this.modelPickerFormView,
+            this.abridgedModelFormView
+        );
 
         this.modelPickerFormView.onSubmit(async (values) => {
             let suppressDefaults = this.modelPickerFormView.suppressDefaults;
@@ -444,8 +484,7 @@ class ModelPickerController extends Controller {
             }
         });
 
-        this.application.container.appendChild(await this.modelPickerFormView.render());
-        this.application.container.appendChild(await this.abridgedModelFormView.render());
+        this.application.container.appendChild(await this.formsView.render());
 
         this.subscribe("invocationError", (payload) => {
             if (!isEmpty(payload.metadata) && !isEmpty(payload.metadata.tensorrt_build)) {

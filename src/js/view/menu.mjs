@@ -81,6 +81,15 @@ class MenuView extends ParentView {
     }
 
     /**
+     * Starts a hide timer to hide self
+     */
+    startHideTimer() {
+        this.hideTimer = setTimeout(() => {
+            this.hideCategories();
+        }, 1000);
+    }
+
+    /**
      * Toggles a specific category
      *
      * @param string $name The name of the category to hide
@@ -88,6 +97,7 @@ class MenuView extends ParentView {
      */
     toggleCategory(name) {
         let found = false, newValue;
+        clearTimeout(this.hideTimer);
         for (let child of this.children) {
             if (child instanceof MenuCategoryView){
                 if (child.name === name) {
@@ -257,7 +267,10 @@ class MenuCategoryView extends ParentView {
             header.append(button);
         }
 
-        node.prepend(header).on("click", () => this.parent.toggleCategory(this.name));
+        node.prepend(header)
+            .on("mouseenter", () => this.parent.toggleCategory(this.name))
+            .on("mouseleave", () => this.parent.startHideTimer());
+
         return node;
     }
 }
@@ -338,6 +351,20 @@ class IconItemView extends MenuItemView {
     constructor(config, name, icon, shortcut) {
         super(config, name, shortcut);
         this.icon = icon;
+    }
+
+    /**
+     * Sets the icon after initialization
+     */
+    setIcon(newIcon) {
+        this.icon = newIcon;
+        if (!isEmpty(this.node)) {
+            if (newIcon.startsWith("http")) {
+                this.node.find("img").src(newIcon);
+            } else {
+                this.node.find("i").class(newIcon)
+            }
+        }
     }
 
     /**

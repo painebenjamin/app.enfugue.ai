@@ -44,7 +44,7 @@ class ImageEditorNodeOptionsFormView extends FormView {
                     "max": 100.0,
                     "step": 0.1,
                     "value": null,
-                    "tooltip": "How closely to follow the text prompt; high values result in high-contrast images closely adhering to your text, low values result in low-contrast images with more randomness."
+                    "tooltip": "How closely to follow the text prompt; high values result in high-contrast images closely adhering to your text, low values result in low-contrast images with more randomness. When left blank, the global guidance scale will be used."
                 }
             },
             "inferenceSteps": {
@@ -55,7 +55,7 @@ class ImageEditorNodeOptionsFormView extends FormView {
                     "max": 250,
                     "step": 1,
                     "value": null,
-                    "tooltip": "How many steps to take during primary inference, larger values take longer to process."
+                    "tooltip": "How many steps to take during primary inference, larger values take longer to process. When left blank, the global inference steps will be used."
                 }
             }
         },
@@ -86,12 +86,14 @@ class ImageEditorNodeOptionsFormView extends FormView {
      * @var string An additional classname for this form
      */
     static className = "options-form-view";
-
-    /**
-     * @var array Collapsed field sets
-     */
-    static collapseFieldSets = ["Tweaks"];
 };
+
+/**
+ * This form slightly modifies tooltips for a region prompt.
+ */
+class ImageEditorPromptNodeOptionsFormView extends ImageEditorNodeOptionsFormView { };
+ImageEditorPromptNodeOptionsFormView.fieldSets.Prompts.prompt.config.tooltip = "This prompt will control what is in the region prompt node. The global prompt will <strong>not</strong> be used.";
+ImageEditorPromptNodeOptionsFormView.fieldSets.Prompts.negativePrompt.config.tooltip = "This prompt will control what is in the region prompt node. The global prompt will <strong>not</strong> be used.";
 
 /**
  * This form combines all image options.
@@ -206,7 +208,7 @@ class ImageEditorImageNodeOptionsFormView extends FormView {
                     "max": 100.0,
                     "step": 0.1,
                     "value": null,
-                    "tooltip": "How closely to follow the text prompt; high values result in high-contrast images closely adhering to your text, low values result in low-contrast images with more randomness."
+                    "tooltip": "How closely to follow the text prompt; high values result in high-contrast images closely adhering to your text, low values result in low-contrast images with more randomness. When left blank, the global guidance scale will be used."
                 }
             },
             "inferenceSteps": {
@@ -217,7 +219,7 @@ class ImageEditorImageNodeOptionsFormView extends FormView {
                     "max": 250,
                     "step": 1,
                     "value": null,
-                    "tooltip": "How many steps to take during primary inference, larger values take longer to process."
+                    "tooltip": "How many steps to take during primary inference, larger values take longer to process. When left blank, the global inference steps will be used."
                 }
             }
         },
@@ -611,6 +613,7 @@ class ImageAdjustmentFormView extends ImageFilterFormView {
 
 export {
     ImageEditorNodeOptionsFormView,
+    ImageEditorPromptNodeOptionsFormView,
     ImageEditorImageNodeOptionsFormView,
     ImageFilterFormView,
     ImageAdjustmentFormView

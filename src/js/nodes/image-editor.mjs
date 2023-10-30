@@ -3,14 +3,10 @@ import { isEmpty, filterEmpty } from "../base/helpers.mjs";
 import { ElementBuilder } from "../base/builder.mjs";
 import { NodeEditorView } from "./editor.mjs";
 import { ImageView } from "../view/image.mjs";
-import { CompoundNodeView } from "./base.mjs";
 import { ImageEditorNodeView } from "./image-editor/base.mjs";
 import { ImageEditorScribbleNodeView } from "./image-editor/scribble.mjs";
 import { ImageEditorPromptNodeView } from "./image-editor/prompt.mjs";
-import {
-    ImageEditorImageNodeView,
-    ImageEditorCompoundImageNodeView
-} from "./image-editor/image.mjs";
+import { ImageEditorImageNodeView } from "./image-editor/image.mjs";
 import { CurrentInvocationImageView } from "./image-editor/invocation.mjs";
 
 const E = new ElementBuilder();
@@ -57,11 +53,9 @@ class ImageEditorView extends NodeEditorView {
      * @var array<class> The node classes for state set/get
      */
     static nodeClasses = [
-        CompoundNodeView,
         ImageEditorScribbleNodeView,
         ImageEditorImageNodeView,
         ImageEditorPromptNodeView,
-        ImageEditorCompoundImageNodeView
     ];
 
     /**

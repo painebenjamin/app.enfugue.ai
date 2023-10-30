@@ -402,7 +402,8 @@ class DiffusionEngineProcess(Process):
                             if logger.isEnabledFor(logging.DEBUG):
                                 response["trace"] = traceback.format_exc()
                                 logger.debug(response["trace"])
-
+                        finally:
+                            self.pipemanager.stop_keepalive()
                         del self.pipemanager.keepalive_callback
                         self.results.put(Serializer.serialize(response))
                         self.clear_intermediates(instruction_id)

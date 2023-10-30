@@ -644,11 +644,11 @@ class SamplesController extends Controller {
         this.activeIndex = 0;
         this.playbackRate = SampleChooserView.playbackRate;
 
+        // Add chooser to main container
+        this.application.container.appendChild(await this.sampleChooser.render());
+
         // Get image editor in DOM
         let imageEditor = await this.images.getNode();
-
-        // Add chooser to editor
-        imageEditor.append(await this.sampleChooser.getNode());
 
         // Add sample viewer to canvas
         imageEditor.find("enfugue-node-canvas").append(await this.sampleViewer.getNode());

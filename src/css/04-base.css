@@ -181,11 +181,11 @@ fieldset {
     display: flex;
     align-items: stretch;
     justify-content: stretch;
-    gap: 0.5em;
+    gap: 5px;
 }
 
 form {
-    padding: 1em 1em 0 1em;
+    padding: 10px 10px 0 10px;
     flex-flow: column nowrap;
     margin-bottom: 5px;
 }
@@ -261,8 +261,8 @@ form label {
     display: inline-block;
     flex-grow: 0;
     font-weight: 400;
-    font-size: 13px;
-    margin-bottom: 0.25em;
+    font-size: 12px;
+    margin-bottom: 2px;
     color: var(--theme-color-secondary);
     min-height: 12px;
     font-family: var(--header-font), sans-serif;

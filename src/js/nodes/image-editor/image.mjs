@@ -4,84 +4,8 @@ import { View } from "../../view/base.mjs";
 import { ScribbleView } from "../../view/scribble.mjs";
 import { ImageView, BackgroundImageView } from "../../view/image.mjs";
 import { ImageEditorImageNodeOptionsFormView } from "../../forms/enfugue/image-editor.mjs";
-import { CompoundNodeView } from "../base.mjs";
 import { ImageEditorNodeView } from "./base.mjs";
 import { ImageEditorScribbleNodeView } from "./scribble.mjs";
-
-/**
- * Extend the compound node to help manage image merging settings
- */
-class ImageEditorCompoundImageNodeView extends CompoundNodeView {
-    /**
-     * @var bool Hide the header
-     */
-    static hideHeader = true;
-
-    /**
-     * @var int Modify snap size to 8
-     */
-    static snapSize = 8;
-
-    /**
-     * @var string The name to show in the menu
-     */
-    static nodeTypeName = "Images";
-
-    /**
-     * @var bool Enable header flipping
-     */
-    static canFlipHeader = true;
-
-    /**
-     * @var int Modify padding to 8
-     */
-    static padding = 8;
-
-    /**
-     * @var int Modify edge handler tolerance to 8
-     */
-    static edgeHandlerTolerance = 8;
-
-    /**
-     * @var int Increase min height
-     */
-    static minHeight = 32;
-
-    /**
-     * @var int Increase min width
-     */
-    static minWidth = 32;
-
-    /**
-     * @var string Change from 'Close' to 'Remove'
-     */
-    static closeText = "Remove";
-
-    /**
-     * @var array<string> Methods to pass through (when calling from menu)
-     */
-    static passThroughMethods = [
-        "clearMemory", "increaseSize", "decreaseSize",
-        "togglePencilShape", "toggleEraser", "rotateClockwise",
-        "rotateCounterClockwise", "mirrorHorizontally", "mirrorVertically",
-        "toggleOptions"
-    ];
-
-    /**
-     * On construct, bind pass-through methods.
-     */
-    constructor(config, editor, name, content, left, top, width, height) {
-        super(config, editor, name, content, left, top, width, height);
-        for (let methodName of this.constructor.passThroughMethods) {
-            this[methodName] = function () {
-                return this.content.selectedNode[methodName].apply(
-                    this.content.selectedNode,
-                    Array.from(arguments)
-                );
-            }
-        }
-    }
-}
 
 /**
  * A small class containing the scribble and image
@@ -281,11 +205,6 @@ class ImageEditorImageNodeView extends ImageEditorNodeView {
      * @var bool Enable merging
      */
     static canMerge = true;
-
-    /**
-     * @var class A class to help manage merging images
-     */
-    static compoundNodeClass = ImageEditorCompoundImageNodeView;
 
     /**
      * @var string The name to show in the menu
@@ -664,7 +583,4 @@ class ImageEditorImageNodeView extends ImageEditorNodeView {
     }
 };
 
-export {
-    ImageEditorImageNodeView,
-    ImageEditorCompoundImageNodeView
-};
+export { ImageEditorImageNodeView };

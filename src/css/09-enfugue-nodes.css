@@ -68,7 +68,7 @@ enfugue-node-editor.windows > enfugue-node-canvas {
 enfugue-node-editor-position,
 enfugue-node-editor-zoom {
     position: absolute;
-    bottom: 55px;
+    bottom: 6px;
     z-index: 3;
     color: var(--light-color);
     font-weight: bold;
@@ -353,17 +353,6 @@ enfugue-node-editor.image-editor enfugue-node.hide-header enfugue-node-header:ho
     background-color: rgba(0,0,0,0.6);
 }
 
-enfugue-node-editor.image-editor enfugue-node-container {
-    position: relative;
-    border-width: 0px;
-    background: transparent;
-    border-radius: 0px;
-}
-
-enfugue-node-editor.image-editor enfugue-node:hover enfugue-node-container {
-    background: rgba(255,255,255,0.02);
-}
-
 enfugue-node-editor.image-editor enfugue-node-contents {
     overflow: hidden;
 }
@@ -446,22 +435,16 @@ enfugue-node-editor.image-editor enfugue-node-header enfugue-node-button.bottom-
     transform: rotate(270deg);
 }
 
-enfugue-node-editor.image-editor enfugue-node-canvas .current-invocation-image-view {
-    position: absolute;
-    left: 0;
-    top: 0;
-}
-
-enfugue-node-editor.image-editor.zoom-out enfugue-node-canvas .current-invocation-image-view,
-enfugue-node-editor.image-editor.zoom-out enfugue-node-canvas enfugue-background-image-view,
-enfugue-node-editor.image-editor.zoom-out enfugue-node-canvas canvas
+enfugue-node-editor.image-editor.zoom-out enfugue-node-canvas img,
+enfugue-node-editor.image-editor.zoom-out enfugue-node-canvas canvas,
+enfugue-node-editor.image-editor.zoom-out enfugue-node-canvas enfugue-background-image-view
 {
     image-rendering: auto;
 }
 
-enfugue-node-editor.image-editor.zoom-in enfugue-node-canvas .current-invocation-image-view,
-enfugue-node-editor.image-editor.zoom-in enfugue-node-canvas enfugue-background-image-view,
-enfugue-node-editor.image-editor.zoom-in enfugue-node-canvas canvas 
+enfugue-node-editor.image-editor.zoom-in enfugue-node-canvas img,
+enfugue-node-editor.image-editor.zoom-in enfugue-node-canvas canvas,
+enfugue-node-editor.image-editor.zoom-in enfugue-node-canvas enfugue-background-image-view
 {
     image-rendering: pixelated;
 }
@@ -487,7 +470,7 @@ enfugue-node-editor.image-editor enfugue-node-canvas enfugue-image-editor-grid {
     background-size: 64px 64px, 8px 8px, 64px 64px, 8px 8px;
     background-position: -0.5px -0.5px;
     pointer-events: none;
-    z-index: 2;
+    z-index: 1;
     opacity: 1;
     transition: 0.1s ease-in-out;
 }
@@ -504,26 +487,26 @@ enfugue-node-editor.image-editor.has-sample enfugue-node-canvas enfugue-node {
     display: none;
 }
 
-enfugue-node-editor.image-editor enfugue-sample-chooser {
+enfugue-sample-chooser {
     display: flex;
     flex-flow: row nowrap;
     align-items: stretch;
     justify-content: flex-start;
-    bottom: 0;
-    left: 0;
-    width: 100%;
+    position: fixed;
+    left: 250px;
+    right: 250px;
+    bottom: 60px;
     height: 50px;
     background-color: var(--dark-color);
-    position: absolute;
     border-top: 1px solid rgba(255,255,255,0.1);
     border-bottom: 1px solid rgba(0,0,0,0.2);
     border-right: 1px solid rgba(0,0,0,0.2);
     z-index: 2;
 }
 
-enfugue-node-editor.image-editor enfugue-sample-chooser i {
+enfugue-sample-chooser i {
     position: relative;
-    display: flex;
+    display: flex !important;
     flex-flow: row nowrap;
     align-items: center;
     justify-content: center;
@@ -531,16 +514,17 @@ enfugue-node-editor.image-editor enfugue-sample-chooser i {
     border-left: 1px solid rgba(255,255,255,0.1);
     cursor: pointer;
     font-size: 20px;
-    padding: 0 15px;
+    text-align: center;
     transition: all 0.15s ease-in-out;
+    width: 60px;
 }
 
-enfugue-node-editor.image-editor enfugue-sample-chooser i.active {
+enfugue-sample-chooser i.active {
     background-color: rgba(255,255,255,0.1);
     color: var(--theme-color-primary);
 }
 
-enfugue-node-editor.image-editor enfugue-sample-chooser .tile-buttons {
+enfugue-sample-chooser .tile-buttons {
     display: flex;
     flex-flow: column nowrap;
     align-items: stretch;
@@ -548,21 +532,21 @@ enfugue-node-editor.image-editor enfugue-sample-chooser .tile-buttons {
     height: 100%;
 }
 
-enfugue-node-editor.image-editor enfugue-sample-chooser .tile-buttons i {
+enfugue-sample-chooser .tile-buttons i {
     flex-basis: 100%;
     font-size: 12px;
-    padding: 0 5px;
+    width: 20px;
 }
 
-enfugue-node-editor.image-editor enfugue-sample-chooser .tile-buttons i:first-child {
+enfugue-sample-chooser .tile-buttons i:first-child {
     border-bottom: 1px solid rgba(0,0,0,0.2);
 }
 
-enfugue-node-editor.image-editor enfugue-sample-chooser .tile-buttons i:last-child {
+enfugue-sample-chooser .tile-buttons i:last-child {
     border-top: 1px solid rgba(255,255,255,0.1);
 }
 
-enfugue-node-editor.image-editor enfugue-sample-chooser .samples {
+enfugue-sample-chooser .samples {
     display: flex;
     flex-flow: row nowrap;
     gap: 3px;
@@ -573,7 +557,7 @@ enfugue-node-editor.image-editor enfugue-sample-chooser .samples {
     overflow: hidden;
 }
 
-enfugue-node-editor.image-editor enfugue-sample-chooser .samples .no-samples {
+enfugue-sample-chooser .samples .no-samples {
     flex-grow: 1;
     width: 100%;
     padding: 15px 0;
@@ -582,7 +566,7 @@ enfugue-node-editor.image-editor enfugue-sample-chooser .samples .no-samples {
     text-align: center;
 }
 
-enfugue-node-editor.image-editor enfugue-sample-chooser .samples img
+enfugue-sample-chooser .samples img
 {
     height: 100%;
     border-radius: 3px;
@@ -593,12 +577,12 @@ enfugue-node-editor.image-editor enfugue-sample-chooser .samples img
     outline-color: transparent;
 }
 
-enfugue-node-editor.image-editor enfugue-sample-chooser .samples img.active
+enfugue-sample-chooser .samples img.active
 {
     outline-color: var(--theme-color-tertiary);
 }
 
-enfugue-node-editor.image-editor enfugue-sample-chooser input {
+enfugue-sample-chooser input {
     border: none;
     height: 100%;
     width: 50px;
@@ -608,7 +592,7 @@ enfugue-node-editor.image-editor enfugue-sample-chooser input {
     padding-right: 0;
 }
 
-enfugue-node-editor.image-editor enfugue-sample-chooser .playback-rate {
+enfugue-sample-chooser .playback-rate {
     display: flex;
     flex-flow: row nowrap;
     align-items: center;
@@ -619,29 +603,29 @@ enfugue-node-editor.image-editor enfugue-sample-chooser .playback-rate {
     border-right: 1px solid rgba(0,0,0,0.2);
 }
 
-enfugue-node-editor.image-editor enfugue-sample-chooser .playback-rate span {
+enfugue-sample-chooser .playback-rate span {
     font-size: 10px;
 }
 
-enfugue-node-editor.image-editor enfugue-sample-chooser > i:last-child {
+enfugue-sample-chooser > i:last-child {
     border-right: none;
 }
 
-enfugue-node-editor.image-editor enfugue-sample-chooser div.playback-rate,
-enfugue-node-editor.image-editor enfugue-sample-chooser i.loop,
-enfugue-node-editor.image-editor enfugue-sample-chooser i.play
+enfugue-sample-chooser div.playback-rate,
+enfugue-sample-chooser i.loop,
+enfugue-sample-chooser i.play
 {
-    display: none;
+    display: none !important;
 }
 
-enfugue-node-editor.image-editor enfugue-sample-chooser.animation div.playback-rate,
-enfugue-node-editor.image-editor enfugue-sample-chooser.animation i.loop,
-enfugue-node-editor.image-editor enfugue-sample-chooser.animation i.play
+enfugue-sample-chooser.animation div.playback-rate,
+enfugue-sample-chooser.animation i.loop,
+enfugue-sample-chooser.animation i.play
 {
-    display: flex;
+    display: flex !important;
 }
 
-enfugue-node-editor.image-editor enfugue-sample-chooser.animation .samples
+enfugue-sample-chooser.animation .samples
 {
     border-right: 1px solid rgba(0,0,0,0.1);
     overflow-x: hidden;
@@ -650,7 +634,7 @@ enfugue-node-editor.image-editor enfugue-sample-chooser.animation .samples
     cursor: pointer;
 }
 
-enfugue-node-editor.image-editor enfugue-sample-chooser.animation .samples img
+enfugue-sample-chooser.animation .samples img
 {
     flex-shrink: 1;
     flex-grow: 1;
@@ -819,7 +803,7 @@ enfugue-node-editor.image-editor enfugue-invocation-loading {
     position: absolute;
     left: 175px;
     right: 175px;
-    bottom: 55px;
+    bottom: 5px;
     border-radius: 10px;
     border: 1px solid var(--dark-color);
     transition: all 0.25s ease-in-out;
@@ -864,6 +848,7 @@ enfugue-node-editor.image-editor enfugue-invocation-loading enfugue-invocation-t
     width: 100%;
     height: 100%;
     text-align: center;
+    text-overflow: ellipsis;
 }
 
 enfugue-node-editor.image-editor enfugue-invocation-loading enfugue-invocation-duration {
@@ -996,381 +981,6 @@ enfugue-node-editor.image-editor enfugue-node-canvas enfugue-toolbar-item::after
     display: none;
 }
 
-.field-container.checkpoint-input-view,
-.field-container.multi-lora-input-view,
-.field-container.multi-lycoris-input-view,
-.field-container.multi-inversion-input-view,
-.field-container.upscale-methods-input-view,
-.field-container.upscale-diffusion-pipeline-input-view,
-.field-container.upscale-diffusion-prompt-input-view,
-.field-container.upscale-diffusion-negative-prompt-input-view,
-.field-container.upscale-diffusion-guidance-scale-input-view,
-.field-container.upscale-diffusion-steps-input-view,
-.field-container.noise-offset-input-view,
-.field-container.scheduler-input-view,
-.field-container.multi-diffusion-scheduler-input-view,
-.field-container.prompt-input-view,
-fieldset.field-set-refining-defaults .slider-precise-input-view,
-fieldset.field-set-prompts .field-container,
-fieldset.field-set-secondary-prompts .field-container,
-fieldset.field-set-directories .field-container,
-fieldset.field-set-engine .field-container,
-fieldset.field-set-diffusion .field-container,
-fieldset.field-set-filters .field-container.string-input-view-search,
-fieldset.field-set-dimensions .field-container.checkbox-input-view-use-chunking,
-fieldset.field-set-animation .field-container.checkbox-input-view,
-enfugue-sidebar .field-container.slider-precise-input-view,
-enfugue-sidebar .field-container.checkbox-input-view
-{
-    flex-basis: 100%;
-}
-
-enfugue-sidebar fieldset.field-set-prompts {
-    margin-bottom: 0.5em;
-}
-
-fieldset.field-set-engine .refiner-engine-size-input-view,
-fieldset.field-set-engine .inpainter-engine-size-input-view,
-fieldset.field-set-additional-models .vae-input-view-refiner-vae,
-fieldset.field-set-additional-models .vae-input-view-inpainter-vae
-{
-    display: none;
-}
-
-fieldset.field-set-image-prompt .field-container.float-input-view
-{
-    flex-basis: 100% !important;
-}
-
-form fieldset.field-set-image-prompt .field-container.checkbox-input-view-image-prompt-face {
-    display: none;
-}
-
-form.prompt-plus fieldset.field-set-image-prompt .field-container.checkbox-input-view-image-prompt-face {
-    display: flex;
-}
-
-fieldset.field-set-control-nets .field-container,
-enfugue-node-editor.image-editor enfugue-node form fieldset.field-set-control .field-container
-{
-    flex-basis: 45%;
-}
-
-form.show-refiner fieldset.field-set-engine:not(.collapsed) .refiner-engine-size-input-view,
-form.show-refiner fieldset.field-set-additional-models:not(.collapsed) .vae-input-view-refiner-vae,
-form.show-inpainter fieldset.field-set-engine:not(.collapsed) .inpainter-engine-size-input-view,
-form.show-inpainter fieldset.field-set-additional-models:not(.collapsed) .vae-input-view-inpainter-vae
-{
-    display: flex;
-}
-
-.field-container.multi-lora-input-view legend,
-.field-container.multi-lycoris-input-view legend {
-    display: none;
-}
-
-.field-container.multi-lora-input-view form .field-container,
-.field-container.multi-lycoris-input-view form .field-container
-{
-    flex-basis: 100%;
-}
-
-form.no-chunking .field-container.select-input-view-chunking-size,
-form.no-chunking .field-container.mask-type-input-view-chunking-mask-type
-{
-    display: none;
-}
-
-form.no-animation .field-container:not(.checkbox-input-view-animation-enabled)
-{
-    display: none;
-}
-
-form.no-animation-chunking .field-container.number-input-view-animation-size,
-form.no-animation-chunking .field-container.number-input-view-animation-stride
-{
-    display: none;
-}
-
-form.no-animation-scaling .field-container.number-input-view-animation-motion-scale
-{
-    display: none;
-}
-
-form.no-position-slicing .field-container.number-input-view-animation-position-encoding-truncate-length,
-form.no-position-slicing .field-container.number-input-view-animation-position-encoding-scale-length
-{
-    display: none;
-}
-
-form .field-container.checkbox-input-view-invert-control-image {
-    display: none;
-}
-
-form.no-process .field-container.checkbox-input-view-invert-control-image {
-    display: flex;
-}
-
-form fieldset.field-set-tweaks .field-container.slider-precise-input-view {
-    display: none;
-}
-
-form.show-free-u fieldset.field-set-tweaks:not(.collapsed) .field-container.slider-precise-input-view {
-    display: flex;
-}
-
-enfugue-model-table {
-    display: flex;
-    flex-flow: column nowrap;
-    justify-content: space-between;
-}
-
-enfugue-model-table-paging {
-    display: flex;
-    flex-flow: row nowrap;
-    align-items: center;
-    justify-content: space-between;
-    padding: 5px 1em 0 1em;
-}
-
-enfugue-model-table-paging > span {
-    font-size: 12px;
-    color: var(--theme-color-tertiary);
-}
-
-enfugue-model-table-paging ul {
-    display: flex;
-    flex-flow: row nowrap;
-    gap: 5px;
-}
-
-enfugue-model-table-paging ul li {
-    position: relative;
-    color: white;
-    background-color: var(--theme-color-tertiary);
-    display: flex;
-    flex-flow: row nowrap;
-    align-items: center;
-    justify-content: center;
-    width: 25px;
-    height: 25px;
-    cursor: pointer;
-    text-align: center;
-    line-height: 25px;
-    border-radius: 3px;
-    transition: background-color 0.25s ease-in-out;
-}
-
-enfugue-model-table-paging ul li.selected {
-    background-color: var(--theme-color-secondary);
-}
-
-enfugue-model-table-paging ul li span {
-    font-family: var(--monospace-font), monospace;
-}
-
-enfugue-model-table ul.include-first li:first-child {
-    margin-right: 30px;
-}
-
-enfugue-model-table ul.include-first li:first-child::after {
-    position: absolute;
-    content: '…';
-    font-size: 16px;
-    left: calc(100% + 11px);
-    color: var(--theme-color-tertiary);
-}
-
-enfugue-model-table ul.include-last li:last-child {
-    margin-left: 30px;
-}
-
-enfugue-model-table ul.include-last li:last-child::after {
-    position: absolute;
-    content: '…';
-    font-size: 16px;
-    right: calc(100% + 11px);
-    color: var(--theme-color-tertiary);
-}
-
-enfugue-model-table-paging ul li::before {
-    content: '\A';
-    position: absolute;
-    left: 0;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    background-color: white;
-    opacity: 0;
-    transition: opacity 0.25s ease-in-out;
-    pointer-events: none;
-}
-
-enfugue-model-table-paging ul li:hover::before {
-    opacity: 0.1;
-}
-
-enfugue-model-table.invocation-history {
-    margin-bottom: 5px;
-}
-
-enfugue-model-table.invocation-history tr th:nth-child(1),
-enfugue-model-table.invocation-history tr td:nth-child(1) {
-    width: 150px;
-}
-
-enfugue-model-table.invocation-history tr th:nth-child(2),
-enfugue-model-table.invocation-history tr td:nth-child(2) {
-    width: 80px;
-}
-
-enfugue-model-table.invocation-history tr th:nth-child(3),
-enfugue-model-table.invocation-history tr td:nth-child(3) {
-    width: 150px;
-}
-
-enfugue-model-table.invocation-history tr th:nth-child(4),
-enfugue-model-table.invocation-history tr td:nth-child(4) {
-    width: 200px;
-}
-
-enfugue-model-table.invocation-history tr th:nth-child(5),
-enfugue-model-table.invocation-history tr td:nth-child(5) {
-    width: 150px;
-}
-
-div.announcements-view > .view > p,
-div.about-view > p {
-    margin: 1rem 0 0 1rem;
-    line-height: 1.1em;
-}
-
-div.announcements-view > .view > h3 {
-    text-align: left;
-    color: var(--theme-color-tertiary);
-    margin: 1rem 0 0 1rem;
-}
-
-div.about-view .donate-links {
-    margin-top: 1em;
-    display: flex;
-    padding: 0.5em 1em;
-    flex-flow: row nowrap;
-    align-items: stretch;
-    justify-content: stretch;
-    gap: 1em;
-}
-
-div.about-view .donate-links a {
-    flex-basis: 100%;
-    text-decoration: none;
-    display: block;
-    padding: 1em;
-    border-style: solid;
-    border-radius: 5px;
-    border-width: 2px;
-    color: white;
-    font-weight: 900;
-    transition: all 0.25s ease-in-out;
-}
-
-div.about-view .donate-links a::before {
-    content: "\A";
-    display: inline-block;
-    width: 25px;
-    height: 25px;
-    margin-right: 10px;
-    background-size: contain;
-    background-repeat: no-repeat;
-    background-position: center center;
-    vertical-align: middle;
-}
-
-div.about-view .donate-links a.patreon {
-    background-color: #EE614A;
-    border-color: #EE614A;
-}
-
-div.about-view .donate-links a.ko-fi {
-    background-color: #29ABE0;
-    border-color: #29ABE0;
-}
-
-div.about-view .donate-links a.patreon::before {
-    background-image: url("../img/brand/patreon.png");
-}
-
-div.about-view .donate-links a.ko-fi::before {
-    background-image: url("../img/brand/ko-fi.png");
-}
-
-div.about-view .donate-links a:hover {
-    background-color: transparent;
-}
-
-div.about-view .donate-links a.patreon:hover {
-    color: #EE614A;
-}
-
-div.about-view .donate-links a.ko-fi:hover {
-    color: #29ABE0;
-}
-
-div.history-view > input {
-    float: right;
-    margin: 1em 1em 0 0;
-}
-
-table.history-table-view tr th:nth-child(1),
-table.history-table-view tr td:nth-child(1) {
-    width: 150px;
-}
-
-table.log-table-view tr th:nth-child(1),
-table.log-table-view tr td:nth-child(1) {
-    width: 150px;
-}
-
-table.log-table-view tr th:nth-child(2),
-table.log-table-view tr td:nth-child(2),
-table.log-table-view tr th:nth-child(3),
-table.log-table-view tr td:nth-child(3) {
-    width: 80px;
-}
-
-table.installation-directory-summary-table-view tr th:nth-child(1),
-table.installation-directory-summary-table-view tr td:nth-child(1) {
-    width: 250px;
-}
-
-table.installation-directory-table-view tr th:nth-child(2),
-table.installation-directory-table-view tr td:nth-child(2) {
-    width: 100px;
-}
-
-input.new-user-input-view,
-input.new-model-input-view,
-input.upload-file-input-view {
-    float: right;
-    margin-right: 1em;
-    margin-bottom: 1em;
-}
-
-input.upload-file-input-view {
-    margin-top: 1em;
-}
-
-input.download-input-view {
-    margin: 1em;
-    width: calc(100% - 2em);
-}
-
-enfugue-logs-view > input {
-    float: right;
-    margin-right: 1em;
-    margin-top: 1em;
-}
-
 enfugue-invocation-outputs {
     display: flex;
     flex-flow: row wrap;
@@ -1384,4 +994,29 @@ enfugue-invocation-outputs enfugue-invocation-output {
 enfugue-invocation-outputs enfugue-invocation-output img,
 enfugue-invocation-outputs enfugue-invocation-output video {
     max-height: 50px;
+}
+
+enfugue-region-prompts {
+    display: flex;
+    width: 100%;
+    height: 100%;
+    flex-flow: column nowrap;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 10px;
+}
+
+enfugue-region-prompts p {
+    text-align: center;
+    color: var(--theme-color-tertiary);
+}
+
+enfugue-region-prompts p:nth-child(2) {
+    color: tomato;
+}
+
+enfugue-region-prompts p:nth-child(2)::before {
+    content: "NEGATIVE: ";
+    font-weight: bold;
 }
