@@ -122,7 +122,7 @@ class ImageEditorView extends NodeEditorView {
         await imageView.waitForLoad();
         let newNode = await this.addNode(
             ImageEditorImageNodeView,
-            imageName,
+            this.getUniqueNodeName(imageName),
             imageView,
             x,
             y,
@@ -141,7 +141,7 @@ class ImageEditorView extends NodeEditorView {
         let [x, y] = this.getNextNodePoint();
         return await this.addNode(
             ImageEditorScribbleNodeView,
-            scribbleName,
+            this.getUniqueNodeName(scribbleName),
             null,
             x,
             y,
@@ -158,7 +158,7 @@ class ImageEditorView extends NodeEditorView {
         let [x, y] = this.getNextNodePoint();
         return await this.addNode(
             ImageEditorPromptNodeView,
-            promptName,
+            this.getUniqueNodeName(promptName),
             null,
             x,
             y,

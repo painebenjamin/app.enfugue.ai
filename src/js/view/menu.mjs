@@ -86,7 +86,7 @@ class MenuView extends ParentView {
     startHideTimer() {
         this.hideTimer = setTimeout(() => {
             this.hideCategories();
-        }, 1000);
+        }, 500);
     }
 
     /**
@@ -253,7 +253,9 @@ class MenuCategoryView extends ParentView {
      * @return IconItemView
      */
     async addItem(name, icon, shortcut) {
-        return this.addChild(IconItemView, name, icon, shortcut);
+        let itemView = await this.addChild(IconItemView, name, icon, shortcut);
+        itemView.onClick(() => { this.removeClass("active"); });
+        return itemView;
     }
 
     /**

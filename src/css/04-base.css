@@ -195,8 +195,9 @@ fieldset {
 }
 
 fieldset legend {
-    margin: 0 0 0.5em 0;
-    padding: 0 0 3px 0;
+    z-index: 2;
+    margin: 0 0 5px 0;
+    padding: 4px 0;
     font-size: 14px;
     width: 100%;
     font-weight: bold;

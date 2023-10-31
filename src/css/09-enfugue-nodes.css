@@ -134,6 +134,24 @@ enfugue-node.minimized {
     pointer-events: none;
 }
 
+enfugue-node.locked {
+    cursor: not-allowed !important;
+    pointer-events: none !important;
+    opacity: 0.8 !important;
+}
+
+enfugue-node.locked::after {
+    position: absolute;
+    left: 10px;
+    top: 10px;
+    right: 10px;
+    bottom: 10px;
+    background-image: repeating-linear-gradient(to top right, rgba(255,255,255,0.1) 0px, rgba(255,255,255,0.1) 10px, rgba(255,255,255,0.3) 11px, rgba(255,255,255,0.3) 20px);
+    content: "\A";
+    z-index: 99;
+    pointer-events: none !important;
+}
+
 enfugue-node.focused {
     z-index: 2;
 }

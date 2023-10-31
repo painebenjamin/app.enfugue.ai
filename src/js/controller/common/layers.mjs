@@ -69,7 +69,6 @@ class LayersView extends View {
     constructor(config) {
         super(config);
         this.toolbar = new ToolbarView(config);
-        this.layers = [];
     }
 
     /**
@@ -85,8 +84,8 @@ class LayersView extends View {
     /**
      * Adds a layer
      */
-    async addLayer(newLayer) {
-        if (isEmpty(this.layers)) {
+    async addLayer(newLayer, resetLayers = false) {
+        if (resetLayers) {
             this.node.content(
                 await this.toolbar.getNode(),
                 await newLayer.getNode()
@@ -95,7 +94,6 @@ class LayersView extends View {
             this.node.append(await newLayer.getNode());
             this.node.render();
         }
-        this.layers.push(newLayer);
     }
 
     /**
@@ -219,12 +217,10 @@ class LayerView extends View {
         this.controller.removeLayer(this);
     }
 
-
     /**
      * Enables/disables a layer
      */
     async setActive(isActive) {
-        // TODO
         this.isActive = isActive;
         if (this.isActive) {
             this.addClass("active");
@@ -237,11 +233,15 @@ class LayerView extends View {
      * Hides/shows a layer
      */
     async setVisible(isVisible) {
-        // TODO
         this.isVisible = isVisible;
         if (!isEmpty(this.hideShowLayer)) {
             let hideShowLayerIcon = this.isVisible ? "fa-solid fa-eye": "fa-solid fa-eye-slash";
             this.hideShowLayer.setIcon(hideShowLayerIcon);
+        }
+        if (this.isVisible) {
+            this.editorNode.show();
+        } else {
+            this.editorNode.hide();
         }
     }
 
@@ -249,11 +249,15 @@ class LayerView extends View {
      * Locks.unlocks a layer
      */
     async setLocked(isLocked) {
-        // TODO
         this.isLocked = isLocked;
         if (!isEmpty(this.lockUnlockLayer)) {
             let lockUnlockLayerIcon = this.isLocked ? "fa-solid fa-lock" : "fa-solid fa-lock-open";
             this.lockUnlockLayer.setIcon(lockUnlockLayerIcon);
+        }
+        if (this.isLocked) {
+            this.editorNode.addClass("locked");
+        } else {
+            this.editorNode.removeClass("locked");
         }
     }
 
@@ -279,6 +283,15 @@ class LayerView extends View {
         await this.editorNode.setState(newState);
         await this.form.setValues(newState);
         this.previewImage.setImage(this.layerImage);
+    }
+
+    /**
+     * Sets the name
+     */
+    async setName(name) {
+        if (this.node !== undefined) {
+            this.node.find("span.name").content(name);
+        }
     }
 
     /**
@@ -357,9 +370,15 @@ class LayersController extends Controller {
     /**
      * Removes layers
      */
-    removeLayer(layerToRemove) {
-        layerToRemove.editorNode.remove();
+    removeLayer(layerToRemove, removeNode = true) {
+        if (removeNode) {
+            layerToRemove.editorNode.remove(false);
+        }
         let layerIndex = this.layers.indexOf(layerToRemove);
+        if (layerIndex === -1) {
+            console.error("Couldn't find", layerToRemove);
+            return;
+        }
         this.layers = this.layers.slice(0, layerIndex).concat(this.layers.slice(layerIndex+1));
         if (this.layers.length === 0) {
             this.layersView.emptyLayers();
@@ -383,25 +402,26 @@ class LayersController extends Controller {
             let layerIndex = this.layers.indexOf(this.draggedLayer),
                 targetIndex = this.layers.indexOf(this.dragTarget);
             
-            if (this.dropBelow) {
+            if (targetIndex > layerIndex) {
                 targetIndex--;
             }
+            if (!this.dropBelow) {
+                targetIndex++;
+            }
+
             if (targetIndex !== layerIndex) {
+                // Re-order on canvas (inverse)
+                this.images.reorderNode(targetIndex, this.draggedLayer.editorNode);
+
+                // Re-order in memory
                 this.layers = this.layers.filter(
-                    (layer) => layer !== this.draggedLayer && layer !== this.dragTarget
+                    (layer) => layer !== this.draggedLayer
                 );
+                this.layers.splice(targetIndex, 0, this.draggedLayer);
+
+                // Re-order in DOM
                 this.layersView.node.remove(this.draggedLayer.node);
-                if (this.dropBelow === true) {
-                    this.layers.splice(targetIndex, 0, this.draggedLayer);
-                    this.layers.splice(targetIndex, 0, this.dragTarget);
-                    this.layersView.node.insert(targetIndex + 1, this.draggedLayer.node);
-                    this.images.reorderNode(targetIndex + 1, this.draggedLayer.editorNode);
-                } else {
-                    this.layers.splice(targetIndex, 0, this.dragTarget);
-                    this.layers.splice(targetIndex, 0, this.draggedLayer);
-                    this.layersView.node.insert(targetIndex, this.draggedLayer.node);
-                    this.images.reorderNode(targetIndex, this.draggedLayer.editorNode);
-                }
+                this.layersView.node.insert(targetIndex + 1, this.draggedLayer.node);
                 this.layersView.node.render();
             }
         }
@@ -447,7 +467,7 @@ class LayersController extends Controller {
         let addedLayer;
         switch (layer.classname) {
             case "ImageEditorPromptNodeView":
-                addedLayer = await this.addPromptLayer(false, node);
+                addedLayer = await this.addPromptLayer(false, node, layer.name);
                 break;
             default:
                 console.error(`Unknown layer class ${layer.classname}, skipping.`);
@@ -493,8 +513,15 @@ class LayersController extends Controller {
      * Adds a layer
      */
     async addLayer(newLayer, activate = true) {
+        // Bind editor node events
+        newLayer.editorNode.onNameChange((newName) => {
+            newLayer.setName(newName, false);
+        });
+        newLayer.editorNode.onClose(() => {
+            this.removeLayer(newLayer, false);
+        });
         this.layers.push(newLayer);
-        await this.layersView.addLayer(newLayer);
+        await this.layersView.addLayer(newLayer, this.layers.length === 1);
         if (activate) {
             this.activateLayer(this.layers.length-1);
         }
@@ -510,9 +537,9 @@ class LayersController extends Controller {
     /**
      * Adds a prompt layer
      */
-    async addPromptLayer(activate = true, promptNode = null) {
+    async addPromptLayer(activate = true, promptNode = null, name = "Prompt") {
         if (isEmpty(promptNode)) {
-            promptNode = await this.images.addPromptNode();
+            promptNode = await this.images.addPromptNode(name);
         }
 
         let promptForm = new ImageEditorPromptNodeOptionsFormView(this.config),
@@ -523,7 +550,7 @@ class LayersController extends Controller {
         });
 
         await this.addLayer(promptLayer, activate);
-
+        
         return promptLayer;
     }
 

@@ -149,6 +149,22 @@ class NodeEditorView extends View {
     }
 
     /**
+     * Gets a unique name for a node, adding numbers if needed.
+     *
+     * @param string $name The name of the node.
+     */
+    getUniqueNodeName(name) {
+        let currentName = name,
+            currentNames = this.nodes.map((node) => node.getName()),
+            duplicates = 1;
+
+        while (currentNames.indexOf(currentName) !== -1) {
+            currentName = `${name} ${++duplicates}`;
+        }
+        return currentName;
+    }
+
+    /**
      * @param callable $callback A callback to perform when the window is resized
      */
     onWindowResize(callback) {
@@ -451,15 +467,15 @@ class NodeEditorView extends View {
      */
     reorderNode(index, node) {
         let currentNodeIndex = this.nodes.indexOf(node);
-        if (node === -1) {
+        if (currentNodeIndex === -1) {
             console.error("Couldn't reorder node, not found in array.");
             return;
         }
-        this.nodes = this.nodes.slice(0, currentNodeIndex).concat(this.nodes.slice(currentNodeIndex+1));
+        this.nodes = this.nodes.slice(0, currentNodeIndex).concat(this.nodes.slice(currentNodeIndex + 1));
         this.nodes.splice(index, 0, node);
         let nodeCanvas = this.node.find(E.getCustomTag("nodeCanvas"));
         nodeCanvas.remove(node.node);
-        nodeCanvas.insert(index, node.node);
+        nodeCanvas.insert(index + 3, node.node);
     }
 
     /**
@@ -469,6 +485,7 @@ class NodeEditorView extends View {
     async copyNode(node) {
         let data = node.getState(),
             newNode = await this.addNode(node.constructor);
+        data.name += " (copy)";
         data.x += node.constructor.padding;
         data.y += node.constructor.padding;
         await newNode.setState(data);

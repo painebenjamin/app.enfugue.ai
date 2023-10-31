@@ -1,27 +1,27 @@
 /** @module nodes/base */
-import { isEmpty, camelCase, merge, sleep } from '../base/helpers.mjs';
-import { View } from '../view/base.mjs';
-import { FormView } from '../forms/base.mjs';
-import { InputView, ListInputView } from '../forms/input.mjs';
-import { ElementBuilder } from '../base/builder.mjs';
-import { Point, Drawable } from '../graphics/geometry.mjs';
+import { isEmpty, camelCase, merge, sleep } from "../base/helpers.mjs";
+import { View } from "../view/base.mjs";
+import { FormView } from "../forms/base.mjs";
+import { InputView, ListInputView } from "../forms/input.mjs";
+import { ElementBuilder } from "../base/builder.mjs";
+import { Point, Drawable } from "../graphics/geometry.mjs";
 
 const E = new ElementBuilder({
-    nodeContainer: 'enfugue-node-container',
-    nodeContents: 'enfugue-node-contents',
-    nodeHeader: 'enfugue-node-header',
-    nodeName: 'enfugue-node-name',
-    nodeButton: 'enfugue-node-button',
-    nodeOptionsContents: 'enfugue-node-options-contents',
-    nodeOptionsInputsOutputs: 'enfugue-node-options-inputs-outputs',
-    nodeOptions: 'enfugue-node-options',
-    nodeInputs: 'enfugue-node-inputs',
-    inputModes: 'enfugue-node-input-modes',
-    nodeOutputs: 'enfugue-node-outputs',
-    nodeInput: 'enfugue-node-input',
-    nodeInputGroup: 'enfugue-node-input-group',
-    nodeOutput: 'enfugue-node-output',
-    nodeOutputGroup: 'enfugue-node-output-group'
+    nodeContainer: "enfugue-node-container",
+    nodeContents: "enfugue-node-contents",
+    nodeHeader: "enfugue-node-header",
+    nodeName: "enfugue-node-name",
+    nodeButton: "enfugue-node-button",
+    nodeOptionsContents: "enfugue-node-options-contents",
+    nodeOptionsInputsOutputs: "enfugue-node-options-inputs-outputs",
+    nodeOptions: "enfugue-node-options",
+    nodeInputs: "enfugue-node-inputs",
+    inputModes: "enfugue-node-input-modes",
+    nodeOutputs: "enfugue-node-outputs",
+    nodeInput: "enfugue-node-input",
+    nodeInputGroup: "enfugue-node-input-group",
+    nodeOutput: "enfugue-node-output",
+    nodeOutputGroup: "enfugue-node-output-group"
 });
 
 /**
@@ -51,7 +51,7 @@ class NodeView extends View {
     /**
      * @var string The tag name of the view.
      */
-    static tagName = 'enfugue-node';
+    static tagName = "enfugue-node";
 
     /**
      * @var int The number of pixels outside of the node to allow for edge handling.
@@ -121,7 +121,7 @@ class NodeView extends View {
     /**
      * @var string The default cursor to show when no actions are present.
      */
-    static defaultCursor = 'default';
+    static defaultCursor = "default";
 
     /**
      * @var bool Whether or not the height of the contents are fixed.
@@ -139,22 +139,22 @@ class NodeView extends View {
     static nodeButtons = {};
 
     /**
-     * @var string The text of the copy button's tooltip
+     * @var string The text of the copy button"s tooltip
      */
     static copyText = "Copy";
 
     /**
-     * @var string The text of the close button's tooltip
+     * @var string The text of the close button"s tooltip
      */
     static closeText = "Close";
 
     /**
-     * @var string The text of the flip buttons' tooltip
+     * @var string The text of the flip buttons" tooltip
      */
     static headerBottomText = "Flip Header to Bottom";
     
     /**
-     * @var string The text of the flip buttons' tooltip on the bottom
+     * @var string The text of the flip buttons" tooltip on the bottom
      */
     static headerTopText = "Flip Header to Top";
 
@@ -193,6 +193,7 @@ class NodeView extends View {
         this.canMerge = this.constructor.canMerge;
         this.closeCallbacks = [];
         this.resizeCallbacks = [];
+        this.nameChangeCallbacks = [];
     }
 
     /**
@@ -217,7 +218,7 @@ class NodeView extends View {
         this.content = newContent;
         if (this.node !== undefined) {
             this.node
-                .find(E.getCustomTag('nodeContents'))
+                .find(E.getCustomTag("nodeContents"))
                 .content(await this.getContent());
         }
         return this;
@@ -340,7 +341,7 @@ class NodeView extends View {
         );
 
         if (this.node !== undefined) {
-            this.node.find(E.getCustomTag('nodeName')).content(this.name);
+            this.node.find(E.getCustomTag("nodeName")).content(this.name);
         }
 
         return this;
@@ -354,8 +355,20 @@ class NodeView extends View {
     setName(newName) {
         this.name = newName;
         if (this.node !== undefined) {
-            this.node.find(E.getCustomTag('nodeName')).content(newName);
+            this.node.find(E.getCustomTag("nodeName")).content(newName);
         }
+        for (let callback of this.nameChangeCallbacks) {
+            callback(newName);
+        }
+    }
+
+    /**
+     * Adds a callback when name is changed
+     *
+     * @param callable $callback The callback to execute
+     */
+    onNameChange(callback) {
+        this.nameChangeCallbacks.push(callback);
     }
 
     /**
@@ -365,16 +378,18 @@ class NodeView extends View {
      */
     getName() {
         if (this.node === undefined) return this.name;
-        return this.node.find(E.getCustomTag('nodeName')).getText();
+        return this.node.find(E.getCustomTag("nodeName")).getText();
     }
 
     /**
      * Removes this node from the editor.
      */
-    remove() {
+    remove(triggerClose = true) {
         this.removed = true;
         this.editor.removeNode(this);
-        this.closed();
+        if (triggerClose) {
+            this.closed();
+        }
     }
 
     /**
@@ -560,12 +575,12 @@ class NodeView extends View {
             let button = E.nodeButton()
                 .class(`node-button-${camelCase(buttonName)}`)
                 .content(E.i().class(buttonConfiguration.icon))
-                .on('click', (e) => {
+                .on("click", (e) => {
                     buttonConfiguration.callback.call(buttonConfiguration.context || this, e);
                 });
 
             if (buttonConfiguration.tooltip) {
-                button.data('tooltip', buttonConfiguration.tooltip);
+                button.data("tooltip", buttonConfiguration.tooltip);
             }
 
             nodeHeader.append(button);
@@ -615,12 +630,12 @@ class NodeView extends View {
                 .content(nodeName)
                 .css({
                     height: `${this.constructor.headerHeight}px`,
-                    'line-height': `${this.constructor.headerHeight}px`
+                    "line-height": `${this.constructor.headerHeight}px`
                 });
 
         if (this.constructor.canRename) {
             nodeName.editable();
-            nodeHeader.on('dblclick', (e) => {
+            nodeHeader.on("dblclick", (e) => {
                 e.preventDefault();
                 e.stopPropagation();
                 nodeName.focus();
@@ -629,7 +644,7 @@ class NodeView extends View {
 
         if (this.constructor.hideHeader) {
             node.addClass("hide-header");
-            nodeHeader.css('height', 0);
+            nodeHeader.css("height", 0);
         }
 
         let buttons = {};
@@ -639,7 +654,7 @@ class NodeView extends View {
         }
         if (this.constructor.canCopy) {
             buttons.copy = {
-                icon: 'fa-solid fa-copy',
+                icon: "fa-solid fa-copy",
                 tooltip: this.constructor.copyText,
                 shortcut: "p",
                 context: this,
@@ -662,7 +677,7 @@ class NodeView extends View {
         if (this.constructor.canClose) {
             buttons.close = {
                 shortcut: "v",
-                icon: 'fa-solid fa-window-close',
+                icon: "fa-solid fa-window-close",
                 tooltip: this.constructor.closeText,
                 context: this,
                 callback: () => {
@@ -766,22 +781,22 @@ class NodeView extends View {
                 height: `${this.height}px`,
                 padding: `${this.constructor.padding}px`
             })
-            .on('mouseenter', (e) => {
+            .on("mouseenter", (e) => {
                 if (this.fixed) return;
                 if (this.constructor.hideHeader) {
                     nodeHeader.css(
-                        'height',
+                        "height",
                         `${this.constructor.headerHeight}px`
                     );
                 }
             })
-            .on('mouseleave', (e) => {
+            .on("mouseleave", (e) => {
                 if (this.fixed) return;
                 if (this.constructor.hideHeader) {
-                    nodeHeader.css('height', '0');
+                    nodeHeader.css("height", "0");
                 }
             })
-            .on('mousemove', (e) => {
+            .on("mousemove", (e) => {
                 if (this.fixed) return;
                 if (cursorMode == NodeCursorMode.NONE) {
                     // If there is no cursor mode assigned,
@@ -854,31 +869,31 @@ class NodeView extends View {
                     switch (nextMode) {
                         // Set the cursor as the indication to the user.
                         case NodeCursorMode.MOVE:
-                            node.css('cursor', 'grab');
+                            node.css("cursor", "grab");
                             break;
                         case NodeCursorMode.RESIZE_NE:
                         case NodeCursorMode.RESIZE_SW:
-                            node.css('cursor', 'nesw-resize');
+                            node.css("cursor", "nesw-resize");
                             break;
                         case NodeCursorMode.RESIZE_N:
                         case NodeCursorMode.RESIZE_S:
-                            node.css('cursor', 'ns-resize');
+                            node.css("cursor", "ns-resize");
                             break;
                         case NodeCursorMode.RESIZE_E:
                         case NodeCursorMode.RESIZE_W:
-                            node.css('cursor', 'ew-resize');
+                            node.css("cursor", "ew-resize");
                             break;
                         case NodeCursorMode.RESIZE_NW:
                         case NodeCursorMode.RESIZE_SE:
-                            node.css('cursor', 'nwse-resize');
+                            node.css("cursor", "nwse-resize");
                             break;
                         default:
-                            node.css('cursor', this.constructor.defaultCursor);
+                            node.css("cursor", this.constructor.defaultCursor);
                             break;
                     }
                 }
             })
-            .on('mousedown', (e) => {
+            .on("mousedown", (e) => {
                 if (
                     this.fixed ||
                     e.which !== 1 ||
@@ -886,7 +901,7 @@ class NodeView extends View {
                     cursorMode !== NodeCursorMode.NONE
                 )
                     return;
-                /* On mousedown, we'll determine the final mode of the cursor,
+                /* On mousedown, we"ll determine the final mode of the cursor,
                  * and initiate the action.
                  *
                  * We also bind the mousemove() and mouseup() listeners within
@@ -915,27 +930,27 @@ class NodeView extends View {
 
                         switch (cursorMode) {
                             case NodeCursorMode.MOVE:
-                                this.editor.node.css('cursor', 'grab');
+                                this.editor.node.css("cursor", "grab");
                                 break;
                             case NodeCursorMode.RESIZE_NE:
                             case NodeCursorMode.RESIZE_SW:
-                                this.editor.node.css('cursor', 'nesw-resize');
+                                this.editor.node.css("cursor", "nesw-resize");
                                 break;
                             case NodeCursorMode.RESIZE_N:
                             case NodeCursorMode.RESIZE_S:
-                                this.editor.node.css('cursor', 'ns-resize');
+                                this.editor.node.css("cursor", "ns-resize");
                                 break;
                             case NodeCursorMode.RESIZE_E:
                             case NodeCursorMode.RESIZE_W:
-                                this.editor.node.css('cursor', 'ew-resize');
+                                this.editor.node.css("cursor", "ew-resize");
                                 break;
                             case NodeCursorMode.RESIZE_NW:
                             case NodeCursorMode.RESIZE_SE:
-                                this.editor.node.css('cursor', 'nwse-resize');
+                                this.editor.node.css("cursor", "nwse-resize");
                                 break;
                             default:
                                 this.editor.node.css(
-                                    'cursor',
+                                    "cursor",
                                     this.constructor.defaultCursor
                                 );
                                 break;
@@ -947,27 +962,27 @@ class NodeView extends View {
                             cursorMode = NodeCursorMode.NONE;
                             [startPositionX, startPositionY] = [null, null];
                             this.editor.node
-                                .off('mouseup,mouseleave,mousemove')
-                                .css('cursor', this.constructor.defaultCursor);
-                            node.off('mouseup');
+                                .off("mouseup,mouseleave,mousemove")
+                                .css("cursor", this.constructor.defaultCursor);
+                            node.off("mouseup");
                             if (this.editor.constructor.disableCursor) {
                                 this.editor.node.css("pointer-events", "none");
                             }
                         };
 
                         this.editor.node
-                            .on('mousemove', (e2) => {
+                            .on("mousemove", (e2) => {
                                 e2.preventDefault();
                                 e2.stopPropagation();
                                 setNodeDimension(e2, false);
                             })
-                            .on('mouseup,mouseleave', (e2) => {
+                            .on("mouseup,mouseleave", (e2) => {
                                 e2.preventDefault();
                                 e2.stopPropagation();
                                 endCursor(e2);
                             });
 
-                        node.on('mouseup', (e2) => {
+                        node.on("mouseup", (e2) => {
                             endCursor(e2);
                         });
                             
@@ -991,7 +1006,7 @@ class NodeView extends View {
             contentContainer.content(content);
         }
 
-        contentContainer.on('mousedown', (e) => {
+        contentContainer.on("mousedown", (e) => {
             if (this.fixed) return;
             this.editor.focusNode(this);
         });
@@ -1001,10 +1016,10 @@ class NodeView extends View {
                 this.constructor.hideHeader ||
                 this.constructor.fixedHeader
             ) {
-                contentContainer.css('height', '100%');
+                contentContainer.css("height", "100%");
             } else {
                 contentContainer.css(
-                    'height',
+                    "height",
                     `calc(100% - ${this.constructor.headerHeight}px)`
                 );
             }
