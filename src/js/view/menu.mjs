@@ -270,7 +270,7 @@ class MenuCategoryView extends ParentView {
         }
 
         node.prepend(header)
-            .on("mouseenter", () => this.parent.toggleCategory(this.name))
+            .on("click", () => this.parent.toggleCategory(this.name))
             .on("mouseleave", () => this.parent.startHideTimer());
 
         return node;

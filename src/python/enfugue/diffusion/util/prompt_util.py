@@ -7,7 +7,7 @@ if TYPE_CHECKING:
 
 __all__ = ["Prompt", "EncodedPrompt", "EncodedPrompts"]
 
-@dataclass
+@dataclass(frozen=True)
 class Prompt:
     """
     This class holds, at a minimum, a prompt string.

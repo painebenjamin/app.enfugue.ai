@@ -13,6 +13,11 @@ class ImageEditorScribbleNodeView extends ImageEditorNodeView {
     static nodeTypeName = "Scribble";
 
     /**
+     * @var bool hide header
+     */
+    static hideHeader = true;
+
+    /**
      * @var string The icon for changing the cursor to a square.
      */
     static pencilSquareIcon = "fa-regular fa-square";

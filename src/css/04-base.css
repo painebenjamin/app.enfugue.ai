@@ -187,7 +187,6 @@ fieldset {
 form {
     padding: 10px 10px 0 10px;
     flex-flow: column nowrap;
-    margin-bottom: 5px;
 }
 
 fieldset {
@@ -262,7 +261,7 @@ form label {
     display: inline-block;
     flex-grow: 0;
     font-weight: 400;
-    font-size: 12px;
+    font-size: 11.5px;
     margin-bottom: 2px;
     color: var(--theme-color-secondary);
     min-height: 12px;
@@ -358,8 +357,9 @@ form.embedded-form {
     background-color: var(--theme-color-primary);
     cursor: pointer;
     transition: background-color 0.25s ease-in-out;
-    border-radius: 5px;
+    border-radius: 3px;
     padding: 0 8px;
+    z-index: 1;
 }
 
 .field-container.checkbox-input-view::after {
@@ -518,7 +518,7 @@ textarea {
     margin: 0 0 1em 0;
     font-size: 12px;
     border: 1px solid black;
-    border-radius: 5px;
+    border-radius: 3px;
     transition: all 0.25s ease-in-out;
     outline: none;
     font-family: var(--body-font), sans-serif;
@@ -887,7 +887,7 @@ ul.list-input-view li.selected {
     color: var(--lighter-color);
     font-weight: 300;
     padding: 10px;
-    border-radius: 5px;
+    border-radius: 3px;
     border: 1px solid var(--lighter-color);
     opacity: 0;
     pointer-events: none;
@@ -939,7 +939,7 @@ ul.list-input-view li.selected {
     background-color: var(--darker-color);
     border: 1px solid var(--light-color);
     padding: 10px;
-    border-radius: 5px;
+    border-radius: 3px;
 }
 
 @keyframes slide-background {

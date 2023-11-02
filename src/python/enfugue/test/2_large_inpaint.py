@@ -8,7 +8,7 @@ import traceback
 from typing import List
 from pibble.util.log import DebugUnifiedLoggingContext
 from enfugue.util import logger
-from enfugue.diffusion.plan import DiffusionPlan
+from enfugue.diffusion.invocation import LayeredInvocation
 from enfugue.diffusion.manager import DiffusionPipelineManager
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -32,20 +32,15 @@ def main() -> None:
             width, height = image.size
             prompt, negative_prompt = PROMPTS[size]
             
-            plan = DiffusionPlan.assemble(
-                size = 512,
+            plan = LayeredInvocation.assemble(
                 prompt = prompt,
                 negative_prompt = negative_prompt,
                 num_inference_steps = 20,
                 width = width,
                 height = height,
-                nodes = [
-                    {
-                        "image": image,
-                        "mask": mask,
-                        "strength": 1.0
-                    }
-                ]
+                mask=mask,
+                image=image,
+                strength=1.0,
             )
 
             plan.execute(manager)["images"][0].save(os.path.join(save_dir, f"{size}-result.png"))

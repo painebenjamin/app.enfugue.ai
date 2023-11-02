@@ -352,13 +352,17 @@ class NodeView extends View {
      *
      * @param string $newName The new name, which will populate in the DOM.
      */
-    setName(newName) {
+    setName(newName, fillNode = true, triggerCallbacks = true) {
         this.name = newName;
-        if (this.node !== undefined) {
-            this.node.find(E.getCustomTag("nodeName")).content(newName);
+        if (fillNode) {
+            if (this.node !== undefined) {
+                this.node.find(E.getCustomTag("nodeName")).content(newName);
+            }
         }
-        for (let callback of this.nameChangeCallbacks) {
-            callback(newName);
+        if (triggerCallbacks) {
+            for (let callback of this.nameChangeCallbacks) {
+                callback(newName);
+            }
         }
     }
 
@@ -599,19 +603,22 @@ class NodeView extends View {
      */
     rebuildHeaderButtons() {
         if (this.node !== undefined) {
-            let nodeHeader = this.node.find(E.getCustomTag("nodeHeader"));
+            this.lock.acquire().then((release) => {
+                let nodeHeader = this.node.find(E.getCustomTag("nodeHeader"));
 
-            for (let currentButton of nodeHeader.children()) {
-                if (currentButton.tagName == E.getCustomTag("nodeButton")) {
-                    try {
-                        nodeHeader.remove(currentButton);
-                    } catch(e) {
-                        // Might have been removed already, continue
+                for (let currentButton of nodeHeader.children()) {
+                    if (currentButton.tagName == E.getCustomTag("nodeButton")) {
+                        try {
+                            nodeHeader.remove(currentButton);
+                        } catch(e) {
+                            // Might have been removed already, continue
+                        }
                     }
                 }
-            }
-
-            this.buildHeaderButtons(nodeHeader, this.buttons);
+                this.buildHeaderButtons(nodeHeader, this.buttons);
+                nodeHeader.render();
+                release();
+            });
         }
     }
 
@@ -634,7 +641,9 @@ class NodeView extends View {
                 });
 
         if (this.constructor.canRename) {
-            nodeName.editable();
+            nodeName.editable().on("input", () => {
+                this.setName(nodeName.getText(), false);
+            });
             nodeHeader.on("dblclick", (e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -644,7 +653,6 @@ class NodeView extends View {
 
         if (this.constructor.hideHeader) {
             node.addClass("hide-header");
-            nodeHeader.css("height", 0);
         }
 
         let buttons = {};
@@ -780,21 +788,6 @@ class NodeView extends View {
                 width: `${this.width}px`,
                 height: `${this.height}px`,
                 padding: `${this.constructor.padding}px`
-            })
-            .on("mouseenter", (e) => {
-                if (this.fixed) return;
-                if (this.constructor.hideHeader) {
-                    nodeHeader.css(
-                        "height",
-                        `${this.constructor.headerHeight}px`
-                    );
-                }
-            })
-            .on("mouseleave", (e) => {
-                if (this.fixed) return;
-                if (this.constructor.hideHeader) {
-                    nodeHeader.css("height", "0");
-                }
             })
             .on("mousemove", (e) => {
                 if (this.fixed) return;

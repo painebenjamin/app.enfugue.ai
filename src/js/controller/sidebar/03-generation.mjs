@@ -1,4 +1,4 @@
-/** @module controlletr/sidebar/04-generation */
+/** @module controlletr/sidebar/03-generation */
 import { isEmpty } from "../../base/helpers.mjs";
 import { Controller } from "../base.mjs";
 import { GenerationFormView } from "../../forms/enfugue/generation.mjs";

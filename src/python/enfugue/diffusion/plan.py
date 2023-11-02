@@ -904,12 +904,12 @@ class DiffusionPlan:
 
     def __init__(
         self,
-        size: int, # Required
         prompt: Optional[str]=None,  # Global
         prompt_2: Optional[str]=None, # Global
         negative_prompt: Optional[str]=None,  # Global
         negative_prompt_2: Optional[str]=None, # Global
         clip_skip: Optional[int]=None,
+        size: Optional[int]=None,
         refiner_size: Optional[int]=None,
         inpainter_size: Optional[int]=None,
         model: Optional[str]=None,
@@ -977,7 +977,7 @@ class DiffusionPlan:
         self.width = width if width is not None else self.size
         self.height = height if height is not None else self.size
         self.image = image
-        self.chunking_size = chunking_size if chunking_size is not None else self.size // 8  # Pass 0 to disable
+        self.chunking_size = chunking_size
         self.chunking_mask_type = chunking_mask_type
         self.chunking_mask_kwargs = chunking_mask_kwargs
         self.samples = samples if samples is not None else 1
@@ -1012,8 +1012,6 @@ class DiffusionPlan:
         Returns the keyword arguments that will be passing to the pipeline call.
         """
         return {
-            "width": self.width,
-            "height": self.height,
             "clip_skip": self.clip_skip,
             "freeu_factors": self.freeu_factors,
             "chunking_size": self.chunking_size,
@@ -1382,8 +1380,11 @@ class DiffusionPlan:
         else:
             total_images *= self.samples
 
+        width = pipeline.size if self.width is None else self.width
+        height = pipeline.size if self.height is None else self.height
+
         images = [
-            PIL.Image.new("RGBA", (self.width, self.height))
+            PIL.Image.new("RGBA", (width, height))
             for i in range(total_images)
         ]
         image_draw = [
@@ -1393,7 +1394,7 @@ class DiffusionPlan:
         nsfw_content_detected = [False] * total_images
 
         # Keep a final mask of all nodes to outpaint in the end
-        outpaint_mask = PIL.Image.new("RGB", (self.width, self.height), (255, 255, 255))
+        outpaint_mask = PIL.Image.new("RGB", (width, height), (255, 255, 255))
         outpaint_draw = PIL.ImageDraw.Draw(outpaint_mask)
 
         for i, node in enumerate(self.nodes):
@@ -1403,7 +1404,15 @@ class DiffusionPlan:
                 """
                 task_callback(f"{node.name}: {task}")
 
-            invocation_kwargs = {**self.kwargs, **callback_kwargs}
+            invocation_kwargs = {
+                **self.kwargs,
+                **callback_kwargs,
+                **{
+                    "width": width,
+                    "height": height,
+                    "task_callback": task_callback
+                }
+            }
             invocation_kwargs["task_callback"] = node_task_callback
             this_intention = "inpainting" if node.step.mask is not None else "inference"
             next_intention: Optional[str] = None
@@ -1523,34 +1532,50 @@ class DiffusionPlan:
             if self.num_inference_steps is not None:
                 invocation_kwargs["num_inference_steps"] = self.num_inference_steps
 
-            for i, image in enumerate(images):
-                pipeline.controlnet = None
-                if image_callback is not None:
-                    def outpaint_image_callback(callback_images: List[PIL.Image.Image]) -> None:
-                        """
-                        Wrap the original image callback so we're actually pasting the initial image on the main canvas
-                        """
-                        images[i] = callback_images[0]
-                        image_callback(images)  # type: ignore
-                else:
-                    outpaint_image_callback = None  # type: ignore
-
+            if self.animation_frames:
+                pipeline.animator_controlnet = None
                 result = pipeline(
-                    image=image,
+                    image=images,
                     mask=outpaint_mask,
                     prompt=str(outpaint_prompt_tokens),
                     prompt_2=str(outpaint_prompt_2_tokens),
                     negative_prompt=str(outpaint_negative_prompt_tokens),
                     negative_prompt_2=str(outpaint_negative_prompt_2_tokens),
-                    latent_callback=outpaint_image_callback,
+                    latent_callback=image_callback,
                     num_results_per_prompt=1,
                     **invocation_kwargs,
                 )
 
-                images[i] = result["images"][0]
-                nsfw_content_detected[i] = nsfw_content_detected[i] or (
-                    "nsfw_content_detected" in result and result["nsfw_content_detected"][0]
-                )
+                images = result["images"]
+            else:
+                for i, image in enumerate(images):
+                    pipeline.controlnet = None
+                    if image_callback is not None:
+                        def outpaint_image_callback(callback_images: List[PIL.Image.Image]) -> None:
+                            """
+                            Wrap the original image callback so we're actually pasting the initial image on the main canvas
+                            """
+                            images[i] = callback_images[0]
+                            image_callback(images)  # type: ignore
+                    else:
+                        outpaint_image_callback = None  # type: ignore
+
+                    result = pipeline(
+                        image=image,
+                        mask=outpaint_mask,
+                        prompt=str(outpaint_prompt_tokens),
+                        prompt_2=str(outpaint_prompt_2_tokens),
+                        negative_prompt=str(outpaint_negative_prompt_tokens),
+                        negative_prompt_2=str(outpaint_negative_prompt_2_tokens),
+                        latent_callback=outpaint_image_callback,
+                        num_results_per_prompt=1,
+                        **invocation_kwargs,
+                    )
+
+                    images[i] = result["images"][0]
+                    nsfw_content_detected[i] = nsfw_content_detected[i] or (
+                        "nsfw_content_detected" in result and result["nsfw_content_detected"][0]
+                    )
 
         return images, nsfw_content_detected
 
@@ -1765,7 +1790,7 @@ class DiffusionPlan:
 
     @staticmethod
     def assemble(
-        size: int,
+        size: Optional[int] = None,
         refiner_size: Optional[int] = None,
         inpainter_size: Optional[int] = None,
         model: Optional[str] = None,
@@ -2007,7 +2032,7 @@ class DiffusionPlan:
                 prompt_tokens.add(prompt)
             if model_prompt:
                 prompt_tokens.add(model_prompt, MODEL_PROMPT_WEIGHT)
-            
+
             prompt_2_tokens = TokenMerger()
             if prompt_2:
                 prompt_2_tokens.add(prompt_2)

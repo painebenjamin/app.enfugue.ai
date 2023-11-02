@@ -23,16 +23,13 @@ __all__ = [
     "find_files_in_directory"
 ]
 
-
 class VersionDict(TypedDict):
     """
     The version dictionary.
     """
-
     version: Version
     release: datetime.date
     description: str
-
 
 def get_local_installation_directory() -> str:
     """
@@ -47,7 +44,6 @@ def get_local_installation_directory() -> str:
             raise IOError("Couldn't find installation directory.")
     return here
 
-
 def get_local_config_directory() -> str:
     """
     Gets where the local configuration directory is.
@@ -58,7 +54,6 @@ def get_local_config_directory() -> str:
         if here == "/":
             raise IOError("Couldn't find config directory.")
     return os.path.join(here, "config")
-
 
 def get_local_static_directory() -> str:
     """
@@ -71,7 +66,6 @@ def get_local_static_directory() -> str:
             raise IOError("Couldn't find static directory.")
     return os.path.join(here, "static")
 
-
 def check_make_directory(directory: str) -> None:
     """
     Checks if a directory doesn't exist, and makes it.
@@ -81,11 +75,10 @@ def check_make_directory(directory: str) -> None:
         try:
             os.makedirs(directory)
             return
-        except:
+        except Exception as ex:
             if not os.path.exists(directory):
-                raise
+                raise IOError(f"Couldn't create directory `{directory}`: {type(ex).__name__}({ex})")
             return
-
 
 def get_local_configuration(as_api_configuration: bool = False) -> Union[Dict[str, Any], APIConfiguration]:
     """

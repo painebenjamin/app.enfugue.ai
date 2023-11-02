@@ -122,10 +122,6 @@ class DiffusionPipelineManager:
     _refiner_pipeline: EnfugueStableDiffusionPipeline
     _inpainter_pipeline: EnfugueStableDiffusionPipeline
     _animator_pipeline: EnfugueAnimateStableDiffusionPipeline
-    _size: int
-    _refiner_size: int
-    _inpainter_size: int
-    _animator_size: int
     _task_callback: Optional[Callable[[str], None]] = None
 
     def __init__(
@@ -172,9 +168,11 @@ class DiffusionPipelineManager:
         if self.offline:
             raise ValueError(f"File {output_file} does not exist in {local_dir} and offline mode is enabled, refusing to download from {remote_url}")
         self.task_callback(f"Downloading {remote_url}")
+
         def progress_callback(written_bytes: int, total_bytes: int) -> None:
             percentage = (written_bytes / total_bytes) * 100.0
-            self.task_callback(f"Downloading {remote_url}: {percentage:d}% ({human_size(written_bytes)}/{human_size(total_bytes)})")
+            self.task_callback(f"Downloading {remote_url}: {percentage:0.1f}% ({human_size(written_bytes)}/{human_size(total_bytes)})")
+
         check_download(
             remote_url,
             output_path,
@@ -838,70 +836,25 @@ class DiffusionPipelineManager:
     @property
     def size(self) -> int:
         """
-        Gets the base engine size in pixels when chunking (default always.)
+        Gets the trained size of the model
         """
         if not hasattr(self, "_size"):
             return 1024 if self.is_sdxl else 512
         return self._size
 
-    @size.setter
-    def size(self, new_size: Optional[int]) -> None:
-        """
-        Sets the base engine size in pixels.
-        """
-        if new_size is None:
-            if hasattr(self, "_size"):
-                check_reload_size = self._size
-                delattr(self, "_size")
-                if check_reload_size != self.size and self.tensorrt_is_ready:
-                    self.unload_pipeline("engine size changing")
-                elif hasattr(self, "_pipeline"):
-                    logger.debug("setting pipeline engine size in place.")
-                    self._pipeline.engine_size = self.size
-            return
-        if hasattr(self, "_size") and self._size != new_size:
-            if self.tensorrt_is_ready:
-                self.unload_pipeline("engine size changing")
-            elif hasattr(self, "_pipeline"):
-                logger.debug("Setting pipeline engine size in-place.")
-                self._pipeline.engine_size = new_size
-        self._size = new_size
-
     @property
     def refiner_size(self) -> int:
         """
-        Gets the refiner engine size in pixels when chunking (default always.)
+        Gets the trained size of the refiner
         """
         if not hasattr(self, "_refiner_size"):
             return 1024 if self.refiner_is_sdxl else 512
         return self._refiner_size
 
-    @refiner_size.setter
-    def refiner_size(self, new_refiner_size: Optional[int]) -> None:
-        """
-        Sets the refiner engine size in pixels.
-        """
-        if new_refiner_size is None:
-            if hasattr(self, "_refiner_size"):
-                if self._refiner_size != self.size and self.refiner_tensorrt_is_ready:
-                    self.unload_refiner("engine size changing")
-                elif hasattr(self, "_refiner_pipeline"):
-                    logger.debug("Setting refiner engine size in-place.")
-                    self._refiner_pipeline.engine_size = self.size
-                delattr(self, "_refiner_size")
-        elif hasattr(self, "_refiner_size") and self._refiner_size != new_refiner_size:
-            if self.refiner_tensorrt_is_ready:
-                self.unload_refiner("engine size changing")
-            elif hasattr(self, "_refiner_pipeline"):
-                logger.debug("Setting refiner engine size in-place.")
-                self._refiner_pipeline.engine_size = new_refiner_size
-        if new_refiner_size is not None:
-            self._refiner_size = new_refiner_size
-
     @property
     def inpainter_size(self) -> int:
         """
-        Gets the inpainter engine size in pixels when chunking (default always.)
+        Gets the trained size of the inpainter
         """
         if not hasattr(self, "_inpainter_size"):
             if self.inpainter:
@@ -909,32 +862,10 @@ class DiffusionPipelineManager:
             return self.size
         return self._inpainter_size
 
-    @inpainter_size.setter
-    def inpainter_size(self, new_inpainter_size: Optional[int]) -> None:
-        """
-        Sets the inpainter engine size in pixels.
-        """
-        if new_inpainter_size is None:
-            if hasattr(self, "_inpainter_size"):
-                if self._inpainter_size != self.size and self.inpainter_tensorrt_is_ready:
-                    self.unload_inpainter("engine size changing")
-                elif hasattr(self, "_inpainter_pipeline"):
-                    logger.debug("Setting inpainter engine size in-place.")
-                    self._inpainter_pipeline.engine_size = self.size
-                delattr(self, "_inpainter_size")
-        elif hasattr(self, "_inpainter_size") and self._inpainter_size != new_inpainter_size:
-            if self.inpainter_tensorrt_is_ready:
-                self.unload_inpainter("engine size changing")
-            elif hasattr(self, "_inpainter_pipeline"):
-                logger.debug("Setting inpainter engine size in-place.")
-                self._inpainter_pipeline.engine_size = new_inpainter_size
-        if new_inpainter_size is not None:
-            self._inpainter_size = new_inpainter_size
-
     @property
     def animator_size(self) -> int:
         """
-        Gets the animator engine size in pixels when chunking (default always.)
+        Gets the trained size of the animator
         """
         if not hasattr(self, "_animator_size"):
             if self.animator:
@@ -942,96 +873,138 @@ class DiffusionPipelineManager:
             return self.size
         return self._animator_size
 
-    @animator_size.setter
-    def animator_size(self, new_animator_size: Optional[int]) -> None:
-        """
-        Sets the animator engine size in pixels.
-        """
-        if new_animator_size is None:
-            if hasattr(self, "_animator_size"):
-                if self._animator_size != self.size and self.animator_tensorrt_is_ready:
-                    self.unload_animator("engine size changing")
-                elif hasattr(self, "_animator_pipeline"):
-                    logger.debug("Setting animator engine size in-place.")
-                    self._animator_pipeline.engine_size = self.size
-                delattr(self, "_animator_size")
-        elif hasattr(self, "_animator_size") and self._animator_size != new_animator_size:
-            if self.animator_tensorrt_is_ready:
-                self.unload_animator("engine size changing")
-            elif hasattr(self, "_animator_pipeline"):
-                logger.debug("Setting animator engine size in-place.")
-                self._animator_pipeline.engine_size = new_animator_size
-        if new_animator_size is not None:
-            self._animator_size = new_animator_size
-    
     @property
-    def temporal_engine_size(self) -> int:
+    def tiling_size(self) -> Optional[int]:
         """
-        Gets the animator temporal engine size in frames when chunking (default always.)
+        Gets the tiling size in pixels.
         """
-        if not hasattr(self, "_temporal_engine_size"):
-            self._temporal_engine_size = self.configuration.get("enfugue.frames", DiffusionPipelineManager.DEFAULT_TEMPORAL_SIZE)
-        return self._temporal_engine_size
+        if not hasattr(self, "_tiling_size"):
+            self._tiling_size = self.configuration.get("enfugue.tile.size", None)
+        return self._tiling_size
 
-    @temporal_engine_size.setter
-    def temporal_engine_size(self, new_temporal_engine_size: Optional[int]) -> None:
+    @tiling_size.setter
+    def tiling_size(self, new_tiling_size: Optional[int]) -> None:
+        """
+        Sets the new tiling size. This will require a restart if pipelines are loaded and using tensorrt.
+        """
+        if (
+            (self.tiling_size is None and new_tiling_size is not None) or
+            (self.tiling_size is not None and new_tiling_size is None) or
+            (self.tiling_size is not None and new_tiling_size is not None and self.tiling_size != new_tiling_size)
+        ):
+            if hasattr(self, "_pipeline") and self.tensorrt_is_ready:
+                self.unload_pipeline("engine tiling size changing")
+            if hasattr(self, "_inpainter_pipeline") and self.inpainter_tensorrt_is_ready:
+                self.unload_inpainter("engine tiling size changing")
+            if hasattr(self, "_refiner_pipeline") and self.refiner_tensorrt_is_ready:
+                self.unload_refiner("engine tiling size changing")
+            if hasattr(self, "_animator_pipeline") and self.animator_tensorrt_is_ready:
+                self.unload_animator("engine tiling size changing")
+
+    @property
+    def tiling_stride(self) -> int:
+        """
+        Gets the chunking size in pixels.
+        """
+        if not hasattr(self, "_tiling_stride"):
+            self._tiling_stride = int(
+                self.configuration.get("enfugue.tile.stride", self.size // 4)
+            )
+        return self._tiling_stride
+
+    @tiling_stride.setter
+    def tiling_stride(self, new_tiling_stride: int) -> None:
+        """
+        Sets the new tiling stride. This doesn't require a restart.
+        """
+        self._tiling_stride = new_tiling_stride
+
+    @property
+    def tensorrt_size(self) -> int:
+        """
+        Gets the size of an active tensorrt engine.
+        """
+        if self.tiling_size is not None:
+            return self.tiling_size
+        return self.size
+
+    @property
+    def inpainter_tensorrt_size(self) -> int:
+        """
+        Gets the size of an active inpainter tensorrt engine.
+        """
+        if self.tiling_size is not None:
+            return self.tiling_size
+        return self.inpainter_size
+
+    @property
+    def refiner_tensorrt_size(self) -> int:
+        """
+        Gets the size of an active refiner tensorrt engine.
+        """
+        if self.tiling_size is not None:
+            return self.tiling_size
+        return self.refiner_size
+
+    @property
+    def animator_tensorrt_size(self) -> int:
+        """
+        Gets the size of an active animator tensorrt engine.
+        """
+        if self.tiling_size is not None:
+            return self.tiling_size
+        return self.animator_size
+
+    @property
+    def frame_window_size(self) -> int:
+        """
+        Gets the animator frame window engine size in frames when chunking (default always.)
+        """
+        if not hasattr(self, "_frame_window_size"):
+            self._frame_window_size = self.configuration.get("enfugue.frames", DiffusionPipelineManager.DEFAULT_TEMPORAL_SIZE)
+        return self._frame_window_size
+
+    @frame_window_size.setter
+    def frame_window_size(self, new_frame_window_size: Optional[int]) -> None:
         """
         Sets the animator engine size in pixels.
         """
-        if new_temporal_engine_size is None:
-            if hasattr(self, "_temporal_engine_size"):
-                if self._temporal_engine_size != self.temporal_engine_size and self.tensorrt_is_ready:
-                    self.unload_animator("engine temporal size changing")
+        if new_frame_window_size is None:
+            if hasattr(self, "_frame_window_size"):
+                if self._frame_window_size != self.frame_window_size and self.tensorrt_is_ready:
+                    self.unload_animator("engine frame window size changing")
                 elif hasattr(self, "_animator_pipeline"):
                     logger.debug("Setting animator engine size in-place.")
-                    self._animator_pipeline.temporal_engine_size = new_temporal_engine_size # type: ignore[assignment]
-                delattr(self, "_temporal_engine_size")
-        elif hasattr(self, "_temporal_engine_size") and self._temporal_engine_size != new_temporal_engine_size:
+                    self._animator_pipeline.frame_window_size = new_frame_window_size # type: ignore[assignment]
+                delattr(self, "_frame_window_size")
+        elif hasattr(self, "_frame_window_size") and self._frame_window_size != new_frame_window_size:
             if self.tensorrt_is_ready:
                 self.unload_animator("engine size changing")
             elif hasattr(self, "_animator_pipeline"):
-                logger.debug("Setting animator temporal engine size in-place.")
-                self._animator_pipeline.temporal_engine_size = new_temporal_engine_size
-        if new_temporal_engine_size is not None:
-            self._temporal_engine_size = new_temporal_engine_size
+                logger.debug("Setting animator frame window engine size in-place.")
+                self._animator_pipeline.frame_window_size = new_frame_window_size
+        if new_frame_window_size is not None:
+            self._frame_window_size = new_frame_window_size
 
     @property
-    def chunking_size(self) -> int:
+    def frame_window_stride(self) -> Optional[int]:
         """
         Gets the chunking size in pixels.
         """
-        if not hasattr(self, "_chunking_size"):
-            self._chunking_size = int(
-                self.configuration.get("enfugue.chunk.size", DiffusionPipelineManager.DEFAULT_CHUNK)
-            )
-        return self._chunking_size
-
-    @chunking_size.setter
-    def chunking_size(self, new_chunking_size: int) -> None:
-        """
-        Sets the new chunking size. This doesn't require a restart.
-        """
-        self._chunking_size = new_chunking_size
-
-    @property
-    def temporal_chunking_size(self) -> Optional[int]:
-        """
-        Gets the chunking size in pixels.
-        """
-        if not hasattr(self, "_temporal_chunking_size"):
-            self._temporal_chunking_size = int(
+        if not hasattr(self, "_frame_window_stride"):
+            self._frame_window_stride = int(
                 self.configuration.get("enfugue.temporal.size", DiffusionPipelineManager.DEFAULT_TEMPORAL_CHUNK)
             )
-        return self._temporal_chunking_size
+        return self._frame_window_stride
 
-    @temporal_chunking_size.setter
-    def temporal_chunking_size(self, new_temporal_chunking_size: Optional[int]) -> None:
+    @frame_window_stride.setter
+    def frame_window_stride(self, new_frame_window_stride: Optional[int]) -> None:
         """
         Sets the new chunking size. This doesn't require a restart.
         """
-        self._temporal_chunking_size = new_temporal_chunking_size # type: ignore[assignment]
+        self._frame_window_stride = new_frame_window_stride # type: ignore[assignment]
         if hasattr(self, "_animator_pipeline"):
-            self._animator_pipeline.temporal_chunking_size = new_temporal_chunking_size # type: ignore[assignment]
+            self._animator_pipeline.frame_window_stride = new_frame_window_stride # type: ignore[assignment]
 
     @property
     def engine_root(self) -> str:
@@ -1505,7 +1478,7 @@ class DiffusionPipelineManager:
         Gets the UNET key for the current configuration.
         """
         return DiffusionPipelineManager.get_unet_key(
-            size=self.size,
+            size=self.tensorr_size,
             lora=self.lora_names_weights,
             lycoris=self.lycoris_names_weights,
             inversion=self.inversion_names,
@@ -1541,7 +1514,7 @@ class DiffusionPipelineManager:
         Gets the UNET key for the current configuration.
         """
         return DiffusionPipelineManager.get_unet_key(
-            size=self.refiner_size,
+            size=self.refiner_tensorrt_size,
             lora=[],
             lycoris=[],
             inversion=[]
@@ -1577,7 +1550,7 @@ class DiffusionPipelineManager:
         Gets the UNET key for the current configuration.
         """
         return DiffusionPipelineManager.get_unet_key(
-            size=self.inpainter_size,
+            size=self.inpainter_tensorrt_size,
             lora=[],
             lycoris=[],
             inversion=[]
@@ -1613,7 +1586,7 @@ class DiffusionPipelineManager:
         Gets the UNET key for the current configuration.
         """
         return DiffusionPipelineManager.get_unet_key(
-            size=self.animator_size,
+            size=self.animator_tensorrt_size,
             lora=[],
             lycoris=[],
             inversion=[]
@@ -1757,7 +1730,7 @@ class DiffusionPipelineManager:
         Gets the UNET key for the current configuration.
         """
         return DiffusionPipelineManager.get_controlled_unet_key(
-            size=self.inpainter_size,
+            size=self.inpainter_tensorrt_size,
             lora=[],
             lycoris=[],
             inversion=[]
@@ -1795,7 +1768,7 @@ class DiffusionPipelineManager:
         Gets the UNET key for the current configuration.
         """
         return DiffusionPipelineManager.get_controlled_unet_key(
-            size=self.animator_size,
+            size=self.animator_tensorrt_size,
             lora=[],
             lycoris=[],
             inversion=[]
@@ -2790,52 +2763,52 @@ class DiffusionPipelineManager:
         self._motion_module = new_module
 
     @property
-    def position_encoder_truncate_length(self) -> Optional[int]:
+    def position_encoding_truncate_length(self) -> Optional[int]:
         """
         An optional length (frames) to truncate position encoder tensors to
         """
-        return getattr(self, "_position_encoder_truncate_length", None)
+        return getattr(self, "_position_encoding_truncate_length", None)
 
-    @position_encoder_truncate_length.setter
-    def position_encoder_truncate_length(self, new_length: Optional[int]) -> None:
+    @position_encoding_truncate_length.setter
+    def position_encoding_truncate_length(self, new_length: Optional[int]) -> None:
         """
         Sets position encoder truncate length.
         """
         if (
-            self.position_encoder_truncate_length is None and new_length is not None or
-            self.position_encoder_truncate_length is not None and new_length is None or
+            self.position_encoding_truncate_length is None and new_length is not None or
+            self.position_encoding_truncate_length is not None and new_length is None or
             (
-                self.position_encoder_truncate_length is not None and 
+                self.position_encoding_truncate_length is not None and 
                 new_length is not None and
-                self.position_encoder_truncate_length != new_length
+                self.position_encoding_truncate_length != new_length
             )
         ):
             self.reload_motion_module = True
-        self._position_encoder_truncate_length = new_length
+        self._position_encoding_truncate_length = new_length
 
     @property
-    def position_encoder_scale_length(self) -> Optional[int]:
+    def position_encoding_scale_length(self) -> Optional[int]:
         """
         An optional length (frames) to scale position encoder tensors to
         """
-        return getattr(self, "_position_encoder_scale_length", None)
+        return getattr(self, "_position_encoding_scale_length", None)
 
-    @position_encoder_scale_length.setter
-    def position_encoder_scale_length(self, new_length: Optional[int]) -> None:
+    @position_encoding_scale_length.setter
+    def position_encoding_scale_length(self, new_length: Optional[int]) -> None:
         """
         Sets position encoder scale length.
         """
         if (
-            self.position_encoder_scale_length is None and new_length is not None or
-            self.position_encoder_scale_length is not None and new_length is None or
+            self.position_encoding_scale_length is None and new_length is not None or
+            self.position_encoding_scale_length is not None and new_length is None or
             (
-                self.position_encoder_scale_length is not None and 
+                self.position_encoding_scale_length is not None and 
                 new_length is not None and
-                self.position_encoder_scale_length != new_length
+                self.position_encoding_scale_length != new_length
             )
         ):
             self.reload_motion_module = True
-        self._position_encoder_scale_length = new_length
+        self._position_encoding_scale_length = new_length
 
     @property
     def model_diffusers_cache_dir(self) -> Optional[str]:
@@ -3117,8 +3090,8 @@ class DiffusionPipelineManager:
 
             kwargs = {
                 "cache_dir": self.engine_cache_dir,
-                "engine_size": self.size,
-                "chunking_size": self.chunking_size,
+                "engine_size": self.tensorrt_size,
+                "tiling_stride": self.tiling_stride,
                 "requires_safety_checker": self.safe,
                 "torch_dtype": self.dtype,
                 "cache_dir": self.engine_cache_dir,
@@ -3251,8 +3224,8 @@ class DiffusionPipelineManager:
 
             kwargs = {
                 "cache_dir": self.engine_cache_dir,
-                "engine_size": self.refiner_size,
-                "chunking_size": self.chunking_size,
+                "engine_size": self.refiner_tensorrt_size,
+                "tiling_stride": self.tiling_stride,
                 "torch_dtype": self.dtype,
                 "requires_safety_checker": False,
                 "force_full_precision_vae": self.refiner_is_sdxl and "16" not in self.refiner and (
@@ -3417,8 +3390,8 @@ class DiffusionPipelineManager:
 
             kwargs = {
                 "cache_dir": self.engine_cache_dir,
-                "engine_size": self.inpainter_size,
-                "chunking_size": self.chunking_size,
+                "engine_size": self.inpainter_tensorrt_size,
+                "tiling_stride": self.tiling_stride,
                 "torch_dtype": self.dtype,
                 "requires_safety_checker": self.safe,
                 "requires_aesthetic_score": False,
@@ -3558,10 +3531,10 @@ class DiffusionPipelineManager:
 
             kwargs = {
                 "cache_dir": self.engine_cache_dir,
-                "engine_size": self.animator_size,
-                "chunking_size": self.chunking_size,
-                "temporal_engine_size": self.temporal_engine_size,
-                "temporal_chunking_size": self.temporal_chunking_size,
+                "engine_size": self.animator_tensorrt_size,
+                "tiling_stride": self.tiling_stride,
+                "frame_window_size": self.frame_window_size,
+                "frame_window_stride": self.frame_window_stride,
                 "torch_dtype": self.dtype,
                 "requires_safety_checker": self.safe,
                 "requires_aesthetic_score": False,
@@ -3570,8 +3543,8 @@ class DiffusionPipelineManager:
                 "ip_adapter": self.ip_adapter,
                 "task_callback": getattr(self, "_task_callback", None),
                 "motion_module": self.motion_module,
-                "position_encoder_truncate_length": self.position_encoder_truncate_length,
-                "position_encoder_scale_length": self.position_encoder_scale_length,
+                "position_encoding_truncate_length": self.position_encoding_truncate_length,
+                "position_encoding_scale_length": self.position_encoding_scale_length,
             }
 
             vae = self.animator_vae
@@ -4404,7 +4377,7 @@ class DiffusionPipelineManager:
             else:
                 called_width = kwargs.get("width", size)
                 called_height = kwargs.get("height", size)
-                chunk_size = kwargs.get("chunking_size", self.chunking_size)
+                tiling_size = kwargs.get("tiling_size", self.tiling_size)
 
                 # Check sizes
                 if called_width < size:
@@ -4413,7 +4386,7 @@ class DiffusionPipelineManager:
                 elif called_height < size:
                     self.tensorrt_is_enabled = False
                     logger.info(f"height ({called_height}) less than configured height ({size}), disabling TensorRT")
-                elif (called_width != size or called_height != size) and not chunk_size:
+                elif (called_width != size or called_height != size) and not tiling_size:
                     logger.info(f"Dimensions do not match size of engine and chunking is disabled, disabling TensorRT")
                     self.tensorrt_is_enabled = False
                 else:
@@ -4442,10 +4415,15 @@ class DiffusionPipelineManager:
                             cache_dir=self.engine_cache_dir,
                             motion_module=self.motion_module,
                             task_callback=task_callback,
-                            position_encoder_truncate_length=self.position_encoder_truncate_length,
-                            position_encoder_scale_length=self.position_encoder_scale_length,
+                            position_encoding_truncate_length=self.position_encoding_truncate_length,
+                            position_encoding_scale_length=self.position_encoding_scale_length,
                         )
                         self.reload_motion_module = False
+                elif inpainting and (self.has_inpainter or self.create_inpainter):
+                    self.offload_pipeline(intention) # type: ignore
+                    self.offload_refiner(intention) # type: ignore
+                    self.offload_animator(intention) # type: ignore
+                    pipe = self.inpainter_pipeline
                 else:
                     if inpainting:
                         logger.info(f"No inpainter set and creation is disabled; using base pipeline for inpainting.")
@@ -4591,12 +4569,12 @@ class DiffusionPipelineManager:
         Writes metadata for TensorRT to a json file
         """
         if "controlnet" in path:
-            dump_json(path, {"size": self.size, "controlnets": self.controlnet_names})
+            dump_json(path, {"size": self.tensorrt_size, "controlnets": self.controlnet_names})
         else:
             dump_json(
                 path,
                 {
-                    "size": self.size,
+                    "size": self.tensorrt_size,
                     "lora": self.lora_names_weights,
                     "lycoris": self.lycoris_names_weights,
                     "inversion": self.inversion_names,

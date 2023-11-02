@@ -331,6 +331,7 @@ class FormInputView extends InputView {
         if (!isEmpty(this.value)) {
             this.form.setValues(this.value);
         }
+        this.form.onSubmit(() => this.changed());
     }
 
     /**

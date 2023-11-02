@@ -5,7 +5,11 @@ import { Controller } from "../base.mjs";
 import { View } from "../../view/base.mjs";
 import { ImageView } from "../../view/image.mjs";
 import { ToolbarView } from "../../view/menu.mjs";
-import { ImageEditorPromptNodeOptionsFormView } from "../../forms/enfugue/image-editor.mjs";
+import { 
+    ImageEditorScribbleNodeOptionsFormView,
+    ImageEditorPromptNodeOptionsFormView,
+    ImageEditorImageNodeOptionsFormView
+} from "../../forms/enfugue/image-editor.mjs";
 
 const E = new ElementBuilder();
 
@@ -143,8 +147,10 @@ class LayerView extends View {
         this.isActive = false;
         this.isVisible = true;
         this.isLocked = false;
-        this.previewImage = new ImageView(controller.config, this.layerImage, false);
+        this.previewImage = new ImageView(controller.config, null, false);
         this.editorNode.onResize(() => this.resized());
+        this.getLayerImage().then((image) => this.previewImage.setImage(image));
+        this.subtitle = null;
     }
 
     /**
@@ -157,7 +163,7 @@ class LayerView extends View {
     /**
      * Gets the layer image
      */
-    get layerImage() {
+    async getLayerImage() {
         let width = this.controller.images.width,
             height = this.controller.images.height,
             maxDimension = Math.max(width, height),
@@ -185,8 +191,14 @@ class LayerView extends View {
 
         let context = canvas.getContext("2d");
 
-        context.fillStyle = this.foregroundStyle;
-        context.fillRect(scaledX, scaledY, scaledWidth, scaledHeight);
+        if (nodeState.src) {
+            let imageView = new ImageView(this.config, nodeState.src);
+            await imageView.waitForLoad();
+            context.drawImage(imageView.image, scaledX, scaledY, scaledWidth, scaledHeight);
+        } else {
+            context.fillStyle = this.foregroundStyle;
+            context.fillRect(scaledX, scaledY, scaledWidth, scaledHeight);
+        }
 
         return canvas.toDataURL();
     }
@@ -206,8 +218,15 @@ class LayerView extends View {
             nodeState.x !== this.lastNodeX ||
             nodeState.y !== this.lastNodeY
         ) {
-            this.previewImage.setImage(this.layerImage);
+            this.drawPreviewImage();
         }
+    }
+
+    /**
+     * Re-renders the preview image
+     */
+    async drawPreviewImage() {
+        this.previewImage.setImage(await this.getLayerImage());
     }
 
     /**
@@ -282,7 +301,7 @@ class LayerView extends View {
     async setState(newState) {
         await this.editorNode.setState(newState);
         await this.form.setValues(newState);
-        this.previewImage.setImage(this.layerImage);
+        this.previewImage.setImage(await this.getLayerImage());
     }
 
     /**
@@ -291,6 +310,21 @@ class LayerView extends View {
     async setName(name) {
         if (this.node !== undefined) {
             this.node.find("span.name").content(name);
+        }
+    }
+
+    /**
+     * Sets the subtitle
+     */
+    async setSubtitle(subtitle) {
+        this.subtitle = subtitle;
+        if (this.node !== undefined) {
+            let subtitleNode = this.node.find("span.subtitle");
+            if (isEmpty(subtitle)) {
+                subtitleNode.empty().hide();
+            } else {
+                subtitleNode.content(subtitle).show();
+            }
         }
     }
 
@@ -314,10 +348,19 @@ class LayerView extends View {
         this.hideShowLayer.onClick(() => this.setVisible(!this.isVisible));
         this.lockUnlockLayer.onClick(() => this.setLocked(!this.isLocked));
 
+        let nameNode = E.span().class("name").content(this.editorNode.name),
+            subtitleNode = E.span().class("subtitle");
+
+        if (isEmpty(this.subtitle)) {
+            subtitleNode.hide();
+        } else {
+            subtitleNode.content(this.subtitle);
+        }
+
         node.content(
                 await this.hideShowLayer.getNode(),
                 await this.lockUnlockLayer.getNode(),
-                E.span().class("name").content(this.editorNode.name),
+                E.div().class("title").content(nameNode, subtitleNode),
                 await this.previewImage.getNode(),
                 E.button().content("&times;").class("close").on("click", () => this.remove())
             )
@@ -469,8 +512,16 @@ class LayersController extends Controller {
             case "ImageEditorPromptNodeView":
                 addedLayer = await this.addPromptLayer(false, node, layer.name);
                 break;
+            case "ImageEditorScribbleNodeView":
+                addedLayer = await this.addScribbleLayer(false, node, layer.name);
+                break;
+            case "ImageEditorImageNodeView":
+                addedLayer = await this.addImageLayer(layer.src, false, node, layer.name);
+                break;
             default:
-                console.error(`Unknown layer class ${layer.classname}, skipping.`);
+                console.error(`Unknown layer class ${layer.classname}, skipping and dumping layer data.`);
+                console.log(layer);
+                console.log(node);
         }
         if (!isEmpty(addedLayer)) {
             await addedLayer.setState(layer);
@@ -530,8 +581,62 @@ class LayersController extends Controller {
     /**
      * Adds an image layer
      */
-    async addImageLayer(imageData, name) {
-        let imageNode = await this.images.addImageNode(imageData, name);
+    async addImageLayer(imageData, activate = true, imageNode = null, name = "Image") {
+        if (isEmpty(imageNode)) {
+            imageNode = await this.images.addImageNode(imageData, name);
+        }
+
+        let imageForm = new ImageEditorImageNodeOptionsFormView(this.config),
+            imageLayer = new LayerView(this, imageNode, imageForm);
+
+        imageForm.onSubmit((values) => {
+            let imageRoles = [];
+            if (values.inpaint) {
+                imageRoles.push("Inpainting");
+            } else if (values.infer) {
+                imageRoles.push("Initialization");
+            }
+            if (values.imagePrompt) {
+                imageRoles.push("Prompt");
+            }
+            if (!isEmpty(values.controlnetUnits)) {
+                let controlNets = values.controlnetUnits.map((unit) => unit.controlnet),
+                    uniqueControlNets = controlNets.filter((v, i) => controlNets.indexOf(v) === i);
+                imageRoles.push(`ControlNet (${uniqueControlNets.join(", ")})`);
+            }
+            let subtitle = isEmpty(imageRoles)
+                ? null
+                : imageRoles.join(", ");
+            imageNode.updateOptions(values);
+            imageLayer.setSubtitle(subtitle);
+        });
+
+        await this.addLayer(imageLayer, activate);
+        return imageLayer;
+    }
+
+    /**
+     * Adds a scribble layer
+     */
+    async addScribbleLayer(activate = true, scribbleNode = null, name = "Scribble") {
+        if (isEmpty(scribbleNode)) {
+            scribbleNode = await this.images.addScribbleNode(name);
+        }
+
+        let scribbleForm = new ImageEditorScribbleNodeOptionsFormView(this.config),
+            scribbleLayer = new LayerView(this, scribbleNode, scribbleForm),
+            scribbleDrawTimer;
+
+        scribbleNode.content.onDraw(() => { 
+            this.activate(scribbleLayer);
+            clearTimeout(scribbleDrawTimer);
+            scribbleDrawTimer = setTimeout(() => {
+                scribbleLayer.drawPreviewImage(); 
+            }, 100);
+        });
+        await this.addLayer(scribbleLayer, activate);
+        
+        return scribbleLayer;
     }
 
     /**
@@ -563,6 +668,7 @@ class LayersController extends Controller {
             imageToLoad = await promptFiles();
         } catch(e) { }
         if (!isEmpty(imageToLoad)) {
+            // Triggers necessary state changes
             this.application.loadFile(imageToLoad, truncate(imageToLoad.name, 16));
         }
     }

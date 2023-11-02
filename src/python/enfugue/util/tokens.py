@@ -2,7 +2,10 @@ from __future__ import annotations
 
 from typing import Dict, Union, Iterator, Tuple, Optional
 
-__all__ = ["TokenMerger"]
+__all__ = [
+    "TokenMerger",
+    "merge_tokens"
+]
 
 
 class TokenMerger:
@@ -70,3 +73,9 @@ class TokenMerger:
         Stringifies the tokens.
         """
         return ",".join([token for token, weight in iter(self)])
+
+def merge_tokens(**prompt_weights: float) -> str:
+    """
+    Merges any number of tokens quickly.
+    """
+    return str(TokenMerger(*list(prompt_weights.items())))

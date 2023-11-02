@@ -154,8 +154,8 @@ class SystemManager:
         Gets the location for image intermediate outputs.
         """
         directory = self.configuration.get(
-            "enfugue.engine.intermediates",
-            os.path.join(self.engine_root_dir, "intermediates")
+            "enfugue.engine.intermediate",
+            os.path.join(self.engine_root_dir, "intermediate")
         )
         check_make_directory(directory)
         return directory

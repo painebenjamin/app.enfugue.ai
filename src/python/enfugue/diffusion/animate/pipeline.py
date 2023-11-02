@@ -126,8 +126,8 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         cls,
         pretrained_model_name_or_path: Optional[Union[str, os.PathLike]],
         motion_module: Optional[str] = None,
-        position_encoder_truncate_length: Optional[int]=None,
-        position_encoder_scale_length: Optional[int]=None,
+        position_encoding_truncate_length: Optional[int]=None,
+        position_encoding_scale_length: Optional[int]=None,
         task_callback: Optional[Callable[[str], None]]=None,
         **kwargs: Any
     ) -> EnfugueAnimateStableDiffusionPipeline:
@@ -154,8 +154,8 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
             load_json(unet_config),
             kwargs.get("cache_dir", DIFFUSERS_CACHE),
             motion_module=motion_module,
-            position_encoder_truncate_length=position_encoder_truncate_length,
-            position_encoder_scale_length=position_encoder_scale_length,
+            position_encoding_truncate_length=position_encoding_truncate_length,
+            position_encoding_scale_length=position_encoding_scale_length,
             task_callback=task_callback,
         )
 
@@ -176,8 +176,8 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         use_mm_v2: bool = True,
         motion_module: Optional[str] = None,
         task_callback: Optional[Callable[[str], None]]=None,
-        position_encoder_truncate_length: Optional[int]=None,
-        position_encoder_scale_length: Optional[int]=None,
+        position_encoding_truncate_length: Optional[int]=None,
+        position_encoding_scale_length: Optional[int]=None,
         **unet_additional_kwargs: Any
     ) -> ModelMixin:
         """
@@ -190,8 +190,8 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
                 cache_dir=cache_dir,
                 motion_module=motion_module,
                 task_callback=task_callback,
-                position_encoder_truncate_length=position_encoder_truncate_length,
-                position_encoder_scale_length=position_encoder_scale_length,
+                position_encoding_truncate_length=position_encoding_truncate_length,
+                position_encoding_scale_length=position_encoding_scale_length,
                 **unet_additional_kwargs
             )
         return cls.create_diff_unet(
@@ -200,8 +200,8 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
             use_mm_v2=use_mm_v2,
             motion_module=motion_module,
             task_callback=task_callback,
-            position_encoder_truncate_length=position_encoder_truncate_length,
-            position_encoder_scale_length=position_encoder_scale_length,
+            position_encoding_truncate_length=position_encoding_truncate_length,
+            position_encoding_scale_length=position_encoding_scale_length,
             **unet_additional_kwargs
         )
 
@@ -212,15 +212,13 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         cache_dir: str,
         motion_module: Optional[str]=None,
         task_callback: Optional[Callable[[str], None]]=None,
-        position_encoder_truncate_length: Optional[int]=None,
-        position_encoder_scale_length: Optional[int]=None,
+        position_encoding_truncate_length: Optional[int]=None,
+        position_encoding_scale_length: Optional[int]=None,
         **unet_additional_kwargs: Any
     ) -> ModelMixin:
         """
         Creates a UNet3DConditionModel then loads hotshot into it
         """
-        position_encoder_truncate_length = 16
-        position_encoder_scale_length = 32
         config["_class_name"] = "UNet3DConditionModel"
         config["down_block_types"] = [
             "DownBlock3D",
@@ -232,8 +230,8 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
             "CrossAttnUpBlock3D",
             "UpBlock3D"
         ]
-        if position_encoder_scale_length:
-            config["positional_encoding_max_length"] = position_encoder_scale_length
+        if position_encoding_scale_length:
+            config["positional_encoding_max_length"] = position_encoding_scale_length
 
         # Instantiate from 2D model config
         model = HotshotUNet.from_config(config)
@@ -244,8 +242,8 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
             cache_dir=cache_dir,
             motion_module=motion_module,
             task_callback=task_callback,
-            position_encoder_truncate_length=position_encoder_truncate_length,
-            position_encoder_scale_length=position_encoder_scale_length,
+            position_encoding_truncate_length=position_encoding_truncate_length,
+            position_encoding_scale_length=position_encoding_scale_length,
         )
         return model
 
@@ -256,8 +254,8 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         cache_dir: str,
         motion_module: Optional[str]=None,
         task_callback: Optional[Callable[[str], None]]=None,
-        position_encoder_truncate_length: Optional[int]=None,
-        position_encoder_scale_length: Optional[int]=None,
+        position_encoding_truncate_length: Optional[int]=None,
+        position_encoding_scale_length: Optional[int]=None,
     ) -> None:
         """
         Loads pretrained hotshot weights into the UNet
@@ -282,19 +280,19 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
             cache_dir=cache_dir,
         )
 
-        logger.debug(f"Loading HotShot XL motion module {motion_module} with truncate length '{position_encoder_truncate_length}' and scale length '{position_encoder_scale_length}'")
+        logger.debug(f"Loading HotShot XL motion module {motion_module} with truncate length '{position_encoding_truncate_length}' and scale length '{position_encoding_scale_length}'")
 
         hotshot_state_dict = hotshot_unet.state_dict()
         for key in list(hotshot_state_dict.keys()):
             if "temporal" not in key:
                 hotshot_state_dict.pop(key)
             elif key.endswith(".positional_encoding"):
-                if position_encoder_truncate_length is not None:
-                    hotshot_state_dict[key] = hotshot_state_dict[key][:, :position_encoder_truncate_length]
-                if position_encoder_scale_length is not None:
+                if position_encoding_truncate_length is not None:
+                    hotshot_state_dict[key] = hotshot_state_dict[key][:, :position_encoding_truncate_length]
+                if position_encoding_scale_length is not None:
                     tensor_shape = hotshot_state_dict[key].shape
                     tensor = rearrange(hotshot_state_dict[key], "(t b) f d -> t b f d", t=1)
-                    tensor = F.interpolate(tensor, size=(position_encoder_scale_length, tensor_shape[-1]), mode="bilinear")
+                    tensor = F.interpolate(tensor, size=(position_encoding_scale_length, tensor_shape[-1]), mode="bilinear")
                     hotshot_state_dict[key] = rearrange(tensor, "t b f d -> (t b) f d")
                     del tensor
 
@@ -312,8 +310,8 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         use_mm_v2: bool=True,
         motion_module: Optional[str]=None,
         task_callback: Optional[Callable[[str], None]]=None,
-        position_encoder_truncate_length: Optional[int]=None,
-        position_encoder_scale_length: Optional[int]=None,
+        position_encoding_truncate_length: Optional[int]=None,
+        position_encoding_scale_length: Optional[int]=None,
         **unet_additional_kwargs: Any
     ) -> ModelMixin:
         """
@@ -334,10 +332,10 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         ]
 
         config["mid_block_type"] = "UNetMidBlock3DCrossAttn"
-        default_position_encoder_len = 32 if use_mm_v2 else 24
-        position_encoder_len = default_position_encoder_len
-        if position_encoder_scale_length:
-            position_encoder_len = position_encoder_scale_length
+        default_position_encoding_len = 32 if use_mm_v2 else 24
+        position_encoding_len = default_position_encoding_len
+        if position_encoding_scale_length:
+            position_encoding_len = position_encoding_scale_length
 
         unet_additional_kwargs["use_inflated_groupnorm"] = use_mm_v2
         unet_additional_kwargs["unet_use_cross_frame_attention"] = False
@@ -355,7 +353,7 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
                 "Temporal_Self"
             ],
             "temporal_position_encoding": True,
-            "temporal_position_encoding_max_len": position_encoder_len,
+            "temporal_position_encoding_max_len": position_encoding_len,
             "temporal_attention_dim_div": 1
         }
 
@@ -366,8 +364,8 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
             use_mm_v2=use_mm_v2,
             motion_module=motion_module,
             task_callback=task_callback,
-            position_encoder_truncate_length=position_encoder_truncate_length,
-            position_encoder_scale_length=position_encoder_scale_length,
+            position_encoding_truncate_length=position_encoding_truncate_length,
+            position_encoding_scale_length=position_encoding_scale_length,
         )
         return model
 
@@ -379,8 +377,8 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         use_mm_v2: bool=True,
         motion_module: Optional[str]=None,
         task_callback: Optional[Callable[[str], None]]=None,
-        position_encoder_truncate_length: Optional[int]=None,
-        position_encoder_scale_length: Optional[int]=None,
+        position_encoding_truncate_length: Optional[int]=None,
+        position_encoding_scale_length: Optional[int]=None,
     ) -> None:
         """
         Loads animate diff state dict into an animate diff unet
@@ -392,20 +390,20 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
                     task_callback(f"Downloading {motion_module}")
             motion_module = check_download_to_dir(motion_module, cache_dir)
 
-        logger.debug(f"Loading AnimateDiff motion module {motion_module} with truncate length '{position_encoder_truncate_length}' and scale length '{position_encoder_scale_length}'")
+        logger.debug(f"Loading AnimateDiff motion module {motion_module} with truncate length '{position_encoding_truncate_length}' and scale length '{position_encoding_scale_length}'")
 
         from enfugue.diffusion.util.torch_util import load_state_dict
         state_dict = load_state_dict(motion_module)
 
-        if position_encoder_truncate_length is not None or position_encoder_scale_length is not None:
+        if position_encoding_truncate_length is not None or position_encoding_scale_length is not None:
             for key in state_dict:
                 if key.endswith(".pe"):
-                    if position_encoder_truncate_length is not None:
-                        state_dict[key] = state_dict[key][:, :position_encoder_truncate_length]
-                    if position_encoder_scale_length is not None:
+                    if position_encoding_truncate_length is not None:
+                        state_dict[key] = state_dict[key][:, :position_encoding_truncate_length]
+                    if position_encoding_scale_length is not None:
                         tensor_shape = state_dict[key].shape
                         tensor = rearrange(state_dict[key], "(t b) f d -> t b f d", t=1)
-                        tensor = F.interpolate(tensor, size=(position_encoder_scale_length, tensor_shape[-1]), mode="bilinear")
+                        tensor = F.interpolate(tensor, size=(position_encoding_scale_length, tensor_shape[-1]), mode="bilinear")
                         state_dict[key] = rearrange(tensor, "t b f d -> (t b) f d")
                         del tensor
         num_motion_keys = len(list(state_dict.keys()))
@@ -419,8 +417,8 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         use_mm_v2: bool=True,
         motion_module: Optional[str]=None,
         task_callback: Optional[Callable[[str], None]]=None,
-        position_encoder_truncate_length: Optional[int]=None,
-        position_encoder_scale_length: Optional[int]=None,
+        position_encoding_truncate_length: Optional[int]=None,
+        position_encoding_scale_length: Optional[int]=None,
     ) -> None:
         """
         Loads motion module weights after-the-fact
@@ -431,8 +429,8 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
                 motion_module=motion_module,
                 cache_dir=cache_dir,
                 task_callback=task_callback,
-                position_encoder_truncate_length=position_encoder_truncate_length,
-                position_encoder_scale_length=position_encoder_scale_length
+                position_encoding_truncate_length=position_encoding_truncate_length,
+                position_encoding_scale_length=position_encoding_scale_length
             )
         else:
             self.load_diff_state_dict(
@@ -441,8 +439,8 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
                 cache_dir=cache_dir,
                 task_callback=task_callback,
                 use_mm_v2=use_mm_v2,
-                position_encoder_truncate_length=position_encoder_truncate_length,
-                position_encoder_scale_length=position_encoder_scale_length
+                position_encoding_truncate_length=position_encoding_truncate_length,
+                position_encoding_scale_length=position_encoding_scale_length
             )
 
     def load_motion_lora_weights(

@@ -1,4 +1,4 @@
-/** @module controller/sidebar/02-canvas */
+/** @module controller/sidebar/01-canvas */
 import { isEmpty } from "../../base/helpers.mjs";
 import { CanvasFormView } from "../../forms/enfugue/canvas.mjs";
 import { Controller } from "../base.mjs";

@@ -129,7 +129,6 @@ class ImageEditorView extends NodeEditorView {
             imageView.width,
             imageView.height
         );
-        setTimeout(() => newNode.toggleOptions(), 500);
         return newNode;
     }
 

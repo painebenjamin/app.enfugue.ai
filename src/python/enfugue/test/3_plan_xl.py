@@ -1,5 +1,5 @@
 """
-Uses the engine to create a simple image using default settings
+Uses the engine to create a simple image using default settings in XL
 """
 import os
 from pibble.util.log import DebugUnifiedLoggingContext

@@ -190,18 +190,19 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         scheduler: KarrasDiffusionSchedulers,
         safety_checker: Optional[StableDiffusionSafetyChecker],
         feature_extractor: CLIPImageProcessor,
-        controlnets: Optional[Dict[str, ControlNetModel]] = None,
-        requires_safety_checker: bool = True,
-        force_zeros_for_empty_prompt: bool = True,
-        requires_aesthetic_score: bool = False,
-        force_full_precision_vae: bool = False,
-        ip_adapter: Optional[IPAdapter] = None,
-        engine_size: Optional[Union[int, Tuple[int, int]]] = 512,
-        chunking_size: Optional[Union[int, Tuple[int, int]]] = 64,
-        chunking_mask_type: MASK_TYPE_LITERAL = "bilinear",
-        chunking_mask_kwargs: Dict[str, Any] = {},
-        temporal_engine_size: Optional[int] = 16,
-        temporal_chunking_size: Optional[int] = 4
+        controlnets: Optional[Dict[str, ControlNetModel]]=None,
+        requires_safety_checker: bool=True,
+        force_zeros_for_empty_prompt: bool=True,
+        requires_aesthetic_score: bool=False,
+        force_full_precision_vae: bool=False,
+        ip_adapter: Optional[IPAdapter]=None,
+        engine_size: int=512,
+        tiling_size: Optional[int]=None,
+        tiling_stride: Optional[int]=64,
+        tiling_mask_type: MASK_TYPE_LITERAL="bilinear",
+        tiling_mask_kwargs: Dict[str, Any]={},
+        frame_window_size: Optional[int]=16,
+        frame_window_stride: Optional[int]=4
     ) -> None:
         super(EnfugueStableDiffusionPipeline, self).__init__(
             vae,
@@ -219,11 +220,12 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
         # Enfugue engine settings
         self.engine_size = engine_size
-        self.chunking_size = chunking_size
-        self.chunking_mask_type = chunking_mask_type
-        self.chunking_mask_kwargs = chunking_mask_kwargs
-        self.temporal_engine_size = temporal_engine_size
-        self.temporal_chunking_size = temporal_chunking_size
+        self.tiling_size = tiling_size
+        self.tiling_stride = tiling_stride
+        self.tiling_mask_type = tiling_mask_type
+        self.tiling_mask_kwargs = tiling_mask_kwargs
+        self.frame_window_size = frame_window_size
+        self.frame_window_stride = frame_window_stride
 
         # Hide tqdm
         self.set_progress_bar_config(disable=True) # type: ignore[attr-defined]
@@ -342,8 +344,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         offload_models: bool=False,
         is_inpainter=False,
         task_callback: Optional[Callable[[str], None]]=None,
-        position_encoder_truncate_length: Optional[int]=None,
-        position_encoder_scale_length: Optional[int]=None,
+        position_encoding_truncate_length: Optional[int]=None,
+        position_encoding_scale_length: Optional[int]=None,
         **kwargs: Any,
     ) -> EnfugueStableDiffusionPipeline:
         """
@@ -534,8 +536,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             is_sdxl=isinstance(model_type, str) and model_type.startswith("SDXL"),
             is_inpainter=is_inpainter,
             task_callback=task_callback,
-            position_encoder_truncate_length=position_encoder_truncate_length,
-            position_encoder_scale_length=position_encoder_scale_length,
+            position_encoding_truncate_length=position_encoding_truncate_length,
+            position_encoding_scale_length=position_encoding_scale_length,
             **unet_kwargs
     	)
 
@@ -1695,7 +1697,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
                 # Build weights
                 multiplier = weight_builder(
-                    mask_type=self.chunking_mask_type,
+                    mask_type=self.tiling_mask_type,
                     batch=1,
                     dim=num_channels,
                     width=engine_latent_size,
@@ -1704,7 +1706,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     unfeather_top=top==0,
                     unfeather_right=right==latent_width,
                     unfeather_bottom=bottom==latent_height,
-                    **self.chunking_mask_kwargs
+                    **self.tiling_mask_kwargs
                 )
 
                 value[:, :, top:bottom, left:right] += encoded_image * multiplier
@@ -2672,7 +2674,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
                 # Build weights
                 multiplier = weight_builder(
-                    mask_type=self.chunking_mask_type,
+                    mask_type=self.tiling_mask_type,
                     batch=samples,
                     dim=num_channels,
                     frames=mask_frames,
@@ -2684,7 +2686,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     unfeather_bottom=bottom==latent_height,
                     unfeather_start=False if num_frames is None else (start==0 and not chunker.loop),
                     unfeather_end=False if num_frames is None else (end==num_frames and not chunker.loop),
-                    **self.chunking_mask_kwargs
+                    **self.tiling_mask_kwargs
                 )
 
                 fill_value(denoised_latents * multiplier, multiplier)
@@ -2961,7 +2963,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
             # Build weights
             multiplier = weight_builder(
-                mask_type=self.chunking_mask_type,
+                mask_type=self.tiling_mask_type,
                 batch=samples,
                 dim=3,
                 frames=None,
@@ -2971,7 +2973,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 unfeather_top=top==0,
                 unfeather_right=right==latent_width,
                 unfeather_bottom=bottom==latent_height,
-                **self.chunking_mask_kwargs
+                **self.tiling_mask_kwargs
             )
 
             fill_value(decoded_latents * multiplier, multiplier)
@@ -3214,51 +3216,53 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         prompts: Optional[List[Prompt]]=None,
         image: Optional[Union[ImageArgType, torch.Tensor]]=None,
         mask: Optional[Unioin[ImageArgType, torch.Tensor]]=None,
-        clip_skip: Optional[int] = None,
-        freeu_factors: Optional[Tuple[float, float, float, float]] = None,
-        control_images: ControlImageArgType = None,
-        ip_adapter_images: ImagePromptArgType = None,
-        ip_adapter_plus: bool = False,
-        ip_adapter_face: bool = False,
-        height: Optional[int] = None,
-        width: Optional[int] = None,
-        chunking_size: Optional[int] = None,
-        temporal_chunking_size: Optional[int] = None,
-        denoising_start: Optional[float] = None,
-        denoising_end: Optional[float] = None,
-        strength: Optional[float] = 0.8,
-        num_inference_steps: int = 40,
-        guidance_scale: float = 7.5,
-        num_results_per_prompt: int = 1,
-        animation_frames: Optional[int] = None,
-        time_scale: Optional[float] = None,
-        motion_scale: Optional[float] = None,
-        loop: bool = False,
-        tile: Union[bool, Tuple[bool, bool]] = False,
-        eta: float = 0.0,
-        generator: Optional[torch.Generator] = None,
-        noise_generator: Optional[torch.Generator] = None,
-        latents: Optional[torch.Tensor] = None,
-        prompt_embeds: Optional[torch.Tensor] = None,
-        negative_prompt_embeds: Optional[torch.Tensor] = None,
-        output_type: Literal["latent", "pt", "np", "pil"] = "pil",
-        return_dict: bool = True,
-        scale_image: bool = True,
-        progress_callback: Optional[Callable[[int, int, float], None]] = None,
-        latent_callback: Optional[Callable[[Union[torch.Tensor, np.ndarray, List[PIL.Image.Image]]], None]] = None,
-        latent_callback_steps: Optional[int] = None,
-        latent_callback_type: Literal["latent", "pt", "np", "pil"] = "latent",
-        cross_attention_kwargs: Optional[Dict[str, Any]] = None,
-        original_size: Optional[Tuple[int, int]] = None,
-        crops_coords_top_left: Tuple[int, int] = (0, 0),
-        target_size: Optional[Tuple[int, int]] = None,
-        aesthetic_score: float = 6.0,
-        negative_aesthetic_score: float = 2.5,
-        chunking_mask_type: Optional[MASK_TYPE_LITERAL] = None,
-        chunking_mask_kwargs: Optional[Dict[str, Any]] = None,
-        noise_offset: Optional[float] = None,
-        noise_method: NOISE_METHOD_LITERAL = "perlin",
-        noise_blend_method: LATENT_BLEND_METHOD_LITERAL = "inject",
+        clip_skip: Optional[int]=None,
+        freeu_factors: Optional[Tuple[float, float, float, float]]=None,
+        control_images: ControlImageArgType=None,
+        ip_adapter_images: ImagePromptArgType=None,
+        ip_adapter_plus: bool=False,
+        ip_adapter_face: bool=False,
+        height: Optional[int]=None,
+        width: Optional[int]=None,
+        tiling_size: Optional[int]=None,
+        tiling_stride: Optional[int]=None,
+        frame_window_size: Optional[int]=None,
+        frame_window_stride: Optional[int]=None,
+        denoising_start: Optional[float]=None,
+        denoising_end: Optional[float]=None,
+        strength: Optional[float]=0.8,
+        num_inference_steps: int=40,
+        guidance_scale: float=7.5,
+        num_results_per_prompt: int=1,
+        animation_frames: Optional[int]=None,
+        time_scale: Optional[float]=None,
+        motion_scale: Optional[float]=None,
+        loop: bool=False,
+        tile: Union[bool, Tuple[bool, bool]]=False,
+        eta: float=0.0,
+        generator: Optional[torch.Generator]=None,
+        noise_generator: Optional[torch.Generator]=None,
+        latents: Optional[torch.Tensor]=None,
+        prompt_embeds: Optional[torch.Tensor]=None,
+        negative_prompt_embeds: Optional[torch.Tensor]=None,
+        output_type: Literal["latent", "pt", "np", "pil"]="pil",
+        return_dict: bool=True,
+        scale_image: bool=True,
+        progress_callback: Optional[Callable[[int, int, float], None]]=None,
+        latent_callback: Optional[Callable[[Union[torch.Tensor, np.ndarray, List[PIL.Image.Image]]], None]]=None,
+        latent_callback_steps: Optional[int]=None,
+        latent_callback_type: Literal["latent", "pt", "np", "pil"]="latent",
+        cross_attention_kwargs: Optional[Dict[str, Any]]=None,
+        original_size: Optional[Tuple[int, int]]=None,
+        crops_coords_top_left: Tuple[int, int]=(0, 0),
+        target_size: Optional[Tuple[int, int]]=None,
+        aesthetic_score: float=6.0,
+        negative_aesthetic_score: float=2.5,
+        tiling_mask_type: Optional[MASK_TYPE_LITERAL]=None,
+        tiling_mask_kwargs: Optional[Dict[str, Any]]=None,
+        noise_offset: Optional[float]=None,
+        noise_method: NOISE_METHOD_LITERAL="perlin",
+        noise_blend_method: LATENT_BLEND_METHOD_LITERAL="inject",
     ) -> Union[
         StableDiffusionPipelineOutput,
         Tuple[Union[torch.Tensor, np.ndarray, List[PIL.Image.Image]], Optional[List[bool]]],
@@ -3310,15 +3314,19 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         original_size = original_size or (height, width)
         target_size = target_size or (height, width)
 
-        # Allow overridding chunking variables
-        if chunking_size is not None:
-            self.chunking_size = chunking_size
-        if chunking_mask_type is not None:
-            self.chunking_mask_type = chunking_mask_type
-        if chunking_mask_kwargs is not None:
-            self.chunking_mask_kwargs = chunking_mask_kwargs
-        if temporal_chunking_size is not None:
-            self.temporal_chunking_size = temporal_chunking_size
+        # Allow overridding tiling variables
+        if tiling_size is not None:
+            self.tiling_size = tiling_size
+        if tiling_stride is not None:
+            self.tiling_stride = tiling_stride
+        if tiling_mask_type is not None:
+            self.tiling_mask_type = tiling_mask_type
+        if tiling_mask_kwargs is not None:
+            self.tiling_mask_kwargs = tiling_mask_kwargs
+        if frame_window_size is not None:
+            self.frame_window_size = frame_window_size
+        if frame_window_stride is not None:
+            self.frame_window_stride = frame_window_stride
 
         # Check 0/None
         if latent_callback_steps == 0:
@@ -3360,11 +3368,11 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         chunker = Chunker(
             height=height,
             width=width,
-            size=self.engine_size,
-            stride=self.chunking_size,
+            size=self.tiling_size,
+            stride=self.tiling_stride,
             frames=animation_frames,
-            frame_size=self.temporal_engine_size,
-            frame_stride=self.temporal_chunking_size,
+            frame_size=self.frame_window_size,
+            frame_stride=self.frame_window_stride,
             loop=loop,
             tile=tile,
         )
@@ -3629,30 +3637,19 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     )
 
                     if init_image is not None:
-                        init_image_encoded = torch.Tensor().to(
+                        init_image = self.prepare_image_latents(
+                            image=init_image.to(device=device),
+                            timestep=timesteps[:1].repeat(batch_size),
+                            batch_size=batch_size,
+                            dtype=encoded_prompts.dtype,
                             device=device,
-                            dtype=encoded_prompts.dtype
+                            chunker=chunker,
+                            weight_builder=weight_builder,
+                            generator=generator,
+                            progress_callback=step_complete,
+                            add_noise=False,
+                            animation_frames=animation_frames
                         )
-
-                        for i, img in enumerate(init_image):
-                            img = img.to(device=device, dtype=encoded_prompts.dtype)
-                            img = self.encode_image(
-                                img,
-                                device=device,
-                                dtype=encoded_prompts.dtype,
-                                chunker=chunker,
-                                weight_builder=weight_builder,
-                                generator=generator,
-                            )
-                            init_image_encoded = torch.cat([
-                                init_image_encoded,
-                                img.unsqueeze(0)
-                            ], dim=0)
-                        init_image = init_image_encoded
-                        if animation_frames:
-                            init_image = rearrange(init_image, "t c b h w -> b c t h w")
-                        else:
-                            init_image = init_image[0]
                     # prepared_latents = noise or init latents + noise
                     # prepared_mask = only mask
                     # prepared_image_latents = masked image

@@ -40,6 +40,7 @@ class AnimationFormView extends FormView {
                     "tooltip": "The number of animation frames the overall animation should be. Divide this number by the animation rate to determine the overall length of the animation in seconds."
                 }
             },
+            /*
             "animationRate": {
                 "label": "Animation Rate",
                 "class": NumberInputView,
@@ -50,6 +51,7 @@ class AnimationFormView extends FormView {
                     "tooltip": "The number of frames per second the resulting animation should be played at. For example, an animation of 16 frames saved at 8 frames per second will be two seconds long."
                 }
             },
+            */
             "animationLoop": {
                 "label": "Loop Animation",
                 "class": CheckboxInputView,
@@ -58,7 +60,7 @@ class AnimationFormView extends FormView {
                 }
             },
             "animationChunking": {
-                "label": "Use Frame Chunking",
+                "label": "Use Frame Attention Slicing",
                 "class": CheckboxInputView,
                 "config": {
                     "value": true,
@@ -66,7 +68,7 @@ class AnimationFormView extends FormView {
                 }
             },
             "animationSize": {
-                "label": "Animation Engine Size",
+                "label": "Frame Window Size",
                 "class": NumberInputView,
                 "config": {
                     "min": 8,
@@ -76,7 +78,7 @@ class AnimationFormView extends FormView {
                 }
             },
             "animationStride": {
-                "label": "Animation Engine Stride",
+                "label": "Frame Window Stride",
                 "class": NumberInputView,
                 "config": {
                     "min": 1,
@@ -128,10 +130,12 @@ class AnimationFormView extends FormView {
                     "tooltip": "How long position encoding data should be after truncating and scaling. For example, if you truncate position data to 16 frames and scale position data to 32 frames, you will have removed the final 8 frames of training data, then altered the timescale of the animation by one half - i.e., the animation will appear about twice as slow. This feature is experimental and may result in strange movement."
                 }
             },
+            /*
             "animationInterpolation": {
                 "label": "Frame Interpolation",
                 "class": AnimationInterpolationStepsInputView,
             }
+            */
         }
     };
 

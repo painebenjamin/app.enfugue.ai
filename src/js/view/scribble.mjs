@@ -42,11 +42,29 @@ class ScribbleView extends View {
         this.memoryCanvas = document.createElement("canvas");
         this.visibleCanvas = document.createElement("canvas");
 
+        this.onDrawCallbacks = [];
+
         if (!isEmpty(width) && !isEmpty(height)) {
             this.memoryCanvas.width = width;
             this.memoryCanvas.height = height;
             this.visibleCanvas.width = width;
             this.visibleCanvas.height = height;
+        }
+    }
+
+    /**
+     * Adds a drawing callback
+     */
+    onDraw(callback) {
+        this.onDrawCallbacks.push(callback);
+    }
+
+    /**
+     * Triggers draw callbacks
+     */
+    drawn() {
+        for (let callback of this.onDrawCallbacks) {
+            callback();
         }
     }
 
@@ -67,6 +85,7 @@ class ScribbleView extends View {
         memoryContext.fillStyle = "#ffffff";
         memoryContext.fillRect(0, 0, this.memoryCanvas.width, this.memoryCanvas.height);
         this.updateVisibleCanvas();
+        this.drawn();
     }
 
     /**
@@ -85,6 +104,7 @@ class ScribbleView extends View {
         
         this.memoryCanvas = newMemoryCanvas;
         this.updateVisibleCanvas();
+        this.drawn();
     }
 
     /**
@@ -107,6 +127,7 @@ class ScribbleView extends View {
             this.memoryCanvas = newMemoryCanvas;
         }
         this.updateVisibleCanvas();
+        this.drawn();
     }
 
     /**
@@ -240,6 +261,7 @@ class ScribbleView extends View {
         context.fillRect(0, 0, this.memoryCanvas.width, this.memoryCanvas.height);
         context.restore();
         this.updateVisibleCanvas();
+        this.drawn();
     }
 
     /**
@@ -254,6 +276,7 @@ class ScribbleView extends View {
         this.lastX = x;
         this.lastY = y;
         this.lastDrawTime = (new Date()).getTime();
+        this.drawn();
     }
 
     /**
@@ -285,6 +308,7 @@ class ScribbleView extends View {
         context.strokeStyle = "#000000";
         context.lineWidth = this.size;
         context.stroke();
+        this.drawn();
     }
 
     /**

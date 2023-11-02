@@ -45,12 +45,7 @@ class InvokeButtonController extends Controller {
      * Gets the step data from the canvas for invocation.
      */
     getNodes() {
-        let canvasState = this.images.getState(),
-            nodes = Array.isArray(canvasState)
-                ? canvasState
-                : canvasState.nodes || [],
-            warningMessages = [];
-
+        let nodes = [];
         return nodes.map((datum, i) => {
             let formattedState = {
                 "x": datum.x,

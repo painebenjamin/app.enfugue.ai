@@ -864,11 +864,11 @@ class Application {
                         imageView = new ImageView(this.config, reader.result, false);
                     }
                     this.samples.showCanvas();
-                    this.layers.addImageLayer(imageView, name);
+                    this.layers.addImageLayer(imageView);
                     break;
                 case "video/mp4":
                     this.samples.showCanvas();
-                    this.layers.addImageLayer(reader.result, "Video");
+                    this.layers.addVideoLayer(reader.result);
                     break;
                 default:
                     this.notifications.push("warn", "Unhandled File Type", `File type "${fileType}" is not handled by Enfugue.`);

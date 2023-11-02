@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import os
 import math
 
 from typing import Optional, Literal, Union, List, Tuple, TYPE_CHECKING
@@ -16,6 +17,13 @@ __all__ = [
     "tile_image",
     "image_from_uri",
     "images_are_equal",
+    "get_frames_or_image",
+    "get_frames_or_image_from_file",
+    "save_frames_or_image",
+    "create_mask",
+    "scale_image",
+    "get_image_metadata",
+    "redact_images_from_metadata",
     "IMAGE_FIT_LITERAL",
     "IMAGE_ANCHOR_LITERAL",
 ]
@@ -262,3 +270,119 @@ def image_pixelize(image: Image, factor: int = 2, exact: bool = True) -> None:
     image = image.resize((downsample_width, downsample_height), resample=Resampling.NEAREST)
     image = image.resize((upsample_width, upsample_height), resample=Resampling.NEAREST)
     return image
+
+def get_frames_or_image(image: Union[Image, List[Image]]) -> Union[Image, List[Image]]:
+    """
+    Makes sure an image is a list of images if it has more than one frame
+    """
+    if not isinstance(image, list):
+        if getattr(image, "n_frames", 1) > 1:
+            def get_frame(i: int) -> Image:
+                image.seek(i)
+                return image.copy().convert("RGB")
+            return [
+                get_frame(i)
+                for i in range(image.n_frames)
+            ]
+    return image
+
+def save_frames_or_image(
+    image: Union[Image, List[Image]],
+    directory: str,
+    name: Optional[str]=None,
+    video_format: str="webp",
+    image_format: str="png"
+) -> str:
+    """
+    Saves frames to image or video 
+    """
+    image = get_frames_or_image(image)
+    if name is None:
+        name = get_uuid()
+    if isinstance(image, list):
+        from enfugue.diffusion.util.video_util import Video
+        path = os.path.join(directory, f"{name}.{video_format}")
+        Video(image).save(path)
+    else:
+        path = os.path.join(directory, f"{name}.{image_format}")
+        image.save(path)
+    return path
+
+def get_frames_or_image_from_file(path: str) -> Union[Image, List[Image]]:
+    """
+    Opens a file to a single image or multiple
+    """
+    name, ext = os.path.splitext(path)
+    if ext in [".webp", ".webm", ".mp4", ".avi", ".mov", ".gif", ".m4v", ".mkv", ".ogg"]:
+        from enfugue.diffusion.util.video_util import Video
+        return list(Video.file_to_frames(path))
+    else:
+        from PIL import Image
+        return Image.open(path)
+
+def create_mask(
+    width: int,
+    height: int,
+    left: int,
+    top: int,
+    right: int,
+    bottom: int
+) -> Image:
+    """
+    Creates a mask from 6 dimensions
+    """
+    from PIL import Image, ImageDraw
+    image = Image.new("RGB", (width, height))
+    draw = ImageDraw.Draw(image)
+    draw.rectangle([(left, top), (right, bottom)], fill="#ffffff")
+    return image
+
+def scale_image(image: Image, scale: Union[int, float]) -> Image:
+    """
+    Scales an image proportionally.
+    """
+    width, height = image.size
+    scaled_width = 8 * round((width * scale) / 8)
+    scaled_height = 8 * round((height * scale) / 8)
+    return image.resize((scaled_width, scaled_height))
+
+def get_image_metadata(image: Union[Image, List[Image]]) -> Dict[str, Any]:
+    """
+    Gets metadata from an image
+    """
+    if isinstance(image, list):
+        (width, height) = image[0].size
+        return {
+            "width": width,
+            "height": height,
+            "frames": len(image),
+            "metadata": getattr(image[0], "text", {}),
+        }
+    else:
+        (width, height) = image.size
+        return {
+            "width": width,
+            "height": height,
+            "metadata": getattr(image, "text", {})
+        }
+
+def redact_images_from_metadata(metadata: Dict[str, Any]) -> None:
+    """
+    Removes images from a metadata dictionary
+    """
+    for key in ["image", "mask"]:
+        image = metadata.get(key, None)
+        if image is not None:
+            if isinstance(image, dict):
+                image["image"] = get_image_metadata(image["image"])
+            else:
+                metadata[key] = get_image_metadata(metadata[key])
+    if "control_images" in metadata:
+        for i, control_dict in enumerate(metadata["control_images"]):
+            control_dict["image"] = get_image_metadata(control_dict["image"])
+    if "ip_adapter_images" in metadata:
+        for i, ip_adapter_dict in enumerate(metadata["ip_adapter_images"]):
+            ip_adapter_dict["image"] = get_image_metadata(ip_adapter_dict["image"])
+    if "layers" in metadata:
+        for layer in metadata["layers"]:
+            redact_images_from_metadata(layer)

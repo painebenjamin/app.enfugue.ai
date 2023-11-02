@@ -503,7 +503,7 @@ enfugue-repeatable-input {
     padding: 5px;
     gap: 5px;
     outline: none;
-    border-radius: 5px;
+    border-radius: 3px;
     background-color: var(--darker-color);
 }
 
@@ -575,7 +575,7 @@ enfugue-color-input > input {
 enfugue-color-input > .inline-color-preview {
     width: 20px;
     height: 20px;
-    border-radius: 5px;
+    border-radius: 3px;
     cursor: pointer;
     border: 1px solid black;
 }
@@ -644,7 +644,7 @@ enfugue-color-input-helper-view
     .input-container
     .input-part {
     border: 1px solid #ccc;
-    border-radius: 5px;
+    border-radius: 3px;
 }
 
 enfugue-color-input-helper-view
@@ -890,7 +890,7 @@ enfugue-model-picker {
 enfugue-model-picker button {
     margin: 10px 10px 10px 0;
     font-size: 11px;
-    border-radius: 5px;
+    border-radius: 3px;
     padding: 5px 10px;
 }
 
@@ -1185,7 +1185,7 @@ enfugue-download {
     gap: 2px;
     border: 1px solid var(--darker-color);
     padding: 10px;
-    border-radius: 5px;
+    border-radius: 3px;
 }
 
 enfugue-download-name {
@@ -1279,7 +1279,7 @@ enfugue-scribble-view {
     right: 0;
     bottom: 0;
     cursor: default;
-    z-index: 0;
+    z-index: 1;
 }
 
 enfugue-scribble-view canvas {
@@ -1434,9 +1434,13 @@ fieldset.field-set-secondary-prompts .field-container,
 fieldset.field-set-directories .field-container,
 fieldset.field-set-engine .field-container,
 fieldset.field-set-diffusion .field-container,
+fieldset.field-set-image-roles .field-container,
+fieldset.field-set-inpainting .field-container,
+fieldset.field-set-image-prompt .field-container,
 fieldset.field-set-filters .field-container.string-input-view-search,
 fieldset.field-set-dimensions .field-container.checkbox-input-view-use-chunking,
 fieldset.field-set-animation .field-container.checkbox-input-view,
+enfugue-layer-options-view .field-container.slider-precise-input-view,
 enfugue-sidebar .field-container.slider-precise-input-view,
 enfugue-sidebar .field-container.checkbox-input-view
 {
@@ -1493,6 +1497,7 @@ form.show-inpainter fieldset.field-set-additional-models:not(.collapsed) .vae-in
     flex-basis: 100%;
 }
 
+form.no-chunking .field-container.engine-size-input-view,
 form.no-chunking .field-container.select-input-view-chunking-size,
 form.no-chunking .field-container.mask-type-input-view-chunking-mask-type
 {
@@ -1529,11 +1534,11 @@ form.no-process .field-container.checkbox-input-view-invert-control-image {
     display: flex;
 }
 
-form fieldset.field-set-tweaks .field-container.slider-precise-input-view {
+enfugue-sidebar form fieldset.field-set-tweaks .field-container.slider-precise-input-view {
     display: none;
 }
 
-form.show-free-u fieldset.field-set-tweaks:not(.collapsed) .field-container.slider-precise-input-view {
+enfugue-sidebar form.show-free-u fieldset.field-set-tweaks:not(.collapsed) .field-container.slider-precise-input-view {
     display: flex;
 }
 
@@ -1811,6 +1816,8 @@ enfugue-layer-options-view {
     border-right: 1px solid rgba(0,0,0,0.2);
     border-bottom: 1px solid rgba(0,0,0,0.2);
     padding-top: 13px;
+    overflow-x: hidden;
+    overflow-y: auto;
 }
 
 enfugue-layers-view {
@@ -1857,12 +1864,13 @@ enfugue-layer-view {
     display: flex;
     border: 1px solid var(--theme-color-tertiary);
     padding: 10px 20px 10px 10px;
-    height: 40px;
+    height: 50px;
     flex-flow: row nowrap;
     align-items: center;
     justify-content: center;
     border-radius: 3px;
     cursor: pointer;
+    gap: 3px;
 }
 
 enfugue-layer-view.active {
@@ -1891,10 +1899,20 @@ enfugue-layer-view.drag-target-below::after {
     bottom: -7px;
 }
 
+enfugue-layer-view div.title {
+    display: flex;
+    flex-flow: column nowrap;
+    flex-grow: 1;
+}
+
+enfugue-layer-view span.subtitle {
+    font-size: 9px;
+}
+
 enfugue-layer-view span.name {
     flex-grow: 1;
-    margin-left: 3px;
     color: var(--theme-color-tertiary);
+    font-weight: bold;
     pointer-events: none;
 }
 

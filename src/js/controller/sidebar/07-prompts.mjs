@@ -1,4 +1,4 @@
-/** @module controller/sidebar/08-prompts */
+/** @module controller/sidebar/07-prompts */
 import { isEmpty } from "../../base/helpers.mjs";
 import { Controller } from "../base.mjs";
 import { PromptsFormView } from "../../forms/enfugue/prompts.mjs";

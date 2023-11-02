@@ -1,4 +1,4 @@
-/** @module controlletr/sidebar/05-animation */
+/** @module controlletr/sidebar/04-animation */
 import { isEmpty } from "../../base/helpers.mjs";
 import { Controller } from "../base.mjs";
 import { AnimationFormView } from "../../forms/enfugue/animation.mjs";
@@ -50,12 +50,29 @@ class AnimationController extends Controller {
                 this.engine.animationFrames = values.animationFrames;
                 this.engine.animationRate = values.animationRate;
                 this.engine.animationLoop = values.animationLoop;
-                if (values.animationChunking || values.animationLoop === "loop") {
+
+                if (values.animationMotionScaleEnabled) {
+                    this.engine.animationMotionScale = values.animationMotionScale;
+                } else {
+
+                    this.engine.animationMotionScale = null;
+                }
+                if (values.animationPositionEncodingSliceEnabled) {
+                    this.engine.animationPositionEncodingTruncateLength = values.animationPositionEncodingTruncateLength;
+                    this.engine.animationPositionEncodingScaleLength = values.animationPositionEncodingScaleLength;
+                } else {
+                    this.engine.animationPositionEncodingTruncateLength = null;
+                    this.engine.animationPositionEncodingScaleLength = null;
+                }
+
+                if (values.animationChunking || values.animationLoop) {
                     this.engine.animationSize = values.animationSize;
                     this.engine.animationStride = values.animationStride;
                 } else {
-                    this.engine.animationSize = null;
+                    this.engine.animationSize = values.animationFrames;
+                    this.engine.animationStride = null;
                 }
+
                 this.engine.animationInterpolation = values.animationInterpolation;
             } else {
                 this.engine.animationFrames = 0;

@@ -3,7 +3,6 @@ import { isEmpty } from "../../base/helpers.mjs";
 import { View } from "../../view/base.mjs";
 import { ScribbleView } from "../../view/scribble.mjs";
 import { ImageView, BackgroundImageView } from "../../view/image.mjs";
-import { ImageEditorImageNodeOptionsFormView } from "../../forms/enfugue/image-editor.mjs";
 import { ImageEditorNodeView } from "./base.mjs";
 import { ImageEditorScribbleNodeView } from "./scribble.mjs";
 
@@ -197,14 +196,9 @@ class ImageScribbleView extends View {
  */
 class ImageEditorImageNodeView extends ImageEditorNodeView {
     /**
-     * @var bool Hide this header
+     * @var bool Hide header (position absolutely)
      */
     static hideHeader = true;
-
-    /**
-     * @var bool Enable merging
-     */
-    static canMerge = true;
 
     /**
      * @var string The name to show in the menu
@@ -284,11 +278,6 @@ class ImageEditorImageNodeView extends ImageEditorNodeView {
     };
 
     /**
-     * @var class The form for this node.
-     */
-    static optionsFormView = ImageEditorImageNodeOptionsFormView;
-
-    /**
      * Intercept the constructor to set the contents to use view container.
      */
     constructor(editor, name, content, left, top, width, height) {
@@ -344,31 +333,12 @@ class ImageEditorImageNodeView extends ImageEditorNodeView {
      * Updates the options after a user makes a change.
      */
     async updateOptions(newOptions) {
-        super.updateOptions(newOptions);
-
         // Reflected in DOM
         this.updateFit(newOptions.fit);
         this.updateAnchor(newOptions.anchor);
         
-        // Flags
-        this.infer = newOptions.infer;
-        this.control = newOptions.control;
+        // Flag
         this.inpaint = newOptions.inpaint;
-        this.imagePrompt = newOptions.imagePrompt;
-
-        // Conditional inputs
-        this.strength = newOptions.strength;
-        this.imagePromptScale = newOptions.imagePromptScale;
-        this.imagePromptPlus = newOptions.imagePromptPlus;
-        this.imagePromptFace = newOptions.imagePromptFace;
-        this.controlnet = newOptions.controlnet;
-        this.conditioningScale = newOptions.conditioningScale;
-        this.conditioningStart = newOptions.conditioningStart;
-        this.conditioningEnd = newOptions.conditioningEnd;
-        this.processControlImage = newOptions.processControlImage;
-        this.invertControlImage = newOptions.invertControlImage;
-        this.cropInpaint = newOptions.cropInpaint;
-        this.inpaintFeather = newOptions.inpaintFeather;
 
         // Update scribble view if inpainting
         if (this.node !== undefined) {
@@ -547,24 +517,6 @@ class ImageEditorImageNodeView extends ImageEditorNodeView {
         return {
             "classname": this.name,
             "inpaint": false,
-            "control": false,
-            "inpaint": false,
-            "imagePrompt": false,
-            "imagePromptPlus": false,
-            "imagePromptFace": false,
-            "cropInpaint": true,
-            "inpaintFeather": 32,
-            "inferenceSteps": null,
-            "guidanceScale": null,
-            "imagePromptScale": 0.5,
-            "strength": 0.8,
-            "processControlImage": true,
-            "invertControlImage": false,
-            "conditioningScale": 1.0,
-            "conditioningStart": 0.0,
-            "conditioningEnd": 1.0,
-            "removeBackground": false,
-            "scaleToModelSize": false,
         };
     }
 

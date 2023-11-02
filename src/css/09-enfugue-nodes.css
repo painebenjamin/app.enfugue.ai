@@ -220,10 +220,6 @@ enfugue-windows-toolbar-item {
     overflow: hidden;
 }
 
-enfugue-node.flipped enfugue-node-header {
-    bottom: 0;
-}
-
 enfugue-node enfugue-node-compound-contents {
     display: block;
     position: relative;
@@ -362,13 +358,27 @@ enfugue-node-contents h3 {
 
 enfugue-node-editor.image-editor enfugue-node.hide-header enfugue-node-header {
     position: absolute;
-    width: 100%;
-    background-color: rgba(0,0,0,0.4);
+    width: calc(100% - 18px);
+    background-color: rgba(0,0,0,0.5);
+    border-top-left-radius: 2px;
+    border-top-right-radius: 2px;
     background-image: linear-gradient(to bottom, rgba(0,0,0,0.7), transparent);
+    backdrop-filter: blur(4px);
 }
 
 enfugue-node-editor.image-editor enfugue-node.hide-header enfugue-node-header:hover {
-    background-color: rgba(0,0,0,0.6);
+    background-color: rgba(0,0,0,0.8);
+}
+
+enfugue-node-editor.image-editor enfugue-node.flipped enfugue-node-header {
+    top: auto;
+    bottom: 9px;
+    border-bottom-left-radius: 2px;
+    border-bottom-right-radius: 2px;
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+    width: calc(100% - 18px);
+    position: absolute;
 }
 
 enfugue-node-editor.image-editor enfugue-node-contents {
@@ -380,7 +390,7 @@ enfugue-node-editor.image-editor enfugue-node-contents enfugue-background-image-
     width: 100%;
     height: 100%;
     position: relative;
-    z-index: -1;
+    z-index: 0;
 }
 
 enfugue-node-editor.image-editor enfugue-node-contents enfugue-background-image-view .background {
@@ -867,6 +877,8 @@ enfugue-node-editor.image-editor enfugue-invocation-loading enfugue-invocation-t
     height: 100%;
     text-align: center;
     text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow: hidden;
 }
 
 enfugue-node-editor.image-editor enfugue-invocation-loading enfugue-invocation-duration {
@@ -918,11 +930,6 @@ enfugue-node-editor.image-editor enfugue-node.image-editor-image-node-view enfug
     opacity: 0.5;
 }
 
-enfugue-node-editor.image-editor enfugue-node.flipped form {
-    top: auto;
-    bottom: 0;    
-}
-
 enfugue-node-editor.image-editor enfugue-node form select,
 enfugue-node-editor.image-editor enfugue-node form label,
 enfugue-node-editor.image-editor enfugue-node form input {
@@ -961,11 +968,6 @@ enfugue-node-editor.image-editor enfugue-node:hover form {
     top: 30px;
     height: calc(100% - 30px);
     background-color: rgba(0,0,0,0.4);
-}
-
-enfugue-node-editor.image-editor enfugue-node.flipped:hover form {
-    top: auto;
-    bottom: 30px;
 }
 
 enfugue-node-editor.image-editor enfugue-node:hover form:hover {
