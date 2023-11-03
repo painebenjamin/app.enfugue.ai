@@ -68,52 +68,52 @@ class InvocationController extends Controller {
     /**
      * @return The engine size when not using preconfigured models
      */
-    get size() {
-        return this.kwargs.size || 512;
+    get tilingSize() {
+        return this.kwargs.tiling_size || null;
     }
     
     /**
      * @param int The engine size when not using preconfigured models
      */
-    set size(newSize) {
-        if (this.size !== newSize) {
-            this.publish("engineSizeChange", newSize);
+    set tilingSize(newTilingSize) {
+        if (this.tilingSize !== newTilingSize) {
+            this.publish("engineTilingSizeChange", newTilingSize);
         }
-        this.kwargs.size = newSize;
+        this.kwargs.tiling_size = newTilingSize;
     }
 
     /**
-     * @return The chunking size; i.e. how many pixels the rendering window moves by during multidiffusion.
+     * @return The tiling stride; i.e. how many pixels the rendering window moves by during multidiffusion.
      */
-    get chunkingSize() {
-        return this.kwargs.chunking_size || this.application.config.model.invocation.chunkingSize;
+    get tilingStride() {
+        return this.kwargs.tiling_stride || this.application.config.model.invocation.tilingStride;
     }
 
     /**
-     * @param int Sets the new chunking size. 0 disables multidiffusion.
+     * @param int Sets the new tiling stride. 0 disables multidiffusion.
      */
-    set chunkingSize(newSize) {
-        if (this.chunkingSize !== newSize){
-            this.publish("engineChunkingSizeChange", newSize);
+    set tilingStride(newStride) {
+        if (this.tilingStride !== newStride){
+            this.publish("engineTilingStrideChange", newStride);
         }
-        this.kwargs.chunking_size = newSize
+        this.kwargs.tiling_stride = newStride
     }
     
     /**
-     * @return The chunking mask type.
+     * @return The tiling mask type.
      */
-    get chunkingMaskType() {
-        return this.kwargs.chunking_mask_type || null;
+    get tilingMaskType() {
+        return this.kwargs.tiling_mask_type || null;
     }
 
     /**
-     * @param int Sets the new chunking blur. 0 disables multidiffusion.
+     * @param int Sets the new tiling blur. 0 disables multidiffusion.
      */
-    set chunkingMaskType(newMaskType) {
-        if (this.chunkingMaskType !== newMaskType){
-            this.publish("engineChunkingMaskTypeChange", newMaskType);
+    set tilingMaskType(newMaskType) {
+        if (this.tilingMaskType !== newMaskType){
+            this.publish("engineTilingMaskTypeChange", newMaskType);
         }
-        this.kwargs.chunking_mask_type = newMaskType
+        this.kwargs.tiling_mask_type = newMaskType
     }
 
     /**
@@ -309,7 +309,7 @@ class InvocationController extends Controller {
      * @return ?array The upscale steps (none by default)
      */
     get upscaleSteps() {
-        return this.kwargs.upscale_steps || null;
+        return this.kwargs.upscale || null;
     }
 
     /**
@@ -346,11 +346,11 @@ class InvocationController extends Controller {
             if (!isEmpty(step.guidanceScale)) {
                 formattedStep.guidance_scale = step.guidanceScale;
             }
-            if (!isEmpty(step.chunkingSize)) {
-                formattedStep.chunking_size = step.chunkingSize;
+            if (!isEmpty(step.tilingSize)) {
+                formattedStep.tiling_size = step.tilingSize;
             }
-            if (!isEmpty(step.chunkingMaskType)) {
-                formattedStep.chunking_mask_type = step.chunkingMaskType;
+            if (!isEmpty(step.tilingMaskType)) {
+                formattedStep.tiling_mask_type = step.tilingMaskType;
             }
             if (!isEmpty(step.controlnet)) {
                 formattedStep.controlnets = [step.controlnet];
@@ -372,7 +372,7 @@ class InvocationController extends Controller {
         if (!isEquivalent(this.upscaleSteps, formattedSteps)) {
             this.publish("engineUpscaleStepsChange", formattedSteps);
         }
-        this.kwargs.upscale_steps = formattedSteps;
+        this.kwargs.upscale = formattedSteps;
     }
 
     /**
@@ -648,23 +648,6 @@ class InvocationController extends Controller {
     }
 
     /**
-     * @return int Optional inpainting engine size when not using preconfigured models
-     */
-    get inpainterSize() {
-        return this.kwargs.inpainter_size || null;
-    }
-
-    /**
-     * @param int Optional inpainting engine size when not using preconfigured models
-     */
-    set inpainterSize(newInpainterSize) {
-        if(this.inpainterSize !== newInpainterSize) {
-            this.publish("engineInpainterSizeChange", newInpainterSize);
-        }
-        this.kwargs.inpainter_size = newInpainterSize;
-    }
-    
-    /**
      * @return int Optional inpainter VAE when not using preconfigured models
      */
     get inpainterVae() {
@@ -821,41 +804,24 @@ class InvocationController extends Controller {
      * @return int Optional number of animation frames to render at once when rendering chunked animation
      */
     get animationSize() {
-        return this.kwargs.temporal_engine_size || null;
+        return this.kwargs.frame_window_size || null;
     }
 
     /**
-     * @param int New number of frames to render at once, or null/0 to disable chunking
+     * @param int New number of frames to render at once, or null/0 to disable tiling
      */
     set animationSize(newSize) {
         if (this.animationSize !== newSize) {
             this.publish("engineAnimationSizeChange", newSize);
         }
-        this.kwargs.temporal_engine_size = newSize;
-    }
-
-    /**
-     * @return int frames per second to save the animation as when using animation
-     */
-    get animationRate() {
-        return this.kwargs.animation_rate || 8;
-    }
-
-    /**
-     * @param int New frames per second
-     */
-    set animationRate(newRate) {
-        if (this.animationRate !== newRate) {
-            this.publish("engineAnimationRateChange", newRate);
-        }
-        this.kwargs.animation_rate = newRate;
+        this.kwargs.frame_window_size = newSize;
     }
 
     /**
      * @return int Optional number of frames to move when rendering chunked animation
      */
     get animationStride() {
-        return this.kwargs.temporal_chunking_size || null;
+        return this.kwargs.frame_window_stride || null;
     }
 
     /**
@@ -865,7 +831,7 @@ class InvocationController extends Controller {
         if (this.animationStride !== newStride) {
             this.publish("engineAnimationStrideChange", newStride);
         }
-        this.kwargs.temporal_chunking_size = newStride;
+        this.kwargs.frame_window_stride = newStride;
     }
     
     /**
@@ -883,23 +849,6 @@ class InvocationController extends Controller {
             this.publish("engineAnimationLoopChange", newLoop);
         }
         this.kwargs.loop = newLoop;
-    }
-
-    /**
-     * @return array<int> interpolation frames
-     */
-    get animationInterpolation() {
-        return this.kwargs.interpolation_frames || null;
-    }
-
-    /**
-     * @param array<int> interpolation frames
-     */
-    set animationInterpolation(newFrames) {
-        if (!isEquivalent(this.animationInterpolation, newFrames)) {
-            this.publish("engineAnimationInterpolationChange", newFrames);
-        }
-        this.kwargs.interpolation_frames = newFrames;
     }
 
     /**

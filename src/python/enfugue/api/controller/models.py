@@ -18,7 +18,7 @@ from enfugue.util import find_files_in_directory, find_file_in_directory, logger
 from enfugue.api.controller.base import EnfugueAPIControllerBase
 from enfugue.database.models import DiffusionModel
 from enfugue.diffusion.manager import DiffusionPipelineManager
-from enfugue.diffusion.plan import DiffusionPlan, DiffusionStep, DiffusionNode
+from enfugue.diffusion.invocation import LayeredInvocation
 from enfugue.diffusion.constants import *
 
 __all__ = ["EnfugueAPIModelsController"]
@@ -450,7 +450,7 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         """
         Issues a job to create an engine.
         """
-        plan = DiffusionPlan.assemble(**self.get_plan_kwargs_from_model(model_name, include_prompts=False))
+        plan = LayeredInvocation.assemble(**self.get_plan_kwargs_from_model(model_name, include_prompts=False))
         plan.build_tensorrt = True
 
         step = DiffusionStep(prompt="a green field, blue sky, outside", width=plan.size, height=plan.size)

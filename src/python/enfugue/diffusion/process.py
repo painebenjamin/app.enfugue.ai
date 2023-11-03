@@ -34,7 +34,7 @@ if TYPE_CHECKING:
     # We avoid importing them before the process starts at runtime,
     # since we don't want torch to initialize itself.
     from enfugue.diffusion.manager import DiffusionPipelineManager
-    from enfugue.diffusion.plan import DiffusionPlan
+    from enfugue.diffusion.invocation import LayeredInvocation
     from diffusers.pipelines.stable_diffusion import StableDiffusionPipelineOutput
 
 __all__ = ["DiffusionEngineProcess"]
@@ -82,18 +82,17 @@ class DiffusionEngineProcess(Process):
         """
         return self.configuration.get("enfugue.idle", self.IDLE_SEC)
 
-    def get_diffusion_plan(self, payload: Dict[str, Any]) -> DiffusionPlan:
+    def get_diffusion_plan(self, payload: Dict[str, Any]) -> LayeredInvocation:
         """
         Deserializes a plan.
         """
-        from enfugue.diffusion.plan import DiffusionPlan
-
-        return DiffusionPlan.deserialize_dict(payload)
+        from enfugue.diffusion.invocation import LayeredInvocation
+        return LayeredInvocation.assemble(**payload)
 
     def execute_diffusion_plan(
         self,
         instruction_id: int,
-        plan: DiffusionPlan,
+        plan: LayeredInvocation,
         intermediate_dir: Optional[str] = None,
         intermediate_steps: Optional[int] = None,
     ) -> StableDiffusionPipelineOutput:

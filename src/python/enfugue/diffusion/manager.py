@@ -271,13 +271,13 @@ class DiffusionPipelineManager:
         if self.device.type == "cuda":
             import torch
             import torch.cuda
-
             torch.cuda.empty_cache()
+            torch.cuda.synchronize()
         elif self.device.type == "mps":
             import torch
             import torch.mps
-
             torch.mps.empty_cache()
+            torch.mps.synchronize()
         gc.collect()
 
     @property
@@ -3182,13 +3182,13 @@ class DiffusionPipelineManager:
                     pipeline.save_pretrained(self.model_diffusers_dir)
             if not self.tensorrt_is_ready:
                 for lora, weight in self.lora:
-                    self.task_callback(f"Adding LoRA {lora} to pipeline with weight {weight}")
+                    self.task_callback(f"Adding LoRA {os.path.basename(lora)} to pipeline with weight {weight}")
                     pipeline.load_lora_weights(lora, multiplier=weight)
                 for lycoris, weight in self.lycoris:
-                    self.task_callback(f"Adding lycoris {lycoris} to pipeline")
+                    self.task_callback(f"Adding lycoris {os.path.basename(lycoris)} to pipeline")
                     pipeline.load_lycoris_weights(lycoris, multiplier=weight)
                 for inversion in self.inversion:
-                    self.task_callback(f"Adding textual inversion {inversion} to pipeline")
+                    self.task_callback(f"Adding textual inversion {os.path.basename(inversion)} to pipeline")
                     pipeline.load_textual_inversion(inversion)
 
             # load scheduler
@@ -3488,13 +3488,13 @@ class DiffusionPipelineManager:
                     inpainter_pipeline.save_pretrained(self.inpainter_diffusers_dir)
             if not self.inpainter_tensorrt_is_ready:
                 for lora, weight in self.lora:
-                    self.task_callback(f"Adding LoRA {lora} to inpainter pipeline with weight {weight}")
+                    self.task_callback(f"Adding LoRA {os.path.basename(lora)} to inpainter pipeline with weight {weight}")
                     inpainter_pipeline.load_lora_weights(lora, multiplier=weight)
                 for lycoris, weight in self.lycoris:
-                    self.task_callback(f"Adding lycoris {lycoris} to inpainter pipeline")
+                    self.task_callback(f"Adding lycoris {os.path.basename(lycoris)} to inpainter pipeline")
                     inpainter_pipeline.load_lycoris_weights(lycoris, multiplier=weight)
                 for inversion in self.inversion:
-                    self.task_callback(f"Adding textual inversion {inversion} to inpainter pipeline")
+                    self.task_callback(f"Adding textual inversion {os.path.basename(inversion)} to inpainter pipeline")
                     inpainter_pipeline.load_textual_inversion(inversion)
 
             # load scheduler
@@ -3623,13 +3623,13 @@ class DiffusionPipelineManager:
                     animator_pipeline.save_pretrained(self.animator_diffusers_dir)
             if not self.animator_tensorrt_is_ready:
                 for lora, weight in self.lora:
-                    self.task_callback(f"Adding LoRA {lora} to animator pipeline with weight {weight}")
+                    self.task_callback(f"Adding LoRA {os.path.basename(lora)} to animator pipeline with weight {weight}")
                     animator_pipeline.load_lora_weights(lora, multiplier=weight)
                 for lycoris, weight in self.lycoris:
-                    self.task_callback(f"Adding lycoris {lycoris} to animator pipeline")
+                    self.task_callback(f"Adding lycoris {os.path.basename(lycoris)} to animator pipeline")
                     animator_pipeline.load_lycoris_weights(lycoris, multiplier=weight)
                 for inversion in self.inversion:
-                    self.task_callback(f"Adding textual inversion {inversion} to animator pipeline")
+                    self.task_callback(f"Adding textual inversion {os.path.basename(inversion)} to animator pipeline")
                     animator_pipeline.load_textual_inversion(inversion)
             # load scheduler
             if self.scheduler is not None:

@@ -14,7 +14,7 @@ from pibble.util.numeric import human_size
 from enfugue.api.downloads import Download
 from enfugue.api.invocations import Invocation
 from enfugue.diffusion.engine import DiffusionEngine
-from enfugue.diffusion.plan import DiffusionPlan
+from enfugue.diffusion.invocation import LayeredInvocation
 from enfugue.util import logger, check_make_directory, find_file_in_directory
 from enfugue.diffusion.constants import (
     DEFAULT_MODEL,
@@ -453,7 +453,7 @@ class SystemManager:
     def invoke(
         self,
         user_id: int,
-        plan: DiffusionPlan,
+        plan: LayeredInvocation,
         ui_state: Optional[str] = None,
         disable_intermediate_decoding: bool = False,
         **kwargs: Any,

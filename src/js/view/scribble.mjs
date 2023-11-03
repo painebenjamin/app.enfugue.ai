@@ -89,6 +89,17 @@ class ScribbleView extends View {
     }
 
     /**
+     * Fills the canvas in memory.
+     */
+    fillMemory() {
+        let memoryContext = this.memoryCanvas.getContext("2d");
+        memoryContext.fillStyle = "#000000";
+        memoryContext.fillRect(0, 0, this.memoryCanvas.width, this.memoryCanvas.height);
+        this.updateVisibleCanvas();
+        this.drawn();
+    }
+
+    /**
      * Sets the canvas memory from an image
      */
     setMemory(newImage) {

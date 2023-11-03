@@ -213,7 +213,7 @@ fieldset .field-container {
     display: flex;
     flex-flow: column-reverse nowrap;
     align-items: stretch;
-    flex-basis: 110px;
+    flex-basis: 100px;
     flex-grow: 1;
 }
 

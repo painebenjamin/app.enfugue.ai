@@ -10,7 +10,7 @@ enfugue-application {
 enfugue-application > enfugue-node-editor {
     position: absolute;
     left: 0;
-    top: 106px;
+    top: 96px;
     right: 0;
     bottom: 0;
     width: auto;
@@ -26,6 +26,7 @@ enfugue-application > enfugue-node-editor.image-editor {
 
 enfugue-application > enfugue-node-editor.windows {
     z-index: 5;
+    top: 35px;
 }
 
 enfugue-menu {
@@ -129,7 +130,6 @@ enfugue-sidebar {
     border-bottom: 1px solid rgba(0,0,0,0.2);
     width: 250px;
     overflow-y: auto;
-    padding-top: 10px;
     direction: rtl;
 }
 
@@ -152,7 +152,7 @@ enfugue-sidebar::-webkit-scrollbar-thumb:hover {
 enfugue-sidebar::before {
     position: absolute;
     left: 10px;
-    top: 4px;
+    top: -2px;
     content: "GLOBAL";
     color: var(--theme-color-secondary);
     font-family: var(--monospace-font);
@@ -884,7 +884,6 @@ enfugue-model-picker {
     border-left: 1px solid rgba(255,255,255,0.1);
     border-right: 1px solid rgba(0,0,0,0.2);
     border-bottom: 1px solid rgba(0,0,0,0.2);
-    padding-top: 10px;
 }
 
 enfugue-model-picker button {
@@ -898,7 +897,7 @@ enfugue-model-picker::after {
     content: "MODEL";
     position: absolute;
     left: 10px;
-    top: 4px;
+    top: -2px;
     font-size: 12px;
     color: var(--theme-color-secondary);
     font-family: var(--monospace-font);
@@ -1026,41 +1025,6 @@ ul.model-picker-list-input-view > li > span > *:last-child,
 ul.enfugue-search-list-items > li > span > *:last-child {
     flex-grow: 1;
     text-align: right;
-}
-
-.model-configuration-form-view {
-    position: absolute;
-    padding: 0 0 0 10px;
-    top: 90px;
-    left: 40px;
-    bottom: 55px;
-    max-width: 500px;
-    overflow-y: auto;
-    overflow-x: visible;
-    direction: rtl;
-    pointer-events: none;
-    width: calc((100vw - 350px) / 2);
-    z-index: 4;
-    opacity: 0.5;
-    transition: opacity 0.25s ease-in-out;
-}
-
-.model-configuration-form-view * {
-    direction: ltr;
-    pointer-events: auto;
-}
-
-.model-configuration-form-view:hover {
-    opacity: 1;
-}
-
-.model-configuration-form-view legend {
-    flex-direction: row-reverse;
-    justify-content: flex-end;
-}
-
-.model-configuration-form-view legend::after {
-    margin-right: 10px;
 }
 
 .page-buttons {
@@ -1438,13 +1402,20 @@ fieldset.field-set-image-roles .field-container,
 fieldset.field-set-inpainting .field-container,
 fieldset.field-set-image-prompt .field-container,
 fieldset.field-set-filters .field-container.string-input-view-search,
-fieldset.field-set-dimensions .field-container.checkbox-input-view-use-chunking,
+fieldset.field-set-dimensions .field-container.checkbox-input-view-use-tiling,
 fieldset.field-set-animation .field-container.checkbox-input-view,
 enfugue-layer-options-view .field-container.slider-precise-input-view,
 enfugue-sidebar .field-container.slider-precise-input-view,
 enfugue-sidebar .field-container.checkbox-input-view
 {
     flex-basis: 100%;
+}
+
+enfugue-sidebar .field-container.checkbox-input-view-tile-horizontal,
+enfugue-sidebar .field-container.checkbox-input-view-tile-vertical,
+enfugue-sidebar .field-container.checkbox-input-view-outpaint,
+enfugue-sidebar .field-container.checkbox-input-view-inpaint {
+    flex-basis: 0;    
 }
 
 enfugue-sidebar fieldset.field-set-prompts {
@@ -1497,9 +1468,20 @@ form.show-inpainter fieldset.field-set-additional-models:not(.collapsed) .vae-in
     flex-basis: 100%;
 }
 
-form.no-chunking .field-container.engine-size-input-view,
-form.no-chunking .field-container.select-input-view-chunking-size,
-form.no-chunking .field-container.mask-type-input-view-chunking-mask-type
+form.no-tiling .field-container.engine-size-input-view,
+form.no-tiling .field-container.select-input-view-tiling-stride,
+form.no-tiling .field-container.mask-type-input-view-tiling-mask-type
+{
+    display: none;
+}
+
+form.no-inpaint .field-container.checkbox-input-view-crop-inpaint,
+form.no-inpaint .field-container.number-input-view-inpaint-feather
+{
+    display: none;
+}
+
+form.no-cropped-inpaint .field-container.number-input-view-inpaint-feather
 {
     display: none;
 }
@@ -1509,8 +1491,8 @@ form.no-animation .field-container:not(.checkbox-input-view-animation-enabled)
     display: none;
 }
 
-form.no-animation-chunking .field-container.number-input-view-animation-size,
-form.no-animation-chunking .field-container.number-input-view-animation-stride
+form.no-animation-tiling .field-container.number-input-view-animation-size,
+form.no-animation-tiling .field-container.number-input-view-animation-stride
 {
     display: none;
 }
@@ -1815,7 +1797,6 @@ enfugue-layer-options-view {
     border-top: 1px solid rgba(255,255,255,0.1);
     border-right: 1px solid rgba(0,0,0,0.2);
     border-bottom: 1px solid rgba(0,0,0,0.2);
-    padding-top: 13px;
     overflow-x: hidden;
     overflow-y: auto;
 }
@@ -1830,7 +1811,7 @@ enfugue-layers-view {
     background-color: var(--dark-color);
     bottom: 60px;
     height: 300px;
-    padding: 24px 10px 0 10px;
+    padding: 28px 10px 0 10px;
     gap: 10px;
     border-left: 1px solid rgba(255,255,255,0.1);
     border-top: 1px solid rgba(255,255,255,0.1);
@@ -1844,7 +1825,7 @@ enfugue-layer-options-view::after,
 enfugue-layers-view::after {
     content: "\A";
     position: absolute;
-    top: 4px;
+    top: -2px;
     left: 10px;
     color: var(--theme-color-secondary);
     font-family: var(--monospace-font);
@@ -1857,6 +1838,7 @@ enfugue-layer-options-view::after {
 
 enfugue-layers-view::after {
     content: "LAYERS";
+    top: 0;
 }
 
 enfugue-layer-view {
@@ -1985,4 +1967,39 @@ enfugue-layer-options-view::-webkit-scrollbar-thumb {
 enfugue-layers-view::-webkit-scrollbar-thumb:hover,
 enfugue-layer-options-view::-webkit-scrollbar-thumb:hover {
     background-color: rgba(0,0,0,0.7);
+}
+
+enfugue-toolbar.inpainting::before {
+    position: absolute;
+    left: 10px;
+    top: -2px;
+    content: "INPAINTING TOOLS";
+    color: var(--theme-color-secondary);
+    font-family: var(--monospace-font);
+    font-size: 12px;
+}
+
+enfugue-toolbar.inpainting {
+    position: fixed;
+    left: 250px;
+    right: 250px;
+    top: 121px;
+    gap: 0;
+    background-color: var(--dark-color);
+    border-top: 1px solid rgba(255,255,255,0.1);
+    border-left: 1px solid rgba(255,255,255,0.1);
+    border-right: 1px solid rgba(0,0,0,0.2);
+    border-bottom: 1px solid rgba(0,0,0,0.2);
+    z-index: 4;
+}
+
+enfugue-toolbar.inpainting enfugue-toolbar-item {
+    width: 30px;
+    height: 30px;
+    border-left: 1px solid rgba(255,255,255,0.1);
+    border-right: 1px solid rgba(0,0,0,0.2);
+}
+
+enfugue-toolbar.inpainting enfugue-toolbar-item:last-child {
+    border-right: none;
 }

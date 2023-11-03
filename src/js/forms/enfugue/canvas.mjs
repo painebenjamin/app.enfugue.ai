@@ -11,7 +11,7 @@ import {
 
 let defaultWidth = 512,
     defaultHeight = 512,
-    defaultChunkingSize = 64;
+    defaultTilingStride = 64;
 
 if (
     !isEmpty(window.enfugue) &&
@@ -26,8 +26,8 @@ if (
     if (!isEmpty(invocationConfig.height)) {
         defaultHeight = invocationConfig.height;
     }
-    if (!isEmpty(invocationConfig.chunkingSize)) {
-        defaultChunkingSize = invocationConfig.chunkingSize;
+    if (!isEmpty(invocationConfig.tilingSize)) {
+        defaultTilingStride = invocationConfig.tilingSize;
     }
 }
 
@@ -39,11 +39,6 @@ class CanvasFormView extends FormView {
      * @var string Custom CSS Class
      */
     static className = "canvas-form-view";
-
-    /**
-     * @var bool Collapse these fields by default
-     */
-    static collapseFieldSets = true;
 
     /**
      * @var bool Hide submit button
@@ -93,7 +88,7 @@ class CanvasFormView extends FormView {
                     "tooltip": "When enabled, the resulting image will tile vertically, i.e., when duplicated and placed with on image on top of the other, there will be no seams between the copies."
                 }
             },
-            "useChunking": {
+            "useTiling": {
                 "label": "Enabled Tiled Diffusion/VAE",
                 "class": CheckboxInputView,
                 "config": {
@@ -101,7 +96,7 @@ class CanvasFormView extends FormView {
                     "value": false
                 }
             },
-            "size": {
+            "tilingSize": {
                 "label": "Tile Size",
                 "class": EngineSizeInputView,
                 "config": {
@@ -109,16 +104,16 @@ class CanvasFormView extends FormView {
                     "value": null
                 }
             },
-            "chunkingSize": {
+            "tilingStride": {
                 "label": "Tile Stride",
                 "class": SelectInputView,
                 "config": {
                     "options": ["8", "16", "32", "64", "128", "256", "512"],
-                    "value": `${defaultChunkingSize}`,
+                    "value": `${defaultTilingStride}`,
                     "tooltip": "The number of pixels to move the frame when doing tiled diffusion. A low number can produce more detailed results, but can be noisy, and takes longer to process. A high number is faster to process, but can have poor results especially along frame boundaries. The recommended value is set by default."
                 }
             },
-            "chunkingMaskType": {
+            "tilingMaskType": {
                 "label": "Tile Mask",
                 "class": MaskTypeInputView
             }
@@ -130,17 +125,17 @@ class CanvasFormView extends FormView {
      */
     async submit() {
         await super.submit();
-        let chunkInput = (await this.getInputView("useChunking"));
+        let chunkInput = (await this.getInputView("useTiling"));
         if (this.values.tileHorizontal || this.values.tileVertical) {
-            this.removeClass("no-chunking");
+            this.removeClass("no-tiling");
             chunkInput.setValue(true, false);
             chunkInput.disable();
         } else {
             chunkInput.enable();
-            if (this.values.useChunking) {
-                this.removeClass("no-chunking");
+            if (this.values.useTiling) {
+                this.removeClass("no-tiling");
             } else {
-                this.addClass("no-chunking");
+                this.addClass("no-tiling");
             }
         }
     }

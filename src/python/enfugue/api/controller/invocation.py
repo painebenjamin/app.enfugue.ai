@@ -16,7 +16,7 @@ from pibble.ext.rest.server.user import UserRESTExtensionServerBase
 from pibble.api.middleware.database.orm import ORMMiddlewareBase
 from pibble.api.exceptions import NotFoundError, BadRequestError
 
-from enfugue.diffusion.plan import DiffusionPlan
+from enfugue.diffusion.invocation import LayeredInvocation
 from enfugue.diffusion.constants import (
     DEFAULT_MODEL,
     DEFAULT_INPAINTING_MODEL,
@@ -223,7 +223,7 @@ class EnfugueAPIInvocationController(EnfugueAPIControllerBase):
                 plan_kwargs.get("model", None)
             )
 
-        plan = DiffusionPlan.assemble(**plan_kwargs)
+        plan = LayeredInvocation.assemble(**plan_kwargs)
 
         return self.invoke(
             request.token.user.id,

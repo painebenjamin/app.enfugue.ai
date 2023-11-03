@@ -20,11 +20,14 @@ class CanvasController extends Controller {
     getDefaultState() {
         return {
             "canvas": {
+                "tileHorizontal": false,
+                "tileVertical": false,
                 "width": this.config.model.invocation.width,
                 "height": this.config.model.invocation.height,
-                "useChunking": false,
-                "chunkingSize": this.config.model.invocation.chunkingSize,
-                "chunkingMaskType": this.config.model.invocation.chunkingMaskType
+                "useTiling": false,
+                "tilingSize": this.config.model.invocation.tilingSize,
+                "tilingStride": this.config.model.invocation.tilingStride,
+                "tilingMaskType": this.config.model.invocation.tilingMaskType
             }
         };
     }
@@ -50,11 +53,11 @@ class CanvasController extends Controller {
             this.engine.height = values.height;
             this.engine.tileHorizontal = values.tileHorizontal;
             this.engine.tileVertical = values.tileVertical;
-            if (values.useChunking) {
-                this.engine.chunkingSize = values.chunkingSize
-                this.engine.chunkingMaskType = values.chunkingMaskType;
+            if (values.useTiling) {
+                this.engine.tilingSize = values.tilingSize
+                this.engine.tilingMaskType = values.tilingMaskType;
             } else {
-                this.engine.chunkingSize = 0;
+                this.engine.tilingSize = 0;
             }
         });
 
@@ -73,19 +76,19 @@ class CanvasController extends Controller {
                 if (!isEmpty(defaultConfig.height)) {
                     canvasConfig.height = defaultConfig.height;
                 }
-                if (!isEmpty(defaultConfig.chunking_size)) {
-                    canvasConfig.chunkingSize = defaultConfig.chunking_size;
-                    if (canvasConfig.chunkingSize === 0) {
-                        canvasConfig.useChunking = false;
+                if (!isEmpty(defaultConfig.tiling_size)) {
+                    canvasConfig.tilingSize = defaultConfig.tiling_size;
+                    if (canvasConfig.tilingSize === 0) {
+                        canvasConfig.useTiling = false;
                     }
                 }
-                if (!isEmpty(defaultConfig.chunking_mask_type)) {
-                    canvasConfig.chunkingMaskType = defaultConfig.chunking_mask_type;
+                if (!isEmpty(defaultConfig.tiling_mask_type)) {
+                    canvasConfig.tilingMaskType = defaultConfig.tiling_mask_type;
                 }
 
                 if (!isEmpty(canvasConfig)) {
-                    if (isEmpty(canvasConfig.useChunking)) {
-                        canvasConfig.useChunking = true;
+                    if (isEmpty(canvasConfig.useTiling)) {
+                        canvasConfig.useTiling = true;
                     }
                     await this.canvasForm.setValues(canvasConfig);
                     await this.canvasForm.submit();

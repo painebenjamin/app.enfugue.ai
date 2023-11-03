@@ -16,7 +16,7 @@ from enfugue.diffusion.process import DiffusionEngineProcess
 from enfugue.util import logger
 
 if TYPE_CHECKING:
-    from enfugue.diffusion.plan import DiffusionPlan
+    from enfugue.diffusion.invocation import LayeredInvocation
 
 
 __all__ = ["DiffusionEngine"]
@@ -297,11 +297,11 @@ class DiffusionEngine:
         """
         return self.wait(self.dispatch(action, payload), timeout)
 
-    def execute(self, plan: DiffusionPlan, timeout: Optional[Union[int, float]] = None, wait: bool = False) -> Any:
+    def execute(self, plan: LayeredInvocation, timeout: Optional[Union[int, float]] = None, wait: bool = False) -> Any:
         """
         This is a helpful method to just serialize and execute a plan.
         """
-        id = self.dispatch("plan", plan.get_serialization_dict())
+        id = self.dispatch("plan", plan.serialize())
         if wait:
             return self.wait(id, timeout)
         return id

@@ -7,7 +7,7 @@ from pibble.util.strings import get_uuid, Serializer
 
 from enfugue.util import logger, get_version
 from enfugue.diffusion.engine import DiffusionEngine
-from enfugue.diffusion.plan import DiffusionPlan
+from enfugue.diffusion.invocation import LayeredInvocation
 from multiprocessing import Lock
 
 from PIL.PngImagePlugin import PngInfo
@@ -38,7 +38,7 @@ class Invocation:
     def __init__(
         self,
         engine: DiffusionEngine,
-        plan: DiffusionPlan,
+        plan: LayeredInvocation,
         engine_image_dir: str,
         engine_intermediate_dir: str,
         ui_state: Optional[str] = None,
@@ -149,7 +149,7 @@ class Invocation:
         """
         with self.lock:
             self.start_time = datetime.datetime.now()
-            payload = self.plan.get_serialization_dict(self.intermediate_dir)
+            payload = self.plan.serialize(self.intermediate_dir)
             payload["intermediate_dir"] = self.intermediate_dir
             payload["intermediate_steps"] = self.intermediate_steps
             self.id = self.engine.dispatch("plan", payload)

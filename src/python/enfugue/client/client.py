@@ -11,7 +11,6 @@ from urllib.parse import urlparse
 from pibble.api.client.webservice.jsonapi import JSONWebServiceAPIClient
 from pibble.ext.user.client.base import UserExtensionClientBase
 
-from enfugue.diffusion.plan import NodeDict, UpscaleStepDict
 from enfugue.diffusion.constants import *
 from enfugue.util import (
     logger,
@@ -154,7 +153,7 @@ class EnfugueClient(UserExtensionClientBase, JSONWebServiceAPIClient):
         refiner_prompt_2: Optional[str] = None,
         refiner_negative_prompt: Optional[str] = None,
         refiner_negative_prompt_2: Optional[str] = None,
-        nodes: Optional[List[NodeDict]] = None,
+        layers: Optional[List[Dict[str, Any]]] = None,
         model: Optional[str] = None,
         model_type: Optional[Literal["checkpoint", "model"]] = None,
         size: Optional[int] = None,
@@ -317,6 +316,8 @@ class EnfugueClient(UserExtensionClientBase, JSONWebServiceAPIClient):
             kwargs["noise_method"] = noise_method
         if noise_blend_method is not None:
             kwargs["noise_blend_method"] = noise_blend_method
+        if layers is not None:
+            kwargs["layers"] = layers
 
         logger.info(f"Invoking with keyword arguments {kwargs}")
 

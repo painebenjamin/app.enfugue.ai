@@ -8,7 +8,6 @@ import traceback
 from typing import List
 from pibble.util.log import DebugUnifiedLoggingContext
 from enfugue.util import logger
-from enfugue.diffusion.plan import DiffusionPlan
 from enfugue.diffusion.manager import DiffusionPipelineManager
 from enfugue.diffusion.constants import DEFAULT_SDXL_MODEL, DEFAULT_SDXL_REFINER
 

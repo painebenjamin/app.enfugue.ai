@@ -273,29 +273,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             elif isinstance(value, torch.Tensor):
                 logger.debug(f"{key} = {value.shape} ({value.dtype}) on {value.device}")
 
-    @classmethod
-    def scale_image(
-        cls,
-        width: int,
-        height: int,
-        image: Union[PIL.Image.Image, List[PIL.Image.Image]]
-    ) -> Union[PIL.Image.Image, List[PIL.Image.Image]]:
-        """
-        Scales a single image or a list of images
-        """
-        return_first = not isinstance(image, list)
-        if return_first:
-            image = [image]
-        for i, img in enumerate(image):
-            image_width, image_height = img.size
-            if image_width != width or image_height != height:
-                img = img.resize((width, height), resample=PIL_INTERPOLATION["lanczos"])
-            image[i] = img
-        if return_first:
-            return image[0]
-        return image
-
-    @classmethod
+    classmethod
     def open_image(cls, path: str) -> List[PIL.Image.Image]:
         """
         Opens an image or video and standardizes to a list of images
@@ -357,7 +335,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         if task_callback is None:
             task_callback = lambda msg: logger.debug(msg)
 
-        task_callback(f"Loading checkpoint file {checkpoint_path}")
+        task_callback(f"Loading checkpoint file {os.path.basename(checkpoint_path)}")
         checkpoint = load_state_dict(checkpoint_path)
 
         # Sometimes models don't have the global_step item
@@ -3247,7 +3225,6 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         negative_prompt_embeds: Optional[torch.Tensor]=None,
         output_type: Literal["latent", "pt", "np", "pil"]="pil",
         return_dict: bool=True,
-        scale_image: bool=True,
         progress_callback: Optional[Callable[[int, int, float], None]]=None,
         latent_callback: Optional[Callable[[Union[torch.Tensor, np.ndarray, List[PIL.Image.Image]]], None]]=None,
         latent_callback_steps: Optional[int]=None,
@@ -3539,17 +3516,17 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 image_uncond_prompt_embeds=None # Will be set later
             )
 
-            # Scale images if requested
-            if scale_image and image is not None and not isinstance(image, torch.Tensor):
-                image = self.scale_image(width=width, height=height, image=image)
-            if scale_image and mask is not None:
-                mask = self.scale_image(width=width, height=height, image=mask)
-
-            # Remove any alpha mask on image, convert mask to grayscale
+            # Remove any alpha mask on image, convert mask to grayscale, align tensors
             if image is not None:
-                image = [img.convert("RGB") for img in image]
+                if isinstance(image, torch.Tensor):
+                    image = image.to(device=device, dtype=encoded_prompts.dtype)
+                else:
+                    image = [img.convert("RGB") for img in image]
             if mask is not None:
-                mask = [img.convert("L") for img in mask]
+                if isinstance(mask, torch.Tensor):
+                    mask = mask.to(device=device, dtype=encoded_prompts.dtype)
+                else:
+                    mask = [img.convert("L") for img in mask]
 
             # Repeat images as necessary to get the same size
             image_length = max([
@@ -3557,11 +3534,11 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 0 if mask is None else len(mask),
             ])
 
-            if image is not None:
+            if image is not None and not isinstance(image, torch.Tensor):
                 l = len(image)
                 for i in range(image_length - l):
                     image.append(image[-1])
-            if mask is not None:
+            if mask is not None and not isinstance(mask, torch.Tensor):
                 l = len(mask)
                 for i in range(image_length - l):
                     mask.append(mask[-1])
@@ -3587,13 +3564,17 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                         prepared_mask = torch.cat([prepared_mask, p_m.unsqueeze(0)])
                         prepared_image = torch.cat([prepared_image, p_i.unsqueeze(0)])
                         init_image = torch.cat([init_image, i_i.unsqueeze(0)])
+
             elif image is not None and mask is None:
-                prepared_image = torch.Tensor()
-                for i in image:
-                    prepared_image = torch.cat([
-                        prepared_image,
-                        self.image_processor.preprocess(i).unsqueeze(0)
-                    ])
+                if isinstance(image, torch.Tensor):
+                    prepared_image = image.unsqueeze(0)
+                else:
+                    prepared_image = torch.Tensor()
+                    for i in image:
+                        prepared_image = torch.cat([
+                            prepared_image,
+                            self.image_processor.preprocess(i).unsqueeze(0)
+                        ])
 
             # Build the weight builder
             weight_builder = MaskWeightBuilder(

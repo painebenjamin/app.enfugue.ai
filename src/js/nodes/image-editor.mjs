@@ -2,12 +2,12 @@
 import { isEmpty, filterEmpty } from "../base/helpers.mjs";
 import { ElementBuilder } from "../base/builder.mjs";
 import { NodeEditorView } from "./editor.mjs";
-import { ImageView } from "../view/image.mjs";
+import { ImageView, BackgroundImageView } from "../view/image.mjs";
 import { ImageEditorNodeView } from "./image-editor/base.mjs";
 import { ImageEditorScribbleNodeView } from "./image-editor/scribble.mjs";
 import { ImageEditorPromptNodeView } from "./image-editor/prompt.mjs";
 import { ImageEditorImageNodeView } from "./image-editor/image.mjs";
-import { CurrentInvocationImageView } from "./image-editor/invocation.mjs";
+import { NoImageView, NoVideoView } from "./image-editor/common.mjs";
 
 const E = new ElementBuilder();
 
@@ -115,11 +115,16 @@ class ImageEditorView extends NodeEditorView {
 
         if (imageSource instanceof ImageView) {
             imageView = imageSource;
+        } else if (!isEmpty(imageSource)) {
+            imageView = new BackgroundImageView(this.config, imageSource, false);
         } else {
-            imageView = new ImageView(this.config, imageSource);
+            imageView = new NoImageView(this.config);
         }
 
-        await imageView.waitForLoad();
+        if (imageView instanceof ImageView) {
+            await imageView.waitForLoad();
+        }
+
         let newNode = await this.addNode(
             ImageEditorImageNodeView,
             this.getUniqueNodeName(imageName),
@@ -129,6 +134,7 @@ class ImageEditorView extends NodeEditorView {
             imageView.width,
             imageView.height
         );
+
         return newNode;
     }
 
@@ -141,23 +147,6 @@ class ImageEditorView extends NodeEditorView {
         return await this.addNode(
             ImageEditorScribbleNodeView,
             this.getUniqueNodeName(scribbleName),
-            null,
-            x,
-            y,
-            256,
-            256
-        );
-    }
-    
-    /**
-     * This is a shorthand helper for adding a prompt node.
-     * @return NodeView The added view.
-     */
-    async addPromptNode(promptName = "Prompt") {
-        let [x, y] = this.getNextNodePoint();
-        return await this.addNode(
-            ImageEditorPromptNodeView,
-            this.getUniqueNodeName(promptName),
             null,
             x,
             y,
@@ -198,5 +187,4 @@ export {
     ImageEditorNodeView,
     ImageEditorImageNodeView,
     ImageEditorScribbleNodeView,
-    ImageEditorPromptNodeView
 };

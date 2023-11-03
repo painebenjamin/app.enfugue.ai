@@ -19,7 +19,7 @@ from pibble.ext.user.database import AuthenticationToken, User
 from pibble.util.encryption import Password
 from pibble.util.helpers import OutputCatcher
 
-from enfugue.diffusion.plan import DiffusionPlan
+from enfugue.diffusion.invocation import LayeredInvocation
 
 from enfugue.database import *
 from enfugue.api.controller import *
@@ -153,7 +153,7 @@ class EnfugueAPIServerBase(
             self.manager.stop_monitor()
             self.manager.stop_engine()
 
-    def format_plan(self, plan: DiffusionPlan) -> Dict[str, Any]:
+    def format_plan(self, plan: LayeredInvocation) -> Dict[str, Any]:
         """
         Formats a plan for inserting into the database
         """
@@ -187,7 +187,7 @@ class EnfugueAPIServerBase(
                     ]
             return serialized
 
-        return replace_images(plan.get_serialization_dict())
+        return replace_images(plan.serialize())
 
     def get_plan_kwargs_from_model(
         self,
@@ -316,7 +316,7 @@ class EnfugueAPIServerBase(
     def invoke(
         self,
         user_id: int,
-        plan: DiffusionPlan,
+        plan: LayeredInvocation,
         save: bool = True,
         ui_state: Optional[str] = None,
         disable_intermediate_decoding: bool = False,

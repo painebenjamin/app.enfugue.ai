@@ -195,20 +195,34 @@ class Application {
         this.container.appendChild(await this.windows.render());
         this.container.appendChild(await this.notifications.render());
         this.container.appendChild(await this.controlsHelper.render());
-        
+
+        if (this.config.debug) console.log("Starting animations.");
         await this.startAnimations();
+        if (this.config.debug) console.log("Registering dynamic inputs.");
         await this.registerDynamicInputs();
+        if (this.config.debug) console.log("Registering download controllers.");
         await this.registerDownloadsControllers();
+        if (this.config.debug) console.log("Registering animation controllers.");
         await this.registerAnimationsControllers();
+        if (this.config.debug) console.log("Registering model controllers.");
         await this.registerModelControllers();
+        if (this.config.debug) console.log("Registering invocation controllers.");
         await this.registerInvocationControllers();
+        if (this.config.debug) console.log("Registering sample controllers.");
         await this.registerSampleControllers();
+        if (this.config.debug) console.log("Registering layer controllers.");
         await this.registerLayersControllers();
+        if (this.config.debug) console.log("Registering menu controllers.");
         await this.registerMenuControllers();
+        if (this.config.debug) console.log("Registering sidebar controllers.");
         await this.registerSidebarControllers();
+        if (this.config.debug) console.log("Starting autosave.");
         await this.startAutosave();
+        if (this.config.debug) console.log("Starting announcement check.");
         await this.startAnnouncements();
+        if (this.config.debug) console.log("Starting keepalive.");
         await this.startKeepalive();
+        if (this.config.debug) console.log("Registering authentication.");
         await this.registerLogout();
 
         window.onpopstate = (e) => this.popState(e);
@@ -218,6 +232,9 @@ class Application {
         document.addEventListener("keypress", (e) => this.onKeyPress(e));
         document.addEventListener("keyup", (e) => this.onKeyUp(e));
         document.addEventListener("keydown", (e) => this.onKeyDown(e));
+
+        if (this.config.debug) console.log("Application initialization complete.");
+
         this.publish("applicationReady");
         this.container.classList.remove("loading");
     }

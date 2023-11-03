@@ -135,7 +135,6 @@ enfugue-node.minimized {
 }
 
 enfugue-node.locked {
-    cursor: not-allowed !important;
     pointer-events: none !important;
     opacity: 0.8 !important;
 }
@@ -385,6 +384,29 @@ enfugue-node-editor.image-editor enfugue-node-contents {
     overflow: hidden;
 }
 
+enfugue-node-editor.image-editor enfugue-node-contents enfugue-placeholder-view {
+    overflow: hidden;
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    flex-flow: column nowrap;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+}
+
+enfugue-node-editor.image-editor enfugue-node-contents enfugue-placeholder-view i {
+    font-size: 48px;
+}
+
+enfugue-node-editor.image-editor enfugue-node-contents enfugue-placeholder-view p {
+    padding: 10px;
+    color: var(--theme-color-primary);
+}
+
 enfugue-node-editor.image-editor enfugue-node-contents enfugue-background-image-view {
     display: block;
     width: 100%;
@@ -481,6 +503,16 @@ enfugue-node-editor.image-editor enfugue-node-canvas {
     background: none;
     border: 1px solid var(--dark-color);
     box-sizing: content-box;
+}
+
+enfugue-node-editor.image-editor enfugue-node-canvas > enfugue-scribble-view {
+    z-index: 2;
+    mix-blend-mode: darken;
+    opacity: 0.8;
+}
+
+enfugue-node-editor.image-editor enfugue-node-canvas > enfugue-scribble-view.locked {
+    pointer-events: none;
 }
 
 enfugue-node-editor.image-editor enfugue-node-canvas enfugue-image-editor-grid {

@@ -142,43 +142,6 @@ class ModelFormView extends FormView {
                 "class": SchedulerInputView,
                 "label": "Scheduler"
             },
-            "width": {
-                "label": "Width",
-                "class": NumberInputView,
-                "config": {
-                    "tooltip": "The width of the canvas in pixels.",
-                    "min": 128,
-                    "max": 16384,
-                    "step": 8,
-                    "value": null
-                }
-            },
-            "height": {
-                "label": "Height",
-                "class": NumberInputView,
-                "config": {
-                    "tooltip": "The height of the canvas in pixels.",
-                    "min": 128,
-                    "max": 16384,
-                    "step": 8,
-                    "value": null
-                }
-            },
-            "chunking_size": {
-                "label": "Chunk Size",
-                "class": NumberInputView,
-                "config": {
-                    "tooltip": "<p>The number of pixels to move the frame when doing chunked diffusion.</p><p>When this number is greater than 0, the engine will only ever process a square in the size of the configured model size at once. After each square, the frame will be moved by this many pixels along either the horizontal or vertical axis, and then the image is re-diffused. When this number is 0, chunking is disabled, and the entire canvas will be diffused at once.</p><p>Disabling this (setting it to 0) can have varying visual results, but a guaranteed result is drastically increased VRAM usage for large images. A low number can produce more detailed results, but can be noisy, and takes longer to process. A high number is faster to process, but can have poor results especially along frame boundaries. The recommended value is set by default.</p>",
-                    "min": 0,
-                    "max": 2048,
-                    "step": 8,
-                    "value": null
-                }
-            },
-            "chunking_mask_type": {
-                "label": "Chunking Mask",
-                "class": MaskTypeInputView
-            },
             "num_inference_steps": {
                 "label": "Inference Steps",
                 "class": NumberInputView,
@@ -309,9 +272,9 @@ class AbridgedModelFormView extends ModelFormView {
     static canCancel = false;
 
     /**
-     * @var boolean Start hidden
+     * @var boolean No hiding
      */
-    static collapseFieldSets = true;
+    static collapseFieldSets = false;
 
     /**
      * @var object one fieldset describes all inputs

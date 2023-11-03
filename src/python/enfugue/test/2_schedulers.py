@@ -7,7 +7,6 @@ import traceback
 from typing import List, Any
 from pibble.util.log import DebugUnifiedLoggingContext
 from enfugue.util import logger
-from enfugue.diffusion.plan import DiffusionPlan
 from enfugue.diffusion.manager import DiffusionPipelineManager
 
 SCHEDULERS = [

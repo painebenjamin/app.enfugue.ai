@@ -15,14 +15,6 @@ const E = new ElementBuilder();
  */
 class ModelTensorRTTableView extends TableView {
     /**
-     * Add a parameter for the engine build callable
-     */
-    constructor(config, data, buildEngine) {
-        super(config, data);
-        this.buildEngine = buildEngine;
-    }
-
-    /**
      * @var bool Disable sorting.
      */
     static canSort = false;
@@ -51,6 +43,14 @@ class ModelTensorRTTableView extends TableView {
             }
         }
     };
+
+    /**
+     * Add a parameter for the engine build callable
+     */
+    constructor(config, data, buildEngine) {
+        super(config, data);
+        this.buildEngine = buildEngine;
+    }
 };
 
 /**
@@ -236,13 +236,17 @@ class ModelPickerFormsView extends View {
     static tagName = "enfugue-model-picker";
 
     /**
+     * @var string Text in the button
+     */
+    static showMoreText = "More Model Configuration";
+
+    /**
      * Constructor registers forms
      */
-    constructor(config, pickerForm, configForm) {
+    constructor(config, pickerForm, onShowMore) {
         super(config);
         this.pickerForm = pickerForm;
-        this.configForm = configForm;
-        this.preConfigured = false;
+        this.onShowMore = onShowMore;
     }
 
     /**
@@ -250,17 +254,18 @@ class ModelPickerFormsView extends View {
      */
     async build() {
         let node = await super.build(),
-            showMore = E.button().content("Adaptations and Modifications");
+            showMore = E.button().content(this.constructor.showMoreText).on("click", (e) => {
+                e.stopPropagation();
+                this.onShowMore();
+            });
 
         node.content(
             await this.pickerForm.getNode(),
-            await this.configForm.getNode(),
             showMore
         );
         return node;
     }
 }
-
 
 /**
  * The ModelPickerController appends the model chooser input to the image editor view.
@@ -276,6 +281,21 @@ class ModelPickerController extends Controller {
      * @var int The height of the TensorRT Status Window
      */
     static tensorRTStatusWindowHeight = 750;
+
+    /**
+     * @var int The width of the model config window
+     */
+    static modelWindowWidth = 500;
+    
+    /**
+     * @var int The height of the model config window
+     */
+    static modelWindowHeight = 500;
+
+    /**
+     * @var string title of the model window
+     */
+    static modelWindowTitle = "More Model Configuration";
 
     /**
      * Get state from the model picker
@@ -377,6 +397,28 @@ class ModelPickerController extends Controller {
     }
 
     /**
+     * Shows the abridged model form
+     */
+    async showModelForm() {
+        if (this.engine.modelType === "model") {
+            let modelData = await this.model.DiffusionModel.query({name: this.engine.model});
+            this.application.modelManager.showEditModel(modelData);
+        } else {
+            if (!isEmpty(this.modelFormWindow)) {
+                this.modelFormWindow.focus();
+            } else {
+                this.modelFormWindow = await this.spawnWindow(
+                    this.contstructor.modelWindowTitle,
+                    this.abridgedModelFormView,
+                    this.constructor.modelWindowWidth,
+                    this.constructor.modelWindowHeight
+                );
+                this.modelFormWindow.onClose(() => { delete this.modelFormWindow; });
+            }
+        }
+    }
+
+    /**
      * When initialized, append form to container and register callbacks.
      */
     async initialize() {
@@ -385,10 +427,11 @@ class ModelPickerController extends Controller {
 
         this.modelPickerFormView = new ModelPickerFormView(this.config);
         this.abridgedModelFormView = new AbridgedModelFormView(this.config);
+
         this.formsView = new ModelPickerFormsView(
             this.config,
             this.modelPickerFormView,
-            this.abridgedModelFormView
+            () => this.showModelForm()
         );
 
         this.modelPickerFormView.onSubmit(async (values) => {
@@ -399,7 +442,6 @@ class ModelPickerController extends Controller {
                 this.engine.model = selectedName;
                 this.engine.modelType = selectedType;
                 if (selectedType === "model") {
-                    this.abridgedModelFormView.hide();
                     try {
                         let fullModel = await this.model.DiffusionModel.query({name: selectedName}),
                             modelStatus = await fullModel.getStatus(),
@@ -440,7 +482,7 @@ class ModelPickerController extends Controller {
                                 this.notify("warn", "Unexpected Configuration", "You've selected a refining model as your base model. This will work as expected for refining, but if you aren't refining, results will be poorer than desired. Expand 'Additional Models' and put your model under 'Refining Checkpoint' to only use it when refining.");
                             }
                         }
-                        this.abridgedModelFormView.show();
+
                         this.abridgedModelFormView.submit();
                         this.modelPickerFormView.setTensorRTStatus({supported: false});
                         this.publish("modelPickerChange", {"status": modelMetadata, "defaultConfiguration": {}});

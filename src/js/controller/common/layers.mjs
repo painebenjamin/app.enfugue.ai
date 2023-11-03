@@ -432,6 +432,7 @@ class LayersController extends Controller {
         if (layerToRemove.isActive) {
             this.layerOptions.resetForm();
         }
+        this.layersChanged();
     }
 
     /**
@@ -466,6 +467,9 @@ class LayersController extends Controller {
                 this.layersView.node.remove(this.draggedLayer.node);
                 this.layersView.node.insert(targetIndex + 1, this.draggedLayer.node);
                 this.layersView.node.render();
+
+                // Trigger callbacks
+                this.layersChanged();
             }
         }
         this.draggedLayer = null;
@@ -536,6 +540,7 @@ class LayersController extends Controller {
         this.layers = [];
         this.layersView.emptyLayers();
         this.layerOptions.resetForm();
+        this.layersChanged();
     }
 
     /**
@@ -571,17 +576,21 @@ class LayersController extends Controller {
         newLayer.editorNode.onClose(() => {
             this.removeLayer(newLayer, false);
         });
+        newLayer.form.onSubmit(() => {
+            this.layersChanged();
+        });
         this.layers.push(newLayer);
         await this.layersView.addLayer(newLayer, this.layers.length === 1);
         if (activate) {
             this.activateLayer(this.layers.length-1);
         }
+        this.layersChanged();
     }
 
     /**
      * Adds an image layer
      */
-    async addImageLayer(imageData, activate = true, imageNode = null, name = "Image") {
+    async addImageLayer(imageData, activate = true, imageNode = null, name = "Image") {4
         if (isEmpty(imageNode)) {
             imageNode = await this.images.addImageNode(imageData, name);
         }
@@ -591,21 +600,19 @@ class LayersController extends Controller {
 
         imageForm.onSubmit((values) => {
             let imageRoles = [];
-            if (values.inpaint) {
-                imageRoles.push("Inpainting");
-            } else if (values.infer) {
-                imageRoles.push("Initialization");
+            if (values.denoise) {
+                imageRoles.push("Image to Image");
             }
             if (values.imagePrompt) {
                 imageRoles.push("Prompt");
             }
-            if (!isEmpty(values.controlnetUnits)) {
-                let controlNets = values.controlnetUnits.map((unit) => unit.controlnet),
+            if (values.control && !isEmpty(values.controlnetUnits)) {
+                let controlNets = values.controlnetUnits.map((unit) => isEmpty(unit.controlnet) ? "canny" : unit.controlnet),
                     uniqueControlNets = controlNets.filter((v, i) => controlNets.indexOf(v) === i);
                 imageRoles.push(`ControlNet (${uniqueControlNets.join(", ")})`);
             }
             let subtitle = isEmpty(imageRoles)
-                ? null
+                ? "Passthrough"
                 : imageRoles.join(", ");
             imageNode.updateOptions(values);
             imageLayer.setSubtitle(subtitle);
@@ -691,6 +698,13 @@ class LayersController extends Controller {
         await this.addLayerByState({...existingLayerState, ...newNodeState}, newNode);
 
         this.activateLayer(this.layers.length-1);
+    }
+
+    /**
+     * Fired when a layer is changed
+     */
+    async layersChanged() {
+        this.publish("layersChanged", this.getState().layers);
     }
 
     /**

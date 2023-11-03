@@ -1,13 +1,8 @@
 from __future__ import annotations
 
 import io
-import os
-import sys
-import math
-
 import inspect
 
-from random import randint
 from contextlib import contextmanager, ExitStack
 
 from PIL.PngImagePlugin import PngInfo
@@ -29,22 +24,18 @@ from typing import (
     Iterator,
     TYPE_CHECKING,
 )
-from typing_extensions import (
-    TypedDict,
-    NotRequired
-)
 
-from pibble.util.strings import get_uuid, Serializer
+from pibble.util.strings import Serializer
 
 from enfugue.util import (
     logger,
     feather_mask,
     fit_image,
-    images_are_equal,
     save_frames_or_image,
     redact_images_from_metadata,
     merge_tokens,
 )
+
 from enfugue.diffusion.constants import *
 
 if TYPE_CHECKING:
@@ -55,515 +46,12 @@ if TYPE_CHECKING:
 
 __all__ = ["LayeredInvocation"]
 
-#
-#    def execute(
-#        self,
-#        pipeline: DiffusionPipelineManager,
-#        use_cached: bool = True,
-#        **kwargs: Any,
-#    ) -> StableDiffusionPipelineOutput:
-#        """
-#        Executes this pipeline step.
-#        """
-#        if hasattr(self, "result") and use_cached:
-#            return self.result
-#
-#        samples = kwargs.pop("samples", 1)
-#
-#        if isinstance(self.image, DiffusionStep):
-#            image = self.image.execute(pipeline, samples=1, **kwargs)["images"][0]
-#        elif isinstance(self.image, str):
-#            image = get_frames_or_image_from_file(self.image)
-#        else:
-#            image = self.image
-#
-#        if isinstance(self.mask, DiffusionStep):
-#            mask = self.mask.execute(pipeline, samples=1, **kwargs)["images"][0]
-#        elif isinstance(self.mask, str):
-#            mask = get_frames_or_mask_from_file(self.mask)
-#        else:
-#            mask = self.mask
-#        
-#        if self.ip_adapter_images is not None:
-#            ip_adapter_images: List[Tuple[Union[PIL.Image.Image, List[PIL.Image.Image]], float]] = []
-#            for adapter_image_dict in self.ip_adapter_images:
-#                adapter_image = adapter_image_dict["image"]
-#
-#                if isinstance(adapter_image, DiffusionStep):
-#                    adapter_image = adapter_image.execute(pipeline, samples=1, **kwargs)["images"][0]
-#                elif isinstance(adapter_image, str):
-#                    adapter_image = get_frames_or_image_from_file(adapter_image)
-#
-#                adapter_scale = adapter_image_dict.get("scale", 1.0)
-#                ip_adapter_images.append((
-#                    adapter_image,
-#                    adapter_scale
-#                ))
-#        else:
-#            ip_adapter_images = None # type: ignore[assignment]
-#
-#        if self.control_images is not None:
-#            control_images: Dict[str, List[Tuple[Union[PIL.Image.Image, List[PIL.Image.Image]], float, Optional[float], Optional[float]]]] = {}
-#            for control_image_dict in self.control_images:
-#                control_image = control_image_dict["image"]
-#                controlnet = control_image_dict["controlnet"]
-#
-#                if isinstance(control_image, DiffusionStep):
-#                    control_image = control_image.execute(pipeline, samples=1, **kwargs)["images"][0]
-#                elif isinstance(control_image, str):
-#                    control_image = get_frames_or_image_from_file(control_image)
-#
-#                conditioning_scale = control_image_dict.get("scale", 1.0)
-#                conditioning_start = control_image_dict.get("start", None)
-#                conditioning_end = control_image_dict.get("end", None)
-#
-#                if isinstance(control_image, list):
-#                    with pipeline.control_image_processor.processor(controlnet) as process:
-#                        for i, img in enumerate(control_image):
-#                            if control_image_dict.get("process", True):
-#                                img = process(img)
-#                            elif img_dict.get("invert", False):
-#                                img = PIL.ImageOps.invert(img)
-#                            control_image[i] = img
-#                else:
-#                    if control_image_dict.get("process", True):
-#                        control_image = pipeline.control_image_processor(controlnet, control_image)
-#                    elif control_image_dict.get("invert", False):
-#                        control_image = PIL.ImageOps.invert(control_image)
-#
-#                if controlnet not in control_images:
-#                    control_images[controlnet] = [] # type: ignore[assignment]
-#
-#                control_images[controlnet].append((
-#                    control_image,
-#                    conditioning_scale,
-#                    conditioning_start,
-#                    conditioning_end,
-#                ))
-#        else:
-#            control_images = None # type: ignore[assignment]
-#
-#        if (
-#           not self.prompt and
-#           not mask and
-#           not control_images and
-#           not ip_adapter_images
-#        ):
-#            if image:
-#                from diffusers.pipelines.stable_diffusion import StableDiffusionPipelineOutput
-#                if isinstance(image, list):
-#                    if self.remove_background:
-#                        with pipeline.background_remover.remover() as remove_background:
-#                            for i, img in image:
-#                                image[i] = remove_background(img)
-#
-#                    given_frames = len(image)
-#                    requested_frames = kwargs.get("animation_frames", given_frames)
-#
-#                    for i in range(requested_frames - given_frames - 1):
-#                        image.append(image[-1].copy())
-#
-#                    self.result = StableDiffusionPipelineOutput(
-#                        images=image, nsfw_content_detected=[False] * requested_frames
-#                    )
-#                else:
-#                    if self.remove_background:
-#                        with pipeline.background_remover.remover() as remove_background:
-#                            image = remove_background(image)
-#
-#                    samples = kwargs.get("num_results_per_prompt", 1)
-#                    self.result = StableDiffusionPipelineOutput(
-#                        images=[image] * samples, nsfw_content_detected=[False] * samples
-#                    )
-#
-#                return self.result
-#            raise ValueError("No prompt or image in this step; cannot invoke or pass through.")
-#
-#        invocation_kwargs = {**kwargs, **self.kwargs}
-#
-#        image_scale = 1
-#        pipeline_size = pipeline.inpainter_size if mask is not None else pipeline.size
-#        image_width, image_height, image_background, image_position = None, None, None, None
-#
-#        if image is not None:
-#            if isinstance(image, list):
-#                image_width, image_height = image[0].size
-#                if self.remove_background and self.fill_background:
-#                    # Execute remove background here
-#                    with pipeline.background_remover.remover() as remove_background:
-#                        for i, img in enumerate(image):
-#                            img = remove_background(img)
-#                            white = PIL.Image.new("RGB", img.size, (255, 255, 255))
-#                            black = PIL.Image.new("RGB", img.size, (0, 0, 0))
-#                            img_mask = white.copy()
-#                            alpha = img.split()[-1]
-#                            alpha_clamp = PIL.Image.eval(alpha, lambda a: 255 if a > 128 else 0)
-#                            img_mask.paste(black, mask=alpha)
-#                            if mask is not None:
-#                                if not isinstance(mask, list):
-#                                    mask = [mask]
-#                                if i > len(mask):
-#                                    mask.append(white.copy())
-#                                assert mask[i].size == img[i].size, "img and mask must be the same size"
-#                                # Merge mask and alpha
-#                                img_mask.paste(mask[i])
-#                                inverse_alpha = PIL.Image.eval(alpha_clamp, lambda a: 255 - a)
-#                                img_mask.paste(white, mask=inverse_alpha)
-#                                mask[i] = img_mask
-#                            else:
-#                                mask = [img_mask]
-#            else:
-#                image_width, image_height = image.size
-#                if self.remove_background and self.fill_background:
-#                    # Execute remove background here
-#                    with pipeline.background_remover.remover() as remove_background:
-#                        image = remove_background(image)
-#                        white = PIL.Image.new("RGB", image.size, (255, 255, 255))
-#                        black = PIL.Image.new("RGB", image.size, (0, 0, 0))
-#                        image_mask = white.copy()
-#                        alpha = image.split()[-1]
-#                        alpha_clamp = PIL.Image.eval(alpha, lambda a: 255 if a > 128 else 0)
-#                        image_mask.paste(black, mask=alpha)
-#                        if mask is not None:
-#                            if isinstance(mask, list):
-#                                mask = mask[0]
-#                            assert mask.size == image.size, "image and mask must be the same size"
-#                            # Merge mask and alpha
-#                            image_mask.paste(mask)
-#                            inverse_alpha = PIL.Image.eval(alpha_clamp, lambda a: 255 - a)
-#                            image_mask.paste(white, mask=inverse_alpha)
-#                        mask = image_mask
-#            invocation_kwargs["image"] = image
-#
-#        if mask is not None:
-#            if isinstance(mask, list):
-#                mask_width, mask_height = mask[0].size
-#            else:
-#                mask_width, mask_height = mask.size
-#
-#            if (
-#                self.crop_inpaint
-#                and (mask_width > pipeline_size or mask_height > pipeline.size)
-#                and image is not None
-#            ):
-#                # Make sure image and mask are the same type/length
-#                if isinstance(image, list):
-#                    if not isinstance(mask, list):
-#                        mask = [mask]
-#                    for i in range(len(image)-len(mask)):
-#                        mask.append(mask[-1].copy())
-#
-#                # Find bounding box
-#                (x0, y0) = (0, 0)
-#                (x1, y1) = (0, 0)
-#                for mask_image in (mask if isinstance(mask, list) else [mask]):
-#                    (frame_x0, frame_y0), (frame_x1, frame_y1) = self.get_inpaint_bounding_box(pipeline_size)
-#                    x0 = max(x0, frame_x0)
-#                    y0 = max(y0, frame_y0)
-#                    x1 = max(x1, frame_x1)
-#                    y1 = max(y1, frame_y1)
-#
-#                bbox_width = x1 - x0
-#                bbox_height = y1 - y0
-#                pixel_ratio = (bbox_height * bbox_width) / (mask_width * mask_height)
-#                pixel_savings = (1.0 - pixel_ratio) * 100
-#
-#                if pixel_ratio < 0.75:
-#                    logger.debug(f"Calculated pixel area savings of {pixel_savings:.1f}% by cropping to ({x0}, {y0}), ({x1}, {y1}) ({bbox_width}px by {bbox_height}px)")
-#                    # Disable refining
-#                    invocation_kwargs["refiner_strength"] = 0
-#                    invocation_kwargs["refiner_start"] = 1
-#                    image_position = (x0, y0)
-#                    if isinstance(image, list):
-#                        image_background = [
-#                            img.copy()
-#                            for img in image
-#                        ]
-#                        image = [
-#                            img.crop((x0, y0, x1, y1))
-#                            for img in image
-#                        ]
-#                        mask = [
-#                            img.crop((x0, y0, x1, y1))
-#                            for img in mask
-#                        ]
-#                    else:
-#                        image_background = image.copy()
-#                        image = image.crop((x0, y0, x1, y1))
-#                        mask = mask.crop((x0, y0, x1, y1))
-#
-#                    image_width, image_height = bbox_width, bbox_height
-#                    invocation_kwargs["image"] = image  # Override what was set above
-#                else:
-#                    logger.debug(
-#                        f"Calculated pixel area savings of {pixel_savings:.1f}% are insufficient, will not crop"
-#                    )
-#
-#            invocation_kwargs["mask"] = mask
-#
-#        if control_images is not None:
-#            for controlnet_name in control_images:
-#                for i, (
-#                    control_image,
-#                    conditioning_scale,
-#                    conditioning_start,
-#                    conditioning_end
-#                ) in enumerate(control_images[controlnet_name]):
-#                    if image_position is not None and image_width is not None and image_height is not None:
-#                        # Also crop control image
-#                        x0, y0 = image_position
-#                        x1 = x0 + image_width
-#                        y1 = y0 + image_height
-#                        if isinstance(control_image, list):
-#                            control_image = [
-#                                img.crop((x0, y0, x1, y1))
-#                                for img in control_image
-#                            ]
-#                        else:
-#                            control_image = control_image.crop((x0, y0, x1, y1))
-#                        # Override control image in list
-#                        control_images[controlnet_name][i] = (control_image, conditioning_scale, conditioning_start, conditioning_end)
-#                    # Assert size
-#                    if image_width is None or image_height is None:
-#                        if isinstance(control_image, list):
-#                            image_width, image_height = control_image[0].size
-#                        else:
-#                            image_width, image_height = control_image.size
-#                    elif isinstance(control_image, list):
-#                        for img in control_image:
-#                            this_width, this_height = img.size
-#                            assert image_width == this_width and image_height == this_height, "all images must be the same size"
-#                    else:
-#                        this_width, this_height = control_image.size
-#                        assert image_width == this_width and image_height == this_height, "all images must be the same size"
-#
-#            invocation_kwargs["control_images"] = control_images
-#            if kwargs.get("animation_frames", None):
-#                pipeline.animator_controlnets = list(control_images.keys())
-#            elif mask is not None:
-#                pipeline.inpainter_controlnets = list(control_images.keys())
-#            else:
-#                pipeline.controlnets = list(control_images.keys())
-#
-#        if ip_adapter_images is not None:
-#            invocation_kwargs["ip_adapter_images"] = ip_adapter_images
-#
-#        if self.width is not None and self.height is not None and image_width is None and image_height is None:
-#            image_width, image_height = self.width, self.height
-#
-#        if image_width is None or image_height is None:
-#            logger.warning("No known invocation size, defaulting to engine size")
-#            image_width, image_height = pipeline_size, pipeline_size
-#
-#        if image_width is not None and image_width < pipeline_size:
-#            image_scale = pipeline_size / image_width
-#        if image_height is not None and image_height < pipeline_size:
-#            image_scale = max(image_scale, pipeline_size / image_height)
-#
-#        if image_scale > MAX_IMAGE_SCALE or not self.scale_to_model_size:
-#            # Refuse it's too oblong. We'll just calculate at the appropriate size.
-#            image_scale = 1
-#
-#        invocation_kwargs["width"] = 8 * math.ceil((image_width * image_scale) / 8)
-#        invocation_kwargs["height"] = 8 * math.ceil((image_height * image_scale) / 8)
-#
-#        if image_scale > 1:
-#            # scale input images up
-#            for key in ["image", "mask"]:
-#                if invocation_kwargs.get(key, None) is not None:
-#                    invocation_kwargs[key] = self.scale_image(invocation_kwargs[key], image_scale)
-#            for controlnet_name in invocation_kwargs.get("control_images", {}):
-#                for i, (control_image, conditioning_scale) in enumerate(invocation_kwargs["control_images"].get(controlnet_name, [])):
-#                    invocation_kwargs["control_images"][controlnet_name][i] = (
-#                        self.scale_image(control_image, image_scale),
-#                        conditioning_scale
-#                    )
-#
-#        latent_callback = invocation_kwargs.get("latent_callback", None)
-#        if image_background is not None and image_position is not None and latent_callback is not None:
-#            # Hijack latent callback to paste onto background
-#            def pasted_latent_callback(images: List[PIL.Image.Image]) -> None:
-#                images = [
-#                    self.paste_inpaint_image(image_background, image, image_position) # type: ignore
-#                    for image in images
-#                ]
-#                latent_callback(images)
-#
-#            invocation_kwargs["latent_callback"] = pasted_latent_callback
-#
-#        result = pipeline(**invocation_kwargs)
-#
-#        if image_background is not None and image_position is not None:
-#            for i, image in enumerate(result["images"]):
-#                result["images"][i] = self.paste_inpaint_image(
-#                    image_background[i] if isinstance(image_background, list) else image_background,
-#                    image,
-#                    image_position
-#                )
-#
-#        if self.remove_background and not self.fill_background:
-#            with pipeline.background_remover.remover() as remove_background:
-#                for i, image in enumerate(result["images"]):
-#                    result["images"][i] = remove_background(image)
-#
-#        if image_scale > 1:
-#            for i, image in enumerate(result["images"]):
-#                result["images"][i] = self.scale_image(image, 1 / image_scale)
-#
-#        self.result = result
-#        return result
-#
-#    @staticmethod
-#    def deserialize_dict(step_dict: Dict[str, Any]) -> DiffusionStep:
-#        """
-#        Given a serialized dict, instantiate a diffusion step
-#        """
-#        kwargs: Dict[str, Any] = {}
-#        for key in [
-#            "name",
-#            "prompt",
-#            "prompt_2",
-#            "negative_prompt",
-#            "negative_prompt_2",
-#            "strength",
-#            "num_inference_steps",
-#            "guidance_scale",
-#            "refiner_start",
-#            "refiner_strength",
-#            "refiner_guidance_scale",
-#            "refiner_aesthetic_score",
-#            "refiner_negative_aesthetic_score",
-#            "refiner_prompt",
-#            "refiner_prompt_2",
-#            "refiner_negative_prompt",
-#            "refiner_negative_prompt_2",
-#            "width",
-#            "height",
-#            "fill_background",
-#            "remove_background",
-#            "scale_to_model_size",
-#            "crop_inpaint",
-#            "inpaint_feather",
-#            "ip_adapter_plus",
-#            "ip_adapter_face",
-#        ]:
-#            if key in step_dict:
-#                kwargs[key] = step_dict[key]
-#
-#        deserialized_children = [
-#            DiffusionStep.deserialize_dict(child)
-#            for child in step_dict.get("children", [])
-#        ]
-#
-#        for key in ["image", "mask"]:
-#            if key not in step_dict:
-#                continue
-#            if isinstance(step_dict[key], int):
-#                kwargs[key] = deserialized_children[step_dict[key]]
-#            elif isinstance(step_dict[key], str) and os.path.exists(step_dict[key]):
-#                kwargs[key] = get_frames_or_image_from_file(step_dict[key])
-#            else:
-#                kwargs[key] = step_dict[key]
-#
-#        if "control_images" in step_dict:
-#            control_images: List[Dict[str, Any]] = []
-#            for control_image_dict in step_dict["control_images"]:
-#                control_image = control_image_dict["image"]
-#
-#                if isinstance(control_image, int):
-#                    control_image = deserialized_children[control_image]
-#                elif isinstance(control_image, str):
-#                    control_image = get_frames_or_image_from_file(control_image)
-#
-#                control_images.append({
-#                    "image": control_image,
-#                    "controlnet": control_image_dict["controlnet"],
-#                    "scale": control_image_dict.get("scale", 1.0),
-#                    "start": control_image_dict.get("start", None),
-#                    "end": control_image_dict.get("end", None),
-#                    "process": control_image_dict.get("process", True),
-#                    "invert": control_image_dict.get("invert", False)
-#                })
-#            kwargs["control_images"] = control_images
-#
-#        if "ip_adapter_images" in step_dict:
-#            ip_adapter_images: List[Dict[str, Any]] = []
-#            for ip_adapter_image_dict in step_dict["ip_adapter_images"]:
-#                ip_adapter_image = ip_adapter_image_dict["image"]
-#
-#                if isinstance(ip_adapter_image, int):
-#                    ip_adapter_image = deserialized_children[ip_adapter_image]
-#                elif isinstance(ip_adapter_image, str):
-#                    ip_adapter_image = get_frames_or_image_from_file(ip_adapter_image)
-#
-#                ip_adapter_images.append({
-#                    "image": ip_adapter_image,
-#                    "scale": ip_adapter_image_dict.get("scale", 1.0),
-#                })
-#            kwargs["ip_adapter_images"] = ip_adapter_images
-#
-#        return DiffusionStep(**kwargs)
-#
-#class DiffusionNode:
-#    """
-#    A diffusion node has a step that may be recursive, combined with bounds.
-#    """
-#    def __init__(self, bounds: List[Tuple[int, int]], step: DiffusionStep) -> None:
-#        self.bounds = bounds
-#        self.step = step
-#
-#    def resize_image(self, image: PIL.Image.Image) -> PIL.Image.Image:
-#        """
-#        Resizes the image to fit the bounds.
-#        """
-#        x, y = self.bounds[0]
-#        w, h = self.bounds[1]
-#        return image.resize((w - x, h - y))
-#
-#    def get_serialization_dict(self, image_directory: Optional[str] = None) -> Dict[str, Any]:
-#        """
-#        Gets the step's dict and adds bounds.
-#        """
-#        step_dict = self.step.get_serialization_dict(image_directory)
-#        step_dict["bounds"] = self.bounds
-#        return step_dict
-#
-#    def execute(
-#        self,
-#        pipeline: DiffusionPipelineManager,
-#        **kwargs: Any,
-#    ) -> StableDiffusionPipelineOutput:
-#        """
-#        Passes through the execution to the step.
-#        """
-#        return self.step.execute(pipeline, **kwargs)
-#
-#    @property
-#    def name(self) -> str:
-#        """
-#        Pass-through the step name
-#        """
-#        return self.step.name
-#
-#    @staticmethod
-#    def deserialize_dict(step_dict: Dict[str, Any]) -> DiffusionNode:
-#        """
-#        Given a serialized dict, instantiate a diffusion Node
-#        """
-#        bounds = step_dict.pop("bounds", None)
-#        if bounds is None:
-#            raise TypeError("Bounds are required")
-#
-#        return DiffusionNode(
-#            [(int(bounds[0][0]), int(bounds[0][1])), (int(bounds[1][0]), int(bounds[1][1]))],
-#            DiffusionStep.deserialize_dict(step_dict),
-#        )
-@dataclass(frozen=True)
+@dataclass
 class LayeredInvocation:
     """
     A serializable class holding all vars for an invocation
     """
-    # Required
+    # Dimensions, required
     width: int
     height: int
     # Model args
@@ -625,7 +113,7 @@ class LayeredInvocation:
     mask: Optional[Union[Image, str]]=None
     crop_inpaint: bool=True
     inpaint_feather: int=32
-    fill_background: bool=True
+    outpaint: bool=True
     # Refining
     refiner_start: Optional[float]=None
     refiner_strength: Optional[float]=None
@@ -866,7 +354,11 @@ class LayeredInvocation:
         return fitted_image, image_mask
 
     @classmethod
-    def assemble(cls, **kwargs: Any) -> DiffusionPipelineInvocation:
+    def assemble(
+        cls,
+        size: int=512,
+        **kwargs: Any
+    ) -> DiffusionPipelineInvocation:
         """
         Assembles an invocation from layers, standardizing arguments
         """
@@ -876,26 +368,58 @@ class LayeredInvocation:
         ])
         ignored_kwargs = set(list(kwargs.keys())) - set(list(invocation_kwargs.keys()))
 
+        # Add directly passed images to layers
         layers = invocation_kwargs.pop("layers", [])
 
         if "image" in ignored_kwargs:
             layers.append({"image": kwargs["image"]})
             ignored_kwargs -= {"image"}
+
         if "ip_adapter_images" in ignored_kwargs:
             for image in kwargs["ip_adapter_images"]:
                 if isinstance(image, dict):
                     layers.append(image)
                 else:
-                    layers.append({"image": image})
+                    layers.append({"image": image, "ip_adapter_scale": 1.0})
             ignored_kwargs -= {"ip_adapter_images"}
+
         if "control_images" in ignored_kwargs:
             layers.extend(kwargs["control_images"])
             ignored_kwargs -= {"control_images"}
 
+        # Reassign layers
         invocation_kwargs["layers"] = layers
+
+        # Gather size of images for defaults
+        image_width, image_height = 0, 0
+        for layer in layers:
+            if (
+                layer.get("image", None) is not None and
+                (
+                    layer.get("denoise", False) or
+                    (
+                        not layer.get("ip_adapter_scale", None) and
+                        not layer.get("control_units", [])
+                    )
+                )
+            ):
+                layer_x = layer.get("x", 0)
+                layer_y = layer.get("y", 0)
+                image_w, image_h = layer["image"].size
+                layer_w = layer.get("w", image_w)
+                layer_h = layer.get("h", image_h)
+                image_width = max(image_width, layer_x + layer_w)
+                image_height = max(image_height, layer_y + layer_h)
+
+        # Check sizes
+        if not invocation_kwargs.get("width", None):
+            invocation_kwargs["width"] = image_width if image_width else size
+        if not invocation_kwargs.get("height", None):
+            invocation_kwargs["height"] = image_height if image_height else size
 
         if ignored_kwargs:
             logger.warning(f"Ignored keyword arguments: {ignored_kwargs}")
+
         return cls(**invocation_kwargs)
 
     @classmethod
@@ -1054,6 +578,7 @@ class LayeredInvocation:
         pipeline: DiffusionPipelineManager,
         intermediate_dir: Optional[str]=None,
         raise_when_unused: bool=True,
+        task_callback: Optional[Callable[[str], None]]=None,
         **kwargs: Any
     ) -> Dict[str, Any]:
         """
@@ -1069,6 +594,9 @@ class LayeredInvocation:
         invocation_image = None
 
         if self.layers:
+            if task_callback is not None:
+                task_callback("Pre-processing layers")
+
             # Blank images used for merging
             black = Image.new("1", (self.width, self.height), (0))
             white = Image.new("1", (self.width, self.height), (1))
@@ -1236,11 +764,17 @@ class LayeredInvocation:
 
             # Evaluate mask
             (mask_max, mask_min) = invocation_mask.getextrema()
-            if mask_max == mask_min == 0 and raise_when_unused:
+            if mask_max == mask_min == 0:
                 # Nothing to do
-                raise IOError("Nothing to do - canvas is covered by non-denoised images. Either modify the canvas such that there is blank space to be filled, enable denoising on an image on the canvas, or add inpainting.")
+                if raise_when_unused:
+                    raise IOError("Nothing to do - canvas is covered by non-denoised images. Either modify the canvas such that there is blank space to be filled, enable denoising on an image on the canvas, or add inpainting.")
+                # Might have no invocation
+                invocation_mask = None
             elif mask_max == mask_min == 255:
                 # No inpainting
+                invocation_mask = None
+            elif not self.outpaint and not mask:
+                # Disabled outpainting
                 invocation_mask = None
 
         # Evaluate prompts
@@ -1316,8 +850,8 @@ class LayeredInvocation:
         results = {**self.minimize_dict({**refiner_prompts, **self.kwargs})}
         if invocation_image:
             results["image"] = invocation_image
-        if invocation_mask:
-            results["mask"] = invocation_mask
+            if invocation_mask:
+                results["mask"] = invocation_mask
         if control_images:
             results["control_images"] = control_images
         if ip_adapter_images:
@@ -1354,7 +888,12 @@ class LayeredInvocation:
 
         cropped_inpaint_position = None
         background = None
-        invocation_kwargs = self.preprocess(pipeline)
+        invocation_kwargs = self.preprocess(
+            pipeline,
+            raise_when_unused = not self.upscale,
+            task_callback=task_callback,
+            
+        )
 
         # Determine if we're doing cropped inpainting
         if "mask" in invocation_kwargs and self.crop_inpaint:
@@ -1386,6 +925,7 @@ class LayeredInvocation:
                 ]
             else:
                 background = invocation_kwargs["image"].copy()
+                
             # First wrap callbacks if needed
             if image_callback is not None:
                 # Hijack image callback to paste onto background
@@ -1407,7 +947,8 @@ class LayeredInvocation:
                         ]
 
                     original_image_callback(images)
-                invocation_kwargs["latent_callback"] = pasted_image_callback
+
+                image_callback = pasted_image_callback
             # Now crop images
             if isinstance(invocation_kwargs["image"], list):
                 invocation_kwargs["image"] = [
@@ -1421,18 +962,19 @@ class LayeredInvocation:
             else:
                 invocation_kwargs["image"] = invocation_kwargs["image"].crop(cropped_inpaint_position)
                 invocation_kwargs["mask"] = invocation_kwargs["mask"].crop(cropped_inpaint_position)
+
             # Also crop control images
             if "control_images" in invocation_kwargs:
                 for controlnet in invocation_kwargs["control_images"]:
                     for image_dict in invocation_kwargs[controlnet]:
                         image_dict["image"] = image_dict["image"].crop(cropped_inpaint_position)
+
             # Assign height and width
             x0, y0, x1, y1 = cropped_inpaint_position
             invocation_kwargs["width"] = x1 - x0
             invocation_kwargs["height"] = y1 - y0
-        elif image_callback is not None:
-            invocation_kwargs["latent_callback"] = image_callback
 
+        # Execute primary inference
         images, nsfw = self.execute_inference(
             pipeline,
             task_callback,
@@ -1451,6 +993,7 @@ class LayeredInvocation:
                     cropped_inpaint_position
                 )
 
+        # Execte upscale, if requested
         images, nsfw = self.execute_upscale(
             pipeline,
             images,
@@ -1464,6 +1007,7 @@ class LayeredInvocation:
 
         pipeline.stop_keepalive() # Make sure this is stopped
         return self.format_output(images, nsfw)
+
     def prepare_pipeline(self, pipeline: DiffusionPipelineManager) -> None:
         """
         Assigns pipeline-level variables.
@@ -1473,11 +1017,17 @@ class LayeredInvocation:
         if self.animation_frames is not None and self.animation_frames > 0:
             pipeline.animator = self.model
             pipeline.animator_vae = self.vae
+            pipeline.frame_window_size = self.frame_window_size
+            pipeline.frame_window_stride = self.frame_window_stride
             pipeline.position_encoding_truncate_length = self.position_encoding_truncate_length
             pipeline.position_encoding_scale_length = self.position_encoding_scale_length
         else:
             pipeline.model = self.model
             pipeline.vae = self.vae
+
+        pipeline.tiling_size = self.tiling_size
+        pipeline.tiling_stride = self.tiling_stride
+        pipeline.tiling_mask_type = self.tiling_mask_type
 
         pipeline.refiner = self.refiner
         pipeline.refiner_vae = self.refiner_vae
@@ -1490,17 +1040,13 @@ class LayeredInvocation:
         pipeline.inversion = self.inversion
         pipeline.scheduler = self.scheduler
 
-        pipeline.motion_module = self.motion_module
-        pipeline.position_encoding_scale_length = self.position_encoding_scale_length
-        pipeline.position_encoding_truncate_length = self.position_encoding_truncate_length
-
         if self.build_tensorrt:
             pipeline.build_tensorrt = True
 
     def execute_inference(
         self,
         pipeline: DiffusionPipelineManager,
-        task_callback: Callable[[str], None],
+        task_callback: Optional[Callable[[str], None]] = None,
         progress_callback: Optional[Callable[[int, int, float], None]] = None,
         image_callback: Optional[Callable[[List[PIL.Image.Image]], None]] = None,
         image_callback_steps: Optional[int] = None,
@@ -1570,7 +1116,8 @@ class LayeredInvocation:
 
             result = pipeline(
                 latent_callback=iteration_image_callback,
-                **invocation_kwargs
+                **invocation_kwargs,
+                **callback_kwargs
             )
 
             for j, image in enumerate(result["images"]):
@@ -1611,8 +1158,9 @@ class LayeredInvocation:
             negative_prompt_2 = upscale_step.get("negative_prompt_2", None)
             strength = upscale_step.get("strength", None)
             controlnets = upscale_step.get("controlnets", None)
-            tiling_stride = upscale_step.get("tiling_stride", DEFAULT_UPSCALE_CHUNKING_SIZE)
             scheduler = upscale_step.get("scheduler", self.scheduler)
+            tiling_stride = upscale_step.get("tiling_stride", DEFAULT_UPSCALE_TILING_STRIDE)
+            tiling_size = upscale_step.get("tiling_size", DEFAULT_UPSCALE_TILING_SIZE)
             tiling_mask_type = upscale_step.get("tiling_mask_type", None)
             tiling_mask_kwargs = upscale_step.get("tiling_mask_kwargs", None)
             noise_offset = upscale_step.get("noise_offset", None)
@@ -1682,7 +1230,7 @@ class LayeredInvocation:
                     image = pipeline.upscaler(
                         method=method,
                         image=image,
-                        tile=pipeline.size,
+                        tile=512, # Override
                         outscale=amount
                     )
                 elif method in PIL_INTERPOLATION:
@@ -1706,12 +1254,14 @@ class LayeredInvocation:
                     # Refiners have safety disabled from the jump
                     logger.debug("Using refiner for upscaling.")
                     re_enable_safety = False
+                    tiling_size = max(tiling_size, pipeline.refiner_size)
                     tiling_stride = min(tiling_stride, pipeline.refiner_size // 2)
                 else:
                     # Disable pipeline safety here, it gives many false positives when upscaling.
                     # We'll re-enable it after.
                     logger.debug("Using base pipeline for upscaling.")
                     re_enable_safety = pipeline.safe
+                    tiling_size = max(tiling_size, pipeline.size)
                     tiling_stride = min(tiling_stride, pipeline.size // 2)
                     pipeline.safe = False
 
@@ -1736,6 +1286,7 @@ class LayeredInvocation:
                         "strength": strength,
                         "num_inference_steps": num_inference_steps,
                         "guidance_scale": guidance_scale,
+                        "tiling_size": tiling_size,
                         "tiling_stride": tiling_stride,
                         "tiling_mask_type": tiling_mask_type,
                         "tiling_mask_kwargs": tiling_mask_kwargs,
@@ -1775,16 +1326,21 @@ class LayeredInvocation:
                             upscale_pipeline = pipeline.pipeline
                             is_sdxl = pipeline.is_sdxl
 
-                        kwargs["control_images"] = dict([
-                            (
-                                controlnet_name,
-                                [(
-                                    pipeline.control_image_processor(controlnet_name, image),
-                                    controlnet_weight
-                                )]
-                            )
-                            for controlnet_name, controlnet_weight in zip(controlnet_names, controlnet_weights)
-                        ])
+                        controlnet_unique_names = set(controlnet_names)
+
+                        with pipeline.control_image_processor.processors(controlnet_unique_names) as controlnet_processors:
+                            controlnet_processor_dict = dict(zip(controlnet_unique_names, controlnet_processors))
+
+                            kwargs["control_images"] = dict([
+                                (
+                                    controlnet_name,
+                                    [(
+                                        controlnet_processor_dict[controlnet_name](image),
+                                        controlnet_weight
+                                    )]
+                                )
+                                for controlnet_name, controlnet_weight in zip(controlnet_names, controlnet_weights)
+                            ])
                     elif refiner:
                         pipeline.refiner_controlnets = None
                         upscale_pipeline = pipeline.refiner_pipeline
@@ -1837,766 +1393,3 @@ class LayeredInvocation:
             images=formatted_images,
             nsfw_content_detected=nsfw
         )
-
-#    @staticmethod
-#    def assemble(
-#        size: Optional[int] = None,
-#        refiner_size: Optional[int] = None,
-#        inpainter_size: Optional[int] = None,
-#        model: Optional[str] = None,
-#        refiner: Optional[str] = None,
-#        inpainter: Optional[str] = None,
-#        lora: Optional[Union[str, List[str], Tuple[str, float], List[Union[str, Tuple[str, float]]]]] = None,
-#        lycoris: Optional[Union[str, List[str], Tuple[str, float], List[Union[str, Tuple[str, float]]]]] = None,
-#        inversion: Optional[Union[str, List[str]]] = None,
-#        scheduler: Optional[SCHEDULER_LITERAL] = None,
-#        vae: Optional[str] = None,
-#        refiner_vae: Optional[str] = None,
-#        inpainter_vae: Optional[str] = None,
-#        model_prompt: Optional[str] = None,
-#        model_prompt_2: Optional[str] = None,
-#        model_negative_prompt: Optional[str] = None,
-#        model_negative_prompt_2: Optional[str] = None,
-#        samples: int = 1,
-#        iterations: int = 1,
-#        seed: Optional[int]=None,
-#        width: Optional[int]=None,
-#        height: Optional[int]=None,
-#        nodes: List[NodeDict]=[],
-#        tiling_stride: Optional[int]=None,
-#        tiling_mask_type: Optional[MASK_TYPE_LITERAL]=None,
-#        tiling_mask_kwargs: Optional[Dict[str, Any]]=None,
-#        prompt: Optional[str]=None,
-#        prompt_2: Optional[str]=None,
-#        negative_prompt: Optional[str]=None,
-#        negative_prompt_2: Optional[str]=None,
-#        clip_skip: Optional[int]=None,
-#        freeu_factors: Optional[Tuple[float, float, float, float]]=None,
-#        num_inference_steps: Optional[int]=DEFAULT_INFERENCE_STEPS,
-#        mask: Optional[Union[str, PIL.Image.Image]]=None,
-#        image: Optional[Union[str, PIL.Image.Image]]=None,
-#        fit: Optional[IMAGE_FIT_LITERAL]=None,
-#        anchor: Optional[IMAGE_ANCHOR_LITERAL]=None,
-#        strength: Optional[float]=None,
-#        ip_adapter_images: Optional[List[IPAdapterImageDict]]=None,
-#        ip_adapter_plus: bool=False,
-#        ip_adapter_face: bool=False,
-#        control_images: Optional[List[ControlImageDict]]=None,
-#        remove_background: bool=False,
-#        fill_background: bool=False,
-#        scale_to_model_size: bool=False,
-#        invert_mask: bool=False,
-#        crop_inpaint: bool=True,
-#        inpaint_feather: int=32,
-#        guidance_scale: Optional[float]=DEFAULT_GUIDANCE_SCALE,
-#        refiner_start: Optional[float]=DEFAULT_REFINER_START,
-#        refiner_strength: Optional[float]=DEFAULT_REFINER_STRENGTH,
-#        refiner_guidance_scale: Optional[float]=DEFAULT_REFINER_GUIDANCE_SCALE,
-#        refiner_aesthetic_score: Optional[float]=DEFAULT_AESTHETIC_SCORE,
-#        refiner_negative_aesthetic_score: Optional[float]=DEFAULT_NEGATIVE_AESTHETIC_SCORE,
-#        refiner_prompt: Optional[str]=None,
-#        refiner_prompt_2: Optional[str]=None,
-#        refiner_negative_prompt: Optional[str]=None,
-#        refiner_negative_prompt_2: Optional[str]=None,
-#        upscale_steps: Optional[Union[UpscaleStepDict, List[UpscaleStepDict]]]=None,
-#        noise_offset: Optional[float]=None,
-#        noise_method: NOISE_METHOD_LITERAL="perlin",
-#        noise_blend_method: LATENT_BLEND_METHOD_LITERAL="inject",
-#        tile: Union[bool, Tuple[bool, bool], List[bool]]=False,
-#        animation_frames: Optional[int]=None,
-#        animation_rate: int=8,
-#        temporal_engine_size: Optional[int]=16,
-#        temporal_tiling_stride: Optional[int]=4,
-#        loop: bool=False,
-#        interpolate_frames: Optional[Union[int, Tuple[int, ...], List[int]]]=None,
-#        motion_module: Optional[str]=None,
-#        motion_scale: Optional[float]=None,
-#        position_encoding_truncate_length: Optional[int]=None,
-#        position_encoding_scale_length: Optional[int]=None,
-#        **kwargs: Any,
-#    ) -> DiffusionPlan:
-#        """
-#        Assembles a diffusion plan from step dictionaries.
-#        """
-#        if kwargs:
-#            logger.warning(f"Plan `assemble` keyword arguments ignored: {kwargs}")
-#
-#        # First instantiate the plan
-#        plan = DiffusionPlan(
-#            model=model,
-#            refiner=refiner,
-#            inpainter=inpainter,
-#            lora=lora,
-#            lycoris=lycoris,
-#            inversion=inversion,
-#            scheduler=scheduler,
-#            vae=vae,
-#            refiner_vae=refiner_vae,
-#            inpainter_vae=inpainter_vae,
-#            samples=samples,
-#            iterations=iterations,
-#            size=size,
-#            refiner_size=refiner_size,
-#            inpainter_size=inpainter_size,
-#            seed=seed,
-#            width=width,
-#            height=height,
-#            prompt=prompt,
-#            prompt_2=prompt_2,
-#            negative_prompt=negative_prompt,
-#            negative_prompt_2=negative_prompt_2,
-#            tiling_stride=tiling_stride,
-#            tiling_mask_type=tiling_mask_type,
-#            tiling_mask_kwargs=tiling_mask_kwargs,
-#            clip_skip=clip_skip,
-#            freeu_factors=freeu_factors,
-#            guidance_scale=guidance_scale,
-#            num_inference_steps=num_inference_steps,
-#            noise_offset=noise_offset,
-#            noise_method=noise_method,
-#            noise_blend_method=noise_blend_method,
-#            tile=tile,
-#            animation_frames=animation_frames,
-#            animation_rate=animation_rate,
-#            temporal_engine_size=temporal_engine_size,
-#            temporal_tiling_stride=temporal_tiling_stride,
-#            loop=loop,
-#            interpolate_frames=interpolate_frames,
-#            motion_module=motion_module,
-#            motion_scale=motion_scale,
-#            position_encoding_scale_length=position_encoding_scale_length,
-#            position_encoding_truncate_length=position_encoding_truncate_length,
-#            nodes=[],
-#        )
-#
-#        # We'll assemble multiple token sets for overall diffusion
-#        upscale_prompt_tokens = TokenMerger()
-#        upscale_prompt_2_tokens = TokenMerger()
-#        upscale_negative_prompt_tokens = TokenMerger()
-#        upscale_negative_prompt_2_tokens = TokenMerger()
-#
-#        # Helper method for getting the upscale list with merged prompts
-#        def get_upscale_steps() -> Optional[Union[UpscaleStepDict, List[UpscaleStepDict]]]:
-#            if upscale_steps is None:
-#                return None
-#            elif isinstance(upscale_steps, list):
-#                return [
-#                    {
-#                        **step, # type: ignore[misc]
-#                        **{
-#                            "prompt": str(
-#                                upscale_prompt_tokens.clone(step.get("prompt", None))
-#                            ),
-#                            "prompt_2": str(
-#                                upscale_prompt_2_tokens.clone(step.get("prompt_2", None))
-#                            ),
-#                            "negative_prompt": str(
-#                                upscale_negative_prompt_tokens.clone(step.get("negative_prompt", None))
-#                            ),
-#                            "negative_prompt_2": str(
-#                                upscale_negative_prompt_2_tokens.clone(step.get("negative_prompt_2", None))
-#                            ),
-#                        }
-#                    }
-#                    for step in upscale_steps
-#                ]
-#            else:
-#                return { # type: ignore[return-value]
-#                    **upscale_steps, # type: ignore[misc]
-#                    **{
-#                        "prompt": str(
-#                            upscale_prompt_tokens.clone(upscale_steps.get("prompt", None))
-#                        ),
-#                        "prompt_2": str(
-#                            upscale_prompt_2_tokens.clone(upscale_steps.get("prompt_2", None))
-#                        ),
-#                        "negative_prompt": str(
-#                            upscale_negative_prompt_tokens.clone(upscale_steps.get("negative_prompt", None))
-#                        ),
-#                        "negative_prompt_2": str(
-#                            upscale_negative_prompt_2_tokens.clone(upscale_steps.get("negative_prompt_2", None))
-#                        ),
-#                    }
-#                }
-#
-#        refiner_prompt_tokens = TokenMerger()
-#        refiner_prompt_2_tokens = TokenMerger()
-#        refiner_negative_prompt_tokens = TokenMerger()
-#        refiner_negative_prompt_2_tokens = TokenMerger()
-#
-#        if prompt:
-#            upscale_prompt_tokens.add(prompt, GLOBAL_PROMPT_UPSCALE_WEIGHT)
-#        if prompt_2:
-#            upscale_prompt_2_tokens.add(prompt_2, GLOBAL_PROMPT_UPSCALE_WEIGHT)
-#        if negative_prompt:
-#            upscale_negative_prompt_tokens.add(negative_prompt, GLOBAL_PROMPT_UPSCALE_WEIGHT)
-#        if negative_prompt_2:
-#            upscale_negative_prompt_2_tokens.add(negative_prompt_2, GLOBAL_PROMPT_UPSCALE_WEIGHT)
-#
-#        if model_prompt:
-#            refiner_prompt_tokens.add(model_prompt, MODEL_PROMPT_WEIGHT)
-#            upscale_prompt_tokens.add(model_prompt, MODEL_PROMPT_WEIGHT)
-#        if model_prompt_2:
-#            refiner_prompt_2_tokens.add(model_prompt_2, MODEL_PROMPT_WEIGHT)
-#            upscale_prompt_2_tokens.add(model_prompt_2, MODEL_PROMPT_WEIGHT)
-#
-#        if model_negative_prompt:
-#            refiner_negative_prompt_tokens.add(model_negative_prompt, MODEL_PROMPT_WEIGHT)
-#            upscale_negative_prompt_tokens.add(model_negative_prompt, MODEL_PROMPT_WEIGHT)
-#        if model_negative_prompt_2:
-#            refiner_negative_prompt_2_tokens.add(model_negative_prompt_2, MODEL_PROMPT_WEIGHT)
-#            upscale_negative_prompt_2_tokens.add(model_negative_prompt_2, MODEL_PROMPT_WEIGHT)
-#
-#        if refiner_prompt:
-#            refiner_prompt_tokens.add(refiner_prompt)
-#            refiner_prompt = str(refiner_prompt_tokens)
-#        else:
-#            refiner_prompt = None
-#        
-#        if refiner_prompt_2:
-#            refiner_prompt_2_tokens.add(refiner_prompt_2)
-#            refiner_prompt_2 = str(refiner_prompt_2_tokens)
-#        else:
-#            refiner_prompt_2 = None
-#        
-#        if refiner_negative_prompt:
-#            refiner_negative_prompt_tokens.add(refiner_negative_prompt)
-#            refiner_negative_prompt = str(refiner_negative_prompt_tokens)
-#        else:
-#            refiner_negative_prompt = None
-#        
-#        if refiner_negative_prompt_2:
-#            refiner_negative_prompt_2_tokens.add(refiner_negative_prompt_2)
-#            refiner_negative_prompt_2 = str(refiner_negative_prompt_2_tokens)
-#        else:
-#            refiner_negative_prompt_2 = None
-#
-#        # Now assemble the diffusion steps
-#        node_count = len(nodes)
-#
-#        if node_count == 0:
-#            # No nodes/canvas, create a plan from one given step
-#            name = "Text to Image"
-#            prompt_tokens = TokenMerger()
-#            if prompt:
-#                prompt_tokens.add(prompt)
-#            if model_prompt:
-#                prompt_tokens.add(model_prompt, MODEL_PROMPT_WEIGHT)
-#
-#            prompt_2_tokens = TokenMerger()
-#            if prompt_2:
-#                prompt_2_tokens.add(prompt_2)
-#            if model_prompt_2:
-#                prompt_2_tokens.add(model_prompt_2, MODEL_PROMPT_WEIGHT)
-#
-#            negative_prompt_tokens = TokenMerger()
-#            if negative_prompt:
-#                negative_prompt_tokens.add(negative_prompt)
-#            if model_negative_prompt:
-#                negative_prompt_tokens.add(model_negative_prompt, MODEL_PROMPT_WEIGHT)
-#
-#            negative_prompt_2_tokens = TokenMerger()
-#            if negative_prompt_2:
-#                negative_prompt_2_tokens.add(negative_prompt_2)
-#            if model_negative_prompt_2:
-#                negative_prompt_2_tokens.add(model_negative_prompt_2, MODEL_PROMPT_WEIGHT)
-#
-#            if image:
-#                if isinstance(image, str):
-#                    image = PIL.Image.open(image)
-#                if width and height:
-#                    image = fit_image(image, width, height, fit, anchor)
-#                else:
-#                    width, height = image.size
-#                
-#            if mask:
-#                if isinstance(mask, str):
-#                    mask = PIL.Image.open(mask)
-#                if width and height:
-#                    mask = fit_image(mask, width, height, fit, anchor)
-#                else:
-#                    width, height = mask.size
-#            
-#            if ip_adapter_images:
-#                for i, ip_adapter_image_dict in enumerate(ip_adapter_images):
-#                    ip_adapter_image = ip_adapter_image_dict["image"]
-#                    ip_adapter_anchor = ip_adapter_image_dict.get("anchor", anchor)
-#                    ip_adapter_fit = ip_adapter_image_dict.get("fit", fit)
-#
-#                    if isinstance(ip_adapter_image, str):
-#                        ip_adapter_image = PIL.Image.open(ip_adapter_image)
-#                    if width and height:
-#                        ip_adapter_image = fit_image(ip_adapter_image, width, height, fit, anchor)
-#                    else:
-#                        width, height = ip_adapter_image.size
-#
-#                    ip_adapter_images[i] = { # type: ignore[call-overload]
-#                        "image": ip_adapter_image,
-#                        "scale": ip_adapter_image_dict.get("scale", 0.5),
-#                    }
-#
-#            if control_images:
-#                for i, control_image_dict in enumerate(control_images):
-#                    control_image = control_image_dict["image"]
-#                    control_anchor = control_image_dict.get("anchor", anchor)
-#                    control_fit = control_image_dict.get("fit", fit)
-#
-#                    if isinstance(control_image, str):
-#                        control_image = PIL.Image.open(control_image)
-#                    if width and height:
-#                        control_image = fit_image(control_image, width, height, fit, anchor)
-#                    else:
-#                        width, height = control_image.size
-#
-#                    control_images[i] = { # type: ignore[call-overload]
-#                        "image": control_image,
-#                        "controlnet": control_image_dict["controlnet"],
-#                        "process": control_image_dict.get("process", True),
-#                        "scale": control_image_dict.get("scale", 0.5),
-#                        "invert": control_image_dict.get("invert", False),
-#                        "start": control_image_dict.get("start", None),
-#                        "end": control_image_dict.get("end", None),
-#                    }
-#
-#            if mask and invert_mask:
-#                mask = PIL.ImageOps.invert(mask.convert("L"))
-#            if control_images and image and mask and ip_adapter_images:
-#                name = "Controlled Inpainting with Image Prompting"
-#            elif control_images and image and mask:
-#                name = "Controlled Inpainting"
-#            elif control_images and image and ip_adapter_images and strength:
-#                name = "Controlled Image to Image with Image Prompting"
-#            elif control_images and image and ip_adapter_images:
-#                name = "Controlled Text to Image with Image Prompting"
-#            elif control_images and image and strength:
-#                name = "Controlled Image to Image"
-#            elif control_images:
-#                name = "Controlled Text to Image"
-#            elif image and mask and ip_adapter_images:
-#                name = "Inpainting with Image Prompting"
-#            elif image and mask:
-#                name = "Inpainting"
-#            elif image and strength and ip_adapter_images:
-#                name = "Image to Image with Image Prompting"
-#            elif image and ip_adapter_images:
-#                name = "Text to Image with Image Prompting"
-#            elif image and strength:
-#                name = "Image to Image"
-#            else:
-#                name = "Text to Image"
-#
-#            step = DiffusionStep(
-#                name=name,
-#                width=width,
-#                height=height,
-#                prompt=str(prompt_tokens),
-#                prompt_2=str(prompt_2_tokens),
-#                negative_prompt=str(negative_prompt_tokens),
-#                negative_prompt_2=str(negative_prompt_2_tokens),
-#                num_inference_steps=num_inference_steps,
-#                guidance_scale=guidance_scale,
-#                strength=strength,
-#                refiner_start=refiner_start,
-#                refiner_strength=refiner_strength,
-#                refiner_guidance_scale=refiner_guidance_scale,
-#                refiner_aesthetic_score=refiner_aesthetic_score,
-#                refiner_negative_aesthetic_score=refiner_negative_aesthetic_score,
-#                refiner_prompt=refiner_prompt,
-#                refiner_prompt_2=refiner_prompt_2,
-#                refiner_negative_prompt=refiner_negative_prompt,
-#                refiner_negative_prompt_2=refiner_negative_prompt_2,
-#                crop_inpaint=crop_inpaint,
-#                inpaint_feather=inpaint_feather,
-#                image=image,
-#                mask=mask,
-#                remove_background=remove_background,
-#                fill_background=fill_background,
-#                scale_to_model_size=scale_to_model_size,
-#                ip_adapter_plus=ip_adapter_plus,
-#                ip_adapter_face=ip_adapter_face,
-#                ip_adapter_images=ip_adapter_images,
-#                control_images=control_images
-#            )
-#
-#            if not width:
-#                width = plan.width # Default
-#            if not height:
-#                height = plan.height # Default
-#            
-#            # Change plan defaults if passed
-#            plan.width = width
-#            plan.height = height
-#            
-#            # Assemble node
-#            plan.nodes = [DiffusionNode([(0, 0), (width, height)], step)]
-#            plan.upscale_steps = get_upscale_steps()
-#            return plan
-#
-#        # Using the diffusion canvas, assemble a multi-step plan
-#        for i, node_dict in enumerate(nodes):
-#            step = DiffusionStep(
-#                num_inference_steps=num_inference_steps,
-#                guidance_scale=guidance_scale,
-#                refiner_start=refiner_start,
-#                refiner_strength=refiner_strength,
-#                refiner_guidance_scale=refiner_guidance_scale,
-#                refiner_aesthetic_score=refiner_aesthetic_score,
-#                refiner_negative_aesthetic_score=refiner_negative_aesthetic_score,
-#                refiner_prompt=refiner_prompt,
-#                refiner_prompt_2=refiner_prompt_2,
-#                refiner_negative_prompt=refiner_negative_prompt,
-#                refiner_negative_prompt_2=refiner_negative_prompt_2,
-#            )
-#
-#            node_left = int(node_dict.get("x", 0))
-#            node_top = int(node_dict.get("y", 0))
-#            node_fit = node_dict.get("fit", None)
-#            node_anchor = node_dict.get("anchor", None)
-#
-#            node_prompt = node_dict.get("prompt", None)
-#            node_prompt_2 = node_dict.get("prompt_2", None)
-#            node_negative_prompt = node_dict.get("negative_prompt", None)
-#            node_negative_prompt_2 = node_dict.get("negative_prompt_2", None)
-#            node_strength: Optional[float] = node_dict.get("strength", None)
-#            node_image = node_dict.get("image", None)
-#            node_inpaint_mask = node_dict.get("mask", None)
-#            node_crop_inpaint = node_dict.get("crop_inpaint", crop_inpaint)
-#            node_inpaint_feather = node_dict.get("inpaint_feather", inpaint_feather)
-#            node_invert_mask = node_dict.get("invert_mask", False)
-#            node_scale_to_model_size = bool(node_dict.get("scale_to_model_size", False))
-#            node_remove_background = bool(node_dict.get("remove_background", False))
-#
-#            node_ip_adapter_plus = bool(node_dict.get("ip_adapter_plus", False))
-#            node_ip_adapter_face = bool(node_dict.get("ip_adapter_face", False))
-#            node_ip_adapter_images: Optional[List[IPAdapterImageDict]] = node_dict.get("ip_adapter_images", None)
-#            node_control_images: Optional[List[ControlImageDict]] = node_dict.get("control_images", None)
-#
-#            node_inference_steps: Optional[int] = node_dict.get("inference_steps", None)  # type: ignore[assignment]
-#            node_guidance_scale: Optional[float] = node_dict.get("guidance_scale", None)  # type: ignore[assignment]
-#            node_refiner_start: Optional[float] = node_dict.get("refiner_start", None) # type: ignore[assignment]
-#            node_refiner_strength: Optional[float] = node_dict.get("refiner_strength", None)  # type: ignore[assignment]
-#            node_refiner_guidance_scale: Optional[float] = node_dict.get("refiner_guidance_scale", None)  # type: ignore[assignment]
-#            node_refiner_aesthetic_score: Optional[float] = node_dict.get("refiner_aesthetic_score", None)  # type: ignore[assignment]
-#            node_refiner_negative_aesthetic_score: Optional[float] = node_dict.get("refiner_negative_aesthetic_score", None)  # type: ignore[assignment]
-#
-#            node_prompt_tokens = TokenMerger()
-#            node_prompt_2_tokens = TokenMerger()
-#            node_negative_prompt_tokens = TokenMerger()
-#            node_negative_prompt_2_tokens = TokenMerger()
-#
-#            if "w" in node_dict:
-#                node_width = int(node_dict["w"])
-#            elif node_image is not None:  # type: ignore[unreachable]
-#                node_width, _ = node_image.size
-#            elif node_inpaint_mask is not None:
-#                node_width, _ = node_inpaint_mask.size
-#            elif node_ip_adapter_images:
-#                node_width, _ = node_ip_adapter_images[0]["image"].size
-#            elif node_control_images:
-#                node_width, _ = node_control_images[next(iter(node_control_images))][0]["image"].size
-#            else:
-#                raise ValueError(f"Node {i} missing width, pass 'w' or an image")
-#            if "h" in node_dict:
-#                node_height = int(node_dict["h"])
-#            elif node_image is not None:  # type: ignore[unreachable]
-#                _, node_height = node_image.size
-#            elif node_inpaint_mask is not None:
-#                _, node_height = node_inpaint_mask.size
-#            elif node_ip_adapter_images:
-#                _, node_height = node_ip_adapter_images[0]["image"].size
-#            elif node_control_images:
-#                _, node_height = node_control_images[next(iter(node_control_images))][0]["image"].size
-#            else:
-#                raise ValueError(f"Node {i} missing height, pass 'h' or an image")
-#
-#            node_bounds = [
-#                (node_left, node_top),
-#                (node_left + node_width, node_top + node_height),
-#            ]
-#
-#            if node_prompt:
-#                node_prompt_tokens.add(node_prompt)
-#                upscale_prompt_tokens.add(node_prompt, UPSCALE_PROMPT_STEP_WEIGHT / node_count)
-#            if prompt and (node_image or node_ip_adapter_images or node_control_images):
-#                # Only add global prompt to image nodes, it overrides too much on region nodes
-#                node_prompt_tokens.add(prompt, GLOBAL_PROMPT_STEP_WEIGHT)
-#            if model_prompt:
-#                node_prompt_tokens.add(model_prompt, MODEL_PROMPT_WEIGHT)
-#
-#            if node_prompt_2:
-#                node_prompt_2_tokens.add(node_prompt_2)
-#                upscale_prompt_2_tokens.add(node_prompt_2, UPSCALE_PROMPT_STEP_WEIGHT / node_count)
-#            if prompt_2 and (node_image or node_ip_adapter_images or node_control_images):
-#                # Only add global prompt to image nodes, it overrides too much on region nodes
-#                node_prompt_2_tokens.add(prompt_2, GLOBAL_PROMPT_STEP_WEIGHT)
-#            if model_prompt_2:
-#                node_prompt_2_tokens.add(model_prompt_2, MODEL_PROMPT_WEIGHT)
-#
-#            if node_negative_prompt:
-#                node_negative_prompt_tokens.add(node_negative_prompt)
-#                upscale_negative_prompt_tokens.add(node_negative_prompt, UPSCALE_PROMPT_STEP_WEIGHT / node_count)
-#            if negative_prompt and (node_image or node_ip_adapter_images or node_control_images):
-#                # Only add global prompt to image nodes, it overrides too much on region nodes
-#                node_negative_prompt_tokens.add(negative_prompt, GLOBAL_PROMPT_STEP_WEIGHT)
-#            if model_negative_prompt:
-#                node_negative_prompt_tokens.add(model_negative_prompt, MODEL_PROMPT_WEIGHT)
-#            
-#            if node_negative_prompt_2:
-#                node_negative_prompt_tokens.add(node_negative_prompt_2)
-#                upscale_negative_prompt_2_tokens.add(node_negative_prompt_2, UPSCALE_PROMPT_STEP_WEIGHT / node_count)
-#            if negative_prompt_2 and (node_image or node_ip_adapter_images or node_control_images):
-#                # Only add global prompt to image nodes, it overrides too much on region nodes
-#                node_negative_prompt_2_tokens.add(negative_prompt_2, GLOBAL_PROMPT_STEP_WEIGHT)
-#            if model_negative_prompt_2:
-#                node_negative_prompt_2_tokens.add(model_negative_prompt_2, MODEL_PROMPT_WEIGHT)
-#
-#            black = PIL.Image.new("RGB", (node_width, node_height), (0, 0, 0))
-#            white = PIL.Image.new("RGB", (node_width, node_height), (255, 255, 255))
-#            outpaint_steps: List[DiffusionStep] = []
-#            outpainted_images: Dict[int, PIL.Image.Image] = {}
-#
-#            def prepare_image(
-#                image: Union[PIL.Image.Image, List[PIL.Image.Image]],
-#                outpaint_if_necessary: bool=False,
-#                mask: Optional[Union[PIL.Image.Image, List[PIL.Image.Image]]]=None,
-#                fit: Optional[IMAGE_FIT_LITERAL]=None,
-#                anchor: Optional[IMAGE_ANCHOR_LITERAL]=None
-#            )-> Union[Tuple[PIL.Image.Image, PIL.Image.Image], Tuple[DiffusionStep, Any]]:
-#                """
-#                Checks if the image needs to be outpainted
-#                """
-#                nonlocal outpainted_images
-#                for step_index, outpainted_image in outpainted_images.items():
-#                    if images_are_equal(outpainted_image, image):
-#                        return outpaint_steps[step_index], 0
-#
-#                image_needs_outpainting = False
-#                fitted_image = fit_image(image, node_width, node_height, fit, anchor)
-#
-#                if isinstance(fitted_image, list):
-#                    if not animation_frames:
-#                        fitted_image = fitted_image[0]
-#                    else:
-#                        fitted_image = fitted_image[:animation_frames]
-#
-#                if isinstance(fitted_image, list):
-#                    image_mask = [
-#                        PIL.Image.new("RGB", (node_width, node_height), (255, 255, 255)) # Mask for outpainting if needed
-#                        for i in range(len(fitted_image))
-#                    ]
-#                else:
-#                    image_mask = PIL.Image.new("RGB", (node_width, node_height), (255, 255, 255)) # Mask for outpainting if needed
-#
-#                if isinstance(fitted_image, list):
-#                    for i, img in enumerate(fitted_image):
-#                        fitted_alpha = img.split()[-1]
-#                        fitted_alpha_clamp = PIL.Image.eval(fitted_alpha, lambda a: 255 if a > 128 else 0)
-#
-#                        image_mask[i].paste(black, mask=fitted_alpha)
-#
-#                        if mask:
-#                            if isinstance(mask, list):
-#                                if len(mask) <= i:
-#                                    this_mask = mask[-1]
-#                                else:
-#                                    this_mask = mask[i]
-#                            else:
-#                                this_mask = mask
-#
-#                            image_mask[i].paste(this_mask)
-#                            fitted_inverse_alpha = PIL.Image.eval(fitted_alpha_clamp, lambda a: 255 - a)
-#                            image_mask[i].paste(white, mask=fitted_inverse_alpha)
-#
-#                        image_mask_r_min, image_mask_r_max = image_mask[i].getextrema()[1]
-#                        if image_mask_r_max > 0:
-#                            image_mask[i].save("./what.png")
-#                            raise ValueError("FUCK")
-#                        image_needs_outpainting = image_needs_outpainting or image_mask_r_max > 0
-#                else:
-#                    fitted_alpha = fitted_image.split()[-1]
-#                    fitted_alpha_clamp = PIL.Image.eval(fitted_alpha, lambda a: 255 if a > 128 else 0)
-#
-#                    image_mask.paste(black, mask=fitted_alpha)
-#
-#                    if mask:
-#                        image_mask.paste(mask)
-#                        fitted_inverse_alpha = PIL.Image.eval(fitted_alpha_clamp, lambda a: 255 - a)
-#                        image_mask.paste(white, mask=fitted_inverse_alpha)
-#
-#                    image_mask_r_min, image_mask_r_max = image_mask.getextrema()[1]
-#                    image_needs_outpainting = image_mask_r_max > 0
-#
-#                if image_needs_outpainting and outpaint_if_necessary:
-#                    step = DiffusionStep(
-#                        name=f"Outpaint Node {i+1}",
-#                        image=fitted_image,
-#                        mask=feather_mask(image_mask),
-#                        prompt=str(node_prompt_tokens),
-#                        prompt_2=str(node_prompt_2_tokens),
-#                        negative_prompt=str(node_negative_prompt_tokens),
-#                        negative_prompt_2=str(node_negative_prompt_2_tokens),
-#                        guidance_scale=guidance_scale,
-#                        num_inference_steps=node_inference_steps if node_inference_steps else num_inference_steps,
-#                        crop_inpaint=node_crop_inpaint,
-#                        inpaint_feather=node_inpaint_feather,
-#                        refiner_start=refiner_start,
-#                        refiner_strength=refiner_strength,
-#                        refiner_guidance_scale=refiner_guidance_scale,
-#                        refiner_aesthetic_score=refiner_aesthetic_score,
-#                        refiner_negative_aesthetic_score=refiner_negative_aesthetic_score,
-#                        refiner_prompt=refiner_prompt,
-#                        refiner_prompt_2=refiner_prompt_2,
-#                        refiner_negative_prompt=refiner_negative_prompt,
-#                        refiner_negative_prompt_2=refiner_negative_prompt_2,
-#                    )
-#                    outpaint_steps.append(step)
-#                    outpainted_images[len(outpaint_steps)-1] = image
-#                    return step, None
-#                return fitted_image, image_mask
-#
-#            will_infer = (node_image is not None and node_strength is not None) or node_inpaint_mask is not None
-#            node_fill_background = node_remove_background and will_infer
-#
-#            if node_inpaint_mask:
-#                node_inpaint_mask = node_inpaint_mask.convert("L")
-#                if node_invert_mask:
-#                    node_inpaint_mask = PIL.ImageOps.invert(node_inpaint_mask)
-#
-#            if node_image:
-#                node_image, new_inpaint_mask = prepare_image(
-#                    node_image,
-#                    mask=node_inpaint_mask,
-#                    fit=node_fit,
-#                    anchor=node_anchor
-#                )
-#                if node_inpaint_mask:
-#                    node_inpaint_mask = new_inpaint_mask
-#
-#            if node_ip_adapter_images:
-#                node_ip_adapter_images = [
-#                    {
-#                        "image": prepare_image(
-#                            ip_adapter_image["image"],
-#                            fit=ip_adapter_image.get("fit", None),
-#                            anchor=ip_adapter_image.get("anchor", None),
-#                            outpaint_if_necessary=False
-#                        )[0],
-#                        "scale": ip_adapter_image.get("scale", 1.0),
-#                    }
-#                    for ip_adapter_image in node_ip_adapter_images
-#                ]
-#
-#            if node_control_images:
-#                node_control_images = [
-#                    {
-#                        "image": prepare_image(
-#                            control_image["image"],
-#                            fit=control_image.get("fit", None),
-#                            anchor=control_image.get("anchor", None),
-#                            outpaint_if_necessary=True
-#                        )[0],
-#                        "controlnet": control_image["controlnet"],
-#                        "scale": control_image.get("scale", 1.0),
-#                        "process": control_image.get("process", True),
-#                        "invert": control_image.get("invert", False),
-#                        "start": control_image.get("start", None),
-#                        "end": control_image.get("end", None),
-#                    }
-#                    for control_image in node_control_images
-#                ]
-#
-#            node_prompt_str = str(node_prompt_tokens)
-#            node_prompt_2_str = str(node_prompt_2_tokens)
-#            node_negative_prompt_str = str(node_negative_prompt_tokens)
-#            node_negative_prompt_2_str = str(node_negative_prompt_2_tokens)
-# 
-#            if node_inpaint_mask:
-#                if isinstance(node_inpaint_mask, list):
-#                    image_needs_inpainting = False
-#                    for i, img in enumerate(node_inpaint_mask):
-#                        img = img.convert("L")
-#                        img_r_min, img_r_max = img.getextrema()
-#                        image_needs_inpainting = image_needs_inpainting or img_r_max > 0
-#                        node_inpaint_mask[i] = img
-#                else:
-#                    node_inpaint_mask = node_inpaint_mask.convert("L")
-#                    node_inpaint_mask_r_min, node_inpaint_mask_r_max = node_inpaint_mask.getextrema()
-#                    image_needs_inpainting = node_inpaint_mask_r_max > 0
-#            else:
-#                image_needs_inpainting = False
-#
-#            if node_strength is None or not image_needs_inpainting:
-#                node_inpaint_mask = None
-#
-#            if node_control_images and node_image and node_inpaint_mask and node_ip_adapter_images:
-#                name = "Controlled Inpainting with Image Prompting"
-#            elif node_control_images and node_image and node_inpaint_mask:
-#                name = "Controlled Inpainting"
-#            elif node_control_images and node_image and node_ip_adapter_images and node_strength:
-#                name = "Controlled Image to Image with Image Prompting"
-#            elif node_control_images and node_ip_adapter_images:
-#                name = "Controlled Text to Image with Image Prompting"
-#            elif node_control_images and node_image and node_strength:
-#                name = "Controlled Image to Image"
-#            elif node_control_images:
-#                name = "Controlled Text to Image"
-#            elif node_image and node_inpaint_mask and node_ip_adapter_images:
-#                name = "Inpainting with Image Prompting"
-#            elif node_image and node_inpaint_mask:
-#                name = "Inpainting"
-#            elif node_image and node_strength and node_ip_adapter_images:
-#                name = "Image to Image with Image Prompting"
-#            elif node_ip_adapter_images:
-#                name = "Text to Image with Image Prompting"
-#            elif node_image and node_strength:
-#                name = "Image to Image"
-#            elif node_image:
-#                name = "Image Pass-Through"
-#                if node_width == width and node_height == height:
-#                    plan.outpaint = False
-#                node_prompt_str = None # type: ignore[assignment]
-#                node_prompt_2_str = None # type: ignore[assignment]
-#                node_negative_prompt_str = None # type: ignore[assignment]
-#                node_negative_prompt_2_str = None # type: ignore[assignment]
-#            else:
-#                name = "Text to Image"
-#
-#            step = DiffusionStep(
-#                name=f"{name} Node {i+1}",
-#                width=node_width,
-#                height=node_height,
-#                image=node_image,
-#                mask=node_inpaint_mask,
-#                prompt=node_prompt_str,
-#                prompt_2=node_prompt_2_str,
-#                negative_prompt=node_negative_prompt_str,
-#                negative_prompt_2=node_negative_prompt_2_str,
-#                crop_inpaint=node_crop_inpaint,
-#                inpaint_feather=node_inpaint_feather,
-#                strength=node_strength,
-#                guidance_scale=guidance_scale,
-#                num_inference_steps=node_inference_steps if node_inference_steps else num_inference_steps,
-#                ip_adapter_images=node_ip_adapter_images,
-#                ip_adapter_plus=node_ip_adapter_plus,
-#                ip_adapter_face=node_ip_adapter_face,
-#                control_images=node_control_images,
-#                refiner_start=refiner_start,
-#                refiner_strength=refiner_strength,
-#                refiner_guidance_scale=refiner_guidance_scale,
-#                refiner_aesthetic_score=refiner_aesthetic_score,
-#                refiner_negative_aesthetic_score=refiner_negative_aesthetic_score,
-#                refiner_prompt=refiner_prompt,
-#                refiner_prompt_2=refiner_prompt_2,
-#                refiner_negative_prompt=refiner_negative_prompt,
-#                refiner_negative_prompt_2=refiner_negative_prompt_2,
-#                remove_background=node_remove_background,
-#                fill_background=node_fill_background,
-#                scale_to_model_size=node_scale_to_model_size
-#            )
-#
-#            # Add step to plan
-#            plan.nodes.append(DiffusionNode(node_bounds, step))
-#
-#        # Set upscale steps 
-#        plan.upscale_steps = get_upscale_steps()
-#        return plan

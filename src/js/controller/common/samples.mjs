@@ -470,7 +470,9 @@ class SamplesController extends Controller {
             this.images.removeClass("has-sample");
         } else {
             this.samples = sampleImages.map((v) => v.split("/").slice(-1)[0].split(".")[0]);
-            this.images.addClass("has-sample");
+            if (!isEmpty(this.activeIndex)) {
+                this.images.addClass("has-sample");
+            }
         }
 
         this.isIntermediate = !isEmpty(this.samples) && sampleImages[0].indexOf("intermediate") !== -1;
@@ -503,8 +505,10 @@ class SamplesController extends Controller {
         } else {
             this.sampleViewer.setImage(this.sampleUrls[this.activeIndex]);
         }
+
         if (isEmpty(activeIndex)) {
             this.images.removeClass("has-sample");
+            this.sampleViewer.hide();
         } else {
             this.images.addClass("has-sample");
             this.sampleViewer.show();
