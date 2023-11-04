@@ -107,10 +107,10 @@ def fit_image(
     elif fit == "contain":
         image_width, image_height = image.size
         width_ratio, height_ratio = width / image_width, height / image_height
-        horizontal_image_width, horizontal_image_height = int(image_width * width_ratio), int(
-            image_height * width_ratio
-        )
-        vertical_image_width, vertical_image_height = int(image_width * height_ratio), int(image_height * height_ratio)
+        horizontal_image_width = int(image_width * width_ratio)
+        horizontal_image_height = int(image_height * width_ratio)
+        vertical_image_width = int(image_width * height_ratio) 
+        vertical_image_height = int(image_height * height_ratio)
         top, left = 0, 0
         direction = None
         if width >= horizontal_image_width and height >= horizontal_image_height:
@@ -142,12 +142,10 @@ def fit_image(
     elif fit == "cover":
         image_width, image_height = image.size
         width_ratio, height_ratio = width / image_width, height / image_height
-        horizontal_image_width, horizontal_image_height = math.ceil(image_width * width_ratio), math.ceil(
-            image_height * width_ratio
-        )
-        vertical_image_width, vertical_image_height = math.ceil(image_width * height_ratio), math.ceil(
-            image_height * height_ratio
-        )
+        horizontal_image_width = math.ceil(image_width * width_ratio)
+        horizontal_image_height = math.ceil(image_height * width_ratio)
+        vertical_image_width = math.ceil(image_width * height_ratio)
+        vertical_image_height = math.ceil(image_height * height_ratio)
         top, left = 0, 0
         direction = None
         if width <= horizontal_image_width and height <= horizontal_image_height:
@@ -347,11 +345,13 @@ def scale_image(image: Image, scale: Union[int, float]) -> Image:
     scaled_height = 8 * round((height * scale) / 8)
     return image.resize((scaled_width, scaled_height))
 
-def get_image_metadata(image: Union[Image, List[Image]]) -> Dict[str, Any]:
+def get_image_metadata(image: Union[str, Image, List[Image]]) -> Dict[str, Any]:
     """
     Gets metadata from an image
     """
-    if isinstance(image, list):
+    if isinstance(image, str):
+        return get_image_metadata(get_frames_or_image_from_file(image))
+    elif isinstance(image, list):
         (width, height) = image[0].size
         return {
             "width": width,
@@ -376,6 +376,8 @@ def redact_images_from_metadata(metadata: Dict[str, Any]) -> None:
         if image is not None:
             if isinstance(image, dict):
                 image["image"] = get_image_metadata(image["image"])
+            elif isinstance(image, str):
+                metadata[key] = get_image_metadata(metadata[key])
             else:
                 metadata[key] = get_image_metadata(metadata[key])
     if "control_images" in metadata:

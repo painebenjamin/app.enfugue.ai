@@ -97,6 +97,16 @@ class CanvasController extends Controller {
                 }
             }
         });
+
+        // Add a callback when the image dimension is manually set
+        this.images.onSetDimension((newWidth, newHeight) => {
+            let currentState = this.canvasForm.values;
+            currentState.width = newWidth;
+            currentState.height = newHeight;
+            this.canvasForm.setValues(currentState).then(() => this.canvasForm.submit());
+        });
+
+        // Trigger once the app is ready to change shapes as needed
         this.subscribe("applicationReady", () => this.canvasForm.submit());
     }
 }

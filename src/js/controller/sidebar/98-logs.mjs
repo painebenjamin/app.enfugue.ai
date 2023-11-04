@@ -22,7 +22,7 @@ class LogGlanceView extends View {
     /**
      * @var int The maximum number of logs to show.
      */
-    static maximumLogs = 10;
+    static maximumLogs = 15;
 
     /**
      * On construct, set time and hide ourselves
@@ -65,11 +65,17 @@ class LogGlanceView extends View {
     async build() {
         let node = await super.build();
         node.append(
-            E.div().class("log-header").content(
-                E.h2().content("Most Recent Logs"),
-                E.a().href("#").content("Show More").on("click", (e) => { e.preventDefault(); e.stopPropagation(); this.showMore(); })
-            ),
-            E.div().class("logs").content("Welcome to ENFUGUE! When the diffusion engine logs to file, the most recent lines will appear here.")
+            E.div().class("log-container").content(
+                E.button()
+                .content(E.i().class("fa-regular fa-square-caret-right"))
+                .data("tooltip", "Show More")
+                .on("click", (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this.showMore();
+                }),
+                E.div().class("logs").content("Welcome to ENFUGUE! When the diffusion engine logs to file, the most recent lines will appear here.")
+            )
         );
         return node;
     }

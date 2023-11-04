@@ -870,21 +870,20 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         self,
         device: Union[str, torch.device],
         scale: float = 1.0,
-        use_fine_grained: bool = False,
-        use_face_model: bool = False,
-        keepalive_callback: Optional[Callable[[], None]] = None
+        model: Optional[IP_ADAPTER_LITERAL]=None,
+        keepalive_callback: Optional[Callable[[], None]]=None
     ) -> None:
         """
         Loads the IP Adapter
         """
         if getattr(self, "ip_adapter", None) is None:
             raise RuntimeError("Pipeline does not have an IP adapter")
+
         if self.ip_adapter_loaded:
             altered = self.ip_adapter.set_scale( # type: ignore[union-attr]
                 unet=self.unet,
-                new_scale=scale,
-                use_fine_grained=use_fine_grained,
-                use_face_model=use_face_model,
+                scale=scale,
+                model=model,
                 keepalive_callback=keepalive_callback,
                 is_sdxl=self.is_sdxl,
                 controlnets=self.controlnets
@@ -893,22 +892,20 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 logger.error("IP adapter appeared loaded, but setting scale did not modify it.")
                 self.ip_adapter.load( # type: ignore[union-attr]
                     unet=self.unet,
-                    is_sdxl=self.is_sdxl,
                     scale=scale,
-                    use_fined_grained=use_fine_grained,
-                    use_face_model=use_face_model,
+                    model=model,
                     keepalive_callback=keepalive_callback,
+                    is_sdxl=self.is_sdxl,
                     controlnets=self.controlnets
                 )
         else:
             logger.debug("Loading IP adapter")
             self.ip_adapter.load( # type: ignore[union-attr]
                 self.unet,
-                is_sdxl=self.is_sdxl,
                 scale=scale,
+                model=model,
                 keepalive_callback=keepalive_callback,
-                use_fine_grained=use_fine_grained,
-                use_face_model=use_face_model,
+                is_sdxl=self.is_sdxl,
                 controlnets=self.controlnets
             )
             self.ip_adapter_loaded = True
@@ -1141,8 +1138,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         animation_frames: Optional[int],
         device: Union[str, torch.device],
         ip_adapter_scale: Optional[Union[List[float], float]] = None,
-        ip_adapter_plus: bool = False,
-        ip_adapter_face: bool = False,
+        ip_adapter_model: Optional[IP_ADAPTER_LITERAL] = None,
         step_complete: Optional[Callable[[bool], None]] = None
     ) -> Iterator[None]:
         """
@@ -1154,8 +1150,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             self.load_ip_adapter(
                 device=device,
                 scale=max(ip_adapter_scale) if isinstance(ip_adapter_scale, list) else ip_adapter_scale,
-                use_fine_grained=ip_adapter_plus,
-                use_face_model=ip_adapter_face,
+                model=ip_adapter_model,
                 keepalive_callback=None if step_complete is None else lambda: step_complete(False) # type: ignore[misc]
             )
         else:
@@ -3060,7 +3055,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 img, scale = image
             elif isinstance(image, dict):
                 img = image["image"]
-                scale = image["scale"]
+                scale = float(image["scale"])
             elif isinstance(image, str):
                 img = self.open_image(img)
                 scale = 1.0
@@ -3159,8 +3154,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         freeu_factors: Optional[Tuple[float, float, float, float]]=None,
         control_images: ControlImageArgType=None,
         ip_adapter_images: ImagePromptArgType=None,
-        ip_adapter_plus: bool=False,
-        ip_adapter_face: bool=False,
+        ip_adapter_model: Optional[IP_ADAPTER_LITERAL]=None,
         height: Optional[int]=None,
         width: Optional[int]=None,
         tiling_size: Optional[int]=None,
@@ -3219,11 +3213,11 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         control_images = self.standardize_control_images(control_images)
 
         if ip_adapter_images is not None:
-            ip_adapter_scale = max([scale for _, scale in ip_adapter_images])
             ip_adapter_images = self.standardize_ip_adapter_images(
                 ip_adapter_images,
                 animation_frames=animation_frames
             )
+            ip_adapter_scale = max([scale for _, scale in ip_adapter_images])
         else:
             ip_adapter_scale = None
 
@@ -3279,12 +3273,12 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         output_nsfw: Optional[List[bool]] = None
 
         # Define call parameters
-        if prompt is not None or prompts is not None:
-            batch_size = 1
-        elif prompt_embeds:
+        if prompt_embeds:
             batch_size = prompt_embeds.shape[0]
         else:
-            raise ValueError("Prompt or prompt embeds are required.")
+            batch_size = 1
+            if prompt is None and prompts is None:
+                prompt = "high-quality, best quality, aesthetically pleasing" # Good luck!
 
         if self.is_inpainting_unet:
             if image is None:
@@ -3403,8 +3397,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             animation_frames=animation_frames,
             device=device,
             ip_adapter_scale=ip_adapter_scale,
-            ip_adapter_plus=ip_adapter_plus,
-            ip_adapter_face=ip_adapter_face,
+            ip_adapter_model=ip_adapter_model,
             step_complete=step_complete
         ):
             # First standardize to list of prompts

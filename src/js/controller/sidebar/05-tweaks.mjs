@@ -1,4 +1,4 @@
-/** @module controller/sidebar/02-tweaks */
+/** @module controller/sidebar/05-tweaks */
 import { isEmpty } from "../../base/helpers.mjs";
 import { Controller } from "../base.mjs";
 import { TweaksFormView } from "../../forms/enfugue/tweaks.mjs";

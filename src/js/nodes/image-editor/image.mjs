@@ -212,6 +212,21 @@ class ImageEditorImageNodeView extends ImageEditorNodeView {
     }
 
     /**
+     * Gets the size of the image when scaling the node
+     */
+    async getCanvasScaleSize() {
+        if (isEmpty(this.content.src)) {
+            return await super.getCanvasScaleSize();
+        } else {
+            await this.content.waitForLoad();
+            return [
+                Math.floor(this.content.width / 8) * 8,
+                Math.floor(this.content.height / 8) * 8
+            ];
+        }
+    }
+
+    /**
      * Provide a default state for when we are initializing from an image
      */
     static getDefaultState() {

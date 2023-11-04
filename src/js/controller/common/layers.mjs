@@ -150,6 +150,7 @@ class LayerView extends View {
         this.previewImage = new ImageView(controller.config, null, false);
         this.editorNode.onResize(() => this.resized());
         this.getLayerImage().then((image) => this.previewImage.setImage(image));
+        this.form.onSubmit(() => { setTimeout(() => { this.drawPreviewImage(); }, 150); });
         this.subtitle = null;
     }
 
@@ -194,7 +195,118 @@ class LayerView extends View {
         if (nodeState.src) {
             let imageView = new ImageView(this.config, nodeState.src);
             await imageView.waitForLoad();
-            context.drawImage(imageView.image, scaledX, scaledY, scaledWidth, scaledHeight);
+
+            let imageTop = 0,
+                imageLeft = 0,
+                scaledImageWidth = imageView.width * scale,
+                scaledImageHeight = imageView.height * scale,
+                nodeAnchor = isEmpty(nodeState.anchor)
+                    ? null
+                    : nodeState.anchor.split("-");
+
+            if (nodeState.fit === "cover" || nodeState.fit === "contain") {
+                let scaledWidthRatio = scaledWidth / imageView.width,
+                    scaledHeightRatio = scaledHeight / imageView.height;
+
+                if (nodeState.fit === "cover") {
+                    let horizontalWidth = Math.ceil(imageView.width * scaledWidthRatio),
+                        horizontalHeight = Math.ceil(imageView.height * scaledWidthRatio),
+                        verticalWidth = Math.ceil(imageView.width * scaledHeightRatio),
+                        verticalHeight = Math.ceil(imageView.height * scaledHeightRatio);
+                    if (scaledWidth <= horizontalWidth && scaledHeight <= horizontalHeight) {
+                        scaledImageWidth = horizontalWidth;
+                        scaledImageHeight = horizontalHeight;
+                        if (!isEmpty(nodeAnchor)) {
+                            switch (nodeAnchor[0]) {
+                                case "center":
+                                    imageTop = Math.floor((scaledHeight / 2) - (scaledImageHeight / 2));
+                                    break;
+                                case "bottom":
+                                    imageTop = scaledHeight - scaledImageHeight;
+                                    break;
+                            }
+                        }
+                    } else if(scaledWidth <= verticalWidth && scaledHeight <= verticalHeight) {
+                        scaledImageWidth = verticalWidth;
+                        scaledImageHeight = verticalHeight;
+                        if (!isEmpty(nodeAnchor)) {
+                            switch (nodeAnchor[1]) {
+                                case "center":
+                                    imageLeft = Math.floor((scaledWidth / 2) - (scaledImageWidth / 2));
+                                    break;
+                                case "right":
+                                    imageLeft = scaledWidth - scaledImageWidth;
+                                    break;
+                            }
+                        }
+                    }
+                } else {
+                    let horizontalWidth = Math.floor(imageView.width * scaledWidthRatio),
+                        horizontalHeight = Math.floor(imageView.height * scaledWidthRatio),
+                        verticalWidth = Math.floor(imageView.width * scaledHeightRatio),
+                        verticalHeight = Math.floor(imageView.height * scaledHeightRatio);
+
+                    if (scaledWidth >= horizontalWidth && scaledHeight >= horizontalHeight) {
+                        scaledImageWidth = horizontalWidth;
+                        scaledImageHeight = horizontalHeight;
+                        if (!isEmpty(nodeAnchor)) {
+                            switch (nodeAnchor[0]) {
+                                case "center":
+                                    imageTop = Math.floor((scaledHeight / 2) - (scaledImageHeight / 2));
+                                    break;
+                                case "bottom":
+                                    imageTop = scaledHeight - scaledImageHeight;
+                                    break;
+                            }
+                        }
+                    } else if (scaledWidth >= verticalWidth && scaledHeight >= verticalHeight) {
+                        scaledImageWidth = verticalWidth;
+                        scaledImageHeight = verticalHeight;
+                        if (!isEmpty(nodeAnchor)) {
+                            switch (nodeAnchor[1]) {
+                                case "center":
+                                    imageLeft = Math.floor((scaledWidth / 2) - (scaledImageWidth / 2));
+                                    break;
+                                case "right":
+                                    imageLeft = scaledWidth - scaledImageWidth;
+                                    break;
+                            }
+                        }
+                    }
+                }
+            } else if (nodeState.fit === "stretch") {
+                scaledImageWidth = scaledWidth;
+                scaledImageHeight = scaledHeight;
+            } else if (!isEmpty(nodeAnchor)) {
+                switch (nodeAnchor[0]) {
+                    case "center":
+                        imageTop = Math.floor((scaledHeight / 2) - (scaledImageHeight / 2));
+                        break;
+                    case "bottom":
+                        imageTop = scaledHeight - scaledImageHeight;
+                        break;
+                }
+                switch (nodeAnchor[1]) {
+                    case "center":
+                        imageLeft = Math.floor((scaledWidth / 2) - (scaledImageWidth / 2));
+                        break;
+                    case "right":
+                        imageLeft = scaledWidth - scaledImageWidth;
+                        break;
+                }
+            }
+
+            context.beginPath();
+            context.rect(scaledX, scaledY, scaledWidth, scaledHeight);
+            context.clip()
+
+            context.drawImage(
+                imageView.image,
+                scaledX + imageLeft,
+                scaledY + imageTop,
+                scaledImageWidth,
+                scaledImageHeight
+            );
         } else {
             context.fillStyle = this.foregroundStyle;
             context.fillRect(scaledX, scaledY, scaledWidth, scaledHeight);
@@ -537,6 +649,9 @@ class LayersController extends Controller {
      * Empties layers
      */
     async emptyLayers() {
+        for (let layer of this.layers) {
+            this.images.removeNode(layer.editorNode);
+        }
         this.layers = [];
         this.layersView.emptyLayers();
         this.layerOptions.resetForm();

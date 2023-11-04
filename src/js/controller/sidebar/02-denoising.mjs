@@ -1,4 +1,4 @@
-/** @module controlletr/sidebar/03-denoising */
+/** @module controlletr/sidebar/02-denoising */
 import { isEmpty } from "../../base/helpers.mjs";
 import { Controller } from "../base.mjs";
 import { DenoisingFormView } from "../../forms/enfugue/denoising.mjs";
@@ -20,7 +20,7 @@ class DenoisingController extends Controller {
     getDefaultState() {
         return {
             "denoising": {
-                "strength": 1.0
+                "strength": 0.99
             }
         }
     }
@@ -54,7 +54,6 @@ class DenoisingController extends Controller {
                 }
             };
         this.subscribe("layersChanged", (layers) => {
-            console.log(layers);
             showForDenoising = layers.reduce((carry, item) => carry || item.denoise, false);
             checkShow();
         });

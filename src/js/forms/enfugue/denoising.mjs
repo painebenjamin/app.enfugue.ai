@@ -15,7 +15,7 @@ class DenoisingFormView extends FormView {
             "strength": {
                 "class": SliderPreciseInputView,
                 "config": {
-                    "value": 1.0,
+                    "value": 0.99,
                     "min": 0.0,
                     "max": 1.0,
                     "step": 0.01,

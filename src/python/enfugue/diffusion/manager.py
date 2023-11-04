@@ -4473,8 +4473,7 @@ class DiffusionPipelineManager:
                 if kwargs.get("ip_adapter_images", None) is not None:
                     self.ip_adapter.check_download(
                         is_sdxl=pipe.is_sdxl,
-                        use_fine_grained=kwargs.get("ip_adapter_plus", False),
-                        use_face_model=kwargs.get("ip_adapter_face", False),
+                        model=kwargs.get("ip_adapter_model", None),
                         task_callback=task_callback,
                     )
 

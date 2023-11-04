@@ -217,16 +217,6 @@ class ModelFormView extends FormView {
         }
     };
 
-    /**
-     * @var array Fieldsets to hide
-     */
-    static collapseFieldSets = [
-        "Adaptations and Modifications",
-        "Additional Models",
-        "Defaults",
-        "Refining Defaults"
-    ];
-
     static fieldSetConditions = {
         "Refining Defaults": (values) => !isEmpty(values.refiner)
     };

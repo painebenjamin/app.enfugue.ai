@@ -136,6 +136,7 @@ class NodeEditorView extends View {
         this.nodeClasses = [].concat(this.constructor.nodeClasses);
         this.nodeFocusCallbacks = [];
         this.nodeCopyCallbacks = [];
+        this.setDimensionCallbacks = [];
 
         this.decorations = new NodeEditorDecorationsView(
             config,
@@ -289,12 +290,20 @@ class NodeEditorView extends View {
     }
 
     /**
+     * Adds a callback when dimensions are set
+     * @param callable $callback The function to execute
+     */
+    onSetDimension(callback) {
+        this.setDimensionCallbacks.push(callback);
+    }
+
+    /**
      * Sets a new width and height for this editor.
      * @param int $newWidth The new width to set.
      * @param int $newHeight The new height to set.
      * @param bool $resetNodes Whether or not to reset the dimensions of the nodes on this canvas.
      */
-    setDimension(newWidth, newHeight, resetNodes = true) {
+    setDimension(newWidth, newHeight, resetNodes = true, triggerCallbacks = false) {
         if (isEmpty(newWidth)){
             newWidth = this.canvasWidth;
         }
@@ -314,6 +323,11 @@ class NodeEditorView extends View {
                 for (let node of this.nodes) {
                     node.resetDimension();
                 }
+            }
+        }
+        if (triggerCallbacks) {
+            for (let callback of this.setDimensionCallbacks) {
+                callback(newWidth, newHeight);
             }
         }
     }

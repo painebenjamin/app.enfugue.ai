@@ -15,6 +15,7 @@ from enfugue.diffusion.support.model import SupportModel
 if TYPE_CHECKING:
     import torch
     from PIL import Image
+    from enfugue.diffusion.constants import IP_ADAPTER_LITERAL
     from enfugue.diffusion.support.ip.projection import ImageProjectionModel
     from enfugue.diffusion.support.ip.resampler import Resampler # type: ignore
     from diffusers.models import UNet2DConditionModel, ControlNetModel
@@ -25,8 +26,7 @@ class IPAdapter(SupportModel):
     """
     cross_attention_dim: int = 768
     is_sdxl: bool = False
-    use_fine_grained: bool = False
-    use_face_model: bool = False
+    model: IP_ADAPTER_LITERAL = "default"
 
     DEFAULT_ENCODER_CONFIG_PATH = "https://huggingface.co/h94/IP-Adapter/resolve/main/models/image_encoder/config.json"
     DEFAULT_ENCODER_PATH = "https://huggingface.co/h94/IP-Adapter/resolve/main/models/image_encoder/pytorch_model.bin"
@@ -45,9 +45,8 @@ class IPAdapter(SupportModel):
     def load(
         self,
         unet: UNet2DConditionModel,
+        model: Optional[IP_ADAPTER_LITERAL]="default",
         is_sdxl: bool=False,
-        use_fine_grained: bool=False,
-        use_face_model: bool=False,
         scale: float=1.0,
         keepalive_callback: Optional[Callable[[],None]]=None,
         controlnets: Optional[Dict[str, ControlNetModel]]=None,
@@ -72,18 +71,19 @@ class IPAdapter(SupportModel):
             AttentionProcessor2_0,
         )
 
+        if model is None:
+            model = "default"
+
         if (
             self.cross_attention_dim != unet.config.cross_attention_dim or # type: ignore[attr-defined]
             self.is_sdxl != is_sdxl or 
-            self.use_fine_grained != use_fine_grained or
-            self.use_face_model != use_face_model
+            self.model != model
         ):
             del self.projector
             del self.encoder
 
         self.is_sdxl = is_sdxl
-        self.use_fine_grained = use_fine_grained
-        self.use_face_model = use_face_model
+        self.model = model
         self.cross_attention_dim = unet.config.cross_attention_dim # type: ignore[attr-defined]
 
         self._default_unet_attention_processors: Dict[str, Any] = {}
@@ -149,11 +149,17 @@ class IPAdapter(SupportModel):
                         new_processors[key] = CNAttentionProcessor()
                 controlnets[controlnet].set_attn_processor(new_processors)
 
+    @property
+    def use_fine_grained(self) -> bool:
+        """
+        Returns true if using a plus model
+        """
+        return self.model == "plus" or self.model == "plus-face"
+
     def check_download(
         self,
         is_sdxl: bool=False,
-        use_fine_grained: bool=False,
-        use_face_model: bool=False,
+        model: Optional[IP_ADAPTER_LITERAL]="default",
         task_callback: Optional[Callable[[str], None]]=None,
     ) -> None:
         """
@@ -162,14 +168,15 @@ class IPAdapter(SupportModel):
         # Gather previous state
         _task_callback = self.task_callback
         _is_sdxl = self.is_sdxl
-        _use_fine_grained = self.use_fine_grained
-        _use_face_model = self.use_face_model
+        _model = self.model
 
         # Set new state
         self.task_callback = task_callback
         self.is_sdxl = is_sdxl
-        self.use_fine_grained = use_fine_grained
-        self.task_callback = task_callback
+        if model is None:
+            self.model = "default"
+        else:
+            self.model = model
 
         # Trigger getters
         if is_sdxl:
@@ -184,35 +191,30 @@ class IPAdapter(SupportModel):
         # Reset state
         self.task_callback = _task_callback
         self.is_sdxl = _is_sdxl
-        self.use_fine_grained = _use_fine_grained
-        self.use_face_model = _use_face_model
+        self.model = _model
 
     def set_scale(
         self,
         unet: UNet2DConditionModel,
-        new_scale: float,
+        scale: float,
         is_sdxl: bool=False,
-        use_fine_grained: bool=False,
-        use_face_model: bool=False,
+        model: Optional[IP_ADAPTER_LITERAL]="default",
         keepalive_callback: Optional[Callable[[],None]]=None,
         controlnets: Optional[Dict[str, ControlNetModel]]=None,
     ) -> int:
         """
         Sets the scale on attention processors.
         """
-        if (
-            self.is_sdxl != is_sdxl or
-            self.use_fine_grained != use_fine_grained or
-            self.use_face_model != use_face_model
-        ):
+        if model is None:
+            model = "default"
+        if self.is_sdxl != is_sdxl or self.model != model:
             # Completely reload adapter
             self.unload(unet, controlnets)
             self.load(
                 unet,
                 is_sdxl=is_sdxl,
-                scale=new_scale,
-                use_fine_grained=use_fine_grained,
-                use_face_model=use_face_model,
+                scale=scale,
+                model=model,
                 keepalive_callback=keepalive_callback,
                 controlnets=controlnets
             )
@@ -225,7 +227,7 @@ class IPAdapter(SupportModel):
         for name in unet.attn_processors.keys():
             processor = unet.attn_processors[name]
             if isinstance(processor, IPAttentionProcessor) or isinstance(processor, IPAttentionProcessor2_0):
-                processor.scale = new_scale
+                processor.scale = scale
                 processors_altered += 1
         return processors_altered
 
@@ -277,10 +279,10 @@ class IPAdapter(SupportModel):
         Gets the path to the IP checkpoint for 1.5
         Downloads if needed
         """
-        if self.use_fine_grained and self.use_face_model:
+        if self.model == "plus-face":
             model_url = self.FACE_ADAPTER_PATH
             filename = "ip-adapter-plus-face_sd15.pth"
-        elif self.use_fine_grained:
+        elif self.model == "plus":
             model_url = self.FINE_GRAINED_ADAPTER_PATH
             filename = "ip-adapter-plus_sd15.pth"
         else:
@@ -328,10 +330,10 @@ class IPAdapter(SupportModel):
         Gets the path to the IP checkpoint for XL
         Downloads if needed
         """
-        if self.use_fine_grained and self.use_face_model:
+        if self.model == "plus-face":
             model_url = self.FACE_XL_ADAPTER_PATH
             filename = "ip-adapter-plus-face_sdxl_vit-h.pth"
-        elif self.use_fine_grained:
+        elif self.model == "plus":
             model_url = self.FINE_GRAINED_XL_ADAPTER_PATH
             filename = "ip-adapter-plus_sdxl_vit-h.pth"
         else:

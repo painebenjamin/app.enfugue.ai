@@ -512,12 +512,18 @@ enfugue-node-editor.image-editor enfugue-node-canvas {
 
 enfugue-node-editor.image-editor enfugue-node-canvas > enfugue-scribble-view {
     z-index: 2;
-    mix-blend-mode: darken;
-    opacity: 0.8;
+    mix-blend-mode: hard-light;
+    opacity: 0.6;
 }
 
 enfugue-node-editor.image-editor enfugue-node-canvas > enfugue-scribble-view.locked {
     pointer-events: none;
+    mix-blend-mode: darken;
+    opacity: 1.0;
+}
+
+enfugue-node-editor.image-editor.has-sample enfugue-node-canvas > enfugue-scribble-view {
+    display: none;
 }
 
 enfugue-node-editor.image-editor enfugue-node-canvas enfugue-image-editor-grid {

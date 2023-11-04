@@ -1,4 +1,4 @@
-/** @module controller/sidebar/08-inpainting */
+/** @module controller/sidebar/03-inpainting */
 import { isEmpty } from "../../base/helpers.mjs";
 import { Controller } from "../base.mjs";
 import { ScribbleView } from "../../view/scribble.mjs";
@@ -16,7 +16,7 @@ class InpaintingController extends Controller {
         return { 
             "inpainting": {
                 "options": this.inpaintForm.values,
-                "mask": this.scribbleView.src,
+                "mask": includeImages ? this.scribbleView.src : null,
             }
         };
     }
@@ -43,7 +43,7 @@ class InpaintingController extends Controller {
     setState(newState) {
         if (!isEmpty(newState.inpainting)) {
             if (!isEmpty(newState.inpainting.options)) {
-                this.inpaintForm.setValues(newState.inpainting).then(() => this.inpaintForm.submit());
+                this.inpaintForm.setValues(newState.inpainting.options).then(() => this.inpaintForm.submit());
             }
             if (!isEmpty(newState.inpainting.mask)) {
                 let image = new Image();
@@ -63,6 +63,7 @@ class InpaintingController extends Controller {
             pencilErase = await menu.addItem("Toggle Eraser", "fa-solid fa-eraser", "s"),
             pencilClear = await menu.addItem("Clear Canvas", "fa-solid fa-delete-left", "l"),
             pencilFill = await menu.addItem("Fill Canvas", "fa-solid fa-fill-drip", "v"),
+            pencilInvert = await menu.addItem("Invert Canvas", "fa-solid fa-rotate", "r"),
             pencilIncrease = await menu.addItem("Increase Pencil Size", "fa-solid fa-plus", "i"),
             pencilDecrease = await menu.addItem("Decrease Pencil Size", "fa-solid fa-minus", "d"),
             hideMask = await menu.addItem("Toggle Mask Visibility", "fa-solid fa-eye", "y"),
@@ -88,6 +89,7 @@ class InpaintingController extends Controller {
         });
         pencilClear.onClick(() => { this.scribbleView.clearMemory(); });
         pencilFill.onClick(() => { this.scribbleView.fillMemory(); });
+        pencilInvert.onClick(() => { this.scribbleView.invertMemory(); });
         pencilIncrease.onClick(() => { this.scribbleView.increaseSize(); });
         pencilDecrease.onClick(() => { this.scribbleView.decreaseSize(); });
         hideMask.onClick(() => {
@@ -111,6 +113,16 @@ class InpaintingController extends Controller {
     }
 
     /**
+     * Resizes the mask to the engine width
+     */
+    resize() {
+        this.scribbleView.resizeCanvas(
+            this.images.width,
+            this.images.height
+        );
+    }
+
+    /**
      * On initialize, build sub controllers and add DOM nodes
      */
     async initialize() {
@@ -120,9 +132,17 @@ class InpaintingController extends Controller {
             this.engine.height
         );
         this.scribbleView.hide();
+        let setMaskTimer;
+        this.scribbleView.onDraw(() => {
+            clearTimeout(setMaskTimer);
+            setMaskTimer = setTimeout(() => {
+                this.engine.mask = this.scribbleView.invertSrc;
+            }, 100);
+        });
         this.scribbleToolbar = new ToolbarView(this.config);
         this.scribbleToolbar.addClass("inpainting");
         this.scribbleToolbar.hide()
+
         await this.prepareMenu(this.scribbleToolbar);
 
         this.inpaintForm = new InpaintingFormView(this.config);
@@ -133,7 +153,7 @@ class InpaintingController extends Controller {
                 this.publish("inpaintEnabled");
                 this.scribbleView.show();
                 this.scribbleToolbar.show();
-                this.engine.mask = this.scribbleView.src;
+                this.engine.mask = this.scribbleView.invertSrc;
             } else {
                 this.publish("inpaintDisabled");
                 this.scribbleView.hide();
@@ -157,7 +177,7 @@ class InpaintingController extends Controller {
             } else {
                 this.inpaintForm.show();
                 if (this.inpaintForm.values.inpaint) {
-                    this.engine.mask = this.scribbleView.src;
+                    this.engine.mask = this.scribbleView.invertSrc;
                     this.scribbleView.show();
                     this.scribbleToolbar.show();
                }

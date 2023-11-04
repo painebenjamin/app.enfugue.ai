@@ -66,8 +66,7 @@ class LayeredInvocation:
     lycoris: Optional[Union[str, List[str], Tuple[str, float], List[Union[str, Tuple[str, float]]]]]=None
     inversion: Optional[Union[str, List[str]]]=None
     scheduler: Optional[SCHEDULER_LITERAL]=None
-    ip_adapter_plus: bool=False
-    ip_adapter_face: bool=False
+    ip_adapter_model: Optional[IP_ADAPTER_LITERAL]=None
     # Custom model args
     model_prompt: Optional[str]=None
     model_prompt_2: Optional[str]=None
@@ -293,8 +292,7 @@ class LayeredInvocation:
             "refiner_prompt_2": self.refiner_prompt_2,
             "refiner_negative_prompt": self.refiner_negative_prompt,
             "refiner_negative_prompt_2": self.refiner_negative_prompt_2,
-            "ip_adapter_plus": self.ip_adapter_plus,
-            "ip_adapter_face": self.ip_adapter_face,
+            "ip_adapter_model": self.ip_adapter_model,
         }
 
     @classmethod
@@ -454,6 +452,18 @@ class LayeredInvocation:
         """
         all_keys = list(kwargs.keys())
         minimal_keys = []
+
+        has_refiner = bool(kwargs.get("refiner", None))
+        has_noise = bool(kwargs.get("noise_offset", None))
+        will_inpaint = bool(kwargs.get("mask", None))
+        will_animate = bool(kwargs.get("animation_frames", None))
+
+        has_ip_adapter = bool(kwargs.get("ip_adapter_images", None))
+        has_ip_adapter = has_ip_adapter or any([
+            bool(layer.get("ip_adapter_scale", None))
+            for layer in kwargs.get("layers", [])
+        ])
+
         for key in all_keys:
             value = kwargs[key]
             if value is None:
@@ -462,11 +472,11 @@ class LayeredInvocation:
                 continue
             if "tile" == key and value == False:
                 continue
-            if "refiner" in key and not kwargs.get("refiner", None):
+            if "refiner" in key and not has_refiner:
                 continue
-            if "inpaint" in key and not kwargs.get("mask", None):
+            if "inpaint" in key and not will_inpaint:
                 continue
-            if "ip_adapter" in key and not kwargs.get("ip_adapter_images", None):
+            if "ip_adapter" in key and not has_ip_adapter:
                 continue
             if (
                 (
@@ -476,12 +486,14 @@ class LayeredInvocation:
                     "frame" in key or
                     "loop" in key or
                     "reflect" in key
-                ) and
-                not kwargs.get("animation_frames", None)
+                )
+                and not will_animate
             ):
                 continue
-            if "noise" in key and not kwargs.get("noise_offset", None):
+
+            if "noise" in key and not has_noise:
                 continue
+
             minimal_keys.append(key)
 
         return dict([
@@ -508,17 +520,34 @@ class LayeredInvocation:
             kwargs["mask"] = mask
         else:
             if image is not None:
-                kwargs["image"] = save_frames_or_image(
-                    image=image,
-                    directory=save_directory,
-                    name=save_name
-                )
+                if isinstance(image, dict):
+                    image["image"] = save_frames_or_image(
+                        image=image["image"],
+                        directory=save_directory,
+                        name=save_name
+                    )
+                    kwargs["image"] = image
+                else:
+                    kwargs["image"] = save_frames_or_image(
+                        image=image,
+                        directory=save_directory,
+                        name=save_name
+                    )
             if mask is not None:
-                kwargs["mask"] = save_frames_or_image(
-                    image=mask,
-                    directory=save_directory,
-                    name=f"{save_name}_mask" if save_name is not None else None
-                )
+                if isinstance(mask, dict):
+                    mask["image"] = save_frames_or_image(
+                        image=image,
+                        directory=save_directory,
+                        name=save_name
+                    )
+                    kawrgs["mask"] = mask
+                else:
+                    kwargs["mask"] = save_frames_or_image(
+                        image=mask,
+                        directory=save_directory,
+                        name=f"{save_name}_mask" if save_name is not None else None
+                    )
+
             if control_images is not None:
                 if isinstance(control_images, dict):
                     for controlnet in control_images:
@@ -633,6 +662,8 @@ class LayeredInvocation:
                 if isinstance(mask, dict):
                     invert = mask.get("invert", False)
                     mask = mask.get("image", None)
+                    if isinstance(mask, str):
+                        mask = get_frames_or_image_from_file(mask)
                     if not mask:
                         raise ValueError("Expected mask dictionary to have 'image' key")
                     if invert:
@@ -643,6 +674,8 @@ class LayeredInvocation:
                             ]
                         else:
                             mask = ImageOps.invert(mask)
+                elif isinstance(mask, str):
+                    mask = get_frames_or_image_from_file(mask)
 
                 mask = self.prepare_image(
                     width=self.width,
@@ -664,6 +697,8 @@ class LayeredInvocation:
             else:
                 invocation_image = black.convert("RGB")
                 invocation_mask = white.copy()
+
+            has_invocation_image = False
 
             # Preprocess images
             with self.preprocessors(pipeline) as processors:
@@ -721,32 +756,35 @@ class LayeredInvocation:
 
                     is_passthrough = not denoise and not prompt_scale and not control_units
 
-                    if isinstance(fit_layer_image, list):
-                        for i in range(len(invocation_image)):
-                            invocation_image[i].paste(
-                                fit_layer_image[i] if i < len(fit_layer_image) else fit_layer_image[-1],
-                                mask=fit_layer_mask[i] if i < len(fit_layer_mask) else fit_layer_mask[-1]
-                            )
-                            if is_passthrough:
-                                invocation_mask[i].paste(
-                                    black,
+                    if denoise or is_passthrough:
+                        has_invocation_image = True
+
+                        if isinstance(fit_layer_image, list):
+                            for i in range(len(invocation_image)):
+                                invocation_image[i].paste(
+                                    fit_layer_image[i] if i < len(fit_layer_image) else fit_layer_image[-1],
                                     mask=fit_layer_mask[i] if i < len(fit_layer_mask) else fit_layer_mask[-1]
                                 )
-                    elif isinstance(invocation_image, list):
-                        for i in range(len(invocation_image)):
-                            invocation_image[i].paste(fit_layer_image, mask=fit_layer_mask)
+                                if is_passthrough:
+                                    invocation_mask[i].paste(
+                                        black,
+                                        mask=fit_layer_mask[i] if i < len(fit_layer_mask) else fit_layer_mask[-1]
+                                    )
+                        elif isinstance(invocation_image, list):
+                            for i in range(len(invocation_image)):
+                                invocation_image[i].paste(fit_layer_image, mask=fit_layer_mask)
+                                if is_passthrough:
+                                    invocation_mask[i].paste(black, mask=fit_layer_mask)
+                        else:
+                            invocation_image.paste(fit_layer_image, mask=fit_layer_mask)
                             if is_passthrough:
-                                invocation_mask[i].paste(black, mask=fit_layer_mask)
-                    else:
-                        invocation_image.paste(fit_layer_image, mask=fit_layer_mask)
-                        if is_passthrough:
-                            invocation_mask.paste(black, mask=fit_layer_mask)
+                                invocation_mask.paste(black, mask=fit_layer_mask)
 
                     if prompt_scale:
                         # ip adapter
                         ip_adapter_images.append({
                             "image": layer_image,
-                            "scale": prompt_scale
+                            "scale": float(prompt_scale)
                         })
 
                     if control_units:
@@ -782,69 +820,73 @@ class LayeredInvocation:
                                 "image": control_image
                             })
 
-            if mask:
-                if isinstance(invocation_mask, list):
-                    if not isinstance(mask, list):
-                        mask = [mask.copy() for i in range(len(invocation_mask))]
-                    for i in range(len(mask)):
-                        mask[i].paste(
+            if not has_invocation_image:
+                invocation_image = None
+                invocation_mask = None
+            else:
+                if mask:
+                    if isinstance(invocation_mask, list):
+                        if not isinstance(mask, list):
+                            mask = [mask.copy() for i in range(len(invocation_mask))]
+                        for i in range(len(mask)):
+                            mask[i].paste(
+                                white,
+                                mask=Image.eval(
+                                    feather_mask(invocation_mask[i]),
+                                    lambda a: 0 if a < 128 else 255
+                                )
+                            )
+                        invocation_mask = [
+                            img.convert("L")
+                            for img in mask
+                        ]
+                    else:
+                        # Final mask merge
+                        mask.paste(
                             white,
                             mask=Image.eval(
-                                feather_mask(invocation_mask[i]),
+                                feather_mask(invocation_mask),
                                 lambda a: 0 if a < 128 else 255
                             )
                         )
-                    invocation_mask = [
-                        img.convert("L")
-                        for img in mask
-                    ]
+                        invocation_mask = mask.convert("L")
                 else:
-                    # Final mask merge
-                    mask.paste(
-                        white,
-                        mask=Image.eval(
-                            feather_mask(invocation_mask),
-                            lambda a: 0 if a < 128 else 255
-                        )
-                    )
-                    invocation_mask = mask.convert("L")
-            else:
+                    if isinstance(invocation_mask, list):
+                        invocation_mask = [
+                            feather_mask(img).convert("L")
+                            for img in invocation_mask
+                        ]
+                    else:
+                        invocation_mask = feather_mask(invocation_mask).convert("L")
+
+                # Evaluate mask
+                mask_max, mask_min = None, None
                 if isinstance(invocation_mask, list):
-                    invocation_mask = [
-                        feather_mask(img).convert("L")
-                        for img in invocation_mask
-                    ]
+                    for img in invocation_mask:
+                        this_max, this_min = img.getextrema()
+                        if mask_max is None:
+                            mask_max = this_max
+                        else:
+                            mask_max = max(mask_max, this_max)
+                        if mask_min is None:
+                            mask_min = this_min
+                        else:
+                            mask_min = min(mask_min, this_min)
                 else:
-                    invocation_mask = feather_mask(invocation_mask).convert("L")
+                    mask_max, mask_min = invocation_mask.getextrema()
 
-            # Evaluate mask
-            mask_max, mask_min = None, None
-            if isinstance(invocation_mask, list):
-                for img in invocation_mask:
-                    this_max, this_min = img.getextrema()
-                    if mask_max is None:
-                        mask_max = this_max
-                    else:
-                        mask_max = max(mask_max, this_max)
-                    if mask_min is None:
-                        mask_min = this_min
-                    else:
-                        mask_min = min(mask_min, this_min)
-            else:
-                mask_max, mask_min = invocation_mask.getextrema()
-
-            if mask_max == mask_min == 0:
-                # Nothing to do
-                if raise_when_unused:
-                    raise IOError("Nothing to do - canvas is covered by non-denoised images. Either modify the canvas such that there is blank space to be filled, enable denoising on an image on the canvas, or add inpainting.")
-                # Might have no invocation
-                invocation_mask = None
-            elif mask_max == mask_min == 255:
-                # No inpainting
-                invocation_mask = None
-            elif not self.outpaint and not mask:
-                # Disabled outpainting
-                invocation_mask = None
+                if mask_max == mask_min == 0:
+                    # Nothing to do
+                    if raise_when_unused:
+                        raise IOError("Nothing to do - canvas is covered by non-denoised images. Either modify the canvas such that there is blank space to be filled, enable denoising on an image on the canvas, or add inpainting.")
+                    # Might have no invocation
+                    invocation_mask = None
+                elif mask_max == mask_min == 255:
+                    # No inpainting
+                    invocation_mask = None
+                elif not self.outpaint and not mask:
+                    # Disabled outpainting
+                    invocation_mask = None
 
         # Evaluate prompts
         prompts = self.prompts
@@ -917,18 +959,24 @@ class LayeredInvocation:
         }
 
         # Completed pre-processing
-        results = {**self.minimize_dict({**refiner_prompts, **self.kwargs})}
+        results_dict: Dict[str, Any] = {}
         if invocation_image:
-            results["image"] = invocation_image
+            results_dict["image"] = invocation_image
             if invocation_mask:
-                results["mask"] = invocation_mask
+                results_dict["mask"] = invocation_mask
         if control_images:
-            results["control_images"] = control_images
+            results_dict["control_images"] = control_images
         if ip_adapter_images:
-            results["ip_adapter_images"] = ip_adapter_images
+            results_dict["ip_adapter_images"] = ip_adapter_images
         if prompts:
-            results["prompts"] = prompts
-        return results
+            results_dict["prompts"] = prompts
+
+        results_dict = self.minimize_dict({
+            **self.kwargs,
+            **refiner_prompts,
+            **results_dict
+        })
+        return results_dict
 
     def execute(
         self,
@@ -1021,6 +1069,7 @@ class LayeredInvocation:
                     original_image_callback(images)
 
                 image_callback = pasted_image_callback
+
             # Now crop images
             if isinstance(invocation_kwargs["image"], list):
                 invocation_kwargs["image"] = [

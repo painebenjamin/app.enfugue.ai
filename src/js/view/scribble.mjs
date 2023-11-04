@@ -78,6 +78,21 @@ class ScribbleView extends View {
     }
 
     /**
+     * Gets the inverted canvas image as a data URL.
+     */
+    get invertSrc() {
+        let canvas = document.createElement("canvas");
+        canvas.width = this.visibleCanvas.width;
+        canvas.height = this.visibleCanvas.height
+        let context = canvas.getContext("2d");
+        context.drawImage(this.visibleCanvas, 0, 0);
+        context.globalCompositeOperation = "difference";
+        context.fillStyle = "white";
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        return canvas.toDataURL();
+    }
+
+    /**
      * Clears the canvas in memory.
      */
     clearMemory() {
@@ -94,6 +109,18 @@ class ScribbleView extends View {
     fillMemory() {
         let memoryContext = this.memoryCanvas.getContext("2d");
         memoryContext.fillStyle = "#000000";
+        memoryContext.fillRect(0, 0, this.memoryCanvas.width, this.memoryCanvas.height);
+        this.updateVisibleCanvas();
+        this.drawn();
+    }
+
+    /**
+     * Inverts the canvas in memory.
+     */
+    invertMemory() {
+        let memoryContext = this.memoryCanvas.getContext("2d");
+        memoryContext.globalCompositeOperation = "difference";
+        memoryContext.fillStyle = "white";
         memoryContext.fillRect(0, 0, this.memoryCanvas.width, this.memoryCanvas.height);
         this.updateVisibleCanvas();
         this.drawn();

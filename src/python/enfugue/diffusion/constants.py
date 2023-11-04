@@ -112,7 +112,8 @@ __all__ = [
     "UPSCALE_PROMPT_STEP_WEIGHT",
     "MAX_IMAGE_SCALE",
     "LATENT_BLEND_METHOD_LITERAL",
-    "NOISE_METHOD_LITERAL"
+    "NOISE_METHOD_LITERAL",
+    "IP_ADAPTER_LITERAL"
 ]
 
 DEFAULT_MODEL = "https://huggingface.co/runwayml/stable-diffusion-v1-5/resolve/main/v1-5-pruned.ckpt"
@@ -209,6 +210,9 @@ NOISE_METHOD_LITERAL = Literal[
     "perlin", "brownian_fractal", "white",
     "grey", "pink", "blue", "green",
     "velvet", "violet", "random_mix"
+]
+IP_ADAPTER_LITERAL = Literal[
+    "default", "plus", "plus-face"
 ]
 
 # VAE repos/files

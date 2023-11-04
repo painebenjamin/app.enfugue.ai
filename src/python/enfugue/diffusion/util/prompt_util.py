@@ -208,8 +208,7 @@ class EncodedPrompts:
                     ])
                 else:
                     image_embeds = image_embeds[frames]
-            # Collapse frames
-            image_embeds = image_embeds.mean(0)
+
             if return_tensor is None:
                 return_tensor = image_embeds
             else:
@@ -245,8 +244,7 @@ class EncodedPrompts:
                     ])
                 else:
                     uncond_embeds = uncond_embeds[frames]
-            # Collapse frames
-            uncond_embeds = uncond_embeds.mean(0)
+
             if return_tensor is None:
                 return_tensor = uncond_embeds
             else:

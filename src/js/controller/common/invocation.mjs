@@ -330,7 +330,7 @@ class InvocationController extends Controller {
      * @return image optional mask
      */
     get mask() {
-        return this.kwargs.mask || 0;
+        return this.kwargs.mask || null;
     }
 
     /**
@@ -390,6 +390,23 @@ class InvocationController extends Controller {
      */
     get upscaleSteps() {
         return this.kwargs.upscale || null;
+    }
+
+    /**
+     * @return str The IP adapter model
+     */
+    get ipAdapterModel() {
+        return this.kwargs.ip_adapter_model || null;
+    }
+
+    /**
+     * @param str The IP adapter model
+     */
+    set ipAdapterModel(newModel) {
+        if (this.ipAdapterModel !== newModel) {
+            this.publish("engineIpAdapterModelChange", newModel);
+        }
+        this.kwargs.ip_adapter_model = newModel;
     }
 
     /**

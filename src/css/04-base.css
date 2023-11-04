@@ -54,7 +54,7 @@ body {
     align-items: stretch;
     justify-content: stretch;
     position: relative;
-    background-color: var(--darkest-color);
+    background-color: var(--dark-color);
 }
 
 header {
@@ -215,6 +215,7 @@ fieldset .field-container {
     align-items: stretch;
     flex-basis: 100px;
     flex-grow: 1;
+    z-index: 2;
 }
 
 fieldset.collapsed .field-container {
@@ -251,6 +252,7 @@ fieldset .field-container enfugue-slider-input {
     flex-grow: 1;
     margin: 0;
     width: 100%;
+    z-index: 2;
 }
 
 fieldset .field-container.hidden-input-view {
@@ -429,16 +431,16 @@ form.inset-form fieldset legend {
 
 @keyframes loadingBar {
     0% {
-        left: 1em;
-        right: calc(100% - 2em);
+        left: 10px;
+        right: calc(100% - 20px);
     }
     50% {
-        left: 1em;
-        right: 1em;
+        left: 10px;
+        right: 10px;
     }
     100% {
-        left: calc(100% - 2em);
-        right: 1em;
+        left: calc(100% - 20px);
+        right: 10px;
     }
 }
 

@@ -261,7 +261,6 @@ class MenuCategoryView extends ParentView {
      */
     async addItem(name, icon, shortcut) {
         let itemView = await this.addChild(IconItemView, name, icon, shortcut);
-        itemView.onClick(() => { this.removeClass("active"); });
         return itemView;
     }
 
@@ -341,9 +340,9 @@ class MenuItemView extends View {
     async build() {
         let node = await super.build();
         node.prepend(E.span().content(formatName(this.name, this.shortcut)));
-        node.on("click", async(e) => {
+        node.on("click", (e) => {
             e.preventDefault();
-            this.activate()
+            this.activate();
         });
         return node;
     }

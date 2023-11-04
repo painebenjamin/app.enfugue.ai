@@ -980,7 +980,7 @@ class Application {
      * Resets state to default values
      */
     async resetState(saveHistory = true) {
-        let state = {"images": []},
+        let state = {"layers": []},
             controllerArray = this.getStatefulControllers();
         for (let controller of controllerArray) {
             state = {...state, ...controller.getDefaultState()};
