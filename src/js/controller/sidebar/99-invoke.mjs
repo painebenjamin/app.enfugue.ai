@@ -76,7 +76,8 @@ class InvokeButtonController extends Controller {
                                 "process": unit.processControlImage,
                                 "start": unit.conditioningStart,
                                 "end": unit.conditioningEnd,
-                                "scale": unit.conditioningScale
+                                "scale": unit.conditioningScale,
+                                "controlnet": unit.controlnet
                             };
                         });
                     }

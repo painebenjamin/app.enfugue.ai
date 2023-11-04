@@ -115,6 +115,9 @@ class DiffusionPipelineManager:
     DEFAULT_TEMPORAL_CHUNK = 4
     DEFAULT_TEMPORAL_SIZE = 16
 
+    is_default_inpainter: bool = False
+    is_default_animator: bool = False
+
     _keepalive_thread: KeepaliveThread
     _keepalive_callback: Callable[[], None]
     _scheduler: KarrasDiffusionSchedulers
@@ -134,6 +137,7 @@ class DiffusionPipelineManager:
             self.configuration = configuration
         if optimize:
             self.optimize_configuration()
+        self.hijack_downloads()
 
     def optimize_configuration(self) -> None:
         """
@@ -155,6 +159,26 @@ class DiffusionPipelineManager:
             self._task_callback(message) # type: ignore[misc]
         else:
             logger.debug(message)
+
+    def hijack_downloads(self) -> None:
+        """
+        Steals huggingface hub HTTP GET to report back to the UI.
+        """
+        import huggingface_hub
+        import huggingface_hub.file_download
+
+        huggingface_http_get = huggingface_hub.file_download.http_get
+
+        def http_get(url: str, *args: Any, **kwargs: Any) -> Any:
+            """
+            Call the task callback then execute the standard function
+            """
+            if self.offline:
+                raise ValueError(f"Offline mode enabled, but need to download {url}. Exiting.")
+            self.task_callback(f"Downloading {url}")
+            return huggingface_http_get(url, *args, **kwargs)
+
+        huggingface_hub.file_download.http_get = http_get
 
     def check_download_model(self, local_dir: str, remote_url: str) -> str:
         """
@@ -480,7 +504,18 @@ class DiffusionPipelineManager:
         if not new_scheduler:
             if hasattr(self, "_scheduler"):
                 delattr(self, "_scheduler")
-                self.unload_pipeline("returning to default scheduler")
+                if hasattr(self, "_pipeline"):
+                    logger.debug("Reverting pipeline scheduler to default.")
+                    self._pipeline.revert_scheduler()
+                if hasattr(self, "_inpainter_pipeline"):
+                    logger.debug("Reverting inpainter pipeline scheduler to default.")
+                    self._inpainter_pipeline.revert_scheduler()
+                if hasattr(self, "_refiner_pipeline"):
+                    logger.debug("Reverting refiner pipeline scheduler to default.")
+                    self._refiner_pipeline.revert_scheduler()
+                if hasattr(self, "_animator_pipeline"):
+                    logger.debug("Reverting animator pipeline scheduler to default.")
+                    self._animator_pipeline.revert_scheduler()
             return
         scheduler_class = self.get_scheduler_class(new_scheduler)
         scheduler_config: Dict[str, Any] = {}
@@ -596,13 +631,6 @@ class DiffusionPipelineManager:
                 logger.debug(f"Received KeyError on '{ex}' when instantiating VAE from single file, trying to use XL VAE loader fix.")
                 result = self.get_xl_vae(vae)
         else:
-            expected_vae_location = os.path.join(self.engine_cache_dir, "models--" + vae.replace("/", "--"))
-
-            if not os.path.exists(expected_vae_location):
-                if self.offline:
-                    raise IOError(f"Offline mode enabled, cannot download {vae} to {expected_vae_location}")
-                self.task_callback(f"Downloading VAE weights from repository {vae}")
-                logger.info(f"VAE {vae} does not exist in cache directory {self.engine_cache_dir}, it will be downloaded.")
             result = AutoencoderKL.from_pretrained(
                 vae,
                 torch_dtype=self.dtype,
@@ -618,11 +646,6 @@ class DiffusionPipelineManager:
         """
         from diffusers.models import AutoencoderTiny
         repo = "madebyollin/taesdxl" if use_xl else "madebyollin/taesd"
-        expected_path = os.path.join(self.engine_cache_dir, "models--{0}".format(repo.replace("/", "--")))
-        if not os.path.exists(expected_path):
-            if self.offline:
-                raise IOError(f"Offline mode enabled, cannot download {repo} to {expected_path}")
-            self.task_callback(f"Downloading preview VAE weights from repository {repo}")
         return AutoencoderTiny.from_pretrained(
             repo,
             cache_dir=self.engine_cache_dir,
@@ -2359,11 +2382,16 @@ class DiffusionPipelineManager:
             model = find_file_in_directory(self.engine_checkpoints_dir, model)
         if not model:
             raise ValueError(f"Cannot find model {new_model}")
+
         model_name, _ = os.path.splitext(os.path.basename(model))
         if self.model_name != model_name:
             self.unload_pipeline("model changing")
-            if not hasattr(self, "_inpainter") and getattr(self, "_inpainter_pipeline", None) is not None:
+            if self.is_default_animator and getattr(self, "_animator_pipeline", None) is not None:
+                self.unload_animator("base model changing")
+                self.is_default_animator = False
+            if self.is_default_inpainter and getattr(self, "_inpainter_pipeline", None) is not None:
                 self.unload_inpainter("base model changing")
+                self.is_default_inpainter = False
         self._model = model
 
     @property
@@ -2491,9 +2519,11 @@ class DiffusionPipelineManager:
             animator = find_file_in_directory(self.engine_checkpoints_dir, animator) # type: ignore[assignment]
         if not animator:
             raise ValueError(f"Cannot find animator {new_animator}")
+
         animator_name, _ = os.path.splitext(os.path.basename(animator))
         if self.animator_name != animator_name:
             self.unload_animator("model changing")
+
         self._animator = animator
 
     @property
@@ -3384,6 +3414,9 @@ class DiffusionPipelineManager:
                     else:
                         raise ConfigurationError(f"No target inpainter, creation is disabled, and default inpainter does not exist at {target_checkpoint_path}")
                 self.inpainter = target_checkpoint_path
+                self.is_default_inpainter = True
+            else:
+                self.is_default_inpainter = False
 
             if self.inpainter.startswith("http"):
                 self.inpainter = self.check_download_model(self.engine_checkpoints_dir, self.inpainter)
@@ -3521,7 +3554,11 @@ class DiffusionPipelineManager:
         """
         if not hasattr(self, "_animator_pipeline"):
             if self.animator is None:
-                raise ValueError("No animator set!")
+                logger.info("No animator explicitly set, using base model for animator.")
+                self.animator = self.model
+                self.is_default_animator = True
+            else:
+                self.is_default_animator = False
 
             if self.animator.startswith("http"):
                 self.animator = self.check_download_model(self.engine_checkpoints_dir, self.animator)
@@ -3896,14 +3933,6 @@ class DiffusionPipelineManager:
                 logger.debug(f"Received KeyError on '{ex}' when instantiating controlnet from single file, trying to use XL ControlNet loader fix.")
                 return self.get_xl_controlnet(expected_controlnet_location)
         else:
-            expected_controlnet_location = os.path.join(self.engine_cache_dir, "models--" + controlnet.replace("/", "--"))
-            if not os.path.exists(expected_controlnet_location):
-                if self.offline:
-                    raise IOError(f"Offline mode enabled, cannot find requested ControlNet at {expected_controlnet_location}")
-                logger.info(
-                    f"Controlnet {controlnet} does not exist in cache directory {self.engine_cache_dir}, it will be downloaded."
-                )
-                self.task_callback(f"Downloading {controlnet} model weights")
             result = ControlNetModel.from_pretrained(
                 controlnet,
                 torch_dtype=torch.half,

@@ -24,13 +24,14 @@ from typing import (
     Iterator,
     TYPE_CHECKING,
 )
-
+from random import randint
 from pibble.util.strings import Serializer
 
 from enfugue.util import (
     logger,
     feather_mask,
     fit_image,
+    get_frames_or_image_from_file,
     save_frames_or_image,
     redact_images_from_metadata,
     merge_tokens,
@@ -267,7 +268,21 @@ class LayeredInvocation:
             "width": self.width,
             "height": self.height,
             "strength": self.strength,
+            "animation_frames": self.animation_frames,
+            "tile": tuple(self.tile[:2]) if isinstance(self.tile, list) else self.tile,
+            "freeu_factors": self.freeu_factors,
             "num_inference_steps": self.num_inference_steps,
+            "num_results_per_prompt": self.samples,
+            "noise_offset": self.noise_offset,
+            "noise_method": self.noise_method,
+            "noise_blend_method": self.noise_blend_method,
+            "loop": self.loop,
+            "tiling_size": self.tiling_size,
+            "tiling_stride": self.tiling_stride,
+            "tiling_mask_type": self.tiling_mask_type,
+            "motion_scale": self.motion_scale,
+            "frame_window_size": self.frame_window_size,
+            "frame_window_stride": self.frame_window_stride,
             "guidance_scale": self.guidance_scale,
             "refiner_start": self.refiner_start,
             "refiner_strength": self.refiner_strength,
@@ -287,7 +302,7 @@ class LayeredInvocation:
         cls,
         width: int,
         height: int,
-        image: Union[Image, List[Image]],
+        image: Union[str, Image, List[Image]],
         animation_frames: Optional[int]=None,
         fit: Optional[IMAGE_FIT_LITERAL]=None,
         anchor: Optional[IMAGE_ANCHOR_LITERAL]=None,
@@ -301,6 +316,9 @@ class LayeredInvocation:
         Fits an image on the canvas and returns it and it's alpha mask
         """
         from PIL import Image
+
+        if isinstance(image, str):
+            image = get_frames_or_image_from_file(image)
 
         if w is not None and h is not None:
             fitted_image = fit_image(image, w, h, fit, anchor)
@@ -416,6 +434,10 @@ class LayeredInvocation:
             invocation_kwargs["width"] = image_width if image_width else size
         if not invocation_kwargs.get("height", None):
             invocation_kwargs["height"] = image_height if image_height else size
+
+        # Add seed if not set
+        if not invocation_kwargs.get("seed", None):
+            invocation_kwargs["seed"] = randint(0,2**32)
 
         if ignored_kwargs:
             logger.warning(f"Ignored keyword arguments: {ignored_kwargs}")
@@ -558,8 +580,9 @@ class LayeredInvocation:
         for image_dict in to_check:
             if image_dict.get("remove_background", False):
                 needs_background_remover = True
-            if image_dict.get("process", False) and image_dict.get("controlnet", None) is not None:
-                needs_control_procesors.append(image_dict["controlnet"])
+            for control_dict in image_dict.get("control_units", []):
+                if control_dict.get("process", False) and control_dict.get("controlnet", None) is not None:
+                    needs_control_processors.append(control_dict["controlnet"])
 
         with ExitStack() as stack:
             processors: Dict[str, Callable[[Image], Image]] = {}
@@ -569,9 +592,11 @@ class LayeredInvocation:
                 )
             if needs_control_processors:
                 processor_names = list(set(needs_control_processors))
-                processor_callables = list(pipeline.control_image_processors.processors(*processor_names))
-                processors = {**processors, **dict(zip(processor_names, processor_callables))}
-            yield processors
+                with pipeline.control_image_processor.processors(*processor_names) as processor_callables:
+                    processors = {**processors, **dict(zip(processor_names, processor_callables))}
+                    yield processors
+            else:
+                yield processors
 
     def preprocess(
         self,
@@ -694,24 +719,28 @@ class LayeredInvocation:
                     else:
                         inverse_fit_layer_mask = ImageOps.invert(fit_layer_mask)
 
-                    if denoise:
-                        # img2img (maybe still with prompt and control)
-                        # Add the layer mask to the overall mask
-                        if isinstance(invocation_mask, list):
-                            for i, img in enumerate(fit_layer_mask):
-                                invocation_mask[i].paste(black, mask=img)
-                            for i, img in enumerate(fit_layer_image):
-                                invocation_image[i].paste(img, mask=fit_layer_mask[i])
-                        else:
-                            invocation_image.paste(fit_layer_image, mask=fit_layer_mask)
-                    elif not prompt_scale and not control_units:
-                        # passthrough only
-                        if isinstance(layer_image, list):
-                            for i, img in enumerate(fit_layer_image):
-                                invocation_image[i].paste(img, mask=fit_layer_mask[i])
-                        else:
+                    is_passthrough = not denoise and not prompt_scale and not control_units
+
+                    if isinstance(fit_layer_image, list):
+                        for i in range(len(invocation_image)):
+                            invocation_image[i].paste(
+                                fit_layer_image[i] if i < len(fit_layer_image) else fit_layer_image[-1],
+                                mask=fit_layer_mask[i] if i < len(fit_layer_mask) else fit_layer_mask[-1]
+                            )
+                            if is_passthrough:
+                                invocation_mask[i].paste(
+                                    black,
+                                    mask=fit_layer_mask[i] if i < len(fit_layer_mask) else fit_layer_mask[-1]
+                                )
+                    elif isinstance(invocation_image, list):
+                        for i in range(len(invocation_image)):
+                            invocation_image[i].paste(fit_layer_image, mask=fit_layer_mask)
+                            if is_passthrough:
+                                invocation_mask[i].paste(black, mask=fit_layer_mask)
+                    else:
+                        invocation_image.paste(fit_layer_image, mask=fit_layer_mask)
+                        if is_passthrough:
                             invocation_mask.paste(black, mask=fit_layer_mask)
-                            invocation_image.paste(fit_layer_image, mask=fit_layer_mask)
 
                     if prompt_scale:
                         # ip adapter
@@ -752,18 +781,58 @@ class LayeredInvocation:
                                 "scale": control_unit.get("scale", 1.0),
                                 "image": control_image
                             })
+
             if mask:
-                # Final mask merge
-                mask.paste(white, mask=Image.eval(
-                    feather_mask(invocation_mask),
-                    lambda a: 0 if a < 128 else 255
-                ))
-                invocation_mask = mask.convert("L")
+                if isinstance(invocation_mask, list):
+                    if not isinstance(mask, list):
+                        mask = [mask.copy() for i in range(len(invocation_mask))]
+                    for i in range(len(mask)):
+                        mask[i].paste(
+                            white,
+                            mask=Image.eval(
+                                feather_mask(invocation_mask[i]),
+                                lambda a: 0 if a < 128 else 255
+                            )
+                        )
+                    invocation_mask = [
+                        img.convert("L")
+                        for img in mask
+                    ]
+                else:
+                    # Final mask merge
+                    mask.paste(
+                        white,
+                        mask=Image.eval(
+                            feather_mask(invocation_mask),
+                            lambda a: 0 if a < 128 else 255
+                        )
+                    )
+                    invocation_mask = mask.convert("L")
             else:
-                invocation_mask = feather_mask(invocation_mask).convert("L")
+                if isinstance(invocation_mask, list):
+                    invocation_mask = [
+                        feather_mask(img).convert("L")
+                        for img in invocation_mask
+                    ]
+                else:
+                    invocation_mask = feather_mask(invocation_mask).convert("L")
 
             # Evaluate mask
-            (mask_max, mask_min) = invocation_mask.getextrema()
+            mask_max, mask_min = None, None
+            if isinstance(invocation_mask, list):
+                for img in invocation_mask:
+                    this_max, this_min = img.getextrema()
+                    if mask_max is None:
+                        mask_max = this_max
+                    else:
+                        mask_max = max(mask_max, this_max)
+                    if mask_min is None:
+                        mask_min = this_min
+                    else:
+                        mask_min = min(mask_min, this_min)
+            else:
+                mask_max, mask_min = invocation_mask.getextrema()
+
             if mask_max == mask_min == 0:
                 # Nothing to do
                 if raise_when_unused:
@@ -779,7 +848,7 @@ class LayeredInvocation:
 
         # Evaluate prompts
         prompts = self.prompts
-        if prompts is not None:
+        if prompts:
             # Prompt travel
             prompts = [
                 Prompt(
@@ -800,7 +869,8 @@ class LayeredInvocation:
                         (self.model_negative_prompt_2, MODEL_PROMPT_WEIGHT)
                     ),
                     start=prompt.get("start",None),
-                    end=prompt.get("end",None)
+                    end=prompt.get("end",None),
+                    weight=prompt.get("weight", 1.0)
                 )
                 for prompt in prompts
             ]
@@ -892,7 +962,6 @@ class LayeredInvocation:
             pipeline,
             raise_when_unused = not self.upscale,
             task_callback=task_callback,
-            
         )
 
         # Determine if we're doing cropped inpainting
@@ -902,7 +971,10 @@ class LayeredInvocation:
                 size=self.tiling_size if self.tiling_size else 1024 if pipeline.inpainter_is_sdxl else 512,
                 feather=self.inpaint_feather
             )
-            mask_width, mask_height = invocation_kwargs["mask"].size
+            if isinstance(invocation_kwargs["mask"], list):
+                mask_width, mask_height = invocation_kwargs["mask"][0].size
+            else:
+                mask_width, mask_height = invocation_kwargs["mask"].size
             bbox_width = x1 - x0
             bbox_height = y1 - y0
             pixel_ratio = (bbox_height * bbox_width) / (mask_width * mask_height)
@@ -1078,15 +1150,31 @@ class LayeredInvocation:
         width = pipeline.size if self.width is None else self.width
         height = pipeline.size if self.height is None else self.height
 
-        images = [
-            Image.new("RGBA", (width, height))
-            for i in range(total_images)
-        ]
+        if "image" in invocation_kwargs:
+            if isinstance(invocation_kwargs["image"], list):
+                images = [
+                    invocation_kwargs["image"][i].copy() if len(invocation_kwargs["image"]) > i else invocation_kwargs["image"][-1].copy()
+                    for i in range(total_images)
+                ]
+            else:
+                images = [
+                    invocation_kwargs["image"].copy()
+                    for i in range(total_images)
+                ]
+        else:
+            images = [
+                Image.new("RGBA", (width, height))
+                for i in range(total_images)
+            ]
         image_draw = [
             ImageDraw.Draw(image)
             for image in images
         ]
         nsfw_content_detected = [False] * total_images
+
+        # Trigger the callback with base images after scaling and processing
+        if image_callback is not None and invocation_kwargs.get("image", None):
+            image_callback(images)
 
         # Determine what controlnets to use
         controlnets = (

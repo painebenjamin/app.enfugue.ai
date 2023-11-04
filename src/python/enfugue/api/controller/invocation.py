@@ -17,13 +17,7 @@ from pibble.api.middleware.database.orm import ORMMiddlewareBase
 from pibble.api.exceptions import NotFoundError, BadRequestError
 
 from enfugue.diffusion.invocation import LayeredInvocation
-from enfugue.diffusion.constants import (
-    DEFAULT_MODEL,
-    DEFAULT_INPAINTING_MODEL,
-    DEFAULT_SDXL_MODEL,
-    DEFAULT_SDXL_REFINER,
-    DEFAULT_SDXL_INPAINTING_MODEL,
-)
+from enfugue.diffusion.constants import *
 from enfugue.util import find_file_in_directory
 from enfugue.api.controller.base import EnfugueAPIControllerBase
 
@@ -34,6 +28,14 @@ DEFAULT_INPAINTING_MODEL_CKPT = os.path.basename(DEFAULT_INPAINTING_MODEL)
 DEFAULT_SDXL_MODEL_CKPT = os.path.basename(DEFAULT_SDXL_MODEL)
 DEFAULT_SDXL_REFINER_CKPT = os.path.basename(DEFAULT_SDXL_REFINER)
 DEFAULT_SDXL_INPAINTING_CKPT = os.path.basename(DEFAULT_SDXL_INPAINTING_MODEL)
+MOTION_LORA_ZOOM_OUT_CKPT = os.path.basename(MOTION_LORA_ZOOM_OUT)
+MOTION_LORA_ZOOM_IN_CKPT = os.path.basename(MOTION_LORA_ZOOM_IN)
+MOTION_LORA_PAN_LEFT_CKPT = os.path.basename(MOTION_LORA_PAN_LEFT)
+MOTION_LORA_PAN_RIGHT_CKPT = os.path.basename(MOTION_LORA_PAN_RIGHT)
+MOTION_LORA_TILT_UP_CKPT = os.path.basename(MOTION_LORA_TILT_UP)
+MOTION_LORA_TILT_DOWN_CKPT = os.path.basename(MOTION_LORA_TILT_DOWN)
+MOTION_LORA_ROLL_CLOCKWISE_CKPT = os.path.basename(MOTION_LORA_ROLL_CLOCKWISE)
+MOTION_LORA_ROLL_ANTI_CLOCKWISE_CKPT = os.path.basename(MOTION_LORA_ROLL_ANTI_CLOCKWISE)
 
 class EnfugueAPIInvocationController(EnfugueAPIControllerBase):
     handlers = UserExtensionHandlerRegistry()
@@ -60,6 +62,22 @@ class EnfugueAPIInvocationController(EnfugueAPIControllerBase):
             return DEFAULT_SDXL_REFINER
         if base_model_name == DEFAULT_SDXL_INPAINTING_CKPT:
             return DEFAULT_SDXL_INPAINTING_MODEL
+        if base_model_name == MOTION_LORA_ZOOM_OUT_CKPT:
+            return MOTION_LORA_ZOOM_OUT
+        if base_model_name == MOTION_LORA_ZOOM_IN_CKPT:
+            return MOTION_LORA_ZOOM_IN
+        if base_model_name == MOTION_LORA_PAN_LEFT_CKPT:
+            return MOTION_LORA_PAN_LEFT
+        if base_model_name == MOTION_LORA_PAN_RIGHT_CKPT:
+            return MOTION_LORA_PAN_RIGHT
+        if base_model_name == MOTION_LORA_TILT_UP_CKPT:
+            return MOTION_LORA_TILT_UP
+        if base_model_name == MOTION_LORA_TILT_DOWN_CKPT:
+            return MOTION_LORA_TILT_DOWN
+        if base_model_name == MOTION_LORA_ROLL_CLOCKWISE_CKPT:
+            return MOTION_LORA_ROLL_CLOCKWISE
+        if base_model_name == MOTION_LORA_ROLL_ANTI_CLOCKWISE_CKPT:
+            return MOTION_LORA_ROLL_ANTI_CLOCKWISE
         return None
 
     def get_default_size_for_model(self, model: Optional[str]) -> int:

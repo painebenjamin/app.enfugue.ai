@@ -175,7 +175,6 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
     vae_scale_factor: int
     safety_checker: Optional[StableDiffusionSafetyChecker]
     config: OmegaConf
-    xl_inpainting_latent_scale_factor: float = 1.25
     safety_checking_disabled: bool = False
 
     def __init__(
@@ -216,6 +215,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         )
 
         # Save scheduler config for hotswapping
+        self.scheduler_class = type(scheduler)
         self.scheduler_config = {**dict(scheduler.config)} # type: ignore[attr-defined]
 
         # Enfugue engine settings
@@ -273,7 +273,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             elif isinstance(value, torch.Tensor):
                 logger.debug(f"{key} = {value.shape} ({value.dtype}) on {value.device}")
 
-    classmethod
+    @classmethod
     def open_image(cls, path: str) -> List[PIL.Image.Image]:
         """
         Opens an image or video and standardizes to a list of images
@@ -559,13 +559,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             except KeyError as ex:
                 default_path = "stabilityai/sdxl-vae" if model_type in ["SDXL", "SDXL-Refiner"] else "stabilityai/sd-vae-ft-ema"
                 logger.error(f"Malformed VAE state dictionary detected; missing required key '{ex}'. Reverting to default model {default_path}")
-                pretrained_save_path = os.path.join(cache_dir, "models--{0}".format(
-                    default_path.replace("/", "--")
-                ))
-                if not os.path.exists(pretrained_save_path):
-                    task_callback(f"Downloading default VAE weights from repository {default_path}")
-                else:
-                    task_callback(f"Loading VAE from cache {default_path}")
+                task_callback(f"Loading VAE {default_path}")
                 vae = AutoencoderKL.from_pretrained(default_path, cache_dir=cache_dir)
         elif os.path.exists(vae_path):
             if model_type in ["SDXL", "SDXL-Refiner"]:
@@ -595,12 +589,6 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             logger.debug(f"Initializing autoencoder from repository {vae_path}")
             vae = AutoencoderKL.from_pretrained(vae_path, cache_dir=cache_dir)
 
-        # Modify scaling factor if needed
-        if model_type in ["SDXL", "SDXL-Refiner"] and num_in_channels == 9:
-            logger.debug(f"Scaling VAE scaling factor by {cls.xl_inpainting_latent_scale_factor}")
-            vae.config.scaling_factor *= cls.xl_inpainting_latent_scale_factor
-            vae.config.sample_size = 512
-
         if offload_models:
             logger.debug("Offloading enabled; sending VAE to CPU")
             vae.to("cpu")
@@ -612,13 +600,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             else:
                 vae_preview_path = "madebyollin/taesd"
 
-        vae_preview_local_path = os.path.join(cache_dir, "models--{0}".format(vae_preview_path.replace("/", "--")))
-        if not os.path.exists(vae_preview_local_path):
-            task_callback(f"Downloading preview VAE weights from repository {vae_preview_path}")
-        else:
-            task_callback(f"Loading preview VAE weights from cache {vae_preview_path}")
-
-        task_callback("Loading preview VAE")
+        task_callback(f"Loading preview VAE {vae_preview_path}")
         vae_preview = AutoencoderTiny.from_pretrained(
             vae_preview_path,
             cache_dir=cache_dir
@@ -626,11 +608,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
         if load_safety_checker:
             safety_checker_path = "CompVis/stable-diffusion-safety-checker"
-            safety_checker_local_path = os.path.join(cache_dir, "models--{0}".format(safety_checker_path.replace("/", "--")))
-            if not os.path.exists(safety_checker_local_path):
-                task_callback(f"Downloading safety checker weights from repository {safety_checker_path}")
-            else:
-                task_callback(f"Loading safety checker weights from cache {safety_checker_path}")
+            task_callback(f"Loading safety checker {safety_checker_path}")
             safety_checker = StableDiffusionSafetyChecker.from_pretrained(
                 safety_checker_path,
                 cache_dir=cache_dir
@@ -657,12 +635,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 empty_cache()
 
             tokenizer_path = "openai/clip-vit-large-patch14"
-            tokenizer_local_path = os.path.join(cache_dir, "models--{0}".format(tokenizer_path.replace("/", "--")))
-            if not os.path.exists(tokenizer_local_path):
-                task_callback(f"Downloading tokenizer weights from repository {tokenizer_path}")
-            else:
-                task_callback(f"Loading tokenizer weights from cache {tokenizer_path}")
-
+            task_callback(f"Loading tokenizer {tokenizer_path}")
             tokenizer = CLIPTokenizer.from_pretrained(
                 tokenizer_path,
                 cache_dir=cache_dir
@@ -683,12 +656,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             )
         elif model_type == "SDXL":
             tokenizer_path = "openai/clip-vit-large-patch14"
-            tokenizer_local_path = os.path.join(cache_dir, "models--{0}".format(tokenizer_path.replace("/", "--")))
-            if not os.path.exists(tokenizer_local_path):
-                task_callback(f"Downloading tokenizer 1 weights from repository {tokenizer_path}")
-            else:
-                task_callback(f"Loading tokenizer 1 weights from cache {tokenizer_path}")
-
+            task_callback(f"Loading tokenizer 1 {tokenizer_path}")
             tokenizer = CLIPTokenizer.from_pretrained(
                 tokenizer_path,
                 cache_dir=cache_dir
@@ -697,11 +665,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             text_encoder = convert_ldm_clip_checkpoint(checkpoint)
 
             tokenizer_2_path = "laion/CLIP-ViT-bigG-14-laion2B-39B-b160k"
-            tokenizer_2_local_path = os.path.join(cache_dir, "models--{0}".format(tokenizer_2_path.replace("/", "--")))
-            if not os.path.exists(tokenizer_local_path):
-                task_callback(f"Downloading tokenizer 2 weights from repository {tokenizer_2_path}")
-            else:
-                task_callback(f"Loading tokenizer 2 from cache {tokenizer_2_path}")
+            task_callback(f"Loading tokenizer 2 {tokenizer_2_path}")
 
             tokenizer_2 = CLIPTokenizer.from_pretrained(
                 tokenizer_2_path,
@@ -738,12 +702,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             )
         elif model_type == "SDXL-Refiner":
             tokenizer_2_path = "laion/CLIP-ViT-bigG-14-laion2B-39B-b160k"
-            tokenizer_2_local_path = os.path.join(cache_dir, "models--{0}".format(tokenizer_2_path.replace("/", "--")))
-            if not os.path.exists(tokenizer_2_local_path):
-                task_callback(f"Downloading tokenizer weights from repository {tokenizer_2_path}")
-            else:
-                task_callback(f"Loading tokenizer weights from cache {tokenizer_2_path}")
-
+            task_callback(f"Loading tokenizer {tokenizer_2_path}")
             tokenizer_2 = CLIPTokenizer.from_pretrained(
                 tokenizer_2_path,
                 cache_dir=cache_dir,
@@ -825,6 +784,12 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         """
         return self.unet.config.in_channels == 9 # type: ignore[attr-defined]
 
+    def revert_scheduler(self) -> None:
+        """
+        Reverts the scheduler back to whatever the original was.
+        """
+        self.scheduler = self.scheduler_class.from_config(**self.scheduler_config)
+
     def get_size_from_module(self, module: torch.nn.Module) -> int:
         """
         Gets the size of a module in bytes
@@ -855,7 +820,6 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         dtype: torch.dtype,
         animation_frames: Optional[int] = None,
         motion_scale: Optional[float] = None,
-        time_scale: Optional[float] = None,
         freeu_factors: Optional[Tuple[float, float, float, float]] = None,
         offload_models: bool = False
     ) -> None:
@@ -873,6 +837,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 self.unet.disable_freeu()
         else:
             s1, s2, b1, b2 = freeu_factors
+            logger.debug(f"Enabling FreeU with factors {s1=} {s2=} {b1=} {b2=}")
             self.unet.enable_freeu(s1=s1, s2=s2, b1=b1, b2=b2)
             self._freeu_enabled = True
         if animation_frames: 
@@ -882,8 +847,6 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     self.unet.set_motion_attention_scale(motion_scale)
                 else:
                     self.unet.reset_motion_attention_scale()
-                if time_scale:
-                    logger.debug(f"Setting motion time scale to {time_scale}")
             except AttributeError:
                 raise RuntimeError("Couldn't set motion attention scale - was this pipeline initialized with the right UNet?")
         self.unet.to(device=device, dtype=dtype)
@@ -2819,7 +2782,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         device: Union[str, torch.device],
         chunker: Chunker,
         weight_builder: MaskWeightBuilder,
-        progress_callback: Optional[Callable[[bool], None]] = None,
+        progress_callback: Optional[Callable[[bool], None]]=None,
+        scale_latents: bool=True
     ) -> torch.Tensor:
         """
         Decodes the latents in chunks as necessary.
@@ -2833,11 +2797,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         height *= self.vae_scale_factor
         width *= self.vae_scale_factor
 
-        vae_latent_scaling_factor = self.vae.config.scaling_factor
-        if self.is_sdxl and self.is_inpainting_unet:
-            vae_latent_scaling_factor = vae_latent_scaling_factor / self.xl_inpainting_latent_scale_factor
-
-        latents = 1 / vae_latent_scaling_factor * latents # type: ignore[attr-defined]
+        if scale_latents:
+            latents = 1 / self.vae.config.scaling_factor * latents # type: ignore[attr-defined]
 
         total_steps = chunker.num_chunks
         revert_dtype = None
@@ -3213,7 +3174,6 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         guidance_scale: float=7.5,
         num_results_per_prompt: int=1,
         animation_frames: Optional[int]=None,
-        time_scale: Optional[float]=None,
         motion_scale: Optional[float]=None,
         loop: bool=False,
         tile: Union[bool, Tuple[bool, bool]]=False,
@@ -3829,7 +3789,6 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     freeu_factors=freeu_factors,
                     animation_frames=animation_frames,
                     motion_scale=motion_scale,
-                    time_scale=time_scale,
                     offload_models=offload_models
                 ) # May be overridden by RT
 

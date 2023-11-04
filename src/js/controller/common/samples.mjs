@@ -1,5 +1,5 @@
 /** @module controller/common/samples */
-import { isEmpty } from "../../base/helpers.mjs";
+import { isEmpty, waitFor } from "../../base/helpers.mjs";
 import { Controller } from "../base.mjs";
 import { SimpleNotification } from "../../common/notify.mjs";
 import { SampleChooserView } from "../../view/samples/chooser.mjs";
@@ -477,13 +477,20 @@ class SamplesController extends Controller {
 
         this.isIntermediate = !isEmpty(this.samples) && sampleImages[0].indexOf("intermediate") !== -1;
         this.isAnimation = isAnimation;
+
         this.sampleChooser.setIsAnimation(isAnimation);
         this.sampleChooser.setSamples(this.thumbnailUrls).then(() => {
             this.sampleChooser.setActiveIndex(this.activeIndex, false);
         });
+
         this.sampleViewer.setImage(isAnimation ? this.sampleUrls : isEmpty(this.activeIndex) ? null : this.sampleUrls[this.activeIndex]);
         if (this.isAnimation) {
             this.sampleViewer.setFrame(this.activeIndex);
+        }
+        if (!isEmpty(this.activeIndex)) {
+            waitFor(() => !isEmpty(this.sampleViewer.width) && !isEmpty(this.sampleViewer.height)).then(() => {
+                this.images.setDimension(this.sampleViewer.width, this.sampleViewer.height);
+            });
         }
     }
 
@@ -508,10 +515,13 @@ class SamplesController extends Controller {
 
         if (isEmpty(activeIndex)) {
             this.images.removeClass("has-sample");
+            this.images.setDimension(this.engine.width, this.engine.height);
             this.sampleViewer.hide();
         } else {
-            this.images.addClass("has-sample");
-            this.sampleViewer.show();
+            waitFor(() => !isEmpty(this.sampleViewer.width) && !isEmpty(this.sampleViewer.height)).then(() => {
+                this.images.setDimension(this.sampleViewer.width, this.sampleViewer.height);
+                this.images.addClass("has-sample");
+            });
         }
     }
 
@@ -625,6 +635,7 @@ class SamplesController extends Controller {
         if (updateChooser) {
             this.sampleChooser.setActiveIndex(null);
         }
+        this.images.setDimension(this.engine.width, this.engine.height);
     }
 
     /**

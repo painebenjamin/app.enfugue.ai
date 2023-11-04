@@ -4,6 +4,7 @@
 
 import torch
 from torch import nn
+from diffusers.utils.torch_utils import apply_freeu
 
 from enfugue.diffusion.animate.diff.attention import Transformer3DModel
 from enfugue.diffusion.animate.diff.resnet import Downsample3D, ResnetBlock3D, Upsample3D
@@ -115,6 +116,7 @@ def get_up_block(
     use_motion_module=None,
     motion_module_type=None,
     motion_module_kwargs=None,
+    resolution_idx=None,
 ):
     up_block_type = up_block_type[7:] if up_block_type.startswith("UNetRes") else up_block_type
     if up_block_type == "UpBlock3D":
@@ -135,6 +137,7 @@ def get_up_block(
             use_motion_module=use_motion_module,
             motion_module_type=motion_module_type,
             motion_module_kwargs=motion_module_kwargs,
+            resolution_idx=resolution_idx,
         )
     elif up_block_type == "CrossAttnUpBlock3D":
         if cross_attention_dim is None:
@@ -164,6 +167,7 @@ def get_up_block(
             use_motion_module=use_motion_module,
             motion_module_type=motion_module_type,
             motion_module_kwargs=motion_module_kwargs,
+            resolution_idx=resolution_idx,
         )
     raise ValueError(f"{up_block_type} does not exist.")
 
@@ -516,7 +520,6 @@ class DownBlock3D(nn.Module):
 
     def forward(self, hidden_states, temb=None, encoder_hidden_states=None):
         output_states = ()
-
         for resnet, motion_module in zip(self.resnets, self.motion_modules):
             if self.training and self.gradient_checkpointing:
                 def create_custom_forward(module):
@@ -576,6 +579,7 @@ class CrossAttnUpBlock3D(nn.Module):
 
         motion_module_type=None,
         motion_module_kwargs=None,
+        resolution_idx=None,
     ):
         super().__init__()
         resnets = []
@@ -641,6 +645,7 @@ class CrossAttnUpBlock3D(nn.Module):
             self.upsamplers = None
 
         self.gradient_checkpointing = False
+        self.resolution_idx = resolution_idx
 
     def set_motion_module_attention_scale(self, scale: float = 1.0) -> None:
         for motion_module in self.motion_modules:
@@ -659,10 +664,28 @@ class CrossAttnUpBlock3D(nn.Module):
         upsample_size=None,
         attention_mask=None,
     ):
+        is_freeu_enabled = (
+            getattr(self, "s1", None)
+            and getattr(self, "s2", None)
+            and getattr(self, "b1", None)
+            and getattr(self, "b2", None)
+        )
         for resnet, attn, motion_module in zip(self.resnets, self.attentions, self.motion_modules):
             # pop res hidden states
             res_hidden_states = res_hidden_states_tuple[-1]
             res_hidden_states_tuple = res_hidden_states_tuple[:-1]
+
+            if is_freeu_enabled:
+                hidden_states, res_hidden_states = apply_freeu(
+                    self.resolution_idx,
+                    hidden_states,
+                    res_hidden_states,
+                    s1=self.s1,
+                    s2=self.s2,
+                    b1=self.b1,
+                    b2=self.b2,
+                )
+
             hidden_states = torch.cat([hidden_states, res_hidden_states], dim=1)
 
             if self.training and self.gradient_checkpointing:
@@ -721,6 +744,7 @@ class UpBlock3D(nn.Module):
         use_motion_module=None,
         motion_module_type=None,
         motion_module_kwargs=None,
+        resolution_idx=None
     ):
         super().__init__()
         resnets = []
@@ -763,6 +787,7 @@ class UpBlock3D(nn.Module):
             self.upsamplers = None
 
         self.gradient_checkpointing = False
+        self.resolution_idx = resolution_idx
 
     def set_motion_module_attention_scale(self, scale: float = 1.0) -> None:
         for motion_module in self.motion_modules:
@@ -773,10 +798,28 @@ class UpBlock3D(nn.Module):
             motion_module.reset_attention_scale_multiplier()
 
     def forward(self, hidden_states, res_hidden_states_tuple, temb=None, upsample_size=None, encoder_hidden_states=None,):
+        is_freeu_enabled = (
+            getattr(self, "s1", None)
+            and getattr(self, "s2", None)
+            and getattr(self, "b1", None)
+            and getattr(self, "b2", None)
+        )
         for resnet, motion_module in zip(self.resnets, self.motion_modules):
             # pop res hidden states
             res_hidden_states = res_hidden_states_tuple[-1]
             res_hidden_states_tuple = res_hidden_states_tuple[:-1]
+
+            if is_freeu_enabled:
+                hidden_states, res_hidden_states = apply_freeu(
+                    self.resolution_idx,
+                    hidden_states,
+                    res_hidden_states,
+                    s1=self.s1,
+                    s2=self.s2,
+                    b1=self.b1,
+                    b2=self.b2,
+                )
+
             hidden_states = torch.cat([hidden_states, res_hidden_states], dim=1)
 
             if self.training and self.gradient_checkpointing:

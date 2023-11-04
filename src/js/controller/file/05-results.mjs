@@ -73,7 +73,7 @@ class InvocationTableView extends ModelTableView {
             return JSON.stringify(plan);
         },
         "prompt": (_, datum) => datum.plan.prompt,
-        "seed": (_, datum) => datum.plan.seed.toString(),
+        "seed": (_, datum) => `${datum.plan.seed}`,
         "outputs": async function(outputCount, datum) {
             if (outputCount > 0) {
                 let outputContainer = E.invocationOutputs();

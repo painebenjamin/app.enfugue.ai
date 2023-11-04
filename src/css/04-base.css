@@ -261,7 +261,7 @@ form label {
     display: inline-block;
     flex-grow: 0;
     font-weight: 400;
-    font-size: 11.5px;
+    font-size: 11px;
     margin-bottom: 2px;
     color: var(--theme-color-secondary);
     min-height: 12px;

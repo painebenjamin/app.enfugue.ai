@@ -1,5 +1,5 @@
 /** @module view/samples/chooser */
-import { isEmpty, isEquivalent } from "../../base/helpers.mjs";
+import { isEmpty, isEquivalent, bindMouseUntilRelease } from "../../base/helpers.mjs";
 import { View } from "../base.mjs";
 import { ImageView } from "../image.mjs";
 import { ElementBuilder } from "../../base/builder.mjs";
@@ -403,7 +403,11 @@ class SampleChooserView extends View {
                         : e.clientX > sampleContainerPosition.left + sampleContainerPosition.width
                             ? 1
                             : (e.clientX - sampleContainerPosition.left) / sampleContainerPosition.width;
-                return Math.floor(clickRatio * this.samples.length);
+
+                return Math.min(
+                    Math.floor(clickRatio * this.samples.length),
+                    this.samples.length - 1
+                );
             };
 
         samplesContainer
@@ -415,26 +419,20 @@ class SampleChooserView extends View {
                 if (this.isAnimation) {
                     e.preventDefault();
                     e.stopPropagation();
+
                     isScrubbing = true;
                     this.setActiveIndex(getFrameIndexFromMousePosition(e));
-                    let onWindowMouseMove = (e2) => {
-                        e2.preventDefault();
-                        e2.stopPropagation();
-                        if (isScrubbing) {
-                            this.setActiveIndex(getFrameIndexFromMousePosition(e2));
+
+                    bindMouseUntilRelease(
+                        (e2) => {
+                            if (isScrubbing) {
+                                this.setActiveIndex(getFrameIndexFromMousePosition(e2));
+                            }
+                        },
+                        (e2) => {
+                            isScrubbing = false;
                         }
-                    };
-                    let onWindowMouseUpOrLeave = (e2) => {
-                        e2.preventDefault();
-                        e2.stopPropagation();
-                        isScrubbing = false;
-                        window.removeEventListener("mouseup", onWindowMouseUpOrLeave, true);
-                        window.removeEventListener("mouseleave", onWindowMouseUpOrLeave, true);
-                        window.removeEventListener("mousemove", onWindowMouseMove, true);
-                    };
-                    window.addEventListener("mousemove", onWindowMouseMove, true);
-                    window.addEventListener("mouseup", onWindowMouseUpOrLeave, true);
-                    window.addEventListener("mouseleave", onWindowMouseUpOrLeave, true);
+                    );
                 }
             })
             .on("mousemove", (e) => {

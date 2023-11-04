@@ -151,12 +151,12 @@ enfugue-sidebar::-webkit-scrollbar-thumb:hover {
 
 enfugue-sidebar::before {
     position: absolute;
-    left: 10px;
-    top: -2px;
+    left: 0px;
+    top: 0px;
     content: "GLOBAL";
     color: var(--theme-color-secondary);
     font-family: var(--monospace-font);
-    font-size: 12px;
+    font-size: 10px;
 }
 
 enfugue-logs-view > input {
@@ -172,8 +172,8 @@ enfugue-log-glance-view {
     background-color: var(--darker-color);
     border: 1px solid var(--darkest-color);
     border-radius: 4px;
-    padding: 0.75em;
-    margin: 1em 1em 0 1em;
+    padding: 10px;
+    margin: 10px 10px 0 10px;
     margin-top: auto;
 }
 
@@ -896,9 +896,9 @@ enfugue-model-picker button {
 enfugue-model-picker::after {
     content: "MODEL";
     position: absolute;
-    left: 10px;
-    top: -2px;
-    font-size: 12px;
+    left: 0px;
+    top: 0px;
+    font-size: 10px;
     color: var(--theme-color-secondary);
     font-family: var(--monospace-font);
 }
@@ -1430,12 +1430,23 @@ fieldset.field-set-additional-models .vae-input-view-inpainter-vae
     display: none;
 }
 
-fieldset.field-set-image-prompt .field-container.float-input-view
-{
+fieldset.field-set-image-prompt .field-container.float-input-view {
     flex-basis: 100% !important;
 }
 
 form fieldset.field-set-image-prompt .field-container.checkbox-input-view-image-prompt-face {
+    display: none;
+}
+
+form fieldset.field-set-prompts .field-container.checkbox-input-view {
+    display: none;
+}
+
+form.show-prompt-travel fieldset.field-set-prompts .field-container.checkbox-input-view {
+    display: flex;
+}
+
+form.use-prompt-travel fieldset.field-set-prompts .field-container.submit-prompt-input-view {
     display: none;
 }
 
@@ -1491,8 +1502,8 @@ form.no-animation .field-container:not(.checkbox-input-view-animation-enabled)
     display: none;
 }
 
-form.no-animation-tiling .field-container.number-input-view-animation-size,
-form.no-animation-tiling .field-container.number-input-view-animation-stride
+form.no-animation-slicing .field-container.number-input-view-animation-size,
+form.no-animation-slicing .field-container.number-input-view-animation-stride
 {
     display: none;
 }
@@ -1825,8 +1836,9 @@ enfugue-layer-options-view::after,
 enfugue-layers-view::after {
     content: "\A";
     position: absolute;
-    top: -2px;
-    left: 10px;
+    top: 0px;
+    font-size: 10px;
+    left: 0px;
     color: var(--theme-color-secondary);
     font-family: var(--monospace-font);
     pointer-events: none;
@@ -1838,7 +1850,6 @@ enfugue-layer-options-view::after {
 
 enfugue-layers-view::after {
     content: "LAYERS";
-    top: 0;
 }
 
 enfugue-layer-view {
@@ -1906,11 +1917,12 @@ enfugue-layer-options-view .placeholder,
 enfugue-layers-view .placeholder {
     color: var(--theme-color-tertiary);
     font-size: 10px;
+    padding: 0 10px;
     text-align: left;
 }
 
 enfugue-layer-options-view .placeholder {
-    padding: 10px;
+    padding: 20px !important;
 }
 
 enfugue-layer-view img {
@@ -1971,12 +1983,12 @@ enfugue-layer-options-view::-webkit-scrollbar-thumb:hover {
 
 enfugue-toolbar.inpainting::before {
     position: absolute;
-    left: 10px;
-    top: -2px;
+    left: 0px;
+    top: 0px;
     content: "INPAINTING TOOLS";
     color: var(--theme-color-secondary);
     font-family: var(--monospace-font);
-    font-size: 12px;
+    font-size: 10px;
 }
 
 enfugue-toolbar.inpainting {
@@ -2002,4 +2014,275 @@ enfugue-toolbar.inpainting enfugue-toolbar-item {
 
 enfugue-toolbar.inpainting enfugue-toolbar-item:last-child {
     border-right: none;
+}
+
+enfugue-engine-stop {
+    display: block;
+    text-transform: uppercase;
+    position: fixed;
+    right: 0px;
+    top: 0px;
+    height: 35px;
+    padding: 0 10px;
+    line-height: 35px;
+    text-align: center;
+    color: white;
+    font-size: 11px;
+    background-color: var(--theme-color-primary);
+    background-image: linear-gradient(to top, rgba(0,0,0,0.3) 10%, rgba(255,255,255,0.1) 90%);
+    z-index: 6;
+    opacity: 0;
+    pointer-events: none;
+    cursor: not-allowed;
+    transition: all 0.25s ease-in-out;
+    filter: grayscale(100%);
+}
+
+enfugue-engine-stop.ready {
+    cursor: pointer;
+    opacity: 1;
+    pointer-events: all;
+    filter: grayscale(0%);
+}
+
+enfugue-engine-stop.ready:hover {
+    background-color: var(--theme-color-secondary);
+}
+
+enfugue-engine-stop.ready:active {
+    background-image: linear-gradient(to bottom, rgba(0,0,0,0.3) 10%, rgba(255,255,255,0.1) 90%);
+}
+
+enfugue-invocation-loading {
+    display: flex;
+    position: fixed;
+    left: 400px;
+    right: 400px;
+    bottom: 111px;
+    border-radius: 10px;
+    border: 1px solid var(--dark-color);
+    transition: all 0.25s ease-in-out;
+    height: 20px;
+    line-height: 18px;
+    z-index: 3;
+    flex-flow: row nowrap;
+    align-items: center;
+    justify-content: space-between;
+}
+
+enfugue-invocation-loading enfugue-invocation-loaded {
+    display: block;
+    position: absolute;
+    opacity: 0;
+    height: 100%;
+    transition: all 0.1s linear;
+    z-index: -1;
+    border-radius: 10px;
+}
+
+enfugue-invocation-loading.loading enfugue-invocation-loaded {
+    opacity: 1;
+}
+
+enfugue-invocation-loading enfugue-invocation-duration,
+enfugue-invocation-loading enfugue-invocation-task,
+enfugue-invocation-loading enfugue-invocation-iterations, 
+enfugue-invocation-loading enfugue-invocation-remaining {
+    display: block;
+    top: 0;
+    bottom: 0;
+    font-size: 10px;
+    color: white;
+    text-shadow: 1px 1px 1px black;
+}
+
+enfugue-invocation-loading enfugue-invocation-task {
+    position: absolute;
+    left: 0;
+    top: -20px;
+    width: 100%;
+    height: 100%;
+    text-align: center;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+enfugue-invocation-loading enfugue-invocation-duration {
+    margin-left: 5px;
+}
+
+enfugue-invocation-loading enfugue-invocation-iterations {
+    margin-left: 5px;
+    margin-right: 5px;
+}
+
+enfugue-invocation-loading enfugue-invocation-remaining {
+    margin-right: 5px;
+}
+
+enfugue-prompt-travel-view {
+    position: fixed;
+    left: 250px;
+    right: 250px;
+    bottom: 110px;
+    height: 80px;
+    background-color: var(--dark-color);
+    border-top: 1px solid rgba(255,255,255,0.1);
+    border-left: 1px solid rgba(255,255,255,0.1);
+    border-right: 1px solid rgba(0,0,0,0.2);
+    border-bottom: 1px solid rgba(0,0,0,0.2);
+    display: flex;
+    flex-flow: row nowrap;
+    align-items: stretch;
+    justify-content: stretch;
+    z-index: 3;
+}
+
+enfugue-prompt-travel-view div.prompts-track {
+    position: relative;
+    flex-basis: 100%;
+}
+
+enfugue-prompt-travel-view div.prompts-track .prompts-container {
+    position: absolute;
+    left: 73px;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    display: flex;
+    flex-flow: column nowrap;
+    flex-grow: 1;
+    align-items: stretch;
+    justify-content: stretch;
+    gap: 2px;
+    padding: 2px;
+    overflow-y: scroll;
+}
+
+enfugue-prompt-travel-view div.prompts-track .prompts-container::-webkit-scrollbar {
+    background: var(--dark-color);
+}
+
+enfugue-prompt-travel-view div.prompts-track .prompts-container::-webkit-scrollbar-thumb {
+    background-color: rgba(0,0,0,0.55);
+}
+
+enfugue-prompt-travel-view div.prompts-track .prompts-container::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(0,0,0,0.7);
+}
+
+enfugue-prompt-travel-view div.prompts-track .prompt-view {
+    position: relative;
+    flex-shrink: 0;
+    flex-grow: 1;
+    flex-basis: 20px;
+    display: flex;
+    flex-flow: row nowrap;
+    align-items: flex-start;
+    justify-content: center;
+    border-radius: 4px;
+    background-color: color-mix(in srgb, var(--theme-color-secondary) 75%, transparent);
+    border: 1px solid var(--darkest-color);
+    color: var(--light-color);
+    padding: 5px 20px 5px 5px;
+    gap: 5px;
+}
+
+enfugue-prompt-travel-view div.prompts-track .prompt-view .prompts {
+    display: flex;
+    flex-flow: column nowrap;
+    align-items: stretch;
+    justify-content: stretch;
+    flex-basis: 100%;
+    min-width: 0;
+}
+
+enfugue-prompt-travel-view div.prompts-track .prompt-view .prompts p {
+    flex-basis: 100%;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow: hidden;
+    min-width: 0;
+}
+
+enfugue-prompt-travel-view div.prompts-track .prompt-view .prompts p.negative {
+    color: var(--theme-color-primary)
+}
+
+enfugue-prompt-travel-view div.prompts-track .prompt-view .prompts p.negative::before {
+    content: "NOT: ";
+    font-weight: bold;
+}
+
+enfugue-prompt-travel-view div.prompts-track .prompt-view i {
+    cursor: pointer;
+    font-size: 16px;
+    transition: color 0.25s ease-in-out;
+}
+
+enfugue-prompt-travel-view div.prompts-track .prompt-view i:hover {
+    color: var(--theme-color-primary);
+}
+
+enfugue-prompt-travel-view div.prompts-track .prompt-view .weight {
+    font-family: var(--monospace-font), monospace;
+    color: var(--theme-color-tertiary);
+}
+
+enfugue-prompt-travel-view div.prompts-track .prompt-view .weight::before {
+    content: "×";
+    margin-right: 2px;
+}
+
+enfugue-prompt-travel-view div.prompts-track .notches {
+    position: absolute;
+    left: 73px;
+    right: 14px;
+    top: 0;
+    bottom: 0;
+    display: flex;
+    flex-flow: row nowrap;
+    justify-content: space-around;
+    align-items: stretch;
+}
+
+enfugue-prompt-travel-view div.prompts-track .notches .notch {
+    flex-grow: 1;
+    overflow: hidden;
+    flex-basis: 100%;
+    border-left: 1px solid var(--theme-color-tertiary);
+    opacity: 0.25;
+    padding: 2px;
+    font-family: var(--monospace-font), monospace;
+    font-size: 10px;
+    font-weight: normal;
+    color: var(--theme-color-tertiary);
+}
+
+enfugue-prompt-travel-view div.prompts-track .notches .notch:last-child {
+    border-right: 1px solid var(--theme-color-tertiary);
+}
+
+enfugue-prompt-travel-view button {
+    flex-grow: 0;
+    margin: 10px;
+    border-radius: 4px;
+    white-space: nowrap;
+    flex-shrink: 0;
+    flex-grow: 0;
+    width: 143px;
+}
+
+enfugue-application.prompt-travel enfugue-invocation-loading {
+    bottom: 191px;
+}
+
+enfugue-application.prompt-travel enfugue-node-editor-position,
+enfugue-application.prompt-travel enfugue-node-editor-zoom {
+    bottom: 86px;
+}
+
+enfugue-application.prompt-travel div.controls-helper-view {
+    bottom: 215px;
 }

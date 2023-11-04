@@ -65,11 +65,11 @@ class AnimationController extends Controller {
                     this.engine.animationPositionEncodingScaleLength = null;
                 }
 
-                if (values.animationChunking || values.animationLoop) {
+                if (values.animationSlicing || values.animationLoop) {
                     this.engine.animationSize = values.animationSize;
                     this.engine.animationStride = values.animationStride;
                 } else {
-                    this.engine.animationSize = values.animationFrames;
+                    this.engine.animationSize = null;
                     this.engine.animationStride = null;
                 }
 

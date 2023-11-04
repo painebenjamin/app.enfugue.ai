@@ -49,7 +49,7 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
     STATIC_SCHEDULER_KWARGS = {
         "num_train_timesteps": 1000,
         "beta_start": 0.00085,
-        "beta_end": 0.011,
+        "beta_end": 0.01,
         "beta_schedule": "linear"
     }
 
@@ -75,12 +75,13 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         force_full_precision_vae: bool = False,
         controlnets: Optional[Dict[str, ControlNetModel]] = None,
         ip_adapter: Optional[IPAdapter] = None,
-        engine_size: Optional[int] = 512,  # Recommended even for machines that can handle more
-        chunking_size: Optional[int] = 32,
-        chunking_mask_type: MASK_TYPE_LITERAL = "bilinear",
-        chunking_mask_kwargs: Dict[str, Any] = {},
-        temporal_engine_size: Optional[int] = 16,
-        temporal_chunking_size: Optional[int] = 4,
+        engine_size: int = 512,  # Recommended even for machines that can handle more
+        tiling_size: Optional[int] = None,
+        tiling_stride: Optional[int] = 32,
+        tiling_mask_type: MASK_TYPE_LITERAL = "bilinear",
+        tiling_mask_kwargs: Dict[str, Any] = {},
+        frame_window_size: Optional[int] = 16,
+        frame_window_stride: Optional[int] = 4,
         override_scheduler_config: bool = True,
     ) -> None:
         super(EnfugueAnimateStableDiffusionPipeline, self).__init__(
@@ -101,11 +102,12 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
             controlnets=controlnets,
             ip_adapter=ip_adapter,
             engine_size=engine_size,
-            chunking_size=chunking_size,
-            chunking_mask_type=chunking_mask_type,
-            chunking_mask_kwargs=chunking_mask_kwargs,
-            temporal_engine_size=temporal_engine_size,
-            temporal_chunking_size=temporal_chunking_size
+            tiling_stride=tiling_stride,
+            tiling_size=tiling_size,
+            tiling_mask_type=tiling_mask_type,
+            tiling_mask_kwargs=tiling_mask_kwargs,
+            frame_window_size=frame_window_size,
+            frame_window_stride=frame_window_stride
         )
 
         if override_scheduler_config:
@@ -264,15 +266,7 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
             motion_module = cls.HOTSHOT_XL_PATH
 
         if task_callback is not None:
-            if not os.path.exists(
-                os.path.join(
-                    cache_dir,
-                    "models--" + cls.HOTSHOT_XL_PATH.replace("/", "--"),
-                    "refs",
-                    "main"
-                )
-            ):
-                task_callback(f"Downloading HotshotXL weights from reposistory {cls.HOTSHOT_XL_PATH}")
+            task_callback(f"Loading HotshotXL repository {cls.HOTSHOT_XL_PATH}")
 
         hotshot_unet = HotshotUNet.from_pretrained(
             motion_module,
@@ -475,13 +469,16 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         device: Union[str, torch.device],
         weight_builder: MaskWeightBuilder,
         chunker: Chunker,
-        progress_callback: Optional[Callable[[bool], None]] = None
+        progress_callback: Optional[Callable[[bool], None]]=None,
+        scale_latents: bool=True
     ) -> torch.Tensor:
         """
         Decodes each video frame individually.
         """
         animation_frames = latents.shape[2]
-        #latents = 1 / self.vae.config.scaling_factor * latents
+        if scale_latents:
+            latents = 1 / self.vae.config.scaling_factor * latents
+
         latents = rearrange(latents, "b c f h w -> (b f) c h w")
         dtype = latents.dtype
         # Force full precision VAE
@@ -495,7 +492,8 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
                     device=device,
                     weight_builder=weight_builder,
                     chunker=chunker,
-                    progress_callback=progress_callback
+                    progress_callback=progress_callback,
+                    scale_latents=False
                 )
             )
         video = torch.cat(video) # type: ignore

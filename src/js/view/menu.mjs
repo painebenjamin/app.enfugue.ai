@@ -90,6 +90,13 @@ class MenuView extends ParentView {
     }
 
     /**
+     * Stops the hide timer
+     */
+    stopHideTimer() {
+        clearTimeout(this.hideTimer);
+    }
+
+    /**
      * Toggles a specific category
      *
      * @param string $name The name of the category to hide
@@ -97,7 +104,7 @@ class MenuView extends ParentView {
      */
     toggleCategory(name) {
         let found = false, newValue;
-        clearTimeout(this.hideTimer);
+        this.stopHideTimer();
         for (let child of this.children) {
             if (child instanceof MenuCategoryView){
                 if (child.name === name) {
@@ -271,7 +278,8 @@ class MenuCategoryView extends ParentView {
 
         node.prepend(header)
             .on("click", () => this.parent.toggleCategory(this.name))
-            .on("mouseleave", () => this.parent.startHideTimer());
+            .on("mouseleave", () => this.parent.startHideTimer())
+            .on("mouseenter,mousemove", () => this.parent.stopHideTimer());
 
         return node;
     }

@@ -118,6 +118,7 @@ def get_up_block(
         attention_head_dim=None,
         upsample_type=None,
         positional_encoding_max_length=24,
+        resolution_idx=None,
 ):
     up_block_type = up_block_type[7:] if up_block_type.startswith("UNetRes") else up_block_type
     if up_block_type == "UpBlock3D":
@@ -133,6 +134,7 @@ def get_up_block(
             resnet_groups=resnet_groups,
             resnet_time_scale_shift=resnet_time_scale_shift,
             positional_encoding_max_length=positional_encoding_max_length,
+            resolution_idx=resolution_idx,
         )
     elif up_block_type == "CrossAttnUpBlock3D":
         if cross_attention_dim is None:
@@ -156,6 +158,7 @@ def get_up_block(
             upcast_attention=upcast_attention,
             resnet_time_scale_shift=resnet_time_scale_shift,
             positional_encoding_max_length=positional_encoding_max_length,
+            resolution_idx=resolution_idx,
         )
     raise ValueError(f"{up_block_type} does not exist.")
 
@@ -529,28 +532,29 @@ class DownBlock3D(nn.Module):
 
 class CrossAttnUpBlock3D(nn.Module):
     def __init__(
-            self,
-            in_channels: int,
-            out_channels: int,
-            prev_output_channel: int,
-            temb_channels: int,
-            dropout: float = 0.0,
-            num_layers: int = 1,
-            transformer_layers_per_block: int = 1,
-            resnet_eps: float = 1e-6,
-            resnet_time_scale_shift: str = "default",
-            resnet_act_fn: str = "swish",
-            resnet_groups: int = 32,
-            resnet_pre_norm: bool = True,
-            num_attention_heads=1,
-            cross_attention_dim=1280,
-            output_scale_factor=1.0,
-            add_upsample=True,
-            dual_cross_attention=False,
-            use_linear_projection=False,
-            only_cross_attention=False,
-            upcast_attention=False,
-            positional_encoding_max_length=24,
+        self,
+        in_channels: int,
+        out_channels: int,
+        prev_output_channel: int,
+        temb_channels: int,
+        dropout: float = 0.0,
+        num_layers: int = 1,
+        transformer_layers_per_block: int = 1,
+        resnet_eps: float = 1e-6,
+        resnet_time_scale_shift: str = "default",
+        resnet_act_fn: str = "swish",
+        resnet_groups: int = 32,
+        resnet_pre_norm: bool = True,
+        num_attention_heads=1,
+        cross_attention_dim=1280,
+        output_scale_factor=1.0,
+        add_upsample=True,
+        dual_cross_attention=False,
+        use_linear_projection=False,
+        only_cross_attention=False,
+        upcast_attention=False,
+        positional_encoding_max_length=24,
+        resolution_idx=None
     ):
         super().__init__()
         resnets = []
@@ -613,7 +617,8 @@ class CrossAttnUpBlock3D(nn.Module):
             self.upsamplers = None
 
         self.gradient_checkpointing = False
-    
+        self.resolution_idx = resolution_idx
+
     def set_temporal_attention_scale(self, scale: float = 1.0) -> None:
         for temporal_attention in self.temporal_attentions:
             temporal_attention.set_attention_scale_multiplier(scale)
@@ -623,21 +628,39 @@ class CrossAttnUpBlock3D(nn.Module):
             temporal_attention.reset_attention_scale_multiplier()
 
     def forward(
-            self,
-            hidden_states,
-            res_hidden_states_tuple,
-            temb=None,
-            encoder_hidden_states=None,
-            upsample_size=None,
-            cross_attention_kwargs=None,
-            attention_mask=None,
-            enable_temporal_attentions: bool = True
+        self,
+        hidden_states,
+        res_hidden_states_tuple,
+        temb=None,
+        encoder_hidden_states=None,
+        upsample_size=None,
+        cross_attention_kwargs=None,
+        attention_mask=None,
+        enable_temporal_attentions: bool = True
     ):
+        is_freeu_enabled = (
+            getattr(self, "s1", None)
+            and getattr(self, "s2", None)
+            and getattr(self, "b1", None)
+            and getattr(self, "b2", None)
+        )
         for resnet, attn, temporal_attention \
                 in zip(self.resnets, self.attentions, self.temporal_attentions):
             # pop res hidden states
             res_hidden_states = res_hidden_states_tuple[-1]
             res_hidden_states_tuple = res_hidden_states_tuple[:-1]
+
+            if is_freeu_enabled:
+                hidden_states, res_hidden_states = apply_freeu(
+                    self.resolution_idx,
+                    hidden_states,
+                    res_hidden_states,
+                    s1=self.s1,
+                    s2=self.s2,
+                    b1=self.b1,
+                    b2=self.b2,
+                )
+
             hidden_states = torch.cat([hidden_states, res_hidden_states], dim=1)
 
             if self.training and self.gradient_checkpointing:
@@ -689,21 +712,22 @@ class CrossAttnUpBlock3D(nn.Module):
 
 class UpBlock3D(nn.Module):
     def __init__(
-            self,
-            in_channels: int,
-            prev_output_channel: int,
-            out_channels: int,
-            temb_channels: int,
-            dropout: float = 0.0,
-            num_layers: int = 1,
-            resnet_eps: float = 1e-6,
-            resnet_time_scale_shift: str = "default",
-            resnet_act_fn: str = "swish",
-            resnet_groups: int = 32,
-            resnet_pre_norm: bool = True,
-            output_scale_factor=1.0,
-            add_upsample=True,
-            positional_encoding_max_length=24,
+        self,
+        in_channels: int,
+        prev_output_channel: int,
+        out_channels: int,
+        temb_channels: int,
+        dropout: float = 0.0,
+        num_layers: int = 1,
+        resnet_eps: float = 1e-6,
+        resnet_time_scale_shift: str = "default",
+        resnet_act_fn: str = "swish",
+        resnet_groups: int = 32,
+        resnet_pre_norm: bool = True,
+        output_scale_factor=1.0,
+        add_upsample=True,
+        positional_encoding_max_length=24,
+        resolution_idx=None
     ):
         super().__init__()
         resnets = []
@@ -746,6 +770,7 @@ class UpBlock3D(nn.Module):
             self.upsamplers = None
 
         self.gradient_checkpointing = False
+        self.resolution_idx = resolution_idx
 
     def set_temporal_attention_scale(self, scale: float = 1.0) -> None:
         for temporal_attention in self.temporal_attentions:
@@ -755,12 +780,36 @@ class UpBlock3D(nn.Module):
         for temporal_attention in self.temporal_attentions:
             temporal_attention.reset_attention_scale_multiplier()
 
-    def forward(self, hidden_states, res_hidden_states_tuple, temb=None, upsample_size=None, encoder_hidden_states=None,
-                enable_temporal_attentions: bool = True):
+    def forward(
+        self,
+        hidden_states,
+        res_hidden_states_tuple,
+        temb=None,
+        upsample_size=None,
+        encoder_hidden_states=None,
+        enable_temporal_attentions: bool = True
+    ):
+        is_freeu_enabled = (
+            getattr(self, "s1", None)
+            and getattr(self, "s2", None)
+            and getattr(self, "b1", None)
+            and getattr(self, "b2", None)
+        )
         for resnet, temporal_attention in zip(self.resnets, self.temporal_attentions):
             # pop res hidden states
             res_hidden_states = res_hidden_states_tuple[-1]
             res_hidden_states_tuple = res_hidden_states_tuple[:-1]
+
+            if is_freeu_enabled:
+                hidden_states, res_hidden_states = apply_freeu(
+                    self.resolution_idx,
+                    hidden_states,
+                    res_hidden_states,
+                    s1=self.s1,
+                    s2=self.s2,
+                    b1=self.b1,
+                    b2=self.b2,
+                )
             hidden_states = torch.cat([hidden_states, res_hidden_states], dim=1)
 
             if self.training and self.gradient_checkpointing:

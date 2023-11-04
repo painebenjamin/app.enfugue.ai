@@ -1097,3 +1097,28 @@ export let createElementsFromString = (text) => {
     div.innerHTML = text.trim();
     return div.childNodes;
 }
+
+/**
+ * Binds a method to window mousemove, and then unbinds it when released
+ * or when the mouse leaves the window.
+ */
+export let bindMouseUntilRelease = (callback, releaseCallback = null) => {
+    let onWindowMouseMove = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        callback(e);
+    }
+    let onWindowMouseUpOrLeave = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!isEmpty(releaseCallback)) {
+            releaseCallback(e);
+        }
+        window.removeEventListener("mouseup", onWindowMouseUpOrLeave, true);
+        window.removeEventListener("mouseleave", onWindowMouseUpOrLeave, true);
+        window.removeEventListener("mousemove", onWindowMouseMove, true);
+    }
+    window.addEventListener("mouseup", onWindowMouseUpOrLeave, true);
+    window.addEventListener("mouseleave", onWindowMouseUpOrLeave, true);
+    window.addEventListener("mousemove", onWindowMouseMove, true);
+};

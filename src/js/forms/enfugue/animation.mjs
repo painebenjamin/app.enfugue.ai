@@ -59,12 +59,12 @@ class AnimationFormView extends FormView {
                     "tooltip": "When enabled, the animation will loop seamlessly such that there will be no hitches when the animation is repeated. This increases render time."
                 }
             },
-            "animationChunking": {
+            "animationSlicing": {
                 "label": "Use Frame Attention Slicing",
                 "class": CheckboxInputView,
                 "config": {
                     "value": true,
-                    "tooltip": "Similar to chunking along the width or height of an image, when using frame chunking, only a portion of the overall animation will be rendered at once. This will reduce the memory required for long animations, but make the process of creating it take longer overall.<br /><br />Since the animation model is trained on short burts of animation, this can help improve the overall coherence and motion of an animation as well."
+                    "tooltip": "Similar to slicing along the width or height of an image, when using frame slicing, only a portion of the overall animation will be rendered at once. This will reduce the memory required for long animations, but make the process of creating it take longer overall.<br /><br />Since the animation model is trained on short burts of animation, this can help improve the overall coherence and motion of an animation as well."
                 }
             },
             "animationSize": {
@@ -74,7 +74,7 @@ class AnimationFormView extends FormView {
                     "min": 8,
                     "max": 64,
                     "value": 16,
-                    "tooltip": "This is the number of frames to render at once when used chunked animation diffusion. Higher values will require more VRAM, but reduce the overall number of chunks needed to render the final animation."
+                    "tooltip": "This is the number of frames to render at once when used sliced animation diffusion. Higher values will require more VRAM, but reduce the overall number of slices needed to render the final animation."
                 }
             },
             "animationStride": {
@@ -84,7 +84,7 @@ class AnimationFormView extends FormView {
                     "min": 1,
                     "max": 32,
                     "value": 8,
-                    "tooltip": "This is the numbers of frames to move the frame window by when using chunked animation diffusion. It is recommended to keep this value at least two fewer than the animation engine size, as that will leave at least two frames of overlap between chunks and ease the transition between them."
+                    "tooltip": "This is the numbers of frames to move the frame window by when using sliced animation diffusion. It is recommended to keep this value at least two fewer than the animation engine size, as that will leave at least two frames of overlap between slices and ease the transition between them."
                 }
             },
             "animationMotionScaleEnabled": {
@@ -163,21 +163,21 @@ class AnimationFormView extends FormView {
             this.addClass("no-position-slicing");
         }
 
-        let useChunking = this.values.animationChunking,
-            chunkingInput = await this.getInputView("animationChunking");
+        let useSlicing = this.values.animationSlicing,
+            slicingInput = await this.getInputView("animationSlicing");
 
         if (this.values.animationLoop) {
-            useChunking = true;
-            chunkingInput.setValue(true, false);
-            chunkingInput.disable();
+            useSlicing = true;
+            slicingInput.setValue(true, false);
+            slicingInput.disable();
         } else {
-            chunkingInput.enable();
+            slicingInput.enable();
         }
 
-        if (useChunking) {
-            this.removeClass("no-animation-chunking");
+        if (useSlicing) {
+            this.removeClass("no-animation-slicing");
         } else {
-            this.addClass("no-animation-chunking");
+            this.addClass("no-animation-slicing");
         }
     }
 }

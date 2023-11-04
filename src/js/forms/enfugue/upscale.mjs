@@ -72,8 +72,8 @@ class UpscaleFormView extends FormView {
                 "label": "Guidance Scale",
                 "class": UpscaleDiffusionGuidanceScaleInputView
             },
-            "chunkingSize": {
-                "label": "Chunking Size",
+            "tilingStride": {
+                "label": "Tiling Stride",
                 "class": SelectInputView,
                 "config": {
                     "options": ["8", "16", "32", "64", "128", "256", "512"],
@@ -81,8 +81,8 @@ class UpscaleFormView extends FormView {
                     "tooltip": "The number of pixels to move the frame by during diffusion. Smaller values produce better results, but take longer."
                 }
             },
-            "chunkingMaskType": {
-                "label": "Chunking Mask",
+            "tilingMaskType": {
+                "label": "Tiling Mask",
                 "class": MaskTypeInputView,
             },
             "noiseOffset": {
@@ -99,7 +99,7 @@ class UpscaleFormView extends FormView {
                 "label": "Noise Method",
                 "class": NoiseMethodInputView,
                 "config": {
-                    "value": "perlin"
+                    "value": "simplex"
                 }
             },
             "noiseBlendMethod": {

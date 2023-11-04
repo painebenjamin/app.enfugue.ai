@@ -39,6 +39,32 @@ class SampleView extends View {
     static tagName = "enfugue-sample";
 
     /**
+     * @return int width of the sample(s)
+     */
+    get width() {
+        if (isEmpty(this.image)) {
+            return null;
+        }
+        if (Array.isArray(this.image)) {
+            return this.animationViews[4].width;
+        }
+        return this.imageViews[4].width;
+    }
+
+    /**
+     * @return int height of the sample(s)
+     */
+    get height() {
+        if (isEmpty(this.image)) {
+            return null;
+        }
+        if (Array.isArray(this.image)) {
+            return this.animationViews[4].height;
+        }
+        return this.imageViews[4].height;
+    }
+
+    /**
      * Checks and shows what should be shown (if anything)
      */
     checkVisibility() {
@@ -87,27 +113,35 @@ class SampleView extends View {
                 animationView.setImages(image);
                 animationView.setFrame(0);
             }
-            this.show();
+            window.requestAnimationFrame(() => { 
+                this.checkVisibility();
+                window.requestAnimationFrame(() => {
+                    this.show();
+                });
+            });
         } else if (!isEmpty(this.image)) {
             for (let imageView of this.imageViews) {
                 imageView.setImage(image);
             }
-            Promise.all(this.imageViews.map((v) => v.waitForLoad())).then(
-                () => this.show()
-            );
+            Promise.all(this.imageViews.map((v) => v.waitForLoad())).then(() => {
+                this.checkVisibility();
+                window.requestAnimationFrame(() => {
+                    this.show();
+                });
+            });
         } else {
             this.hide();
             for (let animationView of this.animationViews) {
                 animationView.clearCanvas();
             }
         }
-        window.requestAnimationFrame(() => this.checkVisibility());
     }
 
     /**
      * Sets the frame for animations
      */
     setFrame(frame) {
+        this.show();
         for (let animationView of this.animationViews) {
             animationView.setFrame(frame);
         }

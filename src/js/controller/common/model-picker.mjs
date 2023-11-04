@@ -408,12 +408,13 @@ class ModelPickerController extends Controller {
                 this.modelFormWindow.focus();
             } else {
                 this.modelFormWindow = await this.spawnWindow(
-                    this.contstructor.modelWindowTitle,
+                    this.constructor.modelWindowTitle,
                     this.abridgedModelFormView,
                     this.constructor.modelWindowWidth,
                     this.constructor.modelWindowHeight
                 );
                 this.modelFormWindow.onClose(() => { delete this.modelFormWindow; });
+                setTimeout(() => { this.abridgedModelFormView.setValues(this.abridgedModelFormView.values); }, 100); // Refresh draw
             }
         }
     }
@@ -503,6 +504,7 @@ class ModelPickerController extends Controller {
         });
         
         this.abridgedModelFormView.onSubmit(async (values) => {
+            console.log(values);
             this.engine.lora = values.lora;
             this.engine.lycoris = values.lycoris;
             this.engine.inversion = values.inversion;

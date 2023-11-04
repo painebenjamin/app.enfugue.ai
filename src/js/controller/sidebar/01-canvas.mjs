@@ -48,7 +48,9 @@ class CanvasController extends Controller {
         // Create form
         this.canvasForm = new CanvasFormView(this.config);
         this.canvasForm.onSubmit(async (values) => {
-            this.images.setDimension(values.width, values.height);
+            if (!this.images.hasClass("has-sample")) {
+                this.images.setDimension(values.width, values.height);
+            }
             this.engine.width = values.width;
             this.engine.height = values.height;
             this.engine.tileHorizontal = values.tileHorizontal;

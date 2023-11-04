@@ -10,6 +10,7 @@ if TYPE_CHECKING:
     from PIL.Image import Image
 
 from pibble.resources.retriever import Retriever
+from pibble.util.strings import get_uuid
 
 __all__ = [
     "fit_image",

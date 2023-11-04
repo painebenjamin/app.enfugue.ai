@@ -14,7 +14,10 @@ class InpaintingController extends Controller {
      */
     getState(includeImages = true) {
         return { 
-            "inpainting": this.inpaintForm.values
+            "inpainting": {
+                "options": this.inpaintForm.values,
+                "mask": this.scribbleView.src,
+            }
         };
     }
 
@@ -24,10 +27,12 @@ class InpaintingController extends Controller {
     getDefaultState() {
         return {
             "inpainting": {
-                "outpaint": true,
-                "inpaint": false,
-                "croppedInpaint": true,
-                "croppedInpaintFeather": 32
+                "options": {
+                    "outpaint": true,
+                    "inpaint": false,
+                    "croppedInpaint": true,
+                    "croppedInpaintFeather": 32
+                }
             }
         };
     }
@@ -37,7 +42,16 @@ class InpaintingController extends Controller {
      */
     setState(newState) {
         if (!isEmpty(newState.inpainting)) {
-            this.inpaintForm.setValues(newState.inpainting).then(() => this.inpaintForm.submit());
+            if (!isEmpty(newState.inpainting.options)) {
+                this.inpaintForm.setValues(newState.inpainting).then(() => this.inpaintForm.submit());
+            }
+            if (!isEmpty(newState.inpainting.mask)) {
+                let image = new Image();
+                image.onload = () => {
+                    this.scribbleView.setMemory(image);
+                }
+                image.src = newState.inpainting.mask;
+            }
         }
     }
 
@@ -112,16 +126,19 @@ class InpaintingController extends Controller {
         await this.prepareMenu(this.scribbleToolbar);
 
         this.inpaintForm = new InpaintingFormView(this.config);
+        this.inpaintForm.hide();
         this.inpaintForm.onSubmit((values) => {
             // Show/hide parts
             if (values.inpaint) {
                 this.publish("inpaintEnabled");
                 this.scribbleView.show();
                 this.scribbleToolbar.show();
+                this.engine.mask = this.scribbleView.src;
             } else {
                 this.publish("inpaintDisabled");
                 this.scribbleView.hide();
                 this.scribbleToolbar.hide();
+                this.engine.mask = null;
             }
             // Set engine values
             this.engine.outpaint = values.outpaint;
@@ -131,6 +148,21 @@ class InpaintingController extends Controller {
 
         this.subscribe("engineWidthChange", () => this.resize());
         this.subscribe("engineHeightChange", () => this.resize());
+        this.subscribe("layersChanged", (layers) => {
+            if (isEmpty(layers)) {
+                this.inpaintForm.hide();
+                this.scribbleView.hide();
+                this.scribbleToolbar.hide();
+                this.engine.mask = null;
+            } else {
+                this.inpaintForm.show();
+                if (this.inpaintForm.values.inpaint) {
+                    this.engine.mask = this.scribbleView.src;
+                    this.scribbleView.show();
+                    this.scribbleToolbar.show();
+               }
+            }
+        });
 
         this.application.sidebar.addChild(this.inpaintForm);
         this.application.container.appendChild(await this.scribbleToolbar.render());

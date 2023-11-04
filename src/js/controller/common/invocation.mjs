@@ -185,6 +185,44 @@ class InvocationController extends Controller {
     }
 
     /**
+     * @return array prompts when using prompt travel
+     */
+    get prompts() {
+        return this.kwargs.prompts || [];
+    }
+
+    /**
+     * @param array prompts when using prompt travel
+     */
+    set prompts(newPromptLayers) {
+        if (isEmpty(newPromptLayers)) newPromptLayers = [];
+        newPromptLayers = newPromptLayers.map((layer) => {
+            let data = {
+                "start": layer.start,
+                "end": layer.end,
+                "weight": layer.weight
+            };
+            if (Array.isArray(layer.positive)) {
+                data.positive = layer.positive[0];
+                data.positive_2 = layer.positive[1];
+            } else {
+                data.positive = layer.positive;
+            }
+            if (Array.isArray(layer.negative)) {
+                data.negative = layer.negative[0];
+                data.negative_2 = layer.negative[1];
+            } else {
+                data.negative = layer.negative;
+            }
+            return data;
+        });
+        if (!isEquivalent(this.prompts, newPromptLayers)) {
+            this.publish("enginePrompsChange", newPromptLayers);
+        }
+        this.kwargs.prompts = newPromptLayers;
+    }
+
+    /**
      * @return int The numbers of samples to generate at the same time.
      */
     get samples() {
@@ -272,6 +310,48 @@ class InvocationController extends Controller {
     }
 
     /**
+     * @return float denoising strength
+     */
+    get strength() {
+        return this.kwargs.strength || 1.0;
+    }
+
+    /**
+     * @param float denoising strength
+     */
+    set strength(newStrength) {
+        if (this.strength !== newStrength) {
+            this.publish("engineStrengthChange", newStrength);
+        }
+        this.kwargs.strength = newStrength;
+    }
+
+    /**
+     * @return image optional mask
+     */
+    get mask() {
+        return this.kwargs.mask || 0;
+    }
+
+    /**
+     * @param float denoising strength
+     */
+    set mask(newMask) {
+        this.publish("engineMaskChange", newMask);
+        this.kwargs.mask = newMask;
+    }
+
+    /**
+     * @param int Sets the new number of denoising steps.
+     */
+    set inferenceSteps(newInferenceSteps) {
+        if (this.inferenceSteps !== newInferenceSteps) {
+            this.publish("engineInferenceStepsChange", newInferenceSteps);
+        }
+        this.kwargs.num_inference_steps = newInferenceSteps;
+    }
+
+    /**
      * @return ?string The model to use, null for default.
      */
     get model() {
@@ -346,8 +426,8 @@ class InvocationController extends Controller {
             if (!isEmpty(step.guidanceScale)) {
                 formattedStep.guidance_scale = step.guidanceScale;
             }
-            if (!isEmpty(step.tilingSize)) {
-                formattedStep.tiling_size = step.tilingSize;
+            if (!isEmpty(step.tilingStride)) {
+                formattedStep.tiling_stride = step.tilingStride;
             }
             if (!isEmpty(step.tilingMaskType)) {
                 formattedStep.tiling_mask_type = step.tilingMaskType;
@@ -951,6 +1031,22 @@ class InvocationController extends Controller {
     }
 
     /**
+     * @return bool outpaint empty space
+     */
+    get outpaint() {
+        return isEmpty(this.kwargs.outpaint) ? true : this.kwargs.outpaint;
+    }
+
+    /**
+     * @param bool outpaint empty space
+     */
+    set outpaint(newOutpaint) {
+        if (this.outpaint !== newOutpaint) {
+            this.publish("engineOutpaintChange", newOutpaint);
+        }
+    }
+
+    /**
      * On initialization, create DOM elements related to invocations.
      */
     async initialize() {
@@ -962,8 +1058,8 @@ class InvocationController extends Controller {
             E.invocationRemaining().hide()
         );
         this.engineStop = E.engineStop().content("Stop Engine").on("click", () => { this.stopEngine() });
-        (await this.images.getNode()).append(this.loadingBar);
         this.application.container.appendChild(await this.engineStop.render());
+        this.application.container.appendChild(await this.loadingBar.render());
         this.subscribe("engineReady", () => {
             this.enableStop();
         });
@@ -1027,7 +1123,7 @@ class InvocationController extends Controller {
                     parseInt(invocationPayload.height) || 512
                 );
             } else {
-                this.startAnimation = !isEmpty(invocationPayload.animation_frames) && invocationPayload.animation_frames > 0;
+                this.startSample = true;
                 this.application.samples.resetState();
                 await this.canvasInvocation(result.uuid);
             }
@@ -1060,14 +1156,19 @@ class InvocationController extends Controller {
      */
     setSampleImages(images) {
         // Get IDs from images
+        let isAnimation = !isEmpty(this.animationFrames) && this.animationFrames > 0;
         this.application.samples.setSamples(
             images,
-            !isEmpty(this.animationFrames) && this.animationFrames > 0
+            isAnimation
         );
-        if (this.startAnimation) {
-            this.application.samples.setLoop(true);
-            this.application.samples.setPlay(true);
-            this.startAnimation = false;
+        if (this.startSample) {
+            if (isAnimation) {
+                this.application.samples.setLoop(true);
+                this.application.samples.setPlay(true);
+            } else {
+                this.application.samples.setActive(0);
+            }
+            this.startSample = false;
         }
     }
 

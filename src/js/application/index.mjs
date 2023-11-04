@@ -15,7 +15,7 @@ import { MenuView, SidebarView } from "../view/menu.mjs";
 import { StatusView } from "../view/status.mjs";
 import { NotificationCenterView } from "../view/notifications.mjs";
 import { WindowsView } from "../nodes/windows.mjs";
-import { ImageView } from "../view/image.mjs";
+import { ImageView, BackgroundImageView } from "../view/image.mjs";
 import { Model } from "../model/enfugue.mjs";
 import { View } from "../view/base.mjs";
 import { ControlsHelperView } from "../view/controls.mjs";
@@ -27,6 +27,7 @@ import { ModelPickerController } from "../controller/common/model-picker.mjs";
 import { ModelManagerController } from "../controller/common/model-manager.mjs";
 import { DownloadsController } from "../controller/common/downloads.mjs";
 import { LayersController } from "../controller/common/layers.mjs";
+import { PromptTravelController } from "../controller/common/prompts.mjs";
 import { AnimationsController } from "../controller/common/animations.mjs";
 import { AnnouncementsController } from "../controller/common/announcements.mjs";
 import { HistoryDatabase } from "../common/history.mjs";
@@ -212,6 +213,8 @@ class Application {
         await this.registerSampleControllers();
         if (this.config.debug) console.log("Registering layer controllers.");
         await this.registerLayersControllers();
+        if (this.config.debug) console.log("Registering prompt controllers.");
+        await this.registerPromptControllers();
         if (this.config.debug) console.log("Registering menu controllers.");
         await this.registerMenuControllers();
         if (this.config.debug) console.log("Registering sidebar controllers.");
@@ -414,11 +417,19 @@ class Application {
     }
 
     /**
-     * Creates the layers manager (handles multiple images/prompts)
+     * Creates the layers manager (handles multiple images)
      */
     async registerLayersControllers() {
         this.layers = new LayersController(this);
         await this.layers.initialize();
+    }
+
+    /**
+     * Creates the prompts manager (handles prompt travel)
+     */
+    async registerPromptControllers() {
+        this.prompts = new PromptTravelController(this);
+        await this.prompts.initialize();
     }
 
     /**
@@ -860,7 +871,7 @@ class Application {
                     break;
                     break;
                 case "image/png":
-                    imageView = new ImageView(this.config, reader.result);
+                    imageView = new BackgroundImageView(this.config, reader.result);
                     await imageView.waitForLoad();
                     let stateData = this.getStateFromMetadata(imageView.metadata);
                     if (!isEmpty(stateData)) {
@@ -878,7 +889,7 @@ class Application {
                 case "image/x-icon":
                 case "image/webp":
                     if (isEmpty(imageView)) {
-                        imageView = new ImageView(this.config, reader.result, false);
+                        imageView = new BackgroundImageView(this.config, reader.result, false);
                     }
                     this.samples.showCanvas();
                     this.layers.addImageLayer(imageView);
@@ -914,7 +925,8 @@ class Application {
         let controllerArray = [
             this.modelPicker,
             this.layers,
-            this.samples
+            this.samples,
+            this.prompts,
         ].concat(this.sidebarControllers);
         for (let controllerName in this.menuControllers) {
             controllerArray = controllerArray.concat(this.menuControllers[controllerName]);
