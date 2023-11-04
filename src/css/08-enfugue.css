@@ -2021,7 +2021,7 @@ enfugue-engine-stop {
     text-transform: uppercase;
     position: fixed;
     right: 0px;
-    top: 0px;
+    top: 25px;
     height: 35px;
     padding: 0 10px;
     line-height: 35px;

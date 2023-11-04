@@ -4,7 +4,7 @@ import io
 import os
 import math
 
-from typing import Optional, Literal, Union, List, Tuple, TYPE_CHECKING
+from typing import Optional, Literal, Union, List, Tuple, Dict, Any, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from PIL.Image import Image
@@ -279,8 +279,8 @@ def get_frames_or_image(image: Union[Image, List[Image]]) -> Union[Image, List[I
     if not isinstance(image, list):
         if getattr(image, "n_frames", 1) > 1:
             def get_frame(i: int) -> Image:
-                image.seek(i)
-                return image.copy().convert("RGB")
+                image.seek(i) # type: ignore[union-attr]
+                return image.copy().convert("RGB") # type: ignore[union-attr]
             return [
                 get_frame(i)
                 for i in range(image.n_frames)

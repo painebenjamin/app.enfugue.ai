@@ -33,7 +33,7 @@ def check_download(
     if not os.path.exists(local_path):
         logger.info(f"Downloading file from {remote_url}. Will write to {local_path}")
         response = requests.get(remote_url, allow_redirects=True, stream=True)
-        content_length = response.headers.get("Content-Length", None)
+        content_length: Optional[int] = response.headers.get("Content-Length", None) # type: ignore[assignment]
         if content_length is not None:
             content_length = int(content_length)
         with open(local_path, "wb") as fh:

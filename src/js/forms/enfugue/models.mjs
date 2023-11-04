@@ -14,9 +14,6 @@ import {
     ModelMergeModeInputView,
     VaeInputView,
     CheckpointInputView,
-    EngineSizeInputView,
-    InpainterEngineSizeInputView,
-    RefinerEngineSizeInputView,
     SchedulerInputView,
     PromptInputView,
     SliderPreciseInputView,
@@ -107,23 +104,6 @@ class ModelFormView extends FormView {
                 "class": VaeInputView,
                 "label": "Inpainting VAE"
             },
-        },
-        "Engine": {
-            "size": {
-                "class": EngineSizeInputView,
-                "label": "Size",
-                "config": {
-                    "required": true,
-                }
-            },
-            "refiner_size": {
-                "class": RefinerEngineSizeInputView,
-                "label": "Refiner Size"
-            },
-            "inpainter_size": {
-                "class": InpainterEngineSizeInputView,
-                "label": "Inpainter Size"
-            }
         },
         "Prompts": {
             "prompt": {

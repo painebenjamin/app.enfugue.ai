@@ -198,6 +198,11 @@ enfugue-node-container {
     overflow: hidden;
 }
 
+enfugue-node-editor.image-editor enfugue-node-container {
+    background-image: repeating-linear-gradient(45deg, rgba(255,255,255,0.05) 0px, rgba(255,255,255,0.05) 10px, transparent 11px, transparent 20px);
+    background-color: transparent;
+}
+
 enfugue-node.input-output > enfugue-node-container {
     background-color: #153131;
     color: var(--lightest-color);

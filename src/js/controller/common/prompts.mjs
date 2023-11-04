@@ -31,9 +31,9 @@ class PromptView extends View {
      */
     static minimumTickInterval = 100;
 
-    ./**
-      * @var int Number of pixels from edges to drag
-      */
+    /**
+     * @var int Number of pixels from edges to drag
+     */
     static edgeHandlerTolerance = 15;
 
     /**
