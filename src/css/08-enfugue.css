@@ -231,7 +231,7 @@ enfugue-sidebar input.invoke {
     height: 50px;
     margin: 0;
     border-radius: 0;
-    font-size: 21px;
+    font-size: 18px;
 }
 
 enfugue-sidebar input.invoke:disabled, 

@@ -37,6 +37,11 @@ class PromptView extends View {
     static edgeHandlerTolerance = 15;
 
     /**
+     * @var int Number of pixels from edges to slide
+     */
+    static slideHandlerTolerance = 40;
+
+    /**
      * @var int minimum number of frames per prompt
      */
     static minimumFrames = 2;
@@ -230,9 +235,13 @@ class PromptView extends View {
 
         let activeLeft = false,
             activeRight = false,
+            activeSlide = false,
             canDragLeft = false,
             canDragRight = false,
+            canSlide = false,
             lastTick = (new Date()).getTime(),
+            slideStartFrame,
+            slideStartRange,
             updateFrame = (closestFrame) => {
                 if (activeLeft) {
                     this.start = Math.min(
@@ -246,6 +255,14 @@ class PromptView extends View {
                         closestFrame,
                         this.start + this.constructor.minimumFrames
                     );
+                    this.setPosition(node);
+                    this.changed();
+                } else if(activeSlide) {
+                    let difference = slideStartFrame - closestFrame,
+                        [initialStart, initialEnd] = slideStartRange;
+                    
+                    this.start = Math.max(initialStart - difference, 0);
+                    this.end = Math.min(initialEnd - difference, this.total);
                     this.setPosition(node);
                     this.changed();
                 }
@@ -273,21 +290,29 @@ class PromptView extends View {
                     ratio = containerRelativeLeft / containerWidth,
                     closestFrame = Math.ceil(ratio * this.total);
 
+                canDragLeft = false;
+                canDragRight = false;
+                canSlide = false;
+
                 if (relativeLeft < this.constructor.edgeHandlerTolerance) {
                     node.css("cursor", "ew-resize");
                     canDragLeft = true;
-                    canDragRight = false;
                 } else if (relativeRight < this.constructor.edgeHandlerTolerance) {
                     node.css("cursor", "ew-resize");
-                    canDragLeft = false;
                     canDragRight = true;
-                } else {
-                    if (!activeLeft && !activeRight) {
-                        node.css("cursor", "default");
+                } else if (
+                    relativeLeft >= this.constructor.slideHandlerTolerance &&
+                    relativeRight >= this.constructor.slideHandlerTolerance
+                ) {
+                    node.css("cursor", "grab");
+                    canSlide = true;
+                    if (!activeSlide) {
+                        slideStartFrame = closestFrame;
                     }
-                    canDragLeft = false;
-                    canDragRight = false;
+                } else if (!activeLeft && !activeRight && !activeSlide) {
+                    node.css("cursor", "default");
                 }
+
                 updateFrame(closestFrame);
                 e.preventDefault();
                 e.stopPropagation();
@@ -307,8 +332,9 @@ class PromptView extends View {
                 activeLeft = true;
             } else if (canDragRight) {
                 activeRight = true;
-            } else {
-                return;
+            } else if (canSlide) {
+                activeSlide = true;
+                slideStartRange = [this.start, this.end];
             }
             updatePosition(e);
             bindMouseUntilRelease(
@@ -318,6 +344,7 @@ class PromptView extends View {
                 (e2) => { 
                     activeLeft = false;
                     activeRight = false;
+                    activeSlide = false;
                 }
             );
         }).on("dblclick", (e) => {
@@ -350,6 +377,11 @@ class PromptTravelView extends View {
     static promptFormWindowHeight = 450;
 
     /**
+     * @var int Minimum number of frames
+     */
+    static minimumFrames = 2;
+
+    /**
      * Constructor has callback to spawn a window
      */
     constructor(config, spawnWindow, length = 16) {
@@ -373,9 +405,12 @@ class PromptTravelView extends View {
 
             notchNode.content(...newPromptNotches);
         }
+
         for (let promptView of this.promptViews) {
             promptView.total = this.length;
-            promptView.resetPosition()
+            promptView.end = Math.min(promptView.total, promptView.end);
+            promptView.start = Math.max(0, Math.min(promptView.start, promptView.end-this.constructor.minimumFrames));
+            promptView.resetPosition();
         }
     }
 

@@ -56,47 +56,16 @@ class CanvasController extends Controller {
             this.engine.tileHorizontal = values.tileHorizontal;
             this.engine.tileVertical = values.tileVertical;
             if (values.useTiling) {
-                this.engine.tilingSize = values.tilingSize
+                this.engine.tilingSize = values.tilingSize;
+                this.engine.tilingStride = values.tilingStride;
                 this.engine.tilingMaskType = values.tilingMaskType;
             } else {
-                this.engine.tilingSize = 0;
+                this.engine.tilingStride = 0;
             }
         });
 
         // Add form to sidebar
         this.application.sidebar.addChild(this.canvasForm);
-        
-        // Subscribe to model changes to look for defaults
-        this.subscribe("modelPickerChange", async (newModel) => {
-            if (!isEmpty(newModel)) {
-                let defaultConfig = newModel.defaultConfiguration,
-                    canvasConfig = {};
-
-                if (!isEmpty(defaultConfig.width)) {
-                    canvasConfig.width = defaultConfig.width;
-                }
-                if (!isEmpty(defaultConfig.height)) {
-                    canvasConfig.height = defaultConfig.height;
-                }
-                if (!isEmpty(defaultConfig.tiling_size)) {
-                    canvasConfig.tilingSize = defaultConfig.tiling_size;
-                    if (canvasConfig.tilingSize === 0) {
-                        canvasConfig.useTiling = false;
-                    }
-                }
-                if (!isEmpty(defaultConfig.tiling_mask_type)) {
-                    canvasConfig.tilingMaskType = defaultConfig.tiling_mask_type;
-                }
-
-                if (!isEmpty(canvasConfig)) {
-                    if (isEmpty(canvasConfig.useTiling)) {
-                        canvasConfig.useTiling = true;
-                    }
-                    await this.canvasForm.setValues(canvasConfig);
-                    await this.canvasForm.submit();
-                }
-            }
-        });
 
         // Add a callback when the image dimension is manually set
         this.images.onSetDimension((newWidth, newHeight) => {

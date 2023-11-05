@@ -293,7 +293,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         is_inpainter: bool,
         task_callback: Optional[Callable[[str], None]]=None,
         **kwargs: Any
-    ) -> UNet2DConditionModel:
+    ) -> ModelMixin:
         """
         Instantiates the UNet from config
         """
@@ -575,7 +575,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 )
                 vae_state_dict = load_state_dict(vae_path)
                 vae_keys = len(list(vae_state_dict.keys()))
-                logget.debug(f"Loading {vae_keys} keys into Autoencoder state dict (non-strict)")
+                logger.debug(f"Loading {vae_keys} keys into Autoencoder state dict (non-strict)")
                 vae.load_state_dict(load_state_dict(vae_path), strict=False)
             else:
                 logger.debug(f"Initializing Autoencoder from file {vae_path}")
@@ -648,7 +648,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 vae_preview=vae_preview,
                 text_encoder=text_model,
                 tokenizer=tokenizer,
-                unet=unet,
+                unet=unet, # type: ignore[arg-type]
                 scheduler=scheduler,
                 safety_checker=safety_checker,
                 feature_extractor=feature_extractor,
@@ -693,7 +693,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 text_encoder_2=text_encoder_2,
                 tokenizer=tokenizer,
                 tokenizer_2=tokenizer_2,
-                unet=unet,
+                unet=unet, # type: ignore[arg-type]
                 scheduler=scheduler,
                 safety_checker=safety_checker,
                 feature_extractor=feature_extractor,
@@ -728,7 +728,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 text_encoder_2=text_encoder_2,
                 tokenizer=None,
                 tokenizer_2=tokenizer_2,
-                unet=unet,
+                unet=unet, # type: ignore[arg-type]
                 scheduler=scheduler,
                 safety_checker=safety_checker,
                 feature_extractor=feature_extractor,
@@ -788,7 +788,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         """
         Reverts the scheduler back to whatever the original was.
         """
-        self.scheduler = self.scheduler_class.from_config(**self.scheduler_config)
+        self.scheduler = self.scheduler_class.from_config(**self.scheduler_config) # type: ignore[attr-defined]
 
     def get_size_from_module(self, module: torch.nn.Module) -> int:
         """
@@ -1227,12 +1227,12 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             unet_config=self.unet.config,
             **kwargs,
         )
-        self.load_lora_into_unet(
+        self.load_lora_into_unet( # type: ignore[attr-defined]
             state_dict,
             network_alphas=network_alphas,
             unet=self.unet,
             _pipeline=self,
-        ) # type: ignore[attr-defined]
+        )
 
         text_encoder_state_dict = dict([
             (k, v)
@@ -1294,19 +1294,19 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         LORA_PREFIX_UNET = "lora_unet"
         LORA_PREFIX_TEXT_ENCODER = "lora_te"
 
-        state_dict = load_state_dict(pretrained_model_name_or_path_or_dict)
+        state_dict = load_state_dict(pretrained_model_name_or_path_or_dict) # type: ignore[arg-type]
         while "state_dict" in state_dict:
-            state_dict = state_dict["state_dict"]
+            state_dict = state_dict["state_dict"] # type: ignore[assignment]
 
         if any(["motion_module" in key for key in state_dict.keys()]):
             return self.load_motion_lora_weights(
-                state_dict,
+                state_dict, # type: ignore[arg-type]
                 multiplier=multiplier,
                 dtype=dtype
             )
         if self.is_sdxl:
             return self.load_sdxl_lora_weights(
-                state_dict,
+                state_dict, # type: ignore[arg-type]
                 multiplier=multiplier,
                 dtype=dtype
             )
@@ -1586,7 +1586,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
         # Disable tiling during encoding
         tile = chunker.tile
-        chunker.tile = None
+        chunker.tile = False
 
         total_steps = chunker.num_chunks
 
@@ -1724,7 +1724,6 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             )
             return self.scheduler.add_noise(latents, noise, timestep) # type: ignore[attr-defined]
         else:
-            logger.debug("Not adding noise; starting from noised image.")
             return latents
 
     def prepare_mask_latents(
@@ -1934,7 +1933,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         height: int,
         batch_size: int,
         num_results_per_prompt: int,
-        device: Union[str, torch.Tensor],
+        device: Union[str, torch.device],
         dtype: torch.dtype,
         do_classifier_free_guidance=False,
         animation_frames: Optional[int] = None
@@ -2055,7 +2054,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                         for previous_block, current_block in zip(down_blocks, down_samples)
                     ]
                     mid_block += mid_sample
-        if is_animation:
+        if is_animation and down_blocks is not None and mid_block is not None:
             # Expand batch back to frames
             down_blocks = [
                 rearrange(block, "(b f) c h w -> b c f h w", b=batch, f=frames)
@@ -2486,7 +2485,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     self.scheduler.__dict__.update(chunk_scheduler_status[j])
 
                     # Scale model input
-                    latent_model_input = self.scheduler.scale_model_input(latent_model_input, t)
+                    latent_model_input = self.scheduler.scale_model_input(latent_model_input, t) # type: ignore[attr-defined]
 
                     # Get embeds
                     if wrap_t and start is not None and num_frames is not None and end is not None:
@@ -2578,7 +2577,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                         noise_pred = noise_pred_uncond + guidance_scale * (noise_pred_text - noise_pred_uncond)
 
                     # compute the previous noisy sample x_t -> x_t-1
-                    denoised_latents = self.scheduler.step(
+                    denoised_latents = self.scheduler.step( #type: ignore[attr-defined]
                         noise_pred,
                         t,
                         latents_for_view,
@@ -2600,7 +2599,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
                     if i < len(timesteps) - 1:
                         noise_timestep = timesteps[i + 1]
-                        init_latents = self.scheduler.add_noise(
+                        init_latents = self.scheduler.add_noise( # type: ignore[attr-defined]
                             init_latents,
                             slice_for_view(noise),
                             torch.tensor([noise_timestep])
@@ -2639,7 +2638,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 latent_callback is not None
                 and latent_callback_steps is not None
                 and steps_since_last_callback >= latent_callback_steps
-                and (i == num_steps - 1 or ((i + 1) > num_warmup_steps and (i + 1) % self.scheduler.order == 0))
+                and (i == num_steps - 1 or ((i + 1) > num_warmup_steps and (i + 1) % self.scheduler.order == 0)) # type: ignore[attr-defined]
             ):
                 latent_callback_value = latents
 
@@ -2692,7 +2691,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         max_size_px = max_size * self.vae_scale_factor
 
         # Define function to decode a single frame
-        def decode_preview(tensor: Tensor) -> Tensor:
+        def decode_preview(tensor: torch.Tensor) -> torch.Tensor:
             """
             Decodes a single frame
             """
@@ -3004,7 +3003,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         self,
         image: Optional[Union[ImageArgType, torch.Tensor]]=None,
         animation_frames: Optional[int]=None,
-    ) -> Optional[Union[torch.Tensor, List[Image]]]:
+    ) -> Optional[Union[torch.Tensor, List[PIL.Image.Image]]]:
         """
         Standardizes image args to list
         """
@@ -3038,7 +3037,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         self,
         images: ImagePromptArgType=None,
         animation_frames: Optional[int]=None,
-    ) -> Optional[List[Tuple[List[Image], float]]]:
+    ) -> Optional[List[Tuple[List[PIL.Image.Image], float]]]:
         """
         Standardizes IP adapter args to list
         """
@@ -3095,7 +3094,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         standardized: Dict[str, List[Tuple[List[PIL.Image.Image], float, Optional[float], Optional[float]]]] = {}
 
         for name in control_images:
-            if name not in self.controlnets:
+            if name not in self.controlnets: # type: ignore[operator]
                 raise RuntimeError(f"Control image mapped to ControlNet {name}, but it is not loaded.")
 
             standardized[name] = []
@@ -3149,7 +3148,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         negative_prompt_2: Optional[str]=None,
         prompts: Optional[List[Prompt]]=None,
         image: Optional[Union[ImageArgType, torch.Tensor]]=None,
-        mask: Optional[Unioin[ImageArgType, torch.Tensor]]=None,
+        mask: Optional[Union[ImageArgType, torch.Tensor]]=None,
         clip_skip: Optional[int]=None,
         freeu_factors: Optional[Tuple[float, float, float, float]]=None,
         control_images: ControlImageArgType=None,
@@ -3210,14 +3209,14 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             mask,
             animation_frames=animation_frames
         )
-        control_images = self.standardize_control_images(control_images)
+        control_images = self.standardize_control_images(control_images) # type: ignore[assignment]
 
         if ip_adapter_images is not None:
             ip_adapter_images = self.standardize_ip_adapter_images(
                 ip_adapter_images,
                 animation_frames=animation_frames
             )
-            ip_adapter_scale = max([scale for _, scale in ip_adapter_images])
+            ip_adapter_scale = max([scale for _, scale in ip_adapter_images]) # type: ignore[union-attr]
         else:
             ip_adapter_scale = None
 
@@ -3538,10 +3537,10 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             with weight_builder:
                 if prepared_image is not None and prepared_mask is not None:
                     # Inpainting
-                    num_channels_latents = self.vae.config.latent_channels
+                    num_channels_latents = self.vae.config.latent_channels # type: ignore[attr-defined]
 
                     if latents:
-                        prepared_latents = latents.to(device) * self.schedule.init_noise_sigma
+                        prepared_latents = latents.to(device) * self.schedule.init_noise_sigma # type: ignore[attr-defined]
                     else:
                         prepared_latents = self.create_latents(
                             batch_size,
@@ -3606,14 +3605,14 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     prepared_image_latents = None # Don't need to store these separately
                     # prepared_latents = img + noise
                 elif latents:
-                    prepared_latents = latents.to(device) * self.scheduler.init_noise_sigma
+                    prepared_latents = latents.to(device) * self.scheduler.init_noise_sigma # type: ignore[attr-defined]
                     # prepared_latents = passed latents + noise
                 else:
                     # txt2img
                     prepared_image_latents = None
                     prepared_latents = self.create_latents(
                         batch_size=batch_size,
-                        num_channels_latents=self.unet.config.in_channels,
+                        num_channels_latents=self.unet.config.in_channels, # type: ignore[attr-defined]
                         height=height,
                         width=width,
                         dtype=encoded_prompts.dtype,
@@ -3631,8 +3630,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                         prepared_control_images = None
                     else:
                         for name in control_images:
-                            prepared_control_images[name] = []
-                            for controlnet_image, conditioning_scale, conditioning_start, conditioning_end in control_images[name]:
+                            prepared_control_images[name] = [] # type: ignore[index]
+                            for controlnet_image, conditioning_scale, conditioning_start, conditioning_end in control_images[name]: # type: ignore
                                 prepared_controlnet_image = self.prepare_control_image(
                                     image=controlnet_image,
                                     height=height,
@@ -3697,8 +3696,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                                 uncond_embeds.unsqueeze(0)
                             ], dim=0)
 
-                        image_prompt_embeds *= scale / ip_adapter_scale
-                        image_uncond_prompt_embeds *= scale / ip_adapter_scale
+                        image_prompt_embeds *= scale / ip_adapter_scale # type: ignore[operator]
+                        image_uncond_prompt_embeds *= scale / ip_adapter_scale # type: ignore[operator]
 
                         ip_adapter_image_embeds = torch.cat([
                             ip_adapter_image_embeds,
@@ -3717,7 +3716,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 added_cond_kwargs: Optional[Dict[str, Any]] = None
                 if self.is_sdxl:
                     added_cond_kwargs = {}
-                    if self.config.requires_aesthetic_score:
+                    if self.config.requires_aesthetic_score: # type: ignore[attr-defined]
                         add_time_ids, add_neg_time_ids = self.get_add_time_ids(
                             original_size=original_size,
                             crops_coords_top_left=crops_coords_top_left,
@@ -3747,7 +3746,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 # Unload VAE, and maybe preview VAE
                 self.vae.to("cpu")
                 if decode_intermediates:
-                    self.vae_preview.to(device)
+                    self.vae_preview.to(device, dtype=encoded_prompts.dtype)
 
                 empty_cache()
 
@@ -3833,7 +3832,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                         device=device
                     )
                     if self.is_sdxl:
-                        use_torch_2_0_or_xformers = self.vae.decoder.mid_block.attentions[0].processor in [
+                        use_torch_2_0_or_xformers = self.vae.decoder.mid_block.attentions[0].processor in [ # type: ignore[union-attr]
                             AttnProcessor2_0,
                             XFormersAttnProcessor,
                             LoRAXFormersAttnProcessor,
@@ -3844,7 +3843,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                         if not use_torch_2_0_or_xformers:
                             self.vae.post_quant_conv.to(prepared_latents.dtype)
                             self.vae.decoder.conv_in.to(prepared_latents.dtype)
-                            self.vae.decoder.mid_block.to(prepared_latents.dtype)
+                            self.vae.decoder.mid_block.to(prepared_latents.dtype) # type: ignore
                         else:
                             prepared_latents = prepared_latents.float()
 
@@ -3862,7 +3861,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                         output = self.denormalize_latents(prepared_latents)
                         if output_type != "pt":
                             output = self.image_processor.pt_to_numpy(output)
-                            output_nsfw = self.run_safety_checker(output, device, encoded_prompts.dtype)[1]
+                            output_nsfw = self.run_safety_checker(output, device, encoded_prompts.dtype)[1] # type: ignore[arg-type]
                             if output_type == "pil":
                                 output = self.image_processor.numpy_to_pil(output)
                     else:

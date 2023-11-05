@@ -126,8 +126,8 @@ class AnimationFormView extends FormView {
                 "class": NumberInputView,
                 "config": {
                     "min": 8,
-                    "value": 32,
-                    "tooltip": "How long position encoding data should be after truncating and scaling. For example, if you truncate position data to 16 frames and scale position data to 32 frames, you will have removed the final 8 frames of training data, then altered the timescale of the animation by one half - i.e., the animation will appear about twice as slow. This feature is experimental and may result in strange movement."
+                    "value": 24,
+                    "tooltip": "How long position encoding data should be after truncating and scaling. For example, if you truncate position data to 16 frames and scale position data to 24 frames, you will have removed the final 8 frames of training data, then altered the timescale of the animation by one half - i.e., the animation will appear about 50% slower. This feature is experimental and may result in strange movement."
                 }
             },
             /*

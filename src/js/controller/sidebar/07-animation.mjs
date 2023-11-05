@@ -23,7 +23,7 @@ class AnimationController extends Controller {
                 "animationEnabled": false,
                 "animationFrames": 16,
                 "animationRate": 8,
-                "animationChunking": true,
+                "animationSlicing": true,
                 "animationSize": 16,
                 "animationStride": 8,
                 "animationLoop": null

@@ -32,7 +32,7 @@ from enfugue.diffusion.rt.model import BaseModel, UNet, VAE, CLIP, ControlledUNe
 
 if TYPE_CHECKING:
     from enfugue.diffusers.support.ip import IPAdapter
-    from enfugue.diffusion.constants import MASK_TYPE_LITERAL
+    from enfugue.diffusion.constants import MASK_TYPE_LITERAL, IP_ADAPTER_LITERAL
 
 class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
     models: Dict[str, BaseModel]
@@ -57,9 +57,9 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         controlnets: Optional[Dict[str, ControlNetModel]] = None,
         ip_adapter: Optional[IPAdapter] = None,
         engine_size: int = 512,  # Recommended even for machines that can handle more
-        chunking_size: int = 32,
-        chunking_mask_type: MASK_TYPE_LITERAL = "bilinear",
-        chunking_mask_kwargs: Dict[str, Any] = {},
+        tiling_size: int = 32,
+        tiling_mask_type: MASK_TYPE_LITERAL = "bilinear",
+        tiling_mask_kwargs: Dict[str, Any] = {},
         max_batch_size: int = 16,
         # ONNX export parameters
         force_engine_rebuild: bool = False,
@@ -75,6 +75,7 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
     ) -> None:
         if engine_size is None:
             raise ValueError("Cannot use TensorRT with a 'None' engine size.")
+
         super(EnfugueTensorRTStableDiffusionPipeline, self).__init__(
             vae=vae,
             vae_preview=vae_preview,
@@ -93,13 +94,15 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
             controlnets=controlnets,
             ip_adapter=ip_adapter,
             engine_size=engine_size,
-            chunking_size=chunking_size,
-            chunking_mask_type=chunking_mask_type,
-            chunking_mask_kwargs=chunking_mask_kwargs,
+            tiling_size=tiling_size,
+            tiling_mask_type=tiling_mask_type,
+            tiling_mask_kwargs=tiling_mask_kwargs,
         )
+
         if self.controlnets:
             # Hijack forward
             self.unet.forward = self.controlled_unet_forward # type: ignore[method-assign]
+
         self.vae.forward = self.vae.decode # type: ignore[method-assign]
         self.onnx_opset = onnx_opset
         self.force_engine_rebuild = force_engine_rebuild
@@ -196,10 +199,9 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         batch_size: int,
         animation_frames: Optional[int],
         device: Union[str, torch.device],
-        ip_adapter_scale: Optional[Union[float, List[float]]] = None,
-        ip_adapter_plus: bool = False,
-        ip_adapter_face: bool = False,
-        step_complete: Optional[Callable[[bool], None]] = None
+        ip_adapter_scale: Optional[Union[float, List[float]]]=None,
+        ip_adapter_mode: Optional[IP_ADAPTER_LITERAL]=None,
+        step_complete: Optional[Callable[[bool], None]]=None
     ) -> Iterator[None]:
         """
         We initialize the TensorRT runtime here.
@@ -218,8 +220,10 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         self,
         device: torch.device,
         dtype: torch.dtype,
-        freeu_factors: Optional[Tuple[float, float, float, float]] = None,
-        offload_models: bool = False
+        animation_frames: Optional[int]=None,
+        motion_scale: Optional[float]=None,
+        freeu_factors: Optional[Tuple[float, float, float, float]]=None,
+        offload_models: bool=False
     ) -> None:
         """
         TRT skips.
@@ -267,7 +271,7 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         self.engine = Engine.build_all(
             engines_to_build,
             self.onnx_opset,
-            use_fp16=use_fp16,
+            use_fp16=self.build_half,
             opt_image_height=self.engine_size, # type: ignore[arg-type]
             opt_image_width=self.engine_size, # type: ignore[arg-type]
             force_engine_rebuild=self.force_engine_rebuild,

@@ -4,7 +4,7 @@ import io
 import inspect
 
 from contextlib import contextmanager, ExitStack
-
+from datetime import datetime
 from PIL.PngImagePlugin import PngInfo
 
 from dataclasses import (
@@ -132,7 +132,7 @@ class LayeredInvocation:
     reflect: bool=False
 
     @staticmethod
-    def merge_prompts(*args: Tuple[Optional[str], float]) -> str:
+    def merge_prompts(*args: Tuple[Optional[str], float]) -> Optional[str]:
         """
         Merges prompts if they are not null
         """
@@ -325,14 +325,10 @@ class LayeredInvocation:
 
         if x is not None and y is not None:
             if isinstance(fitted_image, list):
-                blank_image_list = [
-                    Image.new("RGBA", (width, height), (0,0,0,0))
-                    for i in range(len(fitted_image))
-                ]
-                fitted_image = [
-                    blank.paste(fit_image, (x, y))
-                    for blank, fit_image in zip(blank_image_list, fitted_image)
-                ]
+                for i, img in enumerate(fitted_image):
+                    blank_image = Image.new("RGBA", (width, height), (0,0,0,0))
+                    blank_image.paste(img, (x, y))
+                    fitted_image[i] = blank_image
             else:
                 blank_image = Image.new("RGBA", (width, height), (0,0,0,0))
                 blank_image.paste(fitted_image, (x, y))
@@ -365,7 +361,7 @@ class LayeredInvocation:
         else:
             fitted_alpha = fitted_image.split()[-1]
             fitted_alpha_inverse_clamp = Image.eval(fitted_alpha, lambda a: 0 if a > 128 else 255)
-            image_mask.paste(black, mask=fitted_alpha_inverse_clamp)
+            image_mask.paste(black, mask=fitted_alpha_inverse_clamp) # type: ignore[attr-defined]
 
         return fitted_image, image_mask
 
@@ -374,7 +370,7 @@ class LayeredInvocation:
         cls,
         size: int=512,
         **kwargs: Any
-    ) -> DiffusionPipelineInvocation:
+    ) -> LayeredInvocation:
         """
         Assembles an invocation from layers, standardizing arguments
         """
@@ -421,7 +417,12 @@ class LayeredInvocation:
             ):
                 layer_x = layer.get("x", 0)
                 layer_y = layer.get("y", 0)
-                image_w, image_h = layer["image"].size
+                if isinstance(layer["image"], str):
+                    layer["image"] = get_frames_or_image_from_file(layer["image"])
+                if isinstance(layer["image"], list):
+                    image_w, image_h = layer["image"][0].size
+                else:
+                    image_w, image_h = layer["image"].size
                 layer_w = layer.get("w", image_w)
                 layer_h = layer.get("h", image_h)
                 image_width = max(image_width, layer_x + layer_w)
@@ -540,7 +541,7 @@ class LayeredInvocation:
                         directory=save_directory,
                         name=save_name
                     )
-                    kawrgs["mask"] = mask
+                    kwargs["mask"] = mask
                 else:
                     kwargs["mask"] = save_frames_or_image(
                         image=mask,
@@ -558,7 +559,7 @@ class LayeredInvocation:
                                 name=f"{save_name}_{controlnet}_{i}" if save_name is not None else None
                             )
                 else:
-                    for i, control_dict in enumerate(control_images):
+                    for i, control_dict in enumerate(control_images): # type: ignore[unreachable]
                         control_dict["image"] = save_frames_or_image(
                             image=control_dict["image"],
                             directory=save_directory,
@@ -642,7 +643,7 @@ class LayeredInvocation:
         from enfugue.diffusion.util.prompt_util import Prompt
 
         # Gather images for preprocessing
-        control_images = {}
+        control_images: Dict[str, List[Dict]] = {}
         ip_adapter_images = []
         invocation_mask = None
         invocation_image = None
@@ -724,6 +725,9 @@ class LayeredInvocation:
                         logger.warning(f"No image, skipping laying {i}")
                         continue
 
+                    if isinstance(layer_image, str):
+                        layer_image = get_frames_or_image_from_file(layer_image)
+
                     if remove_background:
                         if isinstance(layer_image, list):
                             layer_image = [
@@ -760,13 +764,13 @@ class LayeredInvocation:
                         has_invocation_image = True
 
                         if isinstance(fit_layer_image, list):
-                            for i in range(len(invocation_image)):
-                                invocation_image[i].paste(
+                            for i in range(len(invocation_image)): # type: ignore[arg-type]
+                                invocation_image[i].paste( # type: ignore[index]
                                     fit_layer_image[i] if i < len(fit_layer_image) else fit_layer_image[-1],
                                     mask=fit_layer_mask[i] if i < len(fit_layer_mask) else fit_layer_mask[-1]
                                 )
                                 if is_passthrough:
-                                    invocation_mask[i].paste(
+                                    invocation_mask[i].paste( # type: ignore[index]
                                         black,
                                         mask=fit_layer_mask[i] if i < len(fit_layer_mask) else fit_layer_mask[-1]
                                     )
@@ -774,11 +778,11 @@ class LayeredInvocation:
                             for i in range(len(invocation_image)):
                                 invocation_image[i].paste(fit_layer_image, mask=fit_layer_mask)
                                 if is_passthrough:
-                                    invocation_mask[i].paste(black, mask=fit_layer_mask)
+                                    invocation_mask[i].paste(black, mask=fit_layer_mask) # type: ignore[index]
                         else:
-                            invocation_image.paste(fit_layer_image, mask=fit_layer_mask)
+                            invocation_image.paste(fit_layer_image, mask=fit_layer_mask) # type: ignore[attr-defined]
                             if is_passthrough:
-                                invocation_mask.paste(black, mask=fit_layer_mask)
+                                invocation_mask.paste(black, mask=fit_layer_mask) # type: ignore[union-attr]
 
                     if prompt_scale:
                         # ip adapter
@@ -827,7 +831,7 @@ class LayeredInvocation:
                 if mask:
                     if isinstance(invocation_mask, list):
                         if not isinstance(mask, list):
-                            mask = [mask.copy() for i in range(len(invocation_mask))]
+                            mask = [mask.copy() for i in range(len(invocation_mask))] # type: ignore[union-attr]
                         for i in range(len(mask)):
                             mask[i].paste(
                                 white,
@@ -842,22 +846,22 @@ class LayeredInvocation:
                         ]
                     else:
                         # Final mask merge
-                        mask.paste(
+                        mask.paste( # type: ignore[union-attr]
                             white,
                             mask=Image.eval(
                                 feather_mask(invocation_mask),
                                 lambda a: 0 if a < 128 else 255
                             )
                         )
-                        invocation_mask = mask.convert("L")
+                        invocation_mask = mask.convert("L") # type: ignore[union-attr]
                 else:
                     if isinstance(invocation_mask, list):
                         invocation_mask = [
-                            feather_mask(img).convert("L")
+                            feather_mask(img).convert("L") # type: ignore[union-attr]
                             for img in invocation_mask
                         ]
                     else:
-                        invocation_mask = feather_mask(invocation_mask).convert("L")
+                        invocation_mask = feather_mask(invocation_mask).convert("L") # type: ignore[union-attr]
 
                 # Evaluate mask
                 mask_max, mask_min = None, None
@@ -867,11 +871,11 @@ class LayeredInvocation:
                         if mask_max is None:
                             mask_max = this_max
                         else:
-                            mask_max = max(mask_max, this_max)
+                            mask_max = max(mask_max, this_max) # type: ignore[unreachable]
                         if mask_min is None:
                             mask_min = this_min
                         else:
-                            mask_min = min(mask_min, this_min)
+                            mask_min = min(mask_min, this_min) # type: ignore[unreachable]
                 else:
                     mask_max, mask_min = invocation_mask.getextrema()
 
@@ -893,7 +897,7 @@ class LayeredInvocation:
         if prompts:
             # Prompt travel
             prompts = [
-                Prompt(
+                Prompt( # type: ignore[misc]
                     positive=self.merge_prompts(
                         (prompt["positive"], 1.0),
                         (self.model_prompt, MODEL_PROMPT_WEIGHT)
@@ -918,7 +922,7 @@ class LayeredInvocation:
             ]
         elif self.prompt is not None:
             prompts = [
-                Prompt(
+                Prompt( # type: ignore[list-item]
                     positive=self.merge_prompts(
                         (self.prompt, 1.0),
                         (self.model_prompt, MODEL_PROMPT_WEIGHT)
@@ -983,7 +987,7 @@ class LayeredInvocation:
         pipeline: DiffusionPipelineManager,
         task_callback: Optional[Callable[[str], None]] = None,
         progress_callback: Optional[Callable[[int, int, float], None]] = None,
-        image_callback: Optional[Callable[[List[PIL.Image.Image]], None]] = None,
+        image_callback: Optional[Callable[[List[Image]], None]] = None,
         image_callback_steps: Optional[int] = None,
     ) -> StableDiffusionPipelineOutput:
         """
@@ -1051,7 +1055,7 @@ class LayeredInvocation:
                 # Hijack image callback to paste onto background
                 original_image_callback = image_callback
 
-                def pasted_image_callback(images: List[PIL.Image.Image]) -> None:
+                def pasted_image_callback(images: List[Image]) -> None:
                     """
                     Paste the images then callback.
                     """
@@ -1111,7 +1115,7 @@ class LayeredInvocation:
                 images[i] = self.paste_inpaint_image(
                     background[i] if isinstance(background, list) else background,
                     image,
-                    cropped_inpaint_position
+                    cropped_inpaint_position[:2]
                 )
 
         # Execte upscale, if requested
@@ -1169,7 +1173,7 @@ class LayeredInvocation:
         pipeline: DiffusionPipelineManager,
         task_callback: Optional[Callable[[str], None]] = None,
         progress_callback: Optional[Callable[[int, int, float], None]] = None,
-        image_callback: Optional[Callable[[List[PIL.Image.Image]], None]] = None,
+        image_callback: Optional[Callable[[List[Image]], None]] = None,
         image_callback_steps: Optional[int] = None,
         invocation_kwargs: Dict[str, Any] = {}
     ) -> Tuple[List[Image], List[bool]]:
@@ -1277,13 +1281,17 @@ class LayeredInvocation:
         nsfw: List[bool],
         task_callback: Optional[Callable[[str], None]] = None,
         progress_callback: Optional[Callable[[int, int, float], None]] = None,
-        image_callback: Optional[Callable[[List[PIL.Image.Image]], None]] = None,
+        image_callback: Optional[Callable[[List[Image]], None]] = None,
         image_callback_steps: Optional[int] = None,
         invocation_kwargs: Dict[str, Any] = {}
     ) -> Tuple[List[Image], List[bool]]:
         """
         Executes upscale steps
         """
+        from diffusers.utils.pil_utils import PIL_INTERPOLATION
+
+        animation_frames = invocation_kwargs.get("animation_frames", None)
+
         for upscale_step in self.upscale_steps:
             method = upscale_step["method"]
             amount = upscale_step["amount"]
@@ -1305,7 +1313,7 @@ class LayeredInvocation:
             noise_blend_method = upscale_step.get("noise_blend_method", None)
             refiner = self.refiner is not None and upscale_step.get("refiner", True)
             
-            prompt = self.merge_prompts(
+            prompt = self.merge_prompts( # type: ignore[assignment]
                 (prompt, 1.0),
                 (self.prompt, GLOBAL_PROMPT_UPSCALE_WEIGHT),
                 (self.model_prompt, MODEL_PROMPT_WEIGHT),
@@ -1349,43 +1357,60 @@ class LayeredInvocation:
                 ]
             )
 
-            for i, image in enumerate(images):
-                if nsfw is not None and nsfw[i]:
-                    logger.debug(f"Image {i} had NSFW content, not upscaling.")
-                    continue
-
-                logger.debug(f"Upscaling sample {i} by {amount} using {method}")
-                task_callback(f"Upscaling sample {i+1}")
-
+            @contextmanager
+            def get_upscale_image() -> Iterator[Callable[[Image], Image]]:
                 if method in ["esrgan", "esrganime", "gfpgan"]:
                     if refiner:
                         pipeline.unload_pipeline("clearing memory for upscaler")
+                        pipeline.unload_inpainter("clearing memory for upscaler")
                         pipeline.offload_refiner()
                     else:
                         pipeline.offload_pipeline()
+                        pipeline.offload_animator()
+                        pipeline.offload_inpainter()
                         pipeline.unload_refiner("clearing memory for upscaler")
-                    image = pipeline.upscaler(
-                        method=method,
-                        image=image,
-                        tile=512, # Override
-                        outscale=amount
-                    )
+                    if method == "gfpgan":
+                        with pipeline.upscaler.gfpgan(tile=512) as upscale:
+                            yield upscale
+                    else:
+                        with pipeline.upscaler.esrgan(tile=512, anime=method=="esrganime") as upscale:
+                            yield upscale
                 elif method in PIL_INTERPOLATION:
-                    width, height = image.size
-                    image = image.resize(
-                        (int(width * amount), int(height * amount)),
-                        resample=PIL_INTERPOLATION[method]
-                    )
+                    def pil_resize(image: Image) -> Image:
+                        return image.resize(
+                            (int(width * amount), int(height * amount)),
+                            resample=PIL_INTERPOLATION[method]
+                        )
+                    yield pil_resize
                 else:
-                    logger.error(f"Unknown upscaler {method}")
-                    return self.format_output(images, nsfw)
+                    logger.error(f"Unknown method {method}")
+                    def no_resize(image: Image) -> Image:
+                        return image
+                    yield no_resize
 
-                images[i] = image
-                if image_callback is not None:
-                    image_callback(images)
+            if task_callback:
+                task_callback(f"Upscaling samples")
+
+            with get_upscale_image() as upscale_image:
+                if progress_callback is not None:
+                    progress_callback(0, len(images), 0.0)
+                for i, image in enumerate(images):
+                    upscale_start = datetime.now()
+                    if nsfw is not None and nsfw[i]:
+                        logger.debug(f"Image {i} had NSFW content, not upscaling.")
+                        continue
+                    logger.debug(f"Upscaling sample {i} by {amount} using {method}")
+                    images[i] = upscale_image(image)
+                    upscale_time = (datetime.now() - upscale_start).total_seconds()
+                    if progress_callback:
+                        progress_callback(i+1, len(images), 1/upscale_time)
+
+            if image_callback:
+                image_callback(images)
 
             if strength is not None and strength > 0:
-                task_callback("Preparing upscale pipeline")
+                if task_callback:
+                    task_callback("Preparing upscale pipeline")
 
                 if refiner:
                     # Refiners have safety disabled from the jump
@@ -1398,19 +1423,32 @@ class LayeredInvocation:
                     # We'll re-enable it after.
                     logger.debug("Using base pipeline for upscaling.")
                     re_enable_safety = pipeline.safe
-                    tiling_size = max(tiling_size, pipeline.size)
-                    tiling_stride = min(tiling_stride, pipeline.size // 2)
+                    if animation_frames:
+                        tiling_size = max(tiling_size, pipeline.animator_size)
+                        tiling_stride = min(tiling_stride, pipeline.animator_size // 2)
+                    else:
+                        tiling_size = max(tiling_size, pipeline.size)
+                        tiling_stride = min(tiling_stride, pipeline.size // 2)
                     pipeline.safe = False
 
                 if scheduler is not None:
                     pipeline.scheduler = scheduler
 
-                for i, image in enumerate(images):
+                if animation_frames:
+                    upscaled_images = [images]
+                else:
+                    upscaled_images = images
+
+                for i, image in enumerate(upscaled_images):
                     if nsfw is not None and nsfw[i]:
                         logger.debug(f"Image {i} had NSFW content, not upscaling.")
                         continue
 
-                    width, height = image.size
+                    if isinstance(image, list):
+                        width, height = image[0].size
+                    else:
+                        width, height = image.size
+
                     kwargs = {
                         "width": width,
                         "height": height,
@@ -1434,6 +1472,8 @@ class LayeredInvocation:
                         "noise_offset": noise_offset,
                         "noise_method": noise_method,
                         "noise_blend_method": noise_blend_method,
+                        "animation_frames": animation_frames,
+                        "motion_scale": invocation_kwargs.get("motion_scale", None)
                     }
 
                     if controlnets is not None:
@@ -1458,6 +1498,10 @@ class LayeredInvocation:
                             pipeline.refiner_controlnets = controlnet_names
                             upscale_pipline = pipeline.refiner_pipeline
                             is_sdxl = pipeline.refiner_is_sdxl
+                        elif animation_frames:
+                            pipeline.animator_controlnets = controlnet_names
+                            upscale_pipeline = pipeline.animator_pipeline
+                            is_sdxl = pipeline.animator_is_sdxl
                         else:
                             pipeline.controlnets = controlnet_names
                             upscale_pipeline = pipeline.pipeline
@@ -1468,36 +1512,56 @@ class LayeredInvocation:
                         with pipeline.control_image_processor.processors(controlnet_unique_names) as controlnet_processors:
                             controlnet_processor_dict = dict(zip(controlnet_unique_names, controlnet_processors))
 
+                            def get_processed_image(controlnet: str) -> Union[Image, List[Image]]:
+                                if isinstance(image, list):
+                                    return [
+                                        controlnet_processor_dict[controlnet](img)
+                                        for img in image
+                                    ]
+                                else:
+                                    return controlnet_processor_dict[controlnet](image)
+
                             kwargs["control_images"] = dict([
                                 (
                                     controlnet_name,
                                     [(
-                                        controlnet_processor_dict[controlnet_name](image),
+                                        get_processed_image(controlnet_name),
                                         controlnet_weight
                                     )]
                                 )
                                 for controlnet_name, controlnet_weight in zip(controlnet_names, controlnet_weights)
                             ])
+
                     elif refiner:
                         pipeline.refiner_controlnets = None
                         upscale_pipeline = pipeline.refiner_pipeline
+                    elif animation_frames:
+                        pipeline.animator_controlnets = None
+                        upscale_pipeline = pipeline.animator_pipeline
                     else:
                         pipeline.controlnets = None
                         upscale_pipeline = pipeline.pipeline
 
                     logger.debug(f"Upscaling sample {i} with arguments {kwargs}")
                     pipeline.stop_keepalive() # Stop here to kill during upscale diffusion
-                    task_callback(f"Re-diffusing Upscaled Sample {i+1}")
+                    if task_callback:
+                        task_callback(f"Re-diffusing Upscaled Sample {i+1}")
+
                     image = upscale_pipeline(
                         generator=pipeline.generator,
                         device=pipeline.device,
                         offload_models=pipeline.pipeline_sequential_onload,
                         **kwargs
-                    ).images[0]
+                    ).images
                     pipeline.start_keepalive() # Return keepalive between iterations
-                    images[i] = image
-                    if image_callback is not None:
-                        image_callback(images)
+
+                    if animation_frames:
+                        images = image
+                    else:
+                        images[i] = image[0]
+                        if image_callback is not None:
+                            image_callback(images)
+
                 if re_enable_safety:
                     pipeline.safe = True
                 if refiner:
@@ -1516,7 +1580,6 @@ class LayeredInvocation:
         from diffusers.pipelines.stable_diffusion import StableDiffusionPipelineOutput
         from PIL import Image
         metadata_dict = self.serialize()
-        logger.critical(metadata_dict)
         redact_images_from_metadata(metadata_dict)
         formatted_images = []
         for i, image in enumerate(images):

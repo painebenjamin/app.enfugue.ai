@@ -412,7 +412,8 @@ enfugue-node-editor.image-editor enfugue-node-contents enfugue-placeholder-view 
     color: var(--theme-color-primary);
 }
 
-enfugue-node-editor.image-editor enfugue-node-contents enfugue-background-image-view {
+enfugue-node-editor.image-editor enfugue-node-contents enfugue-background-image-view,
+enfugue-node-editor.image-editor enfugue-node-contents enfugue-video-view {
     display: block;
     width: 100%;
     height: 100%;
@@ -476,6 +477,57 @@ enfugue-node-editor.image-editor enfugue-node-contents enfugue-background-image-
 
 enfugue-node-editor.image-editor enfugue-node-contents enfugue-background-image-view.anchor-bottom-right .background {
     background-position: bottom right;
+}
+
+enfugue-node-editor.image-editor enfugue-node-contents enfugue-video-view video {
+    width: 100%;
+    height: 100%;
+    object-fit: none;
+    object-position: left top;
+}
+
+enfugue-node-editor.image-editor enfugue-node-contents enfugue-video-view.fit-contain video {
+    object-fit: contain;
+}
+
+enfugue-node-editor.image-editor enfugue-node-contents enfugue-video-view.fit-cover video {
+    object-fit: cover;
+}
+
+enfugue-node-editor.image-editor enfugue-node-contents enfugue-video-view.fit-stretch video {
+    object-fit: fill;
+}
+
+enfugue-node-editor.image-editor enfugue-node-contents enfugue-video-view.anchor-top-center video {
+    object-position: center top;
+}
+
+enfugue-node-editor.image-editor enfugue-node-contents enfugue-video-view.anchor-top-right video {
+    object-position: right top;
+}
+
+enfugue-node-editor.image-editor enfugue-node-contents enfugue-video-view.anchor-center-left video {
+    object-position: left center;
+}
+
+enfugue-node-editor.image-editor enfugue-node-contents enfugue-video-view.anchor-center-center video {
+    object-position: center center;
+}
+
+enfugue-node-editor.image-editor enfugue-node-contents enfugue-video-view.anchor-center-right video {
+    object-position: right center;
+}
+
+enfugue-node-editor.image-editor enfugue-node-contents enfugue-video-view.anchor-bottom-left video {
+    object-position: left bottom;
+}
+
+enfugue-node-editor.image-editor enfugue-node-contents enfugue-video-view.anchor-bottom-center video {
+    object-position: center bottom;
+}
+
+enfugue-node-editor.image-editor enfugue-node-contents enfugue-video-view.anchor-bottom-right video {
+    object-position: right bottom;
 }
 
 enfugue-node-editor.image-editor enfugue-node-header enfugue-node-button.top-right {

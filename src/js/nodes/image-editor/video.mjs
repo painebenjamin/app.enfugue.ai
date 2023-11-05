@@ -1,14 +1,14 @@
-/** @module nodes/image-editor/image.mjs */
+/** @module nodes/image-editor/video.mjs */
 import { isEmpty, promptFiles } from "../../base/helpers.mjs";
 import { View } from "../../view/base.mjs";
-import { ImageView, BackgroundImageView } from "../../view/image.mjs";
+import { VideoView } from "../../view/video.mjs";
 import { ImageEditorNodeView } from "./base.mjs";
-import { NoImageView } from "./common.mjs";
+import { NoVideoView } from "./common.mjs";
 
 /**
- * When pasting images on the image editor, allow a few fit options
+ * When pasting videos on the video editor, allow a few fit options
  */
-class ImageEditorImageNodeView extends ImageEditorNodeView {
+class ImageEditorVideoNodeView extends ImageEditorNodeView {
     /**
      * @var bool Hide header (position absolutely)
      */
@@ -17,7 +17,7 @@ class ImageEditorImageNodeView extends ImageEditorNodeView {
     /**
      * @var string The name to show in the menu
      */
-    static nodeTypeName = "Image";
+    static nodeTypeName = "Video";
 
     /**
      * @var array<string> All fit modes.
@@ -36,52 +36,20 @@ class ImageEditorImageNodeView extends ImageEditorNodeView {
     /**
      * @var string Add the classname for CSS
      */
-    static className = 'image-editor-image-node-view';
+    static className = 'image-editor-video-node-view';
 
     /**
-     * @var object Buttons to control the image.
+     * @var object Buttons to control the scribble. Shortcuts are registered on the view itself.
      */
     static nodeButtons = {
         ...ImageEditorNodeView.nodeButtons,
         ...{
-            "replace-image": {
+            "replace-video": {
                 "icon": "fa-solid fa-upload",
-                "tooltip": "Replace Image",
+                "tooltip": "Replace Video",
                 "shortcut": "c",
                 "callback": function() {
-                    this.replaceImage();
-                }
-            },
-            "mirror-x": {
-                "icon": "fa-solid fa-left-right",
-                "tooltip": "Mirror Horizontally",
-                "shortcut": "z",
-                "callback": function() {
-                    this.mirrorHorizontally();
-                }
-            },
-            "mirror-y": {
-                "icon": "fa-solid fa-up-down",
-                "tooltip": "Mirror Vertically",
-                "shortcut": "y",
-                "callback": function() {
-                    this.mirrorVertically();
-                }
-            },
-            "rotate-clockwise": {
-                "icon": "fa-solid fa-rotate-right",
-                "tooltip": "Rotate Clockwise",
-                "shortcut": "r",
-                "callback": function() {
-                    this.rotateClockwise();
-                }
-            },
-            "rotate-counter-clockwise": {
-                "icon": "fa-solid fa-rotate-left",
-                "tooltip": "Rotate Counter-Clockwise",
-                "shortcut": "w",
-                "callback": function() {
-                    this.rotateCounterClockwise();
+                    this.replaceVideo();
                 }
             }
         }
@@ -97,7 +65,7 @@ class ImageEditorImageNodeView extends ImageEditorNodeView {
     };
 
     /**
-     * Updates the image fit
+     * Updates the video fit
      */
     async updateFit(newFit) {
         this.fit = newFit;
@@ -111,7 +79,7 @@ class ImageEditorImageNodeView extends ImageEditorNodeView {
     };
 
     /**
-     * Updates the image anchor
+     * Updates the video anchor
      */
     async updateAnchor(newAnchor) {
         this.anchor = newAnchor;
@@ -125,57 +93,29 @@ class ImageEditorImageNodeView extends ImageEditorNodeView {
     }
 
     /**
-     * Prompts for a new image
+     * Prompts for a new video
      */
-    async replaceImage() {
-        let imageToLoad;
+    async replaceVideo() {
+        let videoToLoad;
         try {
-            imageToLoad = await promptFiles("image/*");
+            videoToLoad = await promptFiles("video/*");
         } catch(e) {
             // No files selected
         }
-        if (!isEmpty(imageToLoad)) {
+        if (!isEmpty(videoToLoad)) {
             let reader = new FileReader();
             reader.addEventListener("load", async () => {
-                let imageView = new BackgroundImageView(this.config, reader.result, false);
-                await this.setContent(imageView);
+                let videoView = new VideoView(this.config, reader.result);
+                await this.setContent(videoView);
                 this.updateFit(this.fit);
                 this.updateAnchor(this.anchor);
             });
-            reader.readAsDataURL(imageToLoad);
+            reader.readAsDataURL(videoToLoad);
         }
     }
 
     /**
-     * Mirrors the image horizontally
-     */
-    mirrorHorizontally() {
-        return this.content.mirrorHorizontally();
-    }
-    
-    /**
-     * Mirrors the image vertically
-     */
-    mirrorVertically() {
-        return this.content.mirrorVertically();
-    }
-    
-    /**
-     * Rotates the image clockwise by 90 degrees
-     */
-    rotateClockwise() {
-        return this.content.rotateClockwise();
-    }
-    
-    /**
-     * Rotates the image counter-clockwise by 90 degrees
-     */
-    rotateCounterClockwise() {
-        return this.content.rotateCounterClockwise();
-    }
-
-    /**
-     * Override getState to include the image, fit and anchor
+     * Override getState to include the video, fit and anchor
      */
     getState(includeImages = true) {
         let state = super.getState(includeImages);
@@ -186,21 +126,21 @@ class ImageEditorImageNodeView extends ImageEditorNodeView {
     }
 
     /**
-     * Override setState to add the image
+     * Override setState to add the video and scribble
      */
     async setState(newState) {
         await super.setState(newState);
         if (isEmpty(newState.src)) {
-            await this.setContent(new NoImageView(this.config));
+            await this.setContent(new NoVideoView(this.config));
         } else {
-            await this.setContent(new BackgroundImageView(this.config, newState.src, false));
+            await this.setContent(new VideoView(this.config, newState.src));
         }
         await this.updateAnchor(newState.anchor);
         await this.updateFit(newState.fit);
     }
 
     /**
-     * Gets the size of the image when scaling the node
+     * Gets the size of the video when scaling the node
      */
     async getCanvasScaleSize() {
         if (isEmpty(this.content.src)) {
@@ -215,7 +155,7 @@ class ImageEditorImageNodeView extends ImageEditorNodeView {
     }
 
     /**
-     * Provide a default state for when we are initializing from an image
+     * Provide a default state for when we are initializing from an video
      */
     static getDefaultState() {
         return {
@@ -224,4 +164,4 @@ class ImageEditorImageNodeView extends ImageEditorNodeView {
     }
 };
 
-export { ImageEditorImageNodeView };
+export { ImageEditorVideoNodeView };

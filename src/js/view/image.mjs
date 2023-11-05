@@ -33,7 +33,6 @@ class ImageView extends View {
             if (usePng === null || usePng === undefined) {
                 if (src.startsWith("data")) {
                     let fileType = src.substring(5, src.indexOf(";"));
-                    console.log(fileType);
                     usePng = fileType === "image/png";
                 } else {
                     usePng = src.endsWith(".png");

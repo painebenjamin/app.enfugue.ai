@@ -249,12 +249,12 @@ class DiffusionPipelineManager:
                     self._pipeline.safety_checking_disabled = not val
             if hasattr(self, "_inpainter_pipeline"):
                 if self._inpainter_pipeline.safety_checker is None and val:
-                    self.unload_inpainter_pipeline("safety checking enabled")
+                    self.unload_inpainter("safety checking enabled")
                 else:
                     self._inpainter_pipeline.safety_checking_disabled = not val
             if hasattr(self, "_animator_pipeline"):
                 if self._animator_pipeline.safety_checker is None and val:
-                    self.unload_animator_pipeline("safety checking enabled")
+                    self.unload_animator("safety checking enabled")
                 else:
                     self._animator_pipeline.safety_checking_disabled = not val
 
@@ -841,9 +841,9 @@ class DiffusionPipelineManager:
                     self.unload_animator("VAE changing")
                 elif hasattr(self, "_animator_pipeline"):
                     logger.debug(f"Hot-swapping animator pipeline VAE to {new_vae}")
-                    self._animator_pipeline.vae = self._animator_vae
+                    self._animator_pipeline.vae = self._animator_vae # type: ignore [assignment]
                     if self.animator_is_sdxl:
-                        self._animator_pipeline.register_to_config(
+                        self._animator_pipeline.register_to_config( # type: ignore[attr-defined]
                             force_full_precision_vae = new_vae in ["xl", "stabilityai/sdxl-vae"]
                         )
 
@@ -1501,7 +1501,7 @@ class DiffusionPipelineManager:
         Gets the UNET key for the current configuration.
         """
         return DiffusionPipelineManager.get_unet_key(
-            size=self.tensorr_size,
+            size=self.tensorrt_size,
             lora=self.lora_names_weights,
             lycoris=self.lycoris_names_weights,
             inversion=self.inversion_names,
@@ -2758,7 +2758,7 @@ class DiffusionPipelineManager:
         return getattr(self, "_reload_motion_module", False)
 
     @reload_motion_module.setter
-    def reload_motion_module(self, reload: bool) -> bool:
+    def reload_motion_module(self, reload: bool) -> None:
         """
         Sets if the motion module should be reloaded.
         """
@@ -3670,8 +3670,8 @@ class DiffusionPipelineManager:
                     animator_pipeline.load_textual_inversion(inversion)
             # load scheduler
             if self.scheduler is not None:
-                logger.debug(f"Setting animator scheduler to {self.scheduler.__name__}")
-                animator_pipeline.scheduler = self.scheduler.from_config({**animator_pipeline.scheduler_config, **self.scheduler_config})
+                logger.debug(f"Setting animator scheduler to {self.scheduler.__name__}") # type: ignore [attr-defined]
+                animator_pipeline.scheduler = self.scheduler.from_config({**animator_pipeline.scheduler_config, **self.scheduler_config}) # type: ignore[attr-defined]
             self._animator_pipeline = animator_pipeline.to(self.device)
         return self._animator_pipeline
 
@@ -3809,7 +3809,7 @@ class DiffusionPipelineManager:
             else:
                 import torch
                 logger.debug("Offloading animator to CPU")
-                self._animator_pipeline = self._animator_pipeline.to("cpu", torch_dtype=torch.float32)
+                self._animator_pipeline = self._animator_pipeline.to("cpu", torch_dtype=torch.float32) # type: ignore[attr-defined]
             self.clear_memory()
 
     @property
@@ -4355,7 +4355,9 @@ class DiffusionPipelineManager:
                     previous_callback(images)
                 latent_callback = memoize_callback # type: ignore[assignment]
                 kwargs["latent_callback"] = memoize_callback
+
         self.start_keepalive()
+
         try:
             animating = bool(kwargs.get("animation_frames", None))
             inpainting = kwargs.get("mask", None) is not None
@@ -4390,7 +4392,7 @@ class DiffusionPipelineManager:
 
             if scheduler is not None:
                 # Allow overriding scheduler
-                self.scheduler = scheduler
+                self.scheduler = scheduler # type: ignore[assignment]
 
             if refining:
                 # Set result here to passed image
@@ -4452,7 +4454,7 @@ class DiffusionPipelineManager:
                     self.offload_pipeline(intention) # type: ignore
                     self.offload_refiner(intention) # type: ignore
                     self.offload_animator(intention) # type: ignore
-                    pipe = self.inpainter_pipeline
+                    pipe = self.inpainter_pipeline # type: ignore
                 else:
                     if inpainting:
                         logger.info(f"No inpainter set and creation is disabled; using base pipeline for inpainting.")
@@ -4460,7 +4462,7 @@ class DiffusionPipelineManager:
                     self.offload_inpainter(intention) # type: ignore
                     self.offload_animator(intention) # type: ignore
 
-                    pipe = self.pipeline
+                    pipe = self.pipeline # type: ignore
 
                 # Check refining settings
                 if self.refiner is not None and refiner_strength != 0:
@@ -4548,7 +4550,7 @@ class DiffusionPipelineManager:
                     kwargs["negative_prompt_2"] = refiner_negative_prompt_2
 
                 logger.debug(f"Refining results with arguments {redact(kwargs)}")
-                pipe = self.refiner_pipeline # Instantiate if needed
+                pipe = self.refiner_pipeline # type: ignore 
                 self.stop_keepalive()  # This checks, we can call it all we want
                 task_callback(f"Refining")
 

@@ -3,10 +3,12 @@ import { isEmpty, filterEmpty } from "../base/helpers.mjs";
 import { ElementBuilder } from "../base/builder.mjs";
 import { NodeEditorView } from "./editor.mjs";
 import { ImageView, BackgroundImageView } from "../view/image.mjs";
+import { VideoView } from "../view/video.mjs";
 import { ImageEditorNodeView } from "./image-editor/base.mjs";
 import { ImageEditorScribbleNodeView } from "./image-editor/scribble.mjs";
 import { ImageEditorPromptNodeView } from "./image-editor/prompt.mjs";
 import { ImageEditorImageNodeView } from "./image-editor/image.mjs";
+import { ImageEditorVideoNodeView } from "./image-editor/video.mjs";
 import { NoImageView, NoVideoView } from "./image-editor/common.mjs";
 
 const E = new ElementBuilder();
@@ -55,7 +57,7 @@ class ImageEditorView extends NodeEditorView {
     static nodeClasses = [
         ImageEditorScribbleNodeView,
         ImageEditorImageNodeView,
-        ImageEditorPromptNodeView,
+        ImageEditorVideoNodeView,
     ];
 
     /**
@@ -137,6 +139,41 @@ class ImageEditorView extends NodeEditorView {
 
         return newNode;
     }
+
+    /**
+     * This is a shorthand helper functinon for adding a video URL.
+     * @param string $videoSource The source of the video - likely a data URL.
+     * @return NodeView The added view.
+     */
+    async addVideoNode(videoSource, videoName = "Video") {
+        let videoView = null,
+            [x, y] = this.getNextNodePoint();
+
+        if (videoSource instanceof VideoView) {
+            videoView = videoSource;
+        } else if (!isEmpty(videoSource)) {
+            videoView = new VideoView(this.config, videoSource, false);
+        } else {
+            videoView = new NoVideoView(this.config);
+        }
+
+        if (videoView instanceof VideoView) {
+            await videoView.waitForLoad();
+        }
+
+        let newNode = await this.addNode(
+            ImageEditorVideoNodeView,
+            this.getUniqueNodeName(videoName),
+            videoView,
+            x,
+            y,
+            videoView.width,
+            videoView.height
+        );
+
+        return newNode;
+    }
+
 
     /**
      * This is a shorthand helper for adding a scribble node.

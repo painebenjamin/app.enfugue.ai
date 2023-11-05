@@ -420,9 +420,9 @@ class EnfugueAPIInvocationController(EnfugueAPIControllerBase):
             frames = []
             for image in images:
                 image = PIL.Image.open(image)
-                width, height = image.size
+                width, height = image.size # type: ignore[attr-defined]
                 scale = self.thumbnail_height / height
-                frames.append(image.resize((int(width * scale), int(height * scale))))
+                frames.append(image.resize((int(width * scale), int(height * scale)))) # type: ignore[attr-defined]
             try:
                 rate = float(request.params.get("rate", 8.0))
             except:

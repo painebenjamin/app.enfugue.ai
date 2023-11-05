@@ -380,8 +380,9 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
             .filter(self.orm.DiffusionModel.name == model_name_or_ckpt)
             .one_or_none()
         )
+
         if not model:
-            raise NotFoundError(f"No model named {model_name}")
+            raise NotFoundError(f"No model named {model_name_or_ckpt}")
 
         main_model_status = DiffusionPipelineManager.get_status(
             self.engine_root,
@@ -451,28 +452,32 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         Issues a job to create an engine.
         """
         plan = LayeredInvocation.assemble(**self.get_plan_kwargs_from_model(model_name, include_prompts=False))
-        plan.build_tensorrt = True
+        if not plan.tiling_size:
+            raise ValueError("Tiling must be enabled for TensorRT.")
 
-        step = DiffusionStep(prompt="a green field, blue sky, outside", width=plan.size, height=plan.size)
+        plan.build_tensorrt = True
         network_name = network_name.lower()
 
         if network_name == "inpaint_unet":
-            step.image = PIL.Image.new("RGB", (plan.size, plan.size))
-            step.mask = PIL.Image.new("RGB", (plan.size, plan.size))
-            step.strength = 1.0
+            plan.layers = [{"image": PIL.Image.new("RGB", (plan.tiling_size, plan.tiling_size))}]
+            plan.mask = PIL.Image.new("RGB", (plan.tiling_size, plan.tiling_size))
+            plan.strength = 1.0
         elif network_name == "controlled_unet":
-            step.control_images = [{
-                "controlnet": "canny",
-                "image": PIL.Image.new("RGB", (plan.size, plan.size)),
-                "scale": 1.0,
-                "process": True,
-                "invert": False,
+            plan.layers = [{
+                "control_units": [
+                    {
+                        "controlnet": "canny",
+                        "scale": 1.0,
+                        "process": True,
+                    }
+                ],
+                "image": PIL.Image.new("RGB", (plan.tiling_size, plan.tiling_size)),
             }]
         elif network_name != "unet":
             raise BadRequestError(f"Unknown or unsupported network {network_name}")
 
         build_metadata = {"model": model_name, "network": network_name}
-        plan.nodes = [DiffusionNode([(0, 0), (plan.size, plan.size)], step)]
+
         return self.invoke(
             request.token.user.id,
             plan,

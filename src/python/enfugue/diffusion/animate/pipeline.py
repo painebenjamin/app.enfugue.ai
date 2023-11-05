@@ -115,7 +115,7 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
                 **self.scheduler_config,
                 **EnfugueAnimateStableDiffusionPipeline.STATIC_SCHEDULER_KWARGS
             }
-            self.scheduler.register_to_config(
+            self.scheduler.register_to_config( # type: ignore[attr-defined]
                 **EnfugueAnimateStableDiffusionPipeline.STATIC_SCHEDULER_KWARGS
             )
 
@@ -141,6 +141,8 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         unet_config = os.path.join(unet_dir, "config.json")
         unet_weights = os.path.join(unet_dir, WEIGHTS_NAME)
 
+        is_sdxl = os.path.exists(os.path.join(pretrained_model_name_or_path, "text_encoder_2")) # type: ignore[arg-type]
+
         if not os.path.exists(unet_config):
             raise IOError(f"Couldn't find UNet config at {unet_config}")
         if not os.path.exists(unet_weights):
@@ -155,6 +157,8 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         unet = cls.create_unet(
             load_json(unet_config),
             kwargs.get("cache_dir", DIFFUSERS_CACHE),
+            is_sdxl=is_sdxl,
+            is_inpainter=False,
             motion_module=motion_module,
             position_encoding_truncate_length=position_encoding_truncate_length,
             position_encoding_scale_length=position_encoding_scale_length,
@@ -175,16 +179,18 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         cls,
         config: Dict[str, Any],
         cache_dir: str,
-        use_mm_v2: bool = True,
-        motion_module: Optional[str] = None,
+        is_sdxl: bool,
+        is_inpainter: bool,
         task_callback: Optional[Callable[[str], None]]=None,
-        position_encoding_truncate_length: Optional[int]=None,
-        position_encoding_scale_length: Optional[int]=None,
         **unet_additional_kwargs: Any
     ) -> ModelMixin:
         """
         Creates the 3D Unet
         """
+        use_mm_v2: bool = unet_additional_kwargs.pop("use_mm_v2", True)
+        motion_module: Optional[str] = unet_additional_kwargs.pop("motion_module", None)
+        position_encoding_truncate_length: Optional[int] = unet_additional_kwargs.pop("position_encoding_truncate_length", None)
+        position_encoding_scale_length: Optional[int] = unet_additional_kwargs.pop("position_encoding_scale_length", None)
         if config.get("sample_size", 64) == 128:
             # SDXL, instantiate Hotshot XL UNet
             return cls.create_hotshot_unet(
@@ -393,12 +399,12 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
             for key in state_dict:
                 if key.endswith(".pe"):
                     if position_encoding_truncate_length is not None:
-                        state_dict[key] = state_dict[key][:, :position_encoding_truncate_length]
+                        state_dict[key] = state_dict[key][:, :position_encoding_truncate_length] # type: ignore[index]
                     if position_encoding_scale_length is not None:
-                        tensor_shape = state_dict[key].shape
+                        tensor_shape = state_dict[key].shape # type: ignore[union-attr]
                         tensor = rearrange(state_dict[key], "(t b) f d -> t b f d", t=1)
                         tensor = F.interpolate(tensor, size=(position_encoding_scale_length, tensor_shape[-1]), mode="bilinear")
-                        state_dict[key] = rearrange(tensor, "t b f d -> (t b) f d")
+                        state_dict[key] = rearrange(tensor, "t b f d -> (t b) f d") # type: ignore[assignment]
                         del tensor
         num_motion_keys = len(list(state_dict.keys()))
         logger.debug(f"Loading {num_motion_keys} keys into UNet state dict (non-strict)")
@@ -467,8 +473,8 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         self,
         latents: torch.Tensor,
         device: Union[str, torch.device],
-        weight_builder: MaskWeightBuilder,
         chunker: Chunker,
+        weight_builder: MaskWeightBuilder,
         progress_callback: Optional[Callable[[bool], None]]=None,
         scale_latents: bool=True
     ) -> torch.Tensor:
@@ -477,7 +483,7 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         """
         animation_frames = latents.shape[2]
         if scale_latents:
-            latents = 1 / self.vae.config.scaling_factor * latents
+            latents = 1 / self.vae.config.scaling_factor * latents # type: ignore[attr-defined]
 
         latents = rearrange(latents, "b c f h w -> (b f) c h w")
         dtype = latents.dtype

@@ -193,7 +193,19 @@ class LayerView extends View {
         let context = canvas.getContext("2d");
 
         if (nodeState.src) {
-            let imageView = new ImageView(this.config, nodeState.src);
+            let imageSource = nodeState.src;
+            if (imageSource.startsWith("data:video")) {
+                // Get the current frame
+                let frameCanvas = document.createElement("canvas");
+                frameCanvas.width = this.editorNode.content.video.videoWidth;
+                frameCanvas.height = this.editorNode.content.video.videoHeight;
+
+                let frameContext = frameCanvas.getContext("2d");
+                frameContext.drawImage(this.editorNode.content.video, 0, 0);
+                imageSource = frameCanvas.toDataURL();
+            }
+
+            let imageView = new ImageView(this.config, imageSource);
             await imageView.waitForLoad();
 
             let imageTop = 0,
@@ -213,6 +225,7 @@ class LayerView extends View {
                         horizontalHeight = Math.ceil(imageView.height * scaledWidthRatio),
                         verticalWidth = Math.ceil(imageView.width * scaledHeightRatio),
                         verticalHeight = Math.ceil(imageView.height * scaledHeightRatio);
+
                     if (scaledWidth <= horizontalWidth && scaledHeight <= horizontalHeight) {
                         scaledImageWidth = horizontalWidth;
                         scaledImageHeight = horizontalHeight;
@@ -413,7 +426,6 @@ class LayerView extends View {
     async setState(newState) {
         await this.editorNode.setState(newState);
         await this.form.setValues(newState);
-        this.previewImage.setImage(await this.getLayerImage());
     }
 
     /**
@@ -634,6 +646,9 @@ class LayersController extends Controller {
             case "ImageEditorImageNodeView":
                 addedLayer = await this.addImageLayer(layer.src, false, node, layer.name);
                 break;
+            case "ImageEditorVideoNodeView":
+                addedLayer = await this.addVideoLayer(layer.src, false, node, layer.name);
+                break;
             default:
                 console.error(`Unknown layer class ${layer.classname}, skipping and dumping layer data.`);
                 console.log(layer);
@@ -703,9 +718,44 @@ class LayersController extends Controller {
     }
 
     /**
+     * Adds a video layer
+     */
+    async addVideoLayer(videoData, activate = true, videoNode = null, name = "Video") {
+        if (isEmpty(videoNode)) {
+            videoNode = await this.images.addVideoNode(videoData, name);
+        }
+
+        let videoForm = new ImageEditorImageNodeOptionsFormView(this.config),
+            videoLayer = new LayerView(this, videoNode, videoForm);
+
+        videoForm.onSubmit((values) => {
+            let videoRoles = [];
+            if (values.denoise) {
+                videoRoles.push("Video to Video");
+            }
+            if (values.videoPrompt) {
+                videoRoles.push("Prompt");
+            }
+            if (values.control && !isEmpty(values.controlnetUnits)) {
+                let controlNets = values.controlnetUnits.map((unit) => isEmpty(unit.controlnet) ? "canny" : unit.controlnet),
+                    uniqueControlNets = controlNets.filter((v, i) => controlNets.indexOf(v) === i);
+                videoRoles.push(`ControlNet (${uniqueControlNets.join(", ")})`);
+            }
+            let subtitle = isEmpty(videoRoles)
+                ? "Passthrough"
+                : videoRoles.join(", ");
+            videoNode.updateOptions(values);
+            videoLayer.setSubtitle(subtitle);
+        });
+
+        await this.addLayer(videoLayer, activate);
+        return videoLayer;
+    }
+
+    /**
      * Adds an image layer
      */
-    async addImageLayer(imageData, activate = true, imageNode = null, name = "Image") {4
+    async addImageLayer(imageData, activate = true, imageNode = null, name = "Image") {
         if (isEmpty(imageNode)) {
             imageNode = await this.images.addImageNode(imageData, name);
         }

@@ -64,6 +64,7 @@ class InvokeButtonController extends Controller {
                     ];
                     break;
                 case "ImageEditorImageNodeView":
+                case "ImageEditorVideoNodeView":
                     formattedState["fit"] = datum.fit;
                     formattedState["anchor"] = datum.anchor;
                     formattedState["denoise"] = !!datum.denoise;

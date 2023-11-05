@@ -187,13 +187,9 @@ class DiffusionEngineProcess(Process):
         intermediate_dir: Optional[str] = None,
         width: Optional[int] = None,
         height: Optional[int] = None,
-        chunking_size: Optional[int] = None,
+        tiling_stride: Optional[int] = None,
         guidance_scale: Optional[float] = None,
         num_inference_steps: Optional[int] = None,
-        size: Optional[int] = None,
-        refiner_size: Optional[int] = None,
-        inpainter_size: Optional[int] = None,
-        animator_size: Optional[int] = None,
         **kwargs: Any,
     ) -> dict:
         """
@@ -243,26 +239,14 @@ class DiffusionEngineProcess(Process):
         if build_tensorrt is not None:
             self.pipemanager.build_tensorrt = build_tensorrt
 
-        if size is not None:
-            self.pipemanager.size = size
-
-        if refiner_size is not None:
-            self.pipemanager.refiner_size = refiner_size
-
-        if inpainter_size is not None:
-            self.pipemanager.inpainter_size = inpainter_size
-
-        if animator_size is not None:
-            self.pipemanager.animator_size = animator_size
-
         if width is not None:
             kwargs["width"] = int(width)
 
         if height is not None:
             kwargs["height"] = int(height)
 
-        if chunking_size is not None:
-            kwargs["chunking_size"] = int(chunking_size)
+        if tiling_stride is not None:
+            kwargs["tiling_stride"] = int(tiling_stride)
 
         if guidance_scale is not None:
             kwargs["guidance_scale"] = float(guidance_scale)

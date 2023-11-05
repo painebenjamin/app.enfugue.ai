@@ -311,13 +311,33 @@ def get_frames_or_image_from_file(path: str) -> Union[Image, List[Image]]:
     """
     Opens a file to a single image or multiple
     """
-    name, ext = os.path.splitext(path)
-    if ext in [".webp", ".webm", ".mp4", ".avi", ".mov", ".gif", ".m4v", ".mkv", ".ogg"]:
-        from enfugue.diffusion.util.video_util import Video
-        return list(Video.file_to_frames(path))
+    if path.startswith("data:"):
+        # Should be a video
+        if not path.startswith("data:video"):
+            raise IOError(f"Received non-video data in video handler: {path}")
+        # Dump to tempfile
+        from tempfile import mktemp
+        from base64 import b64decode
+        header, _, data = path.partition(",")
+        fmt, _, encoding = header.partition(";")
+        _, _, file_ext = fmt.partition("/")
+        dump_file = mktemp(f".{file_ext}")
+        try:
+            with open(dump_file, "wb") as fh:
+                fh.write(b64decode(data))
+            from enfugue.diffusion.util.video_util import Video
+            return list(Video.file_to_frames(dump_file))
+        finally:
+            os.unlink(dump_file)
     else:
-        from PIL import Image
-        return Image.open(path)
+        name, ext = os.path.splitext(path)
+            
+        if ext in [".webp", ".webm", ".mp4", ".avi", ".mov", ".gif", ".m4v", ".mkv", ".ogg"]:
+            from enfugue.diffusion.util.video_util import Video
+            return list(Video.file_to_frames(path))
+        else:
+            from PIL import Image
+            return Image.open(path)
 
 def create_mask(
     width: int,
