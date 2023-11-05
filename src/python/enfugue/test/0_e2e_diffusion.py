@@ -16,8 +16,8 @@ from typing import Any, List
 GRID_SIZE = 256
 GRID_COLS = 4
 CAPTION_HEIGHT = 50
-CHECKPOINT = "epicphotogasm_x.safetensors"
-CHECKPOINT_URL = "https://civitai.com/api/download/models/172306?type=Model&format=SafeTensor&size=pruned&fp=fp16"
+CHECKPOINT = "epicphotogasm_zUniversal.safetensors"
+CHECKPOINT_URL = "https://civitai.com/api/download/models/201259"
 INPAINT_IMAGE = "https://huggingface.co/datasets/diffusers/test-arrays/resolve/main/stable_diffusion_inpaint/boy.png"
 INPAINT_MASK = "https://huggingface.co/datasets/diffusers/test-arrays/resolve/main/stable_diffusion_inpaint/boy_mask.png"
 
