@@ -4,12 +4,10 @@ import os
 import re
 import gc
 
-from enfugue.util import logger, check_download
+from enfugue.util import logger
 from enfugue.diffusion.constants import *
 
-from diffusers.utils.constants import DIFFUSERS_CACHE
-
-from typing import Optional, Union, Literal, Dict, Tuple, Any, TYPE_CHECKING, cast
+from typing import Optional, Union, Literal, Dict, cast, TYPE_CHECKING
 
 if TYPE_CHECKING:
     import torch

@@ -110,7 +110,7 @@ class LayeredInvocation:
     # img2img
     strength: Optional[float]=None
     # Inpainting
-    mask: Optional[Union[Image, str]]=None
+    mask: Optional[Union[str, Image, List[Image]]]=None
     crop_inpaint: bool=True
     inpaint_feather: int=32
     outpaint: bool=True
@@ -369,6 +369,9 @@ class LayeredInvocation:
     def assemble(
         cls,
         size: int=512,
+        image: Optional[Union[str, Image, List[Image], ImageDict]]=None,
+        ip_adapter_images: Optional[List[IPAdapterImageDict]]=None,
+        control_images: Optional[List[ControlImageDict]]=None,
         **kwargs: Any
     ) -> LayeredInvocation:
         """
@@ -382,22 +385,35 @@ class LayeredInvocation:
 
         # Add directly passed images to layers
         layers = invocation_kwargs.pop("layers", [])
-
-        if "image" in ignored_kwargs:
-            layers.append({"image": kwargs["image"]})
-            ignored_kwargs -= {"image"}
-
-        if "ip_adapter_images" in ignored_kwargs:
-            for image in kwargs["ip_adapter_images"]:
-                if isinstance(image, dict):
-                    layers.append(image)
-                else:
-                    layers.append({"image": image, "ip_adapter_scale": 1.0})
-            ignored_kwargs -= {"ip_adapter_images"}
-
-        if "control_images" in ignored_kwargs:
-            layers.extend(kwargs["control_images"])
-            ignored_kwargs -= {"control_images"}
+        if image:
+            if isinstance(image, dict):
+                layers.append(image)
+            else:
+                layers.append({"image": image})
+        if ip_adapter_images:
+            for ip_adapter_image in ip_adapter_images:
+                layers.append({
+                    "image": ip_adapter_image["image"],
+                    "ip_adapter_scale": ip_adapter_image.get("scale", 1.0),
+                    "fit": ip_adapter_image.get("fit", None),
+                    "anchor": ip_adapter_image.get("anchor", None),
+                })
+        if control_images:
+            for control_image in control_images:
+                layers.append({
+                    "image": control_image["image"],
+                    "fit": control_image.get("fit", None),
+                    "anchor": control_image.get("anchor", None),
+                    "control_units": [
+                        {
+                            "controlnet": control_image["controlnet"],
+                            "scale": control_image.get("scale", 1.0),
+                            "start": control_image.get("start", None),
+                            "end": control_image.get("end", None),
+                            "process": control_image.get("process", True),
+                        }
+                    ]
+                })
 
         # Reassign layers
         invocation_kwargs["layers"] = layers

@@ -406,8 +406,6 @@ class SamplesController extends Controller {
      */
     async onMouseEnter(e) {
         this.stopHideTimer();
-        let release = await this.lock.acquire();
-        release();
     }
 
     /**
@@ -417,20 +415,6 @@ class SamplesController extends Controller {
         this.startHideTimer();
     }
     
-    /**
-     * onMouseEnter, trigger parent onMouseEnter
-     */
-    async onMouseEnter(e) {
-        this.invocationNode.toolbarEntered();
-    }
-
-    /**
-     * onMouseLeave, trigger parent onMouseLeave
-     */
-    async onMouseLeave(e) {
-        this.invocationNode.toolbarLeft();
-    }
-
     /**
      * Gets frame time in milliseconds
      */

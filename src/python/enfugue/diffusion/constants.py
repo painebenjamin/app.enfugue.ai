@@ -22,12 +22,12 @@ from enfugue.util import (
 )
 if TYPE_CHECKING:
     from PIL.Image import Image
-    from torch import Tensor
-    from enfugue.diffusion.util.prompt import Prompt
 
 __all__ = [
     "NodeDict",
     "UpscaleStepDict",
+    "ImageDict",
+    "IPAdapterImageDict",
     "ControlImageDict",
     "PromptDict",
     "PipelineDict",
@@ -356,7 +356,7 @@ class ImageDict(TypedDict):
     """
     An image or video with optional fitting details
     """
-    image: Union[Image, List[Image]]
+    image: Union[str, Image, List[Image]]
     fit: NotRequired[Optional[IMAGE_FIT_LITERAL]]
     anchor: NotRequired[Optional[IMAGE_ANCHOR_LITERAL]]
     invert: NotRequired[bool]
@@ -370,7 +370,6 @@ class ControlImageDict(ImageDict):
     start: NotRequired[Optional[float]]
     end: NotRequired[Optional[float]]
     process: NotRequired[bool]
-    refiner: NotRequired[bool]
 
 class IPAdapterImageDict(ImageDict):
     """

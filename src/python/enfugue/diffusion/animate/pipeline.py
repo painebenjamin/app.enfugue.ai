@@ -15,7 +15,7 @@ from diffusers.schedulers import EulerDiscreteScheduler
 
 from einops import rearrange
 
-from enfugue.util import check_download_to_dir, find_file_in_directory, logger
+from enfugue.util import check_download_to_dir, logger
 from enfugue.diffusion.pipeline import EnfugueStableDiffusionPipeline
 
 from enfugue.diffusion.animate.diff.unet import UNet3DConditionModel as AnimateDiffUNet # type: ignore[attr-defined]

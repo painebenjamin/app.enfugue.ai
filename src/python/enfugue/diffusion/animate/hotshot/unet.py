@@ -23,7 +23,6 @@ from typing import Any, Dict, List, Optional, Tuple, Union, Dict
 
 import torch
 import torch.nn as nn
-import torch.utils.checkpoint
 
 from diffusers.configuration_utils import ConfigMixin, register_to_config
 from diffusers.loaders import UNet2DConditionLoadersMixin

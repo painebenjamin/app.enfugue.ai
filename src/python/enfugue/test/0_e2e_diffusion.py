@@ -127,7 +127,10 @@ def main() -> None:
         invoke(
             "img2img",
             prompt=prompt,
-            image=base,
+            layers=[{
+                "image": base,
+                "denoise": True
+            }],
             strength=0.8
         )
         
@@ -137,11 +140,13 @@ def main() -> None:
         invoke(
             "inpaint", 
             prompt="a handsome man with ray-ban sunglasses",
-            image=inpaint_image,
             mask=inpaint_mask,
+            layers=[{
+                "image": inpaint_image,
+                "fit": "cover"
+            }],
             width=512,
             height=512,
-            fit="cover"
         )
 
         invoke(
@@ -150,6 +155,10 @@ def main() -> None:
             prompt="a handsome man with ray-ban sunglasses",
             image=inpaint_image,
             mask=inpaint_mask,
+            layers=[{
+                "image": inpaint_image,
+                "fit": "cover"
+            }],
             width=512,
             height=512,
             fit="cover"
@@ -158,18 +167,26 @@ def main() -> None:
         # Automatic background removal with no inference
         invoke(
             "background", 
-            image=inpaint_image,
-            remove_background=True,
+            layers=[{
+                "image": inpaint_image,
+                "fit": "cover",
+                "remove_background": True
+            }],
+            outpaint=False
         )
         
         # Automatic background removal with outpaint
         invoke(
             "background-fill",
             prompt="a handsome man outside on a sunny day, green forest in the distance",
-            image=inpaint_image,
-            remove_background=True,
-            fill_background=True
+            layers=[{
+                "image": inpaint_image,
+                "fit": "cover",
+                "remove_background": True
+            }]
         )
+
+        return
 
         # IP Adapter
         invoke(

@@ -1,8 +1,6 @@
 import os
 import requests
 
-from datetime import datetime
-
 from typing import Optional, Callable
 
 from enfugue.util.log import logger
