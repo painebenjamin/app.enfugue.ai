@@ -1473,7 +1473,9 @@ class LayeredInvocation:
                         "noise_method": noise_method,
                         "noise_blend_method": noise_blend_method,
                         "animation_frames": animation_frames,
-                        "motion_scale": invocation_kwargs.get("motion_scale", None)
+                        "motion_scale": invocation_kwargs.get("motion_scale", None),
+                        "tile": invocation_kwargs.get("tile", None),
+                        "loop": invocation_kwargs.get("loop", False)
                     }
 
                     if controlnets is not None:

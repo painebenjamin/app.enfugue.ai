@@ -3245,7 +3245,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         target_size = target_size or (height, width)
 
         # Allow overridding tiling variables
-        if tiling_size is not None:
+        if tiling_size:
             self.tiling_size = tiling_size
         if tiling_stride is not None:
             self.tiling_stride = tiling_stride
@@ -3298,7 +3298,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         chunker = Chunker(
             height=height,
             width=width,
-            size=self.tiling_size,
+            size=self.tiling_size if self.tiling_size else 1024 if self.is_sdxl else 512,
             stride=self.tiling_stride,
             frames=animation_frames,
             frame_size=self.frame_window_size,

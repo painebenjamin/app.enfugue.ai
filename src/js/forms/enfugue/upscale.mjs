@@ -76,9 +76,9 @@ class UpscaleFormView extends FormView {
                 "label": "Tiling Stride",
                 "class": SelectInputView,
                 "config": {
-                    "options": ["8", "16", "32", "64", "128", "256", "512"],
+                    "options": ["0", "8", "16", "32", "64", "128", "256", "512"],
                     "value": "128",
-                    "tooltip": "The number of pixels to move the frame by during diffusion. Smaller values produce better results, but take longer."
+                    "tooltip": "The number of pixels to move the frame by during diffusion. Smaller values produce better results, but take longer. Set to 0 to disable."
                 }
             },
             "tilingMaskType": {

@@ -4408,7 +4408,7 @@ class DiffusionPipelineManager:
             else:
                 called_width = kwargs.get("width", size)
                 called_height = kwargs.get("height", size)
-                tiling_size = kwargs.get("tiling_size", self.tiling_size)
+                tiling_stride = kwargs.get("tiling_stride", self.tiling_stride)
 
                 # Check sizes
                 if called_width < size:
@@ -4417,7 +4417,7 @@ class DiffusionPipelineManager:
                 elif called_height < size:
                     self.tensorrt_is_enabled = False
                     logger.info(f"height ({called_height}) less than configured height ({size}), disabling TensorRT")
-                elif (called_width != size or called_height != size) and not tiling_size:
+                elif (called_width != size or called_height != size) and not tiling_stride:
                     logger.info(f"Dimensions do not match size of engine and chunking is disabled, disabling TensorRT")
                     self.tensorrt_is_enabled = False
                 else:

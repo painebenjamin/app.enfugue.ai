@@ -12,11 +12,7 @@ from pibble.api.client.webservice.jsonapi import JSONWebServiceAPIClient
 from pibble.ext.user.client.base import UserExtensionClientBase
 
 from enfugue.diffusion.constants import *
-from enfugue.util import (
-    logger,
-    IMAGE_FIT_LITERAL,
-    IMAGE_ANCHOR_LITERAL
-)
+from enfugue.util import logger
 from enfugue.client.invocation import RemoteInvocation
 
 __all__ = ["WeightedModelDict", "EnfugueClient"]
