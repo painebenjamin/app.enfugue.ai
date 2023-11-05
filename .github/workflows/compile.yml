@@ -85,15 +85,19 @@ jobs:
         mim install "mmcv>=2.0.1"
         mim install "mmdet>=3.1.0"
         mim install "mmpose>=1.1.0"
-    - name: Output Environment Information for Debugging
-      run: |
-        conda list
-        pip freeze
     - name: Clean space
       run: |
         conda clean -aqy
-    - name: Output Environment Information for Debugging
+    - name: Output Environment Information for Debugging (Linux/MacOS)
+      if: ${{ !contains(inputs.os, 'windows') }}
       run: |
+        conda list
+        pip freeze
+    - name: Output Environment Information for Debugging (Windows)
+      if: ${{ contains(inputs.os, 'windows') }}
+      run: |
+        . /c/Miniconda/etc/profile.d/conda.sh
+        conda activate base
         conda list
         pip freeze
     - name: Compile Linux package

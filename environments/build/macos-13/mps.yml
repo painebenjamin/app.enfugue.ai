@@ -12,6 +12,8 @@ dependencies:
   - ffmpeg=4.2.2
   - opencv=4.6.0
   - pip:
+    - opencv-python==4.6.0.66
+    - opencv-python-headless==4.6.0.66
     - brotli>=1.0.9
     - torch>=2.0.1
     - torchvision>=0.15.2
@@ -60,8 +62,6 @@ dependencies:
     - lycoris-lora>=1.8
     - openmim>=0.3.9,<0.4
     - opensimplex>=0.4.5,<0.5
-    - opencv-python=4.8.0.74
-    - opencv-python-headhless=4.8.0.74
     - tensorflow
     - git+https://github.com/CompVis/taming-transformers.git@master#egg=taming-transformers
     - git+https://github.com/openai/CLIP.git@main#egg=clip

@@ -16,6 +16,8 @@ dependencies:
   - ffmpeg=4.2.2
   - opencv=4.6.0
   - pip:
+    - opencv-python==4.6.0.66
+    - opencv-python-headless==4.6.0.66
     - torch>=2.0.1+cu118
     - torchvision>=0.15.2+cu118
     - brotli>=1.0.9
