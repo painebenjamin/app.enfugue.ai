@@ -489,7 +489,11 @@ class NodeEditorView extends View {
         this.nodes.splice(index, 0, node);
         let nodeCanvas = this.node.find(E.getCustomTag("nodeCanvas"));
         nodeCanvas.remove(node.node);
-        nodeCanvas.insert(index + 3, node.node);
+        if (index > currentNodeIndex) {
+            nodeCanvas.insert(index + 3, node.node);
+        } else {
+            nodeCanvas.insert(index + 2, node.node);
+        }
     }
 
     /**
@@ -508,6 +512,15 @@ class NodeEditorView extends View {
         }
         this.focusNode(newNode);
         return newNode;
+    }
+
+    /**
+     * Resets position and zoom.
+     */
+    resetCanvasPosition() {
+        if (!isEmpty(this.node)) {
+            this.node.find(E.getCustomTag("zoomReset")).trigger("click");
+        }
     }
 
     /**

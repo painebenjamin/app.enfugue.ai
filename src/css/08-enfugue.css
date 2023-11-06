@@ -2312,3 +2312,15 @@ enfugue-application.prompt-travel enfugue-node-editor-zoom {
 enfugue-application.prompt-travel div.controls-helper-view {
     bottom: 215px;
 }
+
+/**
+ * Temporary color highlights for new features
+ */
+fieldset.field-set-animation legend {
+    -webkit-text-fill-color: transparent;
+    background-image: linear-gradient(to right, var(--theme-color-primary), var(--theme-color-secondary), var(--theme-color-tertiary), var(--theme-color-primary));
+    background-size: 70px 100%;
+    background-repeat: repeat-x;
+    -webkit-background-clip: text;
+    background-clip: text;
+}

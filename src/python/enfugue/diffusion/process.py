@@ -403,6 +403,6 @@ class DiffusionEngineProcess(Process):
                     if out:
                         logger.debug(f"stdout: {out}")
                     if err:
-                        logger.error(f"stderr: {err}")
+                        logger.info(f"stderr (may not be an error:) {err}")
                     catcher.clean()
                     last_data = datetime.datetime.now()

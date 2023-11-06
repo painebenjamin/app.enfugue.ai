@@ -2,7 +2,6 @@ name: enfugue
 channels:
   - pytorch
   - defaults
-  - nvidia
   - nvidia/label/cuda-11.8.0
   - conda-forge
 dependencies:

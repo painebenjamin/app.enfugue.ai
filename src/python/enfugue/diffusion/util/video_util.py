@@ -82,24 +82,12 @@ class Video:
 
         previous_frame = None
         frame_index = 0
-        frame_start = datetime.now()
         for frame in frames:
             frame_index += 1
-            process_times: List[float] = []
             if previous_frame is not None:
                 for i in range(multiplier - 1): # type: ignore[unreachable]
-                    process_start = datetime.now()
                     yield interpolate(previous_frame, frame, (i + 1) / multiplier)
-                    process_times.append((datetime.now() - process_start).total_seconds())
             yield frame
-            frame_time = (datetime.now() - frame_start).total_seconds()
-            if previous_frame is not None:
-                process_count = len(process_times) # type: ignore[unreachable]
-                process_average = sum(process_times) / process_count
-                logger.debug(
-                    f"Processed frames {frame_index-1}-{frame_index} in {frame_time:.1f} seconds. " +
-                    f"Interpolated {process_count} frame(s) at a rate of {process_average:.1f} seconds/frame."
-                )
             previous_frame = frame
             frame_start = datetime.now()
 

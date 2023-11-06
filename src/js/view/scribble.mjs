@@ -29,11 +29,12 @@ class ScribbleView extends View {
     /**
      * Allows for a simple 'scribble' interface, a canvas that can be painted on in pure white/black.
      */
-    constructor(config, width, height) {
+    constructor(config, width, height, invert = true) {
         super(config);
         this.width = width;
         this.height = height;
         this.active = false;
+        this.invert = invert;
 
         this.shape = this.constructor.defaultPencilShape;
         this.size = this.constructor.defaultPencilSize;
@@ -50,6 +51,24 @@ class ScribbleView extends View {
             this.visibleCanvas.width = width;
             this.visibleCanvas.height = height;
         }
+    }
+
+    /**
+     * Gets the active color
+     */
+    get activeColor() {
+        return this.invert
+            ? "white"
+            : "black";
+    }
+
+    /**
+     * Gets the background color
+     */
+    get backgroundColor() {
+        return this.invert
+            ? "black"
+            : "white";
     }
 
     /**
@@ -85,10 +104,12 @@ class ScribbleView extends View {
         canvas.width = this.visibleCanvas.width;
         canvas.height = this.visibleCanvas.height
         let context = canvas.getContext("2d");
+
         context.drawImage(this.visibleCanvas, 0, 0);
         context.globalCompositeOperation = "difference";
         context.fillStyle = "white";
         context.fillRect(0, 0, canvas.width, canvas.height);
+
         return canvas.toDataURL();
     }
 
@@ -97,7 +118,7 @@ class ScribbleView extends View {
      */
     clearMemory() {
         let memoryContext = this.memoryCanvas.getContext("2d");
-        memoryContext.fillStyle = "#ffffff";
+        memoryContext.fillStyle = this.backgroundColor;
         memoryContext.fillRect(0, 0, this.memoryCanvas.width, this.memoryCanvas.height);
         this.updateVisibleCanvas();
         this.drawn();
@@ -108,7 +129,7 @@ class ScribbleView extends View {
      */
     fillMemory() {
         let memoryContext = this.memoryCanvas.getContext("2d");
-        memoryContext.fillStyle = "#000000";
+        memoryContext.fillStyle = this.activeColor;
         memoryContext.fillRect(0, 0, this.memoryCanvas.width, this.memoryCanvas.height);
         this.updateVisibleCanvas();
         this.drawn();
@@ -118,12 +139,7 @@ class ScribbleView extends View {
      * Inverts the canvas in memory.
      */
     invertMemory() {
-        let memoryContext = this.memoryCanvas.getContext("2d");
-        memoryContext.globalCompositeOperation = "difference";
-        memoryContext.fillStyle = "white";
-        memoryContext.fillRect(0, 0, this.memoryCanvas.width, this.memoryCanvas.height);
-        this.updateVisibleCanvas();
-        this.drawn();
+        this.setMemory(this.invertSrc);
     }
 
     /**
@@ -159,7 +175,7 @@ class ScribbleView extends View {
             newMemoryCanvas.width = width;
             newMemoryCanvas.height = height;
             let newMemoryContext = newMemoryCanvas.getContext("2d");
-            newMemoryContext.fillStyle = "#ffffff";
+            newMemoryContext.fillStyle = this.backgroundColor;
             newMemoryContext.fillRect(0, 0, width, height);
             newMemoryContext.drawImage(this.memoryCanvas, 0, 0);
             this.memoryCanvas = newMemoryCanvas;
@@ -175,7 +191,7 @@ class ScribbleView extends View {
         let canvasContext = this.visibleCanvas.getContext("2d");
         canvasContext.beginPath();
         canvasContext.rect(0, 0, this.width, this.height);
-        canvasContext.fillStyle = "white";
+        canvasContext.fillStyle = this.backgroundColor;
         canvasContext.fill();
         canvasContext.drawImage(this.memoryCanvas, 0, 0);
     }
@@ -295,7 +311,7 @@ class ScribbleView extends View {
         context.save();
         this.drawPencilShape(context, x, y);
         context.clip();
-        context.fillStyle = "#ffffff";
+        context.fillStyle = this.backgroundColor;
         context.fillRect(0, 0, this.memoryCanvas.width, this.memoryCanvas.height);
         context.restore();
         this.updateVisibleCanvas();
@@ -308,7 +324,7 @@ class ScribbleView extends View {
     drawMemory(x, y) {
         let context = this.memoryCanvas.getContext("2d");
         this.drawPencilShape(context, x, y);
-        context.fillStyle = "#000000";
+        context.fillStyle = this.activeColor;
         context.fill();
         this.updateVisibleCanvas();
         this.lastX = x;
@@ -325,12 +341,12 @@ class ScribbleView extends View {
         let context = this.visibleCanvas.getContext("2d");
         this.size -= 1;
         this.drawPencilShape(context, x, y);
-        context.strokeStyle = "#ffffff";
+        context.strokeStyle = this.backgroundColor;
         context.lineWidth = 1;
         context.stroke();
         this.size += 1;
         this.drawPencilShape(context, x, y);
-        context.strokeStyle = "#000000";
+        context.strokeStyle = this.activeColor;
         context.lineWidth = 1;
         context.stroke();
     }
@@ -343,7 +359,7 @@ class ScribbleView extends View {
         context.beginPath();
         context.moveTo(this.lastX, this.lastY);
         context.lineTo(x, y);
-        context.strokeStyle = "#000000";
+        context.strokeStyle = this.activeColor;
         context.lineWidth = this.size;
         context.stroke();
         this.drawn();
@@ -362,6 +378,7 @@ class ScribbleView extends View {
                 top = Math.max(0, y - this.size / 2),
                 right = Math.min(left + this.size, this.width),
                 bottom = Math.min(top + this.size, this.height);
+
             context.moveTo(left, top);
             context.lineTo(right, top);
             context.lineTo(right, bottom);

@@ -63,7 +63,6 @@ class InpaintingController extends Controller {
             pencilErase = await menu.addItem("Toggle Eraser", "fa-solid fa-eraser", "s"),
             pencilClear = await menu.addItem("Clear Canvas", "fa-solid fa-delete-left", "l"),
             pencilFill = await menu.addItem("Fill Canvas", "fa-solid fa-fill-drip", "v"),
-            pencilInvert = await menu.addItem("Invert Canvas", "fa-solid fa-rotate", "r"),
             pencilIncrease = await menu.addItem("Increase Pencil Size", "fa-solid fa-plus", "i"),
             pencilDecrease = await menu.addItem("Decrease Pencil Size", "fa-solid fa-minus", "d"),
             hideMask = await menu.addItem("Toggle Mask Visibility", "fa-solid fa-eye", "y"),
@@ -89,7 +88,6 @@ class InpaintingController extends Controller {
         });
         pencilClear.onClick(() => { this.scribbleView.clearMemory(); });
         pencilFill.onClick(() => { this.scribbleView.fillMemory(); });
-        pencilInvert.onClick(() => { this.scribbleView.invertMemory(); });
         pencilIncrease.onClick(() => { this.scribbleView.increaseSize(); });
         pencilDecrease.onClick(() => { this.scribbleView.decreaseSize(); });
         hideMask.onClick(() => {
@@ -136,7 +134,7 @@ class InpaintingController extends Controller {
         this.scribbleView.onDraw(() => {
             clearTimeout(setMaskTimer);
             setMaskTimer = setTimeout(() => {
-                this.engine.mask = this.scribbleView.invertSrc;
+                this.engine.mask = this.scribbleView.src;
             }, 100);
         });
         this.scribbleToolbar = new ToolbarView(this.config);
@@ -153,7 +151,7 @@ class InpaintingController extends Controller {
                 this.publish("inpaintEnabled");
                 this.scribbleView.show();
                 this.scribbleToolbar.show();
-                this.engine.mask = this.scribbleView.invertSrc;
+                this.engine.mask = this.scribbleView.src;
             } else {
                 this.publish("inpaintDisabled");
                 this.scribbleView.hide();
@@ -177,7 +175,7 @@ class InpaintingController extends Controller {
             } else {
                 this.inpaintForm.show();
                 if (this.inpaintForm.values.inpaint) {
-                    this.engine.mask = this.scribbleView.invertSrc;
+                    this.engine.mask = this.scribbleView.src;
                     this.scribbleView.show();
                     this.scribbleToolbar.show();
                }
@@ -186,7 +184,7 @@ class InpaintingController extends Controller {
 
         this.application.sidebar.addChild(this.inpaintForm);
         this.application.container.appendChild(await this.scribbleToolbar.render());
-        (await this.application.images.getNode()).find("enfugue-node-canvas").append(await this.scribbleView.getNode());
+        (await this.application.images.getNode()).find("enfugue-image-editor-overlay").append(await this.scribbleView.getNode());
     }
 }
 

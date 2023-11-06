@@ -20,18 +20,16 @@ from enfugue.util import (
     IMAGE_FIT_LITERAL,
     IMAGE_ANCHOR_LITERAL
 )
+
 if TYPE_CHECKING:
     from PIL.Image import Image
 
 __all__ = [
-    "NodeDict",
     "UpscaleStepDict",
     "ImageDict",
     "IPAdapterImageDict",
     "ControlImageDict",
     "PromptDict",
-    "PipelineDict",
-    "InvocationDict",
     "DEFAULT_MODEL",
     "DEFAULT_INPAINTING_MODEL",
     "DEFAULT_SDXL_MODEL",
@@ -377,26 +375,6 @@ class IPAdapterImageDict(ImageDict):
     """
     scale: NotRequired[float]
 
-class PipelineDict(TypedDict):
-    """
-    All the options for a pipeline
-    """
-    model: NotRequired[Optional[str]]
-    vae: NotRequired[Optional[str]]
-    lora: NotRequired[Optional[WeightedMultiModelType]]
-    lycoris: NotRequired[Optional[WeightedMultiModelType]]
-    inversion: NotRequired[Optional[MultiModelType]]
-    scheduler: NotRequired[Optional[SCHEDULER_LITERAL]]
-    scheduler_config: NotRequired[Dict[str, Any]]
-    safe: NotRequired[bool]
-    seed: NotRequired[Optional[int]]
-    size: NotRequired[Optional[int]]
-    temporal_size: NotRequired[Optional[int]]
-    chunking_size: NotRequired[Optional[int]]
-    chunking_temporal_size: NotRequired[Optional[int]]
-    chunking_mask: NotRequired[MASK_TYPE_LITERAL]
-    force_full_precision_vae: NotRequired[bool]
-
 class UpscaleStepDict(TypedDict):
     """
     All the options for each upscale step
@@ -427,30 +405,3 @@ class PromptDict(TypedDict):
     weight: NotRequired[Optional[float]]
     start: NotRequired[Optional[int]]
     end: NotRequired[Optional[int]]
-
-class InvocationDict(TypedDict):
-    """
-    All the variables that can be passed to an invocation before processing
-    """
-    width: NotRequired[Optional[int]]
-    height: NotRequired[Optional[int]]
-    image: NotRequired[Optional[Union[Image, List[Image], ImageDict]]]
-    mask: NotRequired[Optional[Union[Image, List[Image], ImageDict]]]
-    control_images: NotRequired[Optional[List[ControlImageDict]]]
-    prompts: NotRequired[Optional[List[PromptDict]]]
-    prompt: NotRequired[Optional[str]]
-    prompt_2: NotRequired[Optional[str]]
-    negative_prompt: NotRequired[Optional[str]]
-    negative_prompt_2: NotRequired[Optional[str]]
-    strength: NotRequired[float]
-    ip_adapter_images: NotRequired[Optional[Union[Image, List[Image], IPAdapterImageDict]]]
-
-class NodeDict(InvocationDict):
-    w: int
-    h: int
-    x: int
-    y: int
-    remove_background: NotRequired[bool]
-    invert_mask: NotRequired[bool]
-    crop_inpaint: NotRequired[bool]
-    inpaint_feather: NotRequired[int]

@@ -230,9 +230,13 @@ class EnfugueAPIInvocationController(EnfugueAPIControllerBase):
 
         disable_decoding = request.parsed.pop("intermediates", None) == False
         ui_state: Optional[str] = None
+        video_rate: Optional[float] = None
+
         for key, value in request.parsed.items():
             if key == "state":
                 ui_state = value
+            elif key == "frame_rate":
+                video_rate = value
             elif value is not None:
                 plan_kwargs[key] = value
 
@@ -247,6 +251,7 @@ class EnfugueAPIInvocationController(EnfugueAPIControllerBase):
             request.token.user.id,
             plan,
             ui_state=ui_state,
+            video_rate=video_rate,
             disable_intermediate_decoding=disable_decoding
         ).format()
 

@@ -241,7 +241,7 @@ class DiffusionEngine:
             if step_deserialized["id"] == id:
                 if intermediate_data is None:
                     intermediate_data = {"id": id}
-                for key in ["step", "total", "rate", "images", "task"]:
+                for key in ["step", "total", "rate", "images", "task", "video"]:
                     if key in step_deserialized:
                         intermediate_data[key] = step_deserialized[key]
             else:

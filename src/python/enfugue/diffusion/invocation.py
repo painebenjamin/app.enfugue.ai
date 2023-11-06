@@ -42,8 +42,8 @@ from enfugue.diffusion.constants import *
 
 if TYPE_CHECKING:
     from PIL.Image import Image
+    from enfugue.diffusion.util.output_util import EnfugueStableDiffusionPipelineOutput
     from enfugue.diffusers.manager import DiffusionPipelineManager
-    from diffusers.pipelines.stable_diffusion import StableDiffusionPipelineOutput
     from enfugue.util import IMAGE_FIT_LITERAL, IMAGE_ANCHOR_LITERAL
 
 __all__ = ["LayeredInvocation"]
@@ -1019,7 +1019,7 @@ class LayeredInvocation:
         progress_callback: Optional[Callable[[int, int, float], None]] = None,
         image_callback: Optional[Callable[[List[Image]], None]] = None,
         image_callback_steps: Optional[int] = None,
-    ) -> StableDiffusionPipelineOutput:
+    ) -> EnfugueStableDiffusionPipelineOutput:
         """
         This is the main interface for execution.
 
@@ -1029,7 +1029,6 @@ class LayeredInvocation:
         """
         # We import here so this file can be imported by processes without initializing torch
         from diffusers.utils.pil_utils import PIL_INTERPOLATION
-        from diffusers.pipelines.stable_diffusion import StableDiffusionPipelineOutput
 
         if task_callback is None:
             task_callback = lambda arg: None
@@ -1045,6 +1044,7 @@ class LayeredInvocation:
             raise_when_unused = not self.upscale,
             task_callback=task_callback,
         )
+
         if invocation_kwargs.pop("no_inference", False):
             if "image" not in invocation_kwargs:
                 raise IOError("No inference and no images.")
@@ -1139,11 +1139,11 @@ class LayeredInvocation:
             # Execute primary inference
             images, nsfw = self.execute_inference(
                 pipeline,
-                task_callback,
-                progress_callback,
-                image_callback,
-                image_callback_steps,
-                invocation_kwargs
+                task_callback=task_callback,
+                progress_callback=progress_callback,
+                image_callback=image_callback,
+                image_callback_steps=image_callback_steps,
+                invocation_kwargs=invocation_kwargs
             )
 
         if background is not None and cropped_inpaint_position is not None:
@@ -1158,17 +1158,26 @@ class LayeredInvocation:
         # Execte upscale, if requested
         images, nsfw = self.execute_upscale(
             pipeline,
-            images,
-            nsfw,
-            task_callback,
-            progress_callback,
-            image_callback,
-            image_callback_steps,
-            invocation_kwargs
+            images=images,
+            nsfw=nsfw,
+            task_callback=task_callback,
+            progress_callback=progress_callback,
+            image_callback=image_callback,
+            invocation_kwargs=invocation_kwargs
+        )
+
+        # Execute interpolation, if requested
+        video = self.execute_interpolation(
+            pipeline,
+            images=images,
+            nsfw=nsfw,
+            task_callback=task_callback,
+            progress_callback=progress_callback,
+            animation_frames=invocation_kwargs.get("animation_frames", None)
         )
 
         pipeline.stop_keepalive() # Make sure this is stopped
-        return self.format_output(images, nsfw)
+        return self.format_output(images, video, nsfw)
 
     def prepare_pipeline(self, pipeline: DiffusionPipelineManager) -> None:
         """
@@ -1608,20 +1617,97 @@ class LayeredInvocation:
                     logger.debug("Offloading refiner for next inference.")
                     pipeline.refiner_controlnets = None
                     pipeline.offload_refiner()
+                elif animation_frames:
+                    pipeline.animator_controlnets = None # Make sure we reset controlnets
                 else:
                     pipeline.controlnets = None # Make sure we reset controlnets
 
         return images, nsfw
 
-    def format_output(self, images: List[Image], nsfw: List[bool]) -> StableDiffusionPipelineOutput:
+    def execute_interpolation(
+        self,
+        pipeline: DiffusionPipelineManager,
+        images: List[Image],
+        nsfw: List[bool],
+        task_callback: Optional[Callable[[str], None]] = None,
+        progress_callback: Optional[Callable[[int, int, float], None]] = None,
+        animation_frames: Optional[int] = None,
+    ) -> Optional[List[Image]]:
+        """
+        Interpolates results for a final video.
+        """
+        from enfugue.diffusion.util.video_util import Video
+
+        if not animation_frames or nsfw and nsfw[0]:
+            return None
+
+        if self.interpolate_frames:
+            if task_callback is not None:
+                task_callback("Preparing interpolator")
+
+            pipeline.offload_animator() # Save memory
+            if self.loop:
+                images.append(images[0].copy())
+
+            total_interpolations = len(images)
+            if isinstance(self.interpolate_frames, list):
+                self.interpolate_frames = tuple(self.interpolate_frames) # type: ignore[unreachable]
+
+            if isinstance(self.interpolate_frames, tuple):
+                for multiplier in self.interpolate_frames:
+                    total_interpolations *= multiplier
+            else:
+                total_interpolations *= self.interpolate_frames
+
+            process_times: List[float] = []
+            frame_start = datetime.now()
+            frames_returned = 0
+
+            def fire_callback(image: Image) -> Image:
+                nonlocal frame_start
+                nonlocal frames_returned
+
+                if progress_callback is not None:
+                    frames_returned += 1
+                    frame_time = datetime.now()
+
+                    process_times.append((frame_time - frame_start).total_seconds())
+                    process_count = len(process_times[-10:]) # last 10 frames
+                    process_average = sum(process_times[-10:]) / process_count
+                    progress_callback(frames_returned, total_interpolations, 1 / process_average)
+                    frame_start = frame_time
+                return image
+
+            with pipeline.interpolator.interpolate() as process:
+                if task_callback is not None:
+                    task_callback("Interpolating frames")
+                images = [
+                    fire_callback(image) 
+                    for image in Video(images).interpolate(
+                        multiplier=self.interpolate_frames,
+                        interpolate=process,
+                    )
+                ]
+            if self.loop:
+                images = images[:-1]
+        return images
+
+    def format_output(
+        self,
+        images: List[Image],
+        video: List[Image],
+        nsfw: List[bool]
+    ) -> EnfugueStableDiffusionPipelineOutput:
         """
         Adds Enfugue metadata to an image result
         """
-        from diffusers.pipelines.stable_diffusion import StableDiffusionPipelineOutput
         from PIL import Image
+        from enfugue.diffusion.util.output_util import EnfugueStableDiffusionPipelineOutput
+
         metadata_dict = self.serialize()
         redact_images_from_metadata(metadata_dict)
         formatted_images = []
+
         for i, image in enumerate(images):
             byte_io = io.BytesIO()
             metadata = PngInfo()
@@ -1629,7 +1715,8 @@ class LayeredInvocation:
             image.save(byte_io, format="PNG", pnginfo=metadata)
             formatted_images.append(Image.open(byte_io))
 
-        return StableDiffusionPipelineOutput(
+        return EnfugueStableDiffusionPipelineOutput(
+            video=video,
             images=formatted_images,
             nsfw_content_detected=nsfw
         )

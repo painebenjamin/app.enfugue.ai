@@ -197,8 +197,9 @@ class ImageEditorView extends NodeEditorView {
      */
     async build() {
         let node = await super.build(),
+            overlays = E.createElement("enfugue-image-editor-overlay"),
             grid = E.createElement("enfugue-image-editor-grid");
-        node.find("enfugue-node-canvas").append(grid);
+        node.find("enfugue-node-canvas").append(overlays.content(grid));
         return node;
     }
 

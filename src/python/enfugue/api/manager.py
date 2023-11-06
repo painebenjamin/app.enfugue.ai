@@ -456,6 +456,9 @@ class SystemManager:
         plan: LayeredInvocation,
         ui_state: Optional[str] = None,
         disable_intermediate_decoding: bool = False,
+        video_rate: Optional[float] = None,
+        video_codec: Optional[str] = None,
+        video_format: Optional[str] = None,
         **kwargs: Any,
     ) -> Invocation:
         """
@@ -471,6 +474,13 @@ class SystemManager:
             kwargs["decode_nth_intermediate"] = None
         else:
             kwargs["decode_nth_intermediate"] = self.engine_intermediate_steps
+
+        if video_rate is not None:
+            kwargs["video_rate"] = video_rate
+        if video_codec is not None:
+            kwargs["video_codec"] = video_codec
+        if video_format is not None:
+            kwargs["video_format"] = video_format
 
         invocation = Invocation(
             engine=self.engine,

@@ -949,14 +949,14 @@ class InvocationController extends Controller {
     }
     
     /**
-     * @return bool loop animation
+     * @return ?string loop animation mode
      */
     get animationLoop() {
-        return this.kwargs.loop || false
+        return this.kwargs.loop || null;
     }
 
     /**
-     * @param bool loop animation
+     * @param ?string loop animation ,pde
      */
     set animationLoop(newLoop) {
         if (this.animationLoop !== newLoop) {
@@ -1017,13 +1017,37 @@ class InvocationController extends Controller {
     }
 
     /**
+     * @return array<int> interpolation frames
+     */
+    get animationInterpolation() {
+        return this.kwargs.interpolate_frames || null;
+    }
+
+    /**
      * @param array<int> interpolation frames
      */
     set animationInterpolation(newFrames) {
         if (!isEquivalent(this.animationInterpolation, newFrames)) {
             this.publish("engineAnimationInterpolationChange", newFrames);
         }
-        this.kwargs.interpolation_frames = newFrames;
+        this.kwargs.interpolate_frames = newFrames;
+    }
+
+    /**
+     * @return int Animation frame rate
+     */
+    get animationRate() {
+        return this.kwargs.frame_rate || 8;
+    }
+
+    /**
+     * @param int Animation frame rate
+     */
+    set animationRate(newRate) {
+        if (!isEquivalent(this.animationRate, newRate)) {
+            this.publish("engineAnimationRateChange", newRate);
+        }
+        this.kwargs.frame_rate = newRate;
     }
 
     /**
@@ -1216,7 +1240,7 @@ class InvocationController extends Controller {
      * @param callable onError A callback that is called when an error occur.
      * @param callable onEstimatedDuration A callback that will receive (int $millisecondsRemaining) when new estimates are available.
      */
-    async monitorInvocation(uuid, onTaskChanged, onImagesReceived, onError, onEstimatedDuration) {
+    async monitorInvocation(uuid, onTaskChanged, onImagesReceived, onVideoReceived, onError, onEstimatedDuration) {
         const initialInterval = this.application.config.model.invocation.interval || 1000;
         const queuedInterval = this.application.config.model.queue.interval || 5000;
         const consecutiveErrorCutoff = this.application.config.model.invocation.errors.consecutive || 2;
@@ -1225,6 +1249,7 @@ class InvocationController extends Controller {
         if (onTaskChanged === undefined) onTaskChanged = () => {};
         if (onError === undefined) onError = () => {};
         if (onEstimatedDuration === undefined) onEstimatedDuration = () => {};
+        if (onVideoReceived === undefined) onVideoReceived = () => {};
 
         let start = (new Date()).getTime(),
             lastTask,
@@ -1255,7 +1280,6 @@ class InvocationController extends Controller {
                     onError();
                     return;
                 }
-
                 if (invokeResult.total !== lastTotal) {
                     if (!isEmpty(lastTotal)) {
                         lastTotalDeltaTime = (new Date()).getTime();
@@ -1278,6 +1302,10 @@ class InvocationController extends Controller {
                     let imagePaths = invokeResult.images.map((imageName) => `/api/invocation/${imageName}`),
                         isCompleted = invokeResult.status === "completed";
                     onImagesReceived(imagePaths, isCompleted);
+                }
+                if (!isEmpty(invokeResult.video)) {
+                    let videoPath = `/api/invocation/${invokeResult.video}`;
+                    onVideoReceived(videoPath);
                 }
                 if (invokeResult.status === "error") {
                     this.notify("error", "Invocation Failed", invokeResult.message);
@@ -1403,6 +1431,9 @@ class InvocationController extends Controller {
                     updateImages();
                 }
             },
+            onVideoReceived = async (video) => {
+                let videoWindow = await this.application.spawnVideoPlayer(video);
+            },
             onTaskChanged = (newTask) => {
                 lastTask = newTask;
                 if (isEmpty(newTask)) {
@@ -1441,7 +1472,7 @@ class InvocationController extends Controller {
         this.loadingBar.addClass("loading");
 
         window.requestAnimationFrame(() => updateEstimate());
-        this.monitorInvocation(uuid, onTaskChanged, onImagesReceived, onError, onEstimatedDuration);
+        this.monitorInvocation(uuid, onTaskChanged, onImagesReceived, onVideoReceived, onError, onEstimatedDuration);
         await waitFor(() => complete);
         taskNode.empty().hide();
         this.loadingBar.removeClass("loading");

@@ -40,24 +40,9 @@ class AnimationFormView extends FormView {
                     "tooltip": "The number of animation frames the overall animation should be. Divide this number by the animation rate to determine the overall length of the animation in seconds."
                 }
             },
-            /*
-            "animationRate": {
-                "label": "Animation Rate",
-                "class": NumberInputView,
-                "config": {
-                    "min": 1,
-                    "step": 1,
-                    "value": 8,
-                    "tooltip": "The number of frames per second the resulting animation should be played at. For example, an animation of 16 frames saved at 8 frames per second will be two seconds long."
-                }
-            },
-            */
             "animationLoop": {
                 "label": "Loop Animation",
-                "class": CheckboxInputView,
-                "config": {
-                    "tooltip": "When enabled, the animation will loop seamlessly such that there will be no hitches when the animation is repeated. This increases render time."
-                }
+                "class": AnimationLoopInputView
             },
             "animationSlicing": {
                 "label": "Use Frame Attention Slicing",
@@ -130,12 +115,20 @@ class AnimationFormView extends FormView {
                     "tooltip": "How long position encoding data should be after truncating and scaling. For example, if you truncate position data to 16 frames and scale position data to 24 frames, you will have removed the final 8 frames of training data, then altered the timescale of the animation by one half - i.e., the animation will appear about 50% slower. This feature is experimental and may result in strange movement."
                 }
             },
-            /*
+            "animationRate": {
+                "label": "Frame Rate",
+                "class": NumberInputView,
+                "config": {
+                    "min": 8,
+                    "value": 8,
+                    "max": 128,
+                    "tooltip": "The frame rate of the output video. Note that the animations are saved as individual frames, not as videos - so this can be changed later without needing to re-process the invocation. Also note that the frame rate of the AI model is fixed at 8 frames per second, so any values higher than this will result in sped-up motion. Use this value in combination with frame interpolation to control the smoothness of the output video."
+                }
+            },
             "animationInterpolation": {
                 "label": "Frame Interpolation",
-                "class": AnimationInterpolationStepsInputView,
+                "class": AnimationInterpolationStepsInputView
             }
-            */
         }
     };
 
@@ -166,7 +159,7 @@ class AnimationFormView extends FormView {
         let useSlicing = this.values.animationSlicing,
             slicingInput = await this.getInputView("animationSlicing");
 
-        if (this.values.animationLoop) {
+        if (this.values.animationLoop === "loop") {
             useSlicing = true;
             slicingInput.setValue(true, false);
             slicingInput.disable();

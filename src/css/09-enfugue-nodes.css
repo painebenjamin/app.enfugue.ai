@@ -562,20 +562,35 @@ enfugue-node-editor.image-editor enfugue-node-canvas {
     box-sizing: content-box;
 }
 
-enfugue-node-editor.image-editor enfugue-node-canvas > enfugue-scribble-view {
+enfugue-node-editor.image-editor enfugue-node-canvas enfugue-image-editor-overlay
+{
+    pointer-events: none;
+}
+
+enfugue-node-editor.image-editor enfugue-node-canvas enfugue-image-editor-overlay enfugue-scribble-view
+{
     z-index: 2;
     mix-blend-mode: hard-light;
-    opacity: 0.6;
+    opacity: 0.75;
+    pointer-events: all;
 }
 
-enfugue-node-editor.image-editor enfugue-node-canvas > enfugue-scribble-view.locked {
+enfugue-node-editor.image-editor enfugue-node-canvas enfugue-image-editor-overlay enfugue-scribble-view.locked
+{
     pointer-events: none;
-    mix-blend-mode: darken;
-    opacity: 1.0;
 }
 
-enfugue-node-editor.image-editor.has-sample enfugue-node-canvas > enfugue-scribble-view {
+enfugue-node-editor.image-editor.has-sample enfugue-node-canvas enfugue-image-editor-overlay enfugue-scribble-view {
     display: none;
+}
+
+enfugue-node-editor.image-editor enfugue-node-canvas enfugue-image-editor-overlay {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 2;
 }
 
 enfugue-node-editor.image-editor enfugue-node-canvas enfugue-image-editor-grid {

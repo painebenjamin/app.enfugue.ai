@@ -321,6 +321,7 @@ class EnfugueAPIServerBase(
         save: bool = True,
         ui_state: Optional[str] = None,
         disable_intermediate_decoding: bool = False,
+        video_rate: Optional[float] = None,
         **kwargs: Any,
     ) -> Invocation:
         """
@@ -331,6 +332,9 @@ class EnfugueAPIServerBase(
             plan,
             ui_state=ui_state,
             disable_intermediate_decoding=disable_intermediate_decoding,
+            video_rate=video_rate,
+            video_codec=self.configuration.get("enfugue.video.codec", "avc1"),
+            video_format=self.configuration.get("enfugue.video.format", "mp4"),
             **kwargs
         )
         if save:

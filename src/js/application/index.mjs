@@ -16,6 +16,7 @@ import { StatusView } from "../view/status.mjs";
 import { NotificationCenterView } from "../view/notifications.mjs";
 import { WindowsView } from "../nodes/windows.mjs";
 import { ImageView, BackgroundImageView } from "../view/image.mjs";
+import { VideoView, VideoPlayerView } from "../view/video.mjs";
 import { Model } from "../model/enfugue.mjs";
 import { View } from "../view/base.mjs";
 import { ControlsHelperView } from "../view/controls.mjs";
@@ -764,6 +765,23 @@ class Application {
     };
 
     /**
+     * Spawns a video player
+     */
+    spawnVideoPlayer(videoSource, windowName = "Video") {
+        return new Promise(async (resolve, reject) => {
+            let videoPlayer = new VideoPlayerView(this.config, videoSource);
+            await videoPlayer.waitForLoad();
+            let videoPlayerWindow = await this.windows.spawnWindow(
+                windowName,
+                videoPlayer,
+                videoPlayer.width + 4,
+                videoPlayer.height + 34
+            );
+            resolve(videoPlayerWindow);
+        });
+    }
+
+    /**
      * Spawns a window with a confirmation message.
      * The promise returns true if the user confirms, false otherwise.
      * @param string $message The message to display.
@@ -998,6 +1016,8 @@ class Application {
             state = {...state, ...controller.getDefaultState()};
         }
         await this.setState(state, saveHistory);
+        // Also reset image editor
+        this.images.resetCanvasPosition();
     }
 
     /**

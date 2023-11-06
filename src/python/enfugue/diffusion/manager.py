@@ -4327,7 +4327,6 @@ class DiffusionPipelineManager:
         scale_to_refiner_size: bool = True,
         task_callback: Optional[Callable[[str], None]] = None,
         next_intention: Optional[Literal["inpainting", "animation", "inference", "refining", "upscaling"]] = None,
-        interpolate_frames: Optional[Union[int, Tuple[int, ...]]] = None,
         scheduler: Optional[SCHEDULER_LITERAL] = None,
         **kwargs: Any,
     ) -> StableDiffusionPipelineOutput:
@@ -4574,23 +4573,6 @@ class DiffusionPipelineManager:
                     logger.debug("Next intention is upscaling, unloading pipeline and sending refiner to CPU")
                     self.unload_pipeline("unloading for upscaling")
                 self.offload_refiner(intention if next_intention is None else next_intention) # type: ignore
-            if interpolate_frames is not None:
-                self.unload_animator("unloading for interpolation")
-                from enfugue.diffusion.util.video_util import Video
-                if kwargs.get("loop", False):
-                    # Append copy of first frame
-                    result["images"].append(result["images"][0].copy())
-                with self.interpolator.interpolate() as process:
-                    interpolated_images = [
-                        image for image in Video(result["images"]).interpolate(
-                            multiplier=interpolate_frames,
-                            interpolate=process,
-                        )
-                    ]
-                    result["images"] = interpolated_images
-                if kwargs.get("loop", False):
-                    # Remove copy of first frame
-                    result["images"] = result["images"][:-1]
             return result
         finally:
             self._task_callback = None

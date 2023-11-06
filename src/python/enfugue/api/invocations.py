@@ -28,6 +28,7 @@ class Invocation:
     end_time: Optional[datetime.datetime]
     last_intermediate_time: Optional[datetime.datetime]
     results: Optional[List[str]]
+    video_result: Optional[str]
     last_images: Optional[List[str]]
     last_step: Optional[int]
     last_total: Optional[int]
@@ -46,6 +47,9 @@ class Invocation:
         communication_timeout: Optional[int] = 180,
         metadata: Optional[Dict[str, Any]] = None,
         save: bool = True,
+        video_format: str = "mp4",
+        video_codec: str = "avc1",
+        video_rate: float = 8.0,
         **kwargs: Any,
     ) -> None:
         self.lock = Lock()
@@ -60,6 +64,9 @@ class Invocation:
         self.communication_timeout = communication_timeout
         self.metadata = metadata
         self.save = save
+        self.video_format = video_format
+        self.video_codec = video_codec
+        self.video_rate = video_rate
 
         self.id = None
         self.error = None
@@ -72,6 +79,7 @@ class Invocation:
         self.last_images = None
         self.last_task = None
         self.results = None
+        self.video_result = None
 
     def _communicate(self) -> None:
         """
@@ -120,9 +128,15 @@ class Invocation:
                             self.results.append(image_path)
                         else:
                             self.results.append("unsaved")
-                if "video" in result:
-                    # TODO: Interpolated video
-                    ...
+                if "video" in result and result["video"] is not None and self.save:
+                    from enfugue.diffusion.util.video_util import Video
+                    video_path = f"{self.results_dir}/{self.uuid}.{self.video_format}"
+                    Video(result["video"]).save(
+                        video_path,
+                        rate=self.video_rate,
+                        encoder=self.video_codec
+                    )
+                    self.video_result = video_path
                 if "error" in result:
                     error_type = resolve(result["error"])
                     self.error = error_type(result["message"])
@@ -215,9 +229,13 @@ class Invocation:
                 }
 
             images = None
-            if self.results is not None:
+            video = None
+            if self.results is not None or self.video_result is not None:
                 status = "completed"
-                images = ["/".join(re.split(r"/|\\", path)[-2:]) for path in self.results]
+                if self.results is not None:
+                    images = ["/".join(re.split(r"/|\\", path)[-2:]) for path in self.results]
+                if self.video_result is not None:
+                    video = "/".join(re.split(r"/|\\", self.video_result)[-2:])
             else:
                 status = "processing"
                 self._communicate()
@@ -250,6 +268,7 @@ class Invocation:
                 "duration": duration,
                 "total": total,
                 "images": images,
+                "video": video,
                 "rate": rate,
                 "task": self.last_task
             }

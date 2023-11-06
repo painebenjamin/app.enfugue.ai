@@ -50,7 +50,6 @@ class VideoView extends View {
             return;
         }
         this.loaded = false;
-        console.log("NOTLOADED");
         this.src = src;
         this.video = document.createElement("video");
         this.video.onloadedmetadata = () => this.videoLoaded();
@@ -82,4 +81,19 @@ class VideoView extends View {
     }
 }
 
-export { VideoView };
+class VideoPlayerView extends VideoView {
+    setVideo(src) {
+        super.setVideo(src);
+        this.video.controls = true;
+    }
+
+    async build() {
+        let node = await super.build();
+        return node;
+    }
+}
+
+export {
+    VideoView,
+    VideoPlayerView
+};
