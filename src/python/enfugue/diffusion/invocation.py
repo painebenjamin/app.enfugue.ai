@@ -1045,7 +1045,7 @@ class LayeredInvocation:
             raise_when_unused = not self.upscale,
             task_callback=task_callback,
         )
-        if invocation_kwargs.get("no_inference", False):
+        if invocation_kwargs.pop("no_inference", False):
             if "image" not in invocation_kwargs:
                 raise IOError("No inference and no images.")
             images = invocation_kwargs["image"]
