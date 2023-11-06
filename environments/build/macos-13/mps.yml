@@ -9,11 +9,9 @@ dependencies:
   - numpy=1.24.3
   - make=4.3
   - nodejs=18.16.0
-  - ffmpeg=4.2.2
-  - opencv=4.6.0
+  - ffmpeg=6.0.0
+  - opencv=4.8.1
   - pip:
-    - opencv-python==4.6.0.66
-    - opencv-python-headless==4.6.0.66
     - brotli>=1.0.9
     - torch>=2.0.1
     - torchvision>=0.15.2
