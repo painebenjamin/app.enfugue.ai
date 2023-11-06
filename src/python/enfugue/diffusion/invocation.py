@@ -31,6 +31,7 @@ from enfugue.util import (
     logger,
     feather_mask,
     fit_image,
+    get_frames_or_image,
     get_frames_or_image_from_file,
     save_frames_or_image,
     redact_images_from_metadata,
@@ -384,15 +385,15 @@ class LayeredInvocation:
         ignored_kwargs = set(list(kwargs.keys())) - set(list(invocation_kwargs.keys()))
 
         # Add directly passed images to layers
-        layers = invocation_kwargs.pop("layers", [])
+        added_layers = []
         if image:
             if isinstance(image, dict):
-                layers.append(image)
+                added_layers.append(image)
             else:
-                layers.append({"image": image})
+                added_layers.append({"image": image})
         if ip_adapter_images:
             for ip_adapter_image in ip_adapter_images:
-                layers.append({
+                added_layers.append({
                     "image": ip_adapter_image["image"],
                     "ip_adapter_scale": ip_adapter_image.get("scale", 1.0),
                     "fit": ip_adapter_image.get("fit", None),
@@ -400,7 +401,7 @@ class LayeredInvocation:
                 })
         if control_images:
             for control_image in control_images:
-                layers.append({
+                added_layers.append({
                     "image": control_image["image"],
                     "fit": control_image.get("fit", None),
                     "anchor": control_image.get("anchor", None),
@@ -416,11 +417,20 @@ class LayeredInvocation:
                 })
 
         # Reassign layers
-        invocation_kwargs["layers"] = layers
+        if "layers" in invocation_kwargs:
+            invocation_kwargs["layers"].extend(added_layers)
+        else:
+            invocation_kwargs["layers"] = added_layers
 
         # Gather size of images for defaults
         image_width, image_height = 0, 0
-        for layer in layers:
+        for layer in invocation_kwargs["layers"]:
+            # Standardize images
+            if isinstance(layer["image"], str):
+                layer["image"] = get_frames_or_image_from_file(layer["image"])
+            elif not isinstance(layer["image"], list):
+                layer["image"] = get_frames_or_image(layer["image"])
+            # Check if this image is visible
             if (
                 layer.get("image", None) is not None and
                 (
@@ -433,12 +443,12 @@ class LayeredInvocation:
             ):
                 layer_x = layer.get("x", 0)
                 layer_y = layer.get("y", 0)
-                if isinstance(layer["image"], str):
-                    layer["image"] = get_frames_or_image_from_file(layer["image"])
+
                 if isinstance(layer["image"], list):
                     image_w, image_h = layer["image"][0].size
                 else:
                     image_w, image_h = layer["image"].size
+
                 layer_w = layer.get("w", image_w)
                 layer_h = layer.get("h", image_h)
                 image_width = max(image_width, layer_x + layer_w)
@@ -663,6 +673,7 @@ class LayeredInvocation:
         ip_adapter_images = []
         invocation_mask = None
         invocation_image = None
+        no_inference = False
 
         if self.layers:
             if task_callback is not None:
@@ -901,6 +912,7 @@ class LayeredInvocation:
                         raise IOError("Nothing to do - canvas is covered by non-denoised images. Either modify the canvas such that there is blank space to be filled, enable denoising on an image on the canvas, or add inpainting.")
                     # Might have no invocation
                     invocation_mask = None
+                    no_inference = True
                 elif mask_max == mask_min == 255:
                     # No inpainting
                     invocation_mask = None
@@ -979,7 +991,9 @@ class LayeredInvocation:
         }
 
         # Completed pre-processing
-        results_dict: Dict[str, Any] = {}
+        results_dict: Dict[str, Any] = {
+            "no_inference": no_inference
+        }
         if invocation_image:
             results_dict["image"] = invocation_image
             if invocation_mask:
@@ -1031,99 +1045,106 @@ class LayeredInvocation:
             raise_when_unused = not self.upscale,
             task_callback=task_callback,
         )
-
-        # Determine if we're doing cropped inpainting
-        if "mask" in invocation_kwargs and self.crop_inpaint:
-            (x0, y0), (x1, y1) = self.get_inpaint_bounding_box(
-                invocation_kwargs["mask"],
-                size=self.tiling_size if self.tiling_size else 1024 if pipeline.inpainter_is_sdxl else 512,
-                feather=self.inpaint_feather
-            )
-            if isinstance(invocation_kwargs["mask"], list):
-                mask_width, mask_height = invocation_kwargs["mask"][0].size
-            else:
-                mask_width, mask_height = invocation_kwargs["mask"].size
-            bbox_width = x1 - x0
-            bbox_height = y1 - y0
-            pixel_ratio = (bbox_height * bbox_width) / (mask_width * mask_height)
-            pixel_savings = (1.0 - pixel_ratio) * 100
-
-            if pixel_ratio < 0.75:
-                logger.debug(f"Calculated pixel area savings of {pixel_savings:.1f}% by cropping to ({x0}, {y0}), ({x1}, {y1}) ({bbox_width}px by {bbox_height}px)")
-                cropped_inpaint_position = (x0, y0, x1, y1)
-            else:
-                logger.debug(
-                    f"Calculated pixel area savings of {pixel_savings:.1f}% are insufficient, will not crop"
+        if invocation_kwargs.get("no_inference", False):
+            if "image" not in invocation_kwargs:
+                raise IOError("No inference and no images.")
+            images = invocation_kwargs["image"]
+            if not isinstance(images, list):
+                images = [images]
+            nsfw = [False] * len(images)
+        else:
+            # Determine if we're doing cropped inpainting
+            if "mask" in invocation_kwargs and self.crop_inpaint:
+                (x0, y0), (x1, y1) = self.get_inpaint_bounding_box(
+                    invocation_kwargs["mask"],
+                    size=self.tiling_size if self.tiling_size else 1024 if pipeline.inpainter_is_sdxl else 512,
+                    feather=self.inpaint_feather
                 )
+                if isinstance(invocation_kwargs["mask"], list):
+                    mask_width, mask_height = invocation_kwargs["mask"][0].size
+                else:
+                    mask_width, mask_height = invocation_kwargs["mask"].size
+                bbox_width = x1 - x0
+                bbox_height = y1 - y0
+                pixel_ratio = (bbox_height * bbox_width) / (mask_width * mask_height)
+                pixel_savings = (1.0 - pixel_ratio) * 100
 
-        if cropped_inpaint_position is not None:
-            # Get copies prior to crop
-            if isinstance(invocation_kwargs["image"], list):
-                background = [
-                    img.copy()
-                    for img in invocation_kwargs["image"]
-                ]
-            else:
-                background = invocation_kwargs["image"].copy()
-                
-            # First wrap callbacks if needed
-            if image_callback is not None:
-                # Hijack image callback to paste onto background
-                original_image_callback = image_callback
+                if pixel_ratio < 0.75:
+                    logger.debug(f"Calculated pixel area savings of {pixel_savings:.1f}% by cropping to ({x0}, {y0}), ({x1}, {y1}) ({bbox_width}px by {bbox_height}px)")
+                    cropped_inpaint_position = (x0, y0, x1, y1)
+                else:
+                    logger.debug(
+                        f"Calculated pixel area savings of {pixel_savings:.1f}% are insufficient, will not crop"
+                    )
 
-                def pasted_image_callback(images: List[Image]) -> None:
-                    """
-                    Paste the images then callback.
-                    """
-                    if isinstance(background, list):
-                        images = [
-                            self.paste_inpaint_image((background[i] if i < len(background) else background[-1]), image, cropped_inpaint_position) # type: ignore
-                            for i, image in enumerate(images)
-                        ]
-                    else:
-                        images = [
-                            self.paste_inpaint_image(background, image, cropped_inpaint_position) # type: ignore
-                            for image in images
-                        ]
+            if cropped_inpaint_position is not None:
+                # Get copies prior to crop
+                if isinstance(invocation_kwargs["image"], list):
+                    background = [
+                        img.copy()
+                        for img in invocation_kwargs["image"]
+                    ]
+                else:
+                    background = invocation_kwargs["image"].copy()
+                    
+                # First wrap callbacks if needed
+                if image_callback is not None:
+                    # Hijack image callback to paste onto background
+                    original_image_callback = image_callback
 
-                    original_image_callback(images)
+                    def pasted_image_callback(images: List[Image]) -> None:
+                        """
+                        Paste the images then callback.
+                        """
+                        if isinstance(background, list):
+                            images = [
+                                self.paste_inpaint_image((background[i] if i < len(background) else background[-1]), image, cropped_inpaint_position) # type: ignore
+                                for i, image in enumerate(images)
+                            ]
+                        else:
+                            images = [
+                                self.paste_inpaint_image(background, image, cropped_inpaint_position) # type: ignore
+                                for image in images
+                            ]
 
-                image_callback = pasted_image_callback
+                        original_image_callback(images)
 
-            # Now crop images
-            if isinstance(invocation_kwargs["image"], list):
-                invocation_kwargs["image"] = [
-                    img.crop(cropped_inpaint_position)
-                    for img in invocation_kwargs["image"]
-                ]
-                invocation_kwargs["mask"] = [
-                    img.crop(cropped_inpaint_position)
-                    for img in invocation_kwargs["mask"]
-                ]
-            else:
-                invocation_kwargs["image"] = invocation_kwargs["image"].crop(cropped_inpaint_position)
-                invocation_kwargs["mask"] = invocation_kwargs["mask"].crop(cropped_inpaint_position)
+                    image_callback = pasted_image_callback
 
-            # Also crop control images
-            if "control_images" in invocation_kwargs:
-                for controlnet in invocation_kwargs["control_images"]:
-                    for image_dict in invocation_kwargs[controlnet]:
-                        image_dict["image"] = image_dict["image"].crop(cropped_inpaint_position)
+                # Now crop images
+                if isinstance(invocation_kwargs["image"], list):
+                    invocation_kwargs["image"] = [
+                        img.crop(cropped_inpaint_position)
+                        for img in invocation_kwargs["image"]
+                    ]
+                    invocation_kwargs["mask"] = [
+                        img.crop(cropped_inpaint_position)
+                        for img in invocation_kwargs["mask"]
+                    ]
+                else:
+                    invocation_kwargs["image"] = invocation_kwargs["image"].crop(cropped_inpaint_position)
+                    invocation_kwargs["mask"] = invocation_kwargs["mask"].crop(cropped_inpaint_position)
 
-            # Assign height and width
-            x0, y0, x1, y1 = cropped_inpaint_position
-            invocation_kwargs["width"] = x1 - x0
-            invocation_kwargs["height"] = y1 - y0
+                # Also crop control images
+                if "control_images" in invocation_kwargs:
+                    for controlnet in invocation_kwargs["control_images"]:
+                        for image_dict in invocation_kwargs[controlnet]:
+                            image_dict["image"] = image_dict["image"].crop(cropped_inpaint_position)
 
-        # Execute primary inference
-        images, nsfw = self.execute_inference(
-            pipeline,
-            task_callback,
-            progress_callback,
-            image_callback,
-            image_callback_steps,
-            invocation_kwargs
-        )
+                # Assign height and width
+                x0, y0, x1, y1 = cropped_inpaint_position
+                invocation_kwargs["width"] = x1 - x0
+                invocation_kwargs["height"] = y1 - y0
+
+            # Execute primary inference
+            images, nsfw = self.execute_inference(
+                pipeline,
+                task_callback,
+                progress_callback,
+                image_callback,
+                image_callback_steps,
+                invocation_kwargs
+            )
 
         if background is not None and cropped_inpaint_position is not None:
             # Paste the image back onto the background
@@ -1162,6 +1183,7 @@ class LayeredInvocation:
             pipeline.frame_window_stride = self.frame_window_stride
             pipeline.position_encoding_truncate_length = self.position_encoding_truncate_length
             pipeline.position_encoding_scale_length = self.position_encoding_scale_length
+            pipeline.motion_module = self.motion_module
         else:
             pipeline.model = self.model
             pipeline.vae = self.vae

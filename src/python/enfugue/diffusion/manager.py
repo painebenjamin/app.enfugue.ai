@@ -2555,9 +2555,6 @@ class DiffusionPipelineManager:
             if device_type == "cpu":
                 logger.debug("Inferencing on cpu, must use dtype bfloat16")
                 self._torch_dtype = torch.bfloat16
-            elif device_type == "mps":
-                logger.debug("Inferencing on mps, defaulting to dtype float16")
-                self._torch_dtype = torch.float16
             elif device_type == "cuda" and torch.version.hip:
                 logger.debug("Inferencing on rocm, must use dtype float32")  # type: ignore[unreachable]
                 self._torch_dtype = torch.float
@@ -4442,14 +4439,20 @@ class DiffusionPipelineManager:
                     if self.reload_motion_module:
                         if task_callback is not None:
                             task_callback("Reloading motion module")
-                        pipe.load_motion_module_weights(
-                            cache_dir=self.engine_cache_dir,
-                            motion_module=self.motion_module,
-                            task_callback=task_callback,
-                            position_encoding_truncate_length=self.position_encoding_truncate_length,
-                            position_encoding_scale_length=self.position_encoding_scale_length,
-                        )
-                        self.reload_motion_module = False
+                        try:
+                            pipe.load_motion_module_weights(
+                                cache_dir=self.engine_cache_dir,
+                                motion_module=self.motion_module,
+                                task_callback=task_callback,
+                                position_encoding_truncate_length=self.position_encoding_truncate_length,
+                                position_encoding_scale_length=self.position_encoding_scale_length,
+                            )
+                        except Exception as ex:
+                            logger.warning(f"Received exception {ex} when loading motion module weights, will try to reload the entire pipeline.")
+                            del pipe
+                            self.reload_motion_module = False
+                            self.unload_animator("Re-initializing Pipeline")
+                            pipe = self.animator_pipeline # Will raise
                 elif inpainting and (self.has_inpainter or self.create_inpainter):
                     self.offload_pipeline(intention) # type: ignore
                     self.offload_refiner(intention) # type: ignore

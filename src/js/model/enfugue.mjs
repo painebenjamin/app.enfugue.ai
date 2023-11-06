@@ -17,7 +17,11 @@ class DiffusionModel extends ModelObject {
     /**
      * @var array Related models to include
      */
-    static apiInclude = ["refiner", "inpainter", "lora", "lycoris", "inversion", "scheduler", "vae", "config"];
+    static apiInclude = [
+        "refiner", "inpainter", "lora",
+        "lycoris", "inversion", "scheduler",
+        "vae", "config", "motion_module"
+    ];
 
     /**
      * @var string Model root
@@ -57,6 +61,7 @@ class DiffusionModelInpainter extends ModelObject {};
 class DiffusionModelInversion extends ModelObject {};
 class DiffusionModelLora extends ModelObject {};
 class DiffusionModelLycoris extends ModelObject {};
+class DiffusionModelMotionModule extends ModelObject {};
 class DiffusionModelDefaultConfiguration extends ModelObject {};
 
 class DiffusionInvocation extends ModelObject {
@@ -85,6 +90,7 @@ class EnfugueModel extends Model {
         DiffusionModelInpainter,
         DiffusionModelInversion,
         DiffusionModelScheduler,
+        DiffusionModelMotionModule,
         DiffusionModelDefaultConfiguration,
         DiffusionModelVAE,
         DiffusionModelLora,

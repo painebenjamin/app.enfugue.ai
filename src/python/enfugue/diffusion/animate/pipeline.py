@@ -49,13 +49,14 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
     STATIC_SCHEDULER_KWARGS = {
         "num_train_timesteps": 1000,
         "beta_start": 0.00085,
-        "beta_end": 0.01,
+        "beta_end": 0.01005,
         "beta_schedule": "linear"
     }
 
     HOTSHOT_XL_PATH = "hotshotco/Hotshot-XL"
     MOTION_MODULE_V2 = "https://huggingface.co/guoyww/animatediff/resolve/main/mm_sd_v15_v2.ckpt"
     MOTION_MODULE = "https://huggingface.co/guoyww/animatediff/resolve/main/mm_sd_v15.ckpt"
+    MOTION_MODULE_PE_KEY = "down_blocks.0.motion_modules.0.temporal_transformer.transformer_blocks.0.attention_blocks.0.pos_encoder.pe"
 
     def __init__(
         self,
@@ -153,7 +154,6 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
             else:
                 raise IOError(f"Couldn't find UNet weights at {unet_weights} or {safetensors_weights}")
 
-        from enfugue.diffusion.util.torch_util import load_state_dict
         unet = cls.create_unet(
             load_json(unet_config),
             kwargs.get("cache_dir", DIFFUSERS_CACHE),
@@ -165,7 +165,13 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
             task_callback=task_callback,
         )
 
+        from enfugue.diffusion.util.torch_util import load_state_dict
         state_dict = load_state_dict(unet_weights)
+
+        for key in list(state_dict.keys()):
+            if "motion" in key or "temporal" in key:
+                state_dict.pop(key)
+
         unet.load_state_dict(state_dict, strict=False)
 
         if "torch_dtype" in kwargs:
@@ -331,6 +337,27 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
             "CrossAttnUpBlock3D"
         ]
 
+        if motion_module is not None:
+            # Detect MM version
+            from enfugue.diffusion.util import load_state_dict
+            logger.debug(f"Loading motion module {motion_module} to detect MMV1/2")
+            state_dict = load_state_dict(motion_module)
+
+            if cls.MOTION_MODULE_PE_KEY in state_dict:
+                position_tensor: torch.Tensor = state_dict[cls.MOTION_MODULE_PE_KEY] # type: ignore[assignment]
+                if position_tensor.shape[1] == 24:
+                    use_mm_v2 = False
+                    logger.debug("Detected MMV1")
+                elif position_tensor.shape[1] == 32:
+                    use_mm_v2 = True
+                    logger.debug("Detected MMV2")
+                else:
+                    raise ValueError(f"Position encoder tensor has unsupported length {position_tensor.shape[1]}")
+            else:
+                raise ValueError(f"Couldn't detect motion module version from {motion_module}. It may be an unsupported format.")
+
+            motion_module = state_dict # type: ignore[assignment]
+
         config["mid_block_type"] = "UNetMidBlock3DCrossAttn"
         default_position_encoding_len = 32 if use_mm_v2 else 24
         position_encoding_len = default_position_encoding_len
@@ -375,7 +402,7 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         unet: AnimateDiffUNet,
         cache_dir: str,
         use_mm_v2: bool=True,
-        motion_module: Optional[str]=None,
+        motion_module: Optional[Union[str, Dict[str, torch.Tensor]]]=None,
         task_callback: Optional[Callable[[str], None]]=None,
         position_encoding_truncate_length: Optional[int]=None,
         position_encoding_scale_length: Optional[int]=None,
@@ -383,17 +410,24 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         """
         Loads animate diff state dict into an animate diff unet
         """
-        if not motion_module:
+        if motion_module is None:
             motion_module = cls.MOTION_MODULE_V2 if use_mm_v2 else cls.MOTION_MODULE
+
             if task_callback is not None:
                 if not os.path.exists(os.path.join(cache_dir, os.path.basename(motion_module))):
                     task_callback(f"Downloading {motion_module}")
+
             motion_module = check_download_to_dir(motion_module, cache_dir)
 
-        logger.debug(f"Loading AnimateDiff motion module {motion_module} with truncate length '{position_encoding_truncate_length}' and scale length '{position_encoding_scale_length}'")
+        if isinstance(motion_module, dict):
+            logger.debug(f"Loading AnimateDiff motion module with truncate length '{position_encoding_truncate_length}' and scale length '{position_encoding_scale_length}'")
 
-        from enfugue.diffusion.util.torch_util import load_state_dict
-        state_dict = load_state_dict(motion_module)
+            state_dict = motion_module
+        else:
+            logger.debug(f"Loading AnimateDiff motion module {motion_module} with truncate length '{position_encoding_truncate_length}' and scale length '{position_encoding_scale_length}'")
+
+            from enfugue.diffusion.util.torch_util import load_state_dict
+            state_dict = load_state_dict(motion_module) # type: ignore[assignment]
 
         if position_encoding_truncate_length is not None or position_encoding_scale_length is not None:
             for key in state_dict:
@@ -406,8 +440,10 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
                         tensor = F.interpolate(tensor, size=(position_encoding_scale_length, tensor_shape[-1]), mode="bilinear")
                         state_dict[key] = rearrange(tensor, "t b f d -> (t b) f d") # type: ignore[assignment]
                         del tensor
+
         num_motion_keys = len(list(state_dict.keys()))
-        logger.debug(f"Loading {num_motion_keys} keys into UNet state dict (non-strict)")
+        unet_version = "V2" if use_mm_v2 else "V1"
+        logger.debug(f"Loading {num_motion_keys} keys into AnimateDiff UNet {unet_version} state dict (non-strict)")
         unet.load_state_dict(state_dict, strict=False)
         del state_dict
 

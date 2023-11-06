@@ -57,15 +57,14 @@ class ModelManagerController extends Controller {
         modelValues.lycoris = isEmpty(model.lycoris) ? [] : model.lycoris.map((lycoris) => lycoris.getAttributes());
         modelValues.inversion = isEmpty(model.inversion) ? [] : model.inversion.map((inversion) => inversion.model);
         modelValues.vae = isEmpty(model.vae) ? null : model.vae[0].name;
+        modelValues.motion_module = isEmpty(model.motion_module) ? null : model.motion_module[0].name;
 
         if (!isEmpty(model.refiner)) {
             modelValues.refiner = model.refiner[0].model;
-            modelValues.refiner_size = model.refiner[0].size;
         }
         
         if (!isEmpty(model.inpainter)) {
             modelValues.inpainter = model.inpainter[0].model;
-            modelValues.inpainter_size = model.inpainter[0].size;
         }
 
         if (!isEmpty(model.config)) {
@@ -81,16 +80,6 @@ class ModelManagerController extends Controller {
             }
             if (!isEmpty(defaultConfig.negative_prompt_2)) {
                 modelValues.negative_prompt = [defaultConfig.negative_prompt, defaultConfig.negative_prompt_2];
-            }
-            if (!isEmpty(defaultConfig.upscale_diffusion_prompt_2)) {
-                modelValues.upscale_diffusion_prompt = defaultConfig.upscale_diffusion_prompt.map(
-                    (prompt, index) => [prompt, defaultConfig.upscale_diffusion_prompt_2[index]],
-                );
-            }
-            if (!isEmpty(defaultConfig.upscale_diffusion_negative_prompt_2)) {
-                modelValues.upscale_diffusion_negative_prompt = defaultConfig.upscale_diffusion_negative_prompt.map(
-                    (prompt, index) => [prompt, defaultConfig.upscale_diffusion_negative_prompt_2[index]],
-                );
             }
         }
 
@@ -163,7 +152,6 @@ class ModelManagerController extends Controller {
         this.tableView.setColumns({
             "name": "Name",
             "model": "Model",
-            "size": "Size",
             "prompt": "Prompt",
             "negative_prompt": "Negative Prompt"
         });
@@ -214,38 +202,6 @@ class ModelManagerController extends Controller {
                 values.negative_prompt_2 = values.negative_prompt[1];
                 values.negative_prompt = values.negative_prompt[0];
             }
-            let upscalePrompt = [],
-                upscalePrompt2 = [],
-                upscaleNegativePrompt = [],
-                upscaleNegativePrompt2 = [];
-            
-            if (!isEmpty(values.upscale_diffusion_prompt)) {
-                for (let promptPart of values.upscale_diffusion_prompt) {
-                    if (Array.isArray(promptPart)) {
-                        upscalePrompt.push(promptPart[0]);
-                        upscalePrompt2.push(promptPart[1]);
-                    } else {
-                        upscalePrompt.push(promptPart);
-                        upscalePrompt2.push(null);
-                    }
-                }
-            }
-            if (!isEmpty(values.upscale_diffusion_negative_prompt)) {
-                for (let promptPart of values.upscale_diffusion_negative_prompt) {
-                    if (Array.isArray(promptPart)) {
-                        upscaleNegativePrompt.push(promptPart[0]);
-                        upscaleNegativePrompt2.push(promptPart[1]);
-                    } else {
-                        upscaleNegativePrompt.push(promptPart);
-                        upscaleNegativePrompt2.push(null);
-                    }
-                }
-            }
-
-            values.upscale_diffusion_prompt = upscalePrompt;
-            values.upscale_diffusion_prompt_2 = upscalePrompt2;
-            values.upscale_diffusion_negative_prompt = upscaleNegativePrompt;
-            values.upscale_diffusion_negative_prompt_2 = upscaleNegativePrompt2;
 
             try {
                 let response = await this.model.post("/models", null, null, values);

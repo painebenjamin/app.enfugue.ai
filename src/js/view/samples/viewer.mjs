@@ -104,6 +104,20 @@ class SampleView extends View {
     }
 
     /**
+     * Gets the image view as a blob
+     */
+    async getBlob() {
+        return await this.imageViews[4].getBlob();
+    }
+
+    /**
+     * Gets the image view as a data URL
+     */
+    getDataURL() {
+        return this.imageViews[4].getDataURL()
+    }
+
+    /**
      * Sets the image, either a single image or multiple
      */
     setImage(image) {
@@ -148,7 +162,7 @@ class SampleView extends View {
     }
 
     /**
-     * On build, bind mouseenter to show tools
+     * On build, add image and animation containers
      */
     async build() {
         let node = await super.build(),

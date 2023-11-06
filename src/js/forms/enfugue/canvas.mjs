@@ -75,14 +75,14 @@ class CanvasFormView extends FormView {
                 }
             },
             "tileHorizontal": {
-                "label": "Tile Horizontal",
+                "label": "Horizontally<br/>Tiling",
                 "class": CheckboxInputView,
                 "config": {
                     "tooltip": "When enabled, the resulting image will tile horizontally, i.e., when duplicated and placed side-by-side, there will be no seams between the copies."
                 }
             },
             "tileVertical": {
-                "label": "Tile Vertical",
+                "label": "Vertically<br/>Tiling",
                 "class": CheckboxInputView,
                 "config": {
                     "tooltip": "When enabled, the resulting image will tile vertically, i.e., when duplicated and placed with on image on top of the other, there will be no seams between the copies."

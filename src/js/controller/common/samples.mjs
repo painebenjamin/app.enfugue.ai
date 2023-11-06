@@ -1,5 +1,5 @@
 /** @module controller/common/samples */
-import { isEmpty, waitFor } from "../../base/helpers.mjs";
+import { isEmpty, waitFor, sleep } from "../../base/helpers.mjs";
 import { Controller } from "../base.mjs";
 import { SimpleNotification } from "../../common/notify.mjs";
 import { SampleChooserView } from "../../view/samples/chooser.mjs";
@@ -9,6 +9,7 @@ import {
     ImageFilterView
 } from "../../view/samples/filter.mjs";
 import { View } from "../../view/base.mjs";
+import { ImageView } from "../../view/image.mjs";
 import { ToolbarView } from "../../view/menu.mjs";
 import {
     UpscaleFormView,
@@ -33,7 +34,7 @@ class SamplesController extends Controller {
     /**
      * @var int The height of the adjustment window in pixels
      */
-    static imageAdjustmentWindowHeight = 525;
+    static imageAdjustmentWindowHeight = 450;
     
     /**
      * @var int The width of the filter window in pixels
@@ -68,10 +69,7 @@ class SamplesController extends Controller {
     /**
      * Adds the image menu to the passed menu
      */
-    async prepareMenu(menu) {
-        let hideImage = await menu.addItem("Hide Image", "fa-solid fa-eye-slash", "d");
-        hideImage.onClick(() => this.editor.application.images.hideCurrentInvocation());
-
+    async prepareImageMenu(menu) {
         if (!!navigator.clipboard && typeof ClipboardItem === "function") {
             let copyImage = await menu.addItem("Copy to Clipboard", "fa-solid fa-clipboard", "c");
             copyImage.onClick(() => this.copyToClipboard());
@@ -100,19 +98,12 @@ class SamplesController extends Controller {
     }
 
     /**
-     * Pass through some functions to imageview
-     */
-    async waitForLoad() {
-        await this.imageView.waitForLoad();
-    }
-
-    /**
      * Triggers the copy to clipboard
      */
     async copyToClipboard() {
         navigator.clipboard.write([
             new ClipboardItem({
-                "image/png": await this.imageView.getBlob()
+                "image/png": await this.sampleViewer.getBlob()
             })
         ]);
         SimpleNotification.notify("Copied to clipboard!", 2000);
@@ -123,7 +114,11 @@ class SamplesController extends Controller {
      * Asks for a filename first
      */
     async saveToDisk() {
-        this.editor.application.saveBlobAs("Save Image", await this.imageView.getBlob(), ".png");
+        this.application.saveBlobAs(
+            "Save Image",
+            await this.sampleViewer.getBlob(),
+            ".png"
+        );
     }
 
     /**
@@ -131,14 +126,15 @@ class SamplesController extends Controller {
      * Asks for details regarding additional state when clicked
      */
     async sendToCanvas() {
-        this.editor.application.initializeStateFromImage(
-            await this.imageView.getImageAsDataURL(),
-            true, // Save history
-            null, // Prompt for current state
-            {
-                "samples": null
-            } // Remove sample chooser
+        await this.application.layers.emptyLayers();
+        await this.application.images.setDimension(
+            this.sampleViewer.width,
+            this.sampleViewer.height,
+            false,
+            true
         );
+        await this.application.layers.addImageLayer(this.sampleViewer.getDataURL());
+        this.showCanvas();
     }
 
     /**
@@ -148,20 +144,24 @@ class SamplesController extends Controller {
     async startImageDownscale() {
         if (this.checkActiveTool("downscale")) return;
 
-        let imageBeforeDownscale = this.imageView.src,
-            widthBeforeDownscale = this.imageView.width,
-            heightBeforeDownscale = this.imageView.height,
+        let imageBeforeDownscale = this.sampleViewer.getDataURL(),
+            widthBeforeDownscale = this.sampleViewer.width,
+            heightBeforeDownscale = this.sampleViewer.height,
             setDownscaleAmount = async (amount) => {
                 let image = new ImageView(this.config, imageBeforeDownscale);
                 await image.waitForLoad();
                 await image.downscale(amount);
-                this.imageView.setImage(image.src);
-                this.editor.setDimension(image.width, image.height, false);
+                this.sampleViewer.setImage(image.src);
+                this.application.images.setDimension(
+                    image.width,
+                    image.height,
+                    false
+                );
             },
             saveResults = false;
 
         this.imageDownscaleForm = new DownscaleFormView(this.config);
-        this.imageDownscaleWindow = await this.editor.application.windows.spawnWindow(
+        this.imageDownscaleWindow = await this.application.windows.spawnWindow(
             "Downscale Image",
             this.imageDownscaleForm,
             this.constructor.imageDownscaleWindowWidth,
@@ -171,8 +171,8 @@ class SamplesController extends Controller {
             this.imageDownscaleForm = null;
             this.imageDownscaleWindow = null;
             if (!saveResults) {
-                this.imageView.setImage(imageBeforeDownscale);
-                this.editor.setDimension(widthBeforeDownscale, heightBeforeDownscale, false);
+                this.sampleViewer.setImage(imageBeforeDownscale);
+                this.application.images.setDimension(widthBeforeDownscale, heightBeforeDownscale, false);
             }
         });
         this.imageDownscaleForm.onChange(async () => setDownscaleAmount(this.imageDownscaleForm.values.downscale));
@@ -193,7 +193,7 @@ class SamplesController extends Controller {
         if (this.checkActiveTool("upscale")) return;
 
         this.imageUpscaleForm = new UpscaleFormView(this.config);
-        this.imageUpscaleWindow = await this.editor.application.windows.spawnWindow(
+        this.imageUpscaleWindow = await this.application.windows.spawnWindow(
             "Upscale Image",
             this.imageUpscaleForm,
             this.constructor.imageUpscaleWindowWidth,
@@ -205,27 +205,23 @@ class SamplesController extends Controller {
         });
         this.imageUpscaleForm.onCancel(() => this.imageUpscaleWindow.remove());
         this.imageUpscaleForm.onSubmit(async (values) => {
-            await this.editor.application.initializeStateFromImage(
-                await this.imageView.getImageAsDataURL(),
-                true, // Save history
-                true, // Keep current state, except for...
-                {
-                    "upscale": [values],
-                    "generation": {"samples": 1, "iterations": 1},
-                    "samples": null
-                } // ...these state overrides
+            await this.application.layers.emptyLayers();
+            await this.application.images.setDimension(
+                this.sampleViewer.width,
+                this.sampleViewer.height,
+                false,
+                true
             );
-
+            await this.application.layers.addImageLayer(this.sampleViewer.getDataURL());
+            this.publish("quickUpscale", values);
             // Remove window
             this.imageUpscaleWindow.remove();
-
-            // Hide current invocation
-            this.editor.application.images.hideCurrentInvocation()
-
-            // Wait a few ticks then trigger invoke
+            // Show the canvas
+            this.showCanvas();
+            // Wait a tick then trigger invoke
             setTimeout(() => {
-                this.editor.application.publish("tryInvoke");
-            }, 2000);
+                this.application.publish("tryInvoke");
+            }, 1000);
         });
     }
 
@@ -236,8 +232,12 @@ class SamplesController extends Controller {
     async startImageFilter() {
         if (this.checkActiveTool("filter")) return;
 
-        this.imageFilterView = new ImageFilterView(this.config, this.imageView.src, this.node.element.parentElement),
-        this.imageFilterWindow = await this.editor.application.windows.spawnWindow(
+        this.imageFilterView = new ImageFilterView(
+            this.config,
+            this.sampleViewer.getDataURL(),
+            this.sampleViewer.node.element.parentElement
+        );
+        this.imageFilterWindow = await this.application.windows.spawnWindow(
             "Filter Image",
             this.imageFilterView,
             this.constructor.imageFilterWindowWidth,
@@ -254,7 +254,7 @@ class SamplesController extends Controller {
 
         this.imageFilterWindow.onClose(reset);
         this.imageFilterView.onSave(async () => {
-            this.imageView.setImage(this.imageFilterView.getImageSource());
+            await this.sampleViewer.setImage(this.imageFilterView.getImageSource());
             setTimeout(() => {
                 this.imageFilterWindow.remove();
                 reset();
@@ -273,8 +273,12 @@ class SamplesController extends Controller {
     async startImageAdjustment() {
         if (this.checkActiveTool("adjust")) return;
 
-        this.imageAdjustmentView = new ImageAdjustmentView(this.config, this.imageView.src, this.node.element.parentElement),
-        this.imageAdjustmentWindow = await this.editor.application.windows.spawnWindow(
+        this.imageAdjustmentView = new ImageAdjustmentView(
+            this.config,
+            this.sampleViewer.getDataURL(),
+            this.sampleViewer.node.element.parentElement
+        );
+        this.imageAdjustmentWindow = await this.application.windows.spawnWindow(
             "Adjust Image",
             this.imageAdjustmentView,
             this.constructor.imageAdjustmentWindowWidth,
@@ -291,8 +295,7 @@ class SamplesController extends Controller {
 
         this.imageAdjustmentWindow.onClose(reset);
         this.imageAdjustmentView.onSave(async () => {
-            this.imageView.setImage(this.imageAdjustmentView.getImageSource());
-            await this.waitForLoad();
+            await this.sampleViewer.setImage(this.imageAdjustmentView.getImageSource());
             setTimeout(() => {
                 this.imageAdjustmentWindow.remove();
                 reset();
@@ -313,7 +316,7 @@ class SamplesController extends Controller {
     checkActiveTool(intendedAction) {
         if (!isEmpty(this.imageAdjustmentWindow)) {
             if (intendedAction !== "adjust") {
-                this.editor.application.notifications.push(
+                this.notify(
                     "warn",
                     "Finish Adjusting",
                     `Complete adjustments before trying to ${intendedAction}.`
@@ -325,7 +328,7 @@ class SamplesController extends Controller {
         }
         if (!isEmpty(this.imageFilterWindow)) {
             if (intendedAction !== "filter") {
-                this.editor.application.notifications.push(
+                this.notify(
                     "warn",
                     "Finish Filtering",
                     `Complete filtering before trying to ${intendedAction}.`
@@ -337,7 +340,7 @@ class SamplesController extends Controller {
         }
         if (!isEmpty(this.imageUpscaleWindow)) {
             if (intendedAction !== "upscale") {
-                this.editor.application.notifications.push(
+                this.notify(
                     "warn",
                     "Finish Upscaling",
                     `Complete your upscale selection or cancel before trying to ${intendedAction}.`
@@ -349,7 +352,7 @@ class SamplesController extends Controller {
         }
         if (!isEmpty(this.imageDownscaleWindow)) {
             if (intendedAction !== "downscale") {
-                this.editor.application.notifications.push(
+                this.notify(
                     "warn",
                     "Finish Downscaling",
                     `Complete your downscale selection or cancel before trying to ${intendedAction}.`
@@ -366,7 +369,7 @@ class SamplesController extends Controller {
      * Opens the image in a new window
      */
     async sendToWindow() {
-        const url = URL.createObjectURL(await this.getBlob());
+        const url = URL.createObjectURL(await this.sampleViewer.getBlob());
         window.open(url, "_blank");
     }
 
@@ -454,9 +457,6 @@ class SamplesController extends Controller {
             this.images.removeClass("has-sample");
         } else {
             this.samples = sampleImages.map((v) => v.split("/").slice(-1)[0].split(".")[0]);
-            if (!isEmpty(this.activeIndex)) {
-                this.images.addClass("has-sample");
-            }
         }
 
         this.isIntermediate = !isEmpty(this.samples) && sampleImages[0].indexOf("intermediate") !== -1;
@@ -466,14 +466,16 @@ class SamplesController extends Controller {
         this.sampleChooser.setSamples(this.thumbnailUrls).then(() => {
             this.sampleChooser.setActiveIndex(this.activeIndex, false);
         });
-
         this.sampleViewer.setImage(isAnimation ? this.sampleUrls : isEmpty(this.activeIndex) ? null : this.sampleUrls[this.activeIndex]);
         if (this.isAnimation) {
             this.sampleViewer.setFrame(this.activeIndex);
         }
         if (!isEmpty(this.activeIndex)) {
-            waitFor(() => !isEmpty(this.sampleViewer.width) && !isEmpty(this.sampleViewer.height)).then(() => {
-                this.images.setDimension(this.sampleViewer.width, this.sampleViewer.height);
+            sleep(100).then(() => {
+                waitFor(() => !isEmpty(this.sampleViewer.width)).then(() => {
+                    this.images.setDimension(this.sampleViewer.width, this.sampleViewer.height);
+                    this.images.addClass("has-sample");
+                });
             });
         }
     }
@@ -502,9 +504,11 @@ class SamplesController extends Controller {
             this.images.setDimension(this.engine.width, this.engine.height);
             this.sampleViewer.hide();
         } else {
-            waitFor(() => !isEmpty(this.sampleViewer.width) && !isEmpty(this.sampleViewer.height)).then(() => {
-                this.images.setDimension(this.sampleViewer.width, this.sampleViewer.height);
-                this.images.addClass("has-sample");
+            sleep(100).then(() => {
+                waitFor(() => !isEmpty(this.sampleViewer.width)).then(() => {
+                    this.images.setDimension(this.sampleViewer.width, this.sampleViewer.height);
+                    this.images.addClass("has-sample");
+                });
             });
         }
     }
@@ -639,6 +643,10 @@ class SamplesController extends Controller {
         this.sampleChooser.onSetActive((active) => this.setActive(active, false));
         this.sampleChooser.onSetPlaybackRate((rate) => this.setPlaybackRate(rate, false));
 
+        // Create toolbars
+        this.imageToolsMenu = new ToolbarView(this.config);
+        this.prepareImageMenu(this.imageToolsMenu);
+
         // Get initial variables
         this.activeIndex = 0;
         this.playbackRate = SampleChooserView.playbackRate;
@@ -649,8 +657,12 @@ class SamplesController extends Controller {
         // Get image editor in DOM
         let imageEditor = await this.images.getNode();
 
-        // Add sample viewer to canvas
-        imageEditor.find("enfugue-node-canvas").append(await this.sampleViewer.getNode());
+        // Add sample viewer and toolbars to canvas
+        imageEditor.find("enfugue-node-canvas").append(
+            await this.sampleViewer.getNode(),
+            await this.imageToolsMenu.getNode(),
+        );
+        imageEditor.render();
     }
 
     /**

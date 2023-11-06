@@ -68,7 +68,9 @@ class UpscaleController extends Controller {
                 }
             }
         });
-
+        this.subscribe("quickUpscale", (upscaleStep) => {
+            this.upscaleForm.setValues({"steps": [upscaleStep]});
+        });
         this.application.sidebar.addChild(this.upscaleForm);
     }
 }

@@ -38,7 +38,8 @@ import {
     LycorisInputView,
     InversionInputView,
     ModelPickerInputView,
-    DefaultVaeInputView
+    DefaultVaeInputView,
+    MotionModuleInputView,
 } from "../forms/input.mjs";
 import {
     ConfirmFormView,
@@ -351,6 +352,17 @@ class Application {
         };
         InversionInputView.defaultOptions = async () => {
             let models = await this.model.get("/inversions");
+            return models.reduce((carry, datum) => {
+                if (!isEmpty(datum.directory) && datum.directory !== ".") {
+                    carry[datum.name] = `<strong>${datum.name}</strong><span class='note' style='margin-left: 2px'>(${datum.directory})</note>`;
+                } else {
+                    carry[datum.name] = datum.name;
+                }
+                return carry;
+            }, {});
+        };
+        MotionModuleInputView.defaultOptions = async () => {
+            let models = await this.model.get("/motion");
             return models.reduce((carry, datum) => {
                 if (!isEmpty(datum.directory) && datum.directory !== ".") {
                     carry[datum.name] = `<strong>${datum.name}</strong><span class='note' style='margin-left: 2px'>(${datum.directory})</note>`;
@@ -1011,12 +1023,10 @@ class Application {
             if (isEmpty(baseState.canvas)) {
                 baseState.canvas = {};
             }
+
             baseState.canvas.width = image.width;
             baseState.canvas.height = image.height;
-            baseState.images = {
-                nodes: [ImageEditorView.getNodeDataForImage(image)],
-                image: null
-            };
+            baseState.layers = [];
 
             if (!isEmpty(overrideState)) {
                 for (let overrideKey in overrideState) {
@@ -1031,10 +1041,11 @@ class Application {
                     }
                 }
             }
-            this.images.hideCurrentInvocation();
-            this.engine.hideSampleChooser();
+            this.samples.showCanvas();
             await sleep(1); // Sleep 1 frame
             await this.setState(baseState, saveHistory);
+            await sleep(1); // Sleep 1 frame
+            await this.layers.addImageLayer(image);
         } catch(e) {
             console.error(e);
             // pass

@@ -274,11 +274,13 @@ class UNetMidBlock3DCrossAttn(nn.Module):
 
     def set_motion_module_attention_scale(self, scale: float = 1.0) -> None:
         for motion_module in self.motion_modules:
-            motion_module.set_attention_scale_multiplier(scale)
+            if motion_module is not None:
+                motion_module.set_attention_scale_multiplier(scale)
     
     def reset_motion_module_attention_scale(self) -> None:
         for motion_module in self.motion_modules:
-            motion_module.reset_attention_scale_multiplier()
+            if motion_module is not None:
+                motion_module.reset_attention_scale_multiplier()
 
     def forward(self, hidden_states, temb=None, encoder_hidden_states=None, attention_mask=None):
         hidden_states = self.resnets[0](hidden_states, temb)
@@ -393,11 +395,13 @@ class CrossAttnDownBlock3D(nn.Module):
 
     def set_motion_module_attention_scale(self, scale: float = 1.0) -> None:
         for motion_module in self.motion_modules:
-            motion_module.set_attention_scale_multiplier(scale)
+            if motion_module is not None:
+                motion_module.set_attention_scale_multiplier(scale)
 
     def reset_motion_module_attention_scale(self) -> None:
         for motion_module in self.motion_modules:
-            motion_module.reset_attention_scale_multiplier()
+            if motion_module is not None:
+                motion_module.reset_attention_scale_multiplier()
 
     def forward(self, hidden_states, temb=None, encoder_hidden_states=None, attention_mask=None):
         output_states = ()
@@ -512,11 +516,13 @@ class DownBlock3D(nn.Module):
 
     def set_motion_module_attention_scale(self, scale: float = 1.0) -> None:
         for motion_module in self.motion_modules:
-            motion_module.set_attention_scale_multiplier(scale)
+            if motion_module is not None:
+                motion_module.set_attention_scale_multiplier(scale)
 
     def reset_motion_module_attention_scale(self) -> None:
         for motion_module in self.motion_modules:
-            motion_module.reset_attention_scale_multiplier()
+            if motion_module is not None:
+                motion_module.reset_attention_scale_multiplier()
 
     def forward(self, hidden_states, temb=None, encoder_hidden_states=None):
         output_states = ()
@@ -649,11 +655,13 @@ class CrossAttnUpBlock3D(nn.Module):
 
     def set_motion_module_attention_scale(self, scale: float = 1.0) -> None:
         for motion_module in self.motion_modules:
-            motion_module.set_attention_scale_multiplier(scale)
+            if motion_module is not None:
+                motion_module.set_attention_scale_multiplier(scale)
 
     def reset_motion_module_attention_scale(self) -> None:
         for motion_module in self.motion_modules:
-            motion_module.reset_attention_scale_multiplier()
+            if motion_module is not None:
+                motion_module.reset_attention_scale_multiplier()
 
     def forward(
         self,
@@ -791,11 +799,13 @@ class UpBlock3D(nn.Module):
 
     def set_motion_module_attention_scale(self, scale: float = 1.0) -> None:
         for motion_module in self.motion_modules:
-            motion_module.set_attention_scale_multiplier(scale)
+            if motion_module is not None:
+                motion_module.set_attention_scale_multiplier(scale)
 
     def reset_motion_module_attention_scale(self) -> None:
         for motion_module in self.motion_modules:
-            motion_module.reset_attention_scale_multiplier()
+            if motion_module is not None:
+                motion_module.reset_attention_scale_multiplier()
 
     def forward(self, hidden_states, res_hidden_states_tuple, temb=None, upsample_size=None, encoder_hidden_states=None,):
         is_freeu_enabled = (

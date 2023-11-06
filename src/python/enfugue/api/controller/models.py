@@ -31,11 +31,6 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
     INPUT_BLOCK_KEY = "model.diffusion_model.input_blocks.0.0.weight"
 
     MODEL_DEFAULT_FIELDS = [
-        "width",
-        "height",
-        "chunking_size",
-        "chunking_mask_type",
-        "chunking_mask_kwargs",
         "num_inference_steps",
         "guidance_scale",
         "refiner_start",
@@ -48,8 +43,7 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         "refiner_negative_prompt",
         "refiner_negative_prompt_2",
         "prompt_2",
-        "negative_prompt_2",
-        "upscale_steps",
+        "negative_prompt_2"
     ]
 
     DEFAULT_CHECKPOINTS = [
@@ -235,6 +229,24 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
             for filename in self.get_models_in_directory(inversions_dir)
         ]
         return inversions
+
+    @handlers.path("^/api/motion$")
+    @handlers.methods("GET")
+    @handlers.format()
+    @handlers.secured()
+    def get_motion(self, request: Request, response: Response) -> List[Dict[str, Any]]:
+        """
+        Gets installed motion modules
+        """
+        motion_dir = self.get_configured_directory("motion")
+        motion = [
+            {
+                "name": os.path.basename(filename),
+                "directory": os.path.relpath(os.path.dirname(filename), motion_dir)
+            }
+            for filename in self.get_models_in_directory(motion_dir)
+        ]
+        return motion
 
     @handlers.path("^/api/tensorrt$")
     @handlers.methods("GET")
@@ -528,6 +540,9 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         for existing_config in model.config:
             self.database.delete(existing_config)
 
+        for existing_motion_module in model.motion_module:
+            self.database.delete(existing_motion_module)
+
         for existing_vae in model.vae:
             self.database.delete(existing_vae)
         
@@ -599,6 +614,15 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
                 )
             )
 
+        motion_module = request.parsed.get("motion_module", None)
+        if motion_module:
+            self.database.add(
+                self.orm.DiffusionModelMotionModule(
+                    diffusion_model_name=model_name,
+                    name=motion_module,
+                )
+            )
+
         for lora in request.parsed.get("lora", []):
             new_lora = self.orm.DiffusionModelLora(
                 diffusion_model_name=model.name, model=lora["model"], weight=lora["weight"]
@@ -662,6 +686,8 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
             self.database.delete(vae)
         for vae in model.inpainter_vae:
             self.database.delete(vae)
+        for motion_module in model.motion_module:
+            self.database.delete(motion_module)
         for config in model.config:
             self.database.delete(config)
 
@@ -731,6 +757,11 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         if inpainter_vae:
             new_inpainter_vae = self.orm.DiffusionModelInpainterVAE(diffusion_model_name=new_model.name, name=inpainter_vae)
             self.database.add(new_inpainter_vae)
+            self.database.commit()
+        motion_module = request.parsed.get("motion_module", None)
+        if motion_module:
+            new_motion_module = self.orm.DiffusionModelMotionModule(diffusion_model_name=new_model.name, name=motion_module)
+            self.database.add(new_motion_module)
             self.database.commit()
         for lora in request.parsed.get("lora", []):
             new_lora = self.orm.DiffusionModelLora(

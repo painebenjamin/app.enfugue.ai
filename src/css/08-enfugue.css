@@ -2282,6 +2282,7 @@ enfugue-prompt-travel-view div.prompts-track .notches .notch {
     font-family: var(--monospace-font), monospace;
     font-size: 10px;
     font-weight: normal;
+    text-align: right;
     color: var(--theme-color-tertiary);
 }
 

@@ -48,7 +48,8 @@ import {
     ModelPickerStringInputView,
     ModelPickerListInputView,
     ModelPickerInputView,
-    ModelMergeModeInputView
+    ModelMergeModeInputView,
+    MotionModuleInputView,
 } from "./input/enfugue/models.mjs";
 import {
     EngineSizeInputView,
@@ -162,4 +163,5 @@ export {
     BlendMethodInputView,
     AnimationLoopInputView,
     AnimationInterpolationStepsInputView,
+    MotionModuleInputView,
 };

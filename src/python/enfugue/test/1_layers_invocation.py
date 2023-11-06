@@ -27,6 +27,5 @@ def main() -> None:
         )["images"][0].save(os.path.join(save_dir, "./puppy-plan.png"))
 
 
-
 if __name__ == "__main__":
     main()

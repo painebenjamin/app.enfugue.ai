@@ -969,13 +969,28 @@ enfugue-node-editor.image-editor enfugue-node:hover form:hover {
 }
 
 enfugue-node-editor.image-editor enfugue-node-canvas enfugue-toolbar {
-    left: auto;
-    right: 0;
-    top: 0;
-    bottom: 0;
+    display: none;
+}
+
+enfugue-node-editor.image-editor.has-sample enfugue-node-canvas enfugue-toolbar {
+    display: flex;
     background-color: transparent;
-    background-image: linear-gradient(to right, transparent, rgba(0,0,0,0.4));
+    background-image: linear-gradient(to right, transparent, rgba(0,0,0,0.8));
     border: none;
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    flex-flow: column nowrap;
+    justify-content: flex-start;
+    gap: 2px;
+    padding: 2px;
+    opacity: 0.2;
+    transition: opacity 0.25s ease-in-out;
+}
+
+enfugue-node-editor.image-editor.has-sample enfugue-node-canvas:hover enfugue-toolbar {
+    opacity: 1.0;
 }
 
 enfugue-node-editor.image-editor enfugue-node-canvas enfugue-toolbar-item {

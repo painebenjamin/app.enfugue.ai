@@ -18,7 +18,8 @@ import {
     PromptInputView,
     SliderPreciseInputView,
     FloatInputView,
-    MaskTypeInputView
+    MaskTypeInputView,
+    MotionModuleInputView,
 } from "../input.mjs";
 
 /**
@@ -104,6 +105,10 @@ class ModelFormView extends FormView {
                 "class": VaeInputView,
                 "label": "Inpainting VAE"
             },
+            "motion_module": {
+                "label": "Motion Module",
+                "class": MotionModuleInputView
+            }
         },
         "Prompts": {
             "prompt": {
@@ -232,11 +237,6 @@ class AbridgedModelFormView extends ModelFormView {
     static className = "model-configuration-form-view";
 
     /**
-     * @var boolean no submit button
-     */
-    static autoSubmit = true;
-
-    /**
      * @var bool No cancel
      */
     static canCancel = false;
@@ -299,6 +299,10 @@ class AbridgedModelFormView extends ModelFormView {
             "inpainter_vae": {
                 "label": "Inpainting VAE",
                 "class": VaeInputView
+            },
+            "motion_module": {
+                "label": "Motion Module",
+                "class": MotionModuleInputView
             }
         }
     };

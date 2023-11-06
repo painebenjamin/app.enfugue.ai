@@ -773,7 +773,7 @@ class InvocationController extends Controller {
      */
     set scheduler(newScheduler) {
         if (this.scheduler !== newScheduler) {
-            this.publish("engineSchedulerChange");
+            this.publish("engineSchedulerChange", newScheduler);
         }
         this.kwargs.scheduler = newScheduler;
     }
@@ -790,9 +790,26 @@ class InvocationController extends Controller {
      */
     set vae(newVae) {
         if (this.vae !== newVae) {
-            this.publish("engineVaeChange");
+            this.publish("engineVaeChange", newVae);
         }
         this.kwargs.vae = newVae;
+    }
+
+    /**
+     * @return str The motion module, if set
+     */
+    get motionModule() {
+        return this.kwargs.motion_module || null;
+    }
+
+    /**
+     * @param str The motion module
+     */
+    set motionModule(newModule) {
+        if (this.motionModule !== newModule) {
+            this.publish("engineMotionModuleChange", newModule);
+        }
+        this.kwargs.motion_module = newModule;
     }
 
     /**

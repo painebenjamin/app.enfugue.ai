@@ -22,7 +22,6 @@ def main() -> None:
         # Start with absolute defaults.
         # Even if there's nothing on your machine, this should work by downloading everything needed.
         manager = DiffusionPipelineManager()
-        manager.size = 1024
         manager.model = DEFAULT_SDXL_MODEL
         
         def run_and_save(filename: str) -> None:

@@ -756,6 +756,9 @@ class LayersController extends Controller {
      * Adds an image layer
      */
     async addImageLayer(imageData, activate = true, imageNode = null, name = "Image") {
+        if (imageData instanceof ImageView) {
+            imageData = imageData.src;
+        }
         if (isEmpty(imageNode)) {
             imageNode = await this.images.addImageNode(imageData, name);
         }
@@ -883,12 +886,10 @@ class LayersController extends Controller {
 
         // Add layer tools
         let imageLayer = await this.layersView.toolbar.addItem("Image/Video", "fa-regular fa-image"),
-            scribbleLayer = await this.layersView.toolbar.addItem("Draw Scribble", "fa-solid fa-pencil"),
-            promptLayer = await this.layersView.toolbar.addItem("Region Prompt", "fa-solid fa-text-width");
+            scribbleLayer = await this.layersView.toolbar.addItem("Draw Scribble", "fa-solid fa-pencil");
 
         imageLayer.onClick(() => this.promptAddImageLayer());
         scribbleLayer.onClick(() => this.addScribbleLayer());
-        promptLayer.onClick(() => this.addPromptLayer());
 
         // Add layer options
         this.application.container.appendChild(await this.layerOptions.render());

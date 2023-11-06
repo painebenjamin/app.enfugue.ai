@@ -210,32 +210,29 @@ class EnfugueAPIServerBase(
         lora_dir = self.get_configured_directory("lora")
         lycoris_dir = self.get_configured_directory("lycoris")
         inversion_dir = self.get_configured_directory("inversion")
+        motion_dir = self.get_configured_directory("motion")
 
         model = find_file_in_directory(checkpoint_dir, diffusion_model.model)
         if not model:
             raise ValueError(f"Could not find {diffusion_model.model} in {checkpoint_dir}")
 
-        size = diffusion_model.size
-
         refiner = diffusion_model.refiner
         if refiner:
-            refiner_size = refiner[0].size
             refiner_model = find_file_in_directory(checkpoint_dir, refiner[0].model)
             if not refiner_model:
                 raise ValueError(f"Could not find {refiner[0].model} in {checkpoint_dir}")
             refiner = refiner_model
         else:
-            refiner, refiner_size = None, None
+            refiner = None
 
         inpainter = diffusion_model.inpainter
         if inpainter:
-            inpainter_size = inpainter[0].size
             inpainter_model = os.path.join(checkpoint_dir, inpainter[0].model)
             if not inpainter_model:
                 raise ValueError(f"Could not find {inpainter[0].model} in {checkpoint_dir}")
             inpainter = inpainter_model
         else:
-            inpainter, inpainter_size = None, None
+            inpainter = None
 
         scheduler = diffusion_model.scheduler
         if scheduler:
@@ -258,6 +255,12 @@ class EnfugueAPIServerBase(
             inpainter_vae = diffusion_model.inpainter_vae[0].name
         else:
             inpainter_vae = None
+
+        motion_module = diffusion_model.motion_module
+        if motion_module:
+            motion_module = diffusion_model.motion_module[0].name
+        else:
+            motion_module = None
 
         lora = []
         for lora_model in diffusion_model.lora:
@@ -286,17 +289,15 @@ class EnfugueAPIServerBase(
         plan_kwargs: Dict[str, Any] = {
             "model": model,
             "refiner": refiner,
-            "refiner_size": refiner_size,
             "inpainter": inpainter,
-            "inpainter_size": inpainter_size,
-            "size": size,
             "lora": lora,
             "lycoris": lycoris,
             "inversion": inversion,
             "scheduler": scheduler,
             "vae": vae,
             "refiner_vae": refiner_vae,
-            "inpainter_vae": inpainter_vae
+            "inpainter_vae": inpainter_vae,
+            "motion_module": motion_module
         }
 
         model_config = {}

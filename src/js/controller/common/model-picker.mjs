@@ -504,7 +504,6 @@ class ModelPickerController extends Controller {
         });
         
         this.abridgedModelFormView.onSubmit(async (values) => {
-            console.log(values);
             this.engine.lora = values.lora;
             this.engine.lycoris = values.lycoris;
             this.engine.inversion = values.inversion;
@@ -513,6 +512,11 @@ class ModelPickerController extends Controller {
             this.engine.refinerVae = values.refiner_vae;
             this.engine.inpainter = values.inpainter;
             this.engine.inpainterVae = values.inpainter_vae;
+            this.engine.motionModule = values.motion_module;
+            this.abridgedModelFormView.enable();
+            if (!isEmpty(this.modelFormWindow)) {
+                this.modelFormWindow.remove();
+            }
         });
 
         this.abridgedModelFormView.onChange(async () => {

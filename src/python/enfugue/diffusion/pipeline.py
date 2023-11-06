@@ -3069,6 +3069,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                         img[image_len-1]
                         for i in range(animation_frames - image_len)
                     ]
+                else:
+                    img = img[:animation_frames]
             else:
                 img = img[:1]
 
@@ -3079,6 +3081,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
     def standardize_control_images(
         self,
         control_images: ControlImageArgType=None,
+        animation_frames: Optional[int]=None,
     ) -> Optional[
         Dict[
             str,
@@ -3128,6 +3131,14 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
                 if not isinstance(controlnet_image, list):
                     controlnet_image = [controlnet_image]
+
+                if animation_frames:
+                    image_len = len(controlnet_image)
+                    if image_len < animation_frames:
+                        controlnet_image += [
+                            controlnet_image[image_len-1]
+                            for i in range(animation_frames - image_len)
+                        ]
 
                 standardized[name].append((
                     controlnet_image,
@@ -3209,7 +3220,10 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             mask,
             animation_frames=animation_frames
         )
-        control_images = self.standardize_control_images(control_images) # type: ignore[assignment]
+        control_images = self.standardize_control_images( # type: ignore[assignment]
+            control_images,
+            animation_frames=animation_frames
+        )
 
         if ip_adapter_images is not None:
             ip_adapter_images = self.standardize_ip_adapter_images(

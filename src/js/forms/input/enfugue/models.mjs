@@ -232,6 +232,16 @@ class CheckpointInputView extends SearchListInputView {
 };
 
 /**
+ * Motion module input - will be populated at init.
+ */
+class MotionModuleInputView extends SearchListInputView {
+    /**
+     * @var class The class of the string input, override so we can override setValue
+     */
+    static stringInputClass = ModelPickerStringInputView;
+};
+
+/**
  * Lora input additionally has weight; create the FormView here,
  * then define a RepeatableInputView of a FormInputView
  */
@@ -409,5 +419,6 @@ export {
     ModelPickerStringInputView,
     ModelPickerListInputView,
     ModelPickerInputView,
-    ModelMergeModeInputView
+    ModelMergeModeInputView,
+    MotionModuleInputView,
 };

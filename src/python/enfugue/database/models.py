@@ -14,6 +14,7 @@ __all__ = [
     "DiffusionModelLora",
     "DiffusionModelLycoris",
     "DiffusionModelInversion",
+    "DiffusionModelMotionModule",
 ]
 
 
@@ -140,3 +141,13 @@ class DiffusionModelInversion(EnfugueObjectBase):
     model = Column(String(256), primary_key=True)
 
     diffusion_model = DiffusionModel.Relationship(backref="inversion")
+
+
+class DiffusionModelMotionModule(EnfugueObjectBase):
+    __tablename__ = "model_motion_module"
+
+    diffusion_model_name = Column(
+        DiffusionModel.ForeignKey("name", ondelete="CASCADE", onupdate="CASCADE"), primary_key=True, unique=True
+    )
+    name = Column(String(256), nullable=False)
+    diffusion_model = DiffusionModel.Relationship(backref="motion_module", uselist=False)
