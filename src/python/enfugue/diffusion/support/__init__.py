@@ -5,9 +5,8 @@ from enfugue.diffusion.support.pose import PoseDetector
 from enfugue.diffusion.support.processor import ControlImageProcessor
 from enfugue.diffusion.support.upscale import Upscaler
 from enfugue.diffusion.support.background import BackgroundRemover
-from enfugue.diffusion.support.interpolate import Interpolator
 from enfugue.diffusion.support.ip import IPAdapter
 
-EdgeDetector, LineDetector, DepthDetector, PoseDetector, ControlImageProcessor, Upscaler, Interpolator, BackgroundRemover, IPAdapter  # Silence importchecker
+EdgeDetector, LineDetector, DepthDetector, PoseDetector, ControlImageProcessor, Upscaler, BackgroundRemover, IPAdapter  # Silence importchecker
 
-__all__ = ["EdgeDetector", "LineDetector", "DepthDetector", "PoseDetector", "ControlImageProcessor", "Upscaler", "BackgroundRemover", "Interpolator", "IPAdapter"]
+__all__ = ["EdgeDetector", "LineDetector", "DepthDetector", "PoseDetector", "ControlImageProcessor", "Upscaler", "BackgroundRemover", "IPAdapter"]

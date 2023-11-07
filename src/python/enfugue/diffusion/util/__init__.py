@@ -8,4 +8,4 @@ from enfugue.diffusion.util.prompt_util import *
 from enfugue.diffusion.util.vision_util import *
 from enfugue.diffusion.util.tensorrt_util import *
 from enfugue.diffusion.util.generation_util import *
-from enfugue.diffusion.util.output_util import *
+from enfugue.diffusion.util.cuda_util import *

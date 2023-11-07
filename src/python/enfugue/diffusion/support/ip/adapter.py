@@ -3,12 +3,6 @@ from __future__ import annotations
 from typing import List, Union, Dict, Any, Iterator, Optional, Tuple, Callable, TYPE_CHECKING
 from typing_extensions import Self
 from contextlib import contextmanager
-
-from transformers import (
-    CLIPVisionModelWithProjection,
-    CLIPImageProcessor,
-    PretrainedConfig
-)
 from enfugue.util import logger
 from enfugue.diffusion.support.model import SupportModel
 
@@ -19,6 +13,11 @@ if TYPE_CHECKING:
     from enfugue.diffusion.support.ip.projection import ImageProjectionModel
     from enfugue.diffusion.support.ip.resampler import Resampler # type: ignore
     from diffusers.models import UNet2DConditionModel, ControlNetModel
+    from transformers import (
+        CLIPVisionModelWithProjection,
+        CLIPImageProcessor,
+        PretrainedConfig
+    )
 
 class IPAdapter(SupportModel):
     """
@@ -365,6 +364,10 @@ class IPAdapter(SupportModel):
         """
         Gets the encoder, initializes if needed
         """
+        from transformers import (
+            CLIPVisionModelWithProjection,
+            PretrainedConfig
+        )
         if not hasattr(self, "_encoder"):
             if self.is_sdxl:
                 logger.debug(f"Initializing CLIPVisionModelWithProjection from {self.xl_encoder_model}")
@@ -449,6 +452,7 @@ class IPAdapter(SupportModel):
         """
         Gets the processor, initializes if needed
         """
+        from transformers import CLIPImageProcessor
         if not hasattr(self, "_processor"):
             self._processor = CLIPImageProcessor()
         return self._processor

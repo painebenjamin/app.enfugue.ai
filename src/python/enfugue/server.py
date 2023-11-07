@@ -1,5 +1,9 @@
 import os
 import tempfile
+import multiprocessing
+
+multiprocessing.set_start_method("spawn", force=True)
+
 from typing import Dict, Any
 
 from enfugue.api import EnfugueAPIServer

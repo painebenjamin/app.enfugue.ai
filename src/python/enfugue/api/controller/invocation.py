@@ -518,3 +518,4 @@ class EnfugueAPIInvocationController(EnfugueAPIControllerBase):
         Stops the engine and any invocations.
         """
         self.manager.stop_engine()
+        self.manager.stop_interpolator()

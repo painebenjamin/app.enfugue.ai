@@ -130,9 +130,11 @@ class SupportModel:
             import torch.cuda
 
             torch.cuda.empty_cache()
+            torch.cuda.synchronize()
         elif self.device.type == "mps":
             import torch
             import torch.mps
 
             torch.mps.empty_cache()
+            torch.mps.synchronize()
         gc.collect()

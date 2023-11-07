@@ -152,6 +152,7 @@ class EnfugueAPIServerBase(
             logger.debug("Stopping system manager")
             self.manager.stop_monitor()
             self.manager.stop_engine()
+            self.manager.stop_interpolator()
 
     def format_plan(self, plan: LayeredInvocation) -> Dict[str, Any]:
         """

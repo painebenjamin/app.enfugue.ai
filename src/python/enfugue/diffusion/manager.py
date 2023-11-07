@@ -35,7 +35,7 @@ if TYPE_CHECKING:
     from diffusers.models import ControlNetModel, AutoencoderKL, AutoencoderTiny
     from diffusers.schedulers.scheduling_utils import KarrasDiffusionSchedulers
     from enfugue.diffusion.pipeline import EnfugueStableDiffusionPipeline
-    from enfugue.diffusion.support import ControlImageProcessor, Upscaler, IPAdapter, BackgroundRemover, Interpolator
+    from enfugue.diffusion.support import ControlImageProcessor, Upscaler, IPAdapter, BackgroundRemover
     from enfugue.diffusion.animate.pipeline import EnfugueAnimateStableDiffusionPipeline
 
 def noop(*args: Any) -> None:
@@ -307,7 +307,7 @@ class DiffusionPipelineManager:
     @property
     def seed(self) -> int:
         """
-        Gets the seed. If there is none, creates a random one once.
+        Gets the seed. If there is None, creates a random one once.
         """
         if not hasattr(self, "_seed"):
             self._seed = self.configuration.get("enfugue.seed", random.randint(0, 2**63 - 1))
@@ -655,7 +655,7 @@ class DiffusionPipelineManager:
     @property
     def vae(self) -> Optional[AutoencoderKL]:
         """
-        Gets the configured VAE (or none.)
+        Gets the configured VAE (or None.)
         """
         if not hasattr(self, "_vae"):
             self._vae = self.get_vae(self.vae_name)
@@ -706,7 +706,7 @@ class DiffusionPipelineManager:
     @property
     def refiner_vae(self) -> Optional[AutoencoderKL]:
         """
-        Gets the configured refiner VAE (or none.)
+        Gets the configured refiner VAE (or None.)
         """
         if not hasattr(self, "_refiner_vae"):
             self._refiner_vae = self.get_vae(self.refiner_vae_name)
@@ -757,7 +757,7 @@ class DiffusionPipelineManager:
     @property
     def inpainter_vae(self) -> Optional[AutoencoderKL]:
         """
-        Gets the configured inpainter VAE (or none.)
+        Gets the configured inpainter VAE (or None.)
         """
         if not hasattr(self, "_inpainter_vae"):
             self._inpainter_vae = self.get_vae(self.inpainter_vae_name)
@@ -808,7 +808,7 @@ class DiffusionPipelineManager:
     @property
     def animator_vae(self) -> Optional[AutoencoderKL]:
         """
-        Gets the configured animator VAE (or none.)
+        Gets the configured animator VAE (or None.)
         """
         if not hasattr(self, "_animator_vae"):
             self._animator_vae = self.get_vae(self.animator_vae_name)
@@ -3682,7 +3682,7 @@ class DiffusionPipelineManager:
             del self._animator_pipeline
             self.clear_memory()
 
-    def unload_pipeline(self, reason: str = "none") -> None:
+    def unload_pipeline(self, reason: str = "None") -> None:
         """
         Calls the pipeline deleter.
         """
@@ -3712,7 +3712,7 @@ class DiffusionPipelineManager:
                 self._pipeline = self._pipeline.to("cpu") # type: ignore[attr-defined]
             self.clear_memory()
 
-    def unload_refiner(self, reason: str = "none") -> None:
+    def unload_refiner(self, reason: str = "None") -> None:
         """
         Calls the refiner deleter.
         """
@@ -3742,7 +3742,7 @@ class DiffusionPipelineManager:
                 self._refiner_pipeline = self._refiner_pipeline.to("cpu") # type: ignore[attr-defined]
             self.clear_memory()
 
-    def unload_inpainter(self, reason: str = "none") -> None:
+    def unload_inpainter(self, reason: str = "None") -> None:
         """
         Calls the inpainter deleter.
         """
@@ -3774,7 +3774,7 @@ class DiffusionPipelineManager:
                 self._inpainter_pipeline = self._inpainter_pipeline.to("cpu") # type: ignore[attr-defined]
             self.clear_memory()
 
-    def unload_animator(self, reason: str = "none") -> None:
+    def unload_animator(self, reason: str = "None") -> None:
         """
         Calls the animator deleter.
         """
@@ -3872,21 +3872,6 @@ class DiffusionPipelineManager:
             )
             self._ip_adapter.task_callback = self._task_callback
         return self._ip_adapter
-
-    @property
-    def interpolator(self) -> Interpolator:
-        """
-        Gets the frame interpolator.
-        """
-        if not hasattr(self, "_interpolator"):
-            from enfugue.diffusion.support.interpolate import Interpolator
-            self._interpolator = Interpolator(
-                self.engine_other_dir,
-                device=self.device,
-                dtype=self.dtype,
-                offline=self.offline
-            )
-        return self._interpolator
 
     def get_xl_controlnet(self, controlnet: str) -> ControlNetModel:
         """
@@ -4447,7 +4432,7 @@ class DiffusionPipelineManager:
                                 position_encoding_scale_length=self.position_encoding_scale_length,
                             )
                         except Exception as ex:
-                            logger.warning(f"Received exception {ex} when loading motion module weights, will try to reload the entire pipeline.")
+                            logger.warning(f"Received Exception {ex} when loading motion module weights, will try to reload the entire pipeline.")
                             del pipe
                             self.reload_motion_module = False
                             self.unload_animator("Re-initializing Pipeline")

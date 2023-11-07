@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import re
 import datetime
 
@@ -7,6 +9,7 @@ from pibble.util.strings import get_uuid, Serializer
 
 from enfugue.util import logger, get_version
 from enfugue.diffusion.engine import DiffusionEngine
+from enfugue.diffusion.interpolate import InterpolationEngine
 from enfugue.diffusion.invocation import LayeredInvocation
 from multiprocessing import Lock
 
@@ -18,12 +21,16 @@ __all__ = ["Invocation"]
 class TerminatedError(Exception):
     pass
 
+def get_relative_paths(paths: List[str]) -> List[str]:
+    """
+    Gets relative paths from a list of paths (os agnostic)
+    """
+    return ["/".join(re.split(r"/|\\", path)[-2:]) for path in paths]
 
 class Invocation:
     """
     Holds the details for a single invocation
     """
-
     start_time: Optional[datetime.datetime]
     end_time: Optional[datetime.datetime]
     last_intermediate_time: Optional[datetime.datetime]
@@ -39,6 +46,7 @@ class Invocation:
     def __init__(
         self,
         engine: DiffusionEngine,
+        interpolator: InterpolationEngine,
         plan: LayeredInvocation,
         engine_image_dir: str,
         engine_intermediate_dir: str,
@@ -55,6 +63,7 @@ class Invocation:
         self.lock = Lock()
         self.uuid = get_uuid()
         self.engine = engine
+        self.interpolator = interpolator
         self.plan = plan
 
         self.results_dir = engine_image_dir
@@ -64,22 +73,28 @@ class Invocation:
         self.communication_timeout = communication_timeout
         self.metadata = metadata
         self.save = save
+
         self.video_format = video_format
         self.video_codec = video_codec
         self.video_rate = video_rate
 
         self.id = None
+        self.interpolate_id = None
         self.error = None
+
         self.start_time = None
         self.end_time = None
+        self.start_interpolate_time = None
+        self.end_interpolate_time = None
         self.last_intermediate_time = None
+
         self.last_step = None
         self.last_total = None
         self.last_rate = None
         self.last_images = None
         self.last_task = None
         self.results = None
-        self.video_result = None
+        self.interpolate_result = None
 
     def _communicate(self) -> None:
         """
@@ -98,6 +113,7 @@ class Invocation:
                         setattr(self, f"last_{key}", last_intermediate[key])
                 self.last_intermediate_time = datetime.datetime.now()
             end_comm = (datetime.datetime.now() - start_comm).total_seconds()
+
             try:
                 result = self.engine.wait(self.id, timeout=0.1)
             except TimeoutError:
@@ -105,10 +121,12 @@ class Invocation:
             except Exception as ex:
                 result = None
                 self.error = ex
+
             if result is not None:
                 # Complete
                 self.results = []
                 self.end_time = datetime.datetime.now()
+
                 if "images" in result:
                     is_nsfw = result.get("nsfw_content_detected", [])
                     for i, image in enumerate(result["images"]):
@@ -128,24 +146,21 @@ class Invocation:
                             self.results.append(image_path)
                         else:
                             self.results.append("unsaved")
-                if "video" in result and result["video"] is not None and self.save:
-                    from enfugue.diffusion.util.video_util import Video
-                    video_path = f"{self.results_dir}/{self.uuid}.{self.video_format}"
-                    Video(result["video"]).save(
-                        video_path,
-                        rate=self.video_rate,
-                        encoder=self.video_codec
-                    )
-                    self.video_result = video_path
+
                 if "error" in result:
                     error_type = resolve(result["error"])
                     self.error = error_type(result["message"])
                     if "traceback" in result:
                         logger.error(f"Traceback for invocation {self.uuid}:")
                         logger.debug(result["traceback"])
+
                 if self.metadata is not None and "tensorrt_build" in self.metadata:
                     logger.info("TensorRT build complete, terminating engine to start fresh on next invocation.")
                     self.engine.terminate_process()
+
+                if self.results and self.plan.interpolate_frames and self.plan.animation_frames:
+                    # Start interpolation
+                    self.start_interpolate()
 
         except TimeoutError:
             return
@@ -174,6 +189,76 @@ class Invocation:
         """
         with self.lock:
             self._communicate()
+
+    def start_interpolate(self) -> None:
+        """
+        Starts the interpolation (is locked when called)
+        """
+        from PIL import Image
+        if self.interpolate_id is not None:
+            raise IOError("Interpolation already began.")
+        assert isinstance(self.results, list), "Must have a list of image results"
+        self.interpolate_start_time = datetime.datetime.now()
+        self.interpolate_id = self.interpolator.dispatch("plan", {
+            "reflect": self.plan.reflect,
+            "frames": self.plan.interpolate_frames,
+            "images": [
+                Image.open(path) for path in self.results
+            ],
+            "save_path": f"{self.results_dir}/{self.uuid}.{self.video_format}",
+            "video_rate": self.video_rate,
+            "video_codec": self.video_codec
+        })
+
+    def _interpolate_communicate(self) -> None:
+        """
+        Tries to communicate with the engine to see what's going on.
+        """
+        if self.interpolate_id is None:
+            raise IOError("Interpolation not started yet.")
+        if self.interpolate_result is not None: # type: ignore[unreachable]
+            raise IOError("Interpolation already completed.")
+        try:
+            start_comm = datetime.datetime.now()
+            last_intermediate = self.interpolator.last_intermediate(self.interpolate_id)
+            if last_intermediate is not None:
+                for key in ["step", "total", "rate", "task"]:
+                    if key in last_intermediate:
+                        setattr(self, f"last_{key}", last_intermediate[key])
+                self.last_intermediate_time = datetime.datetime.now()
+            end_comm = (datetime.datetime.now() - start_comm).total_seconds()
+
+            try:
+                result = self.interpolator.wait(self.interpolate_id, timeout=0.1)
+            except TimeoutError:
+                raise
+            except Exception as ex:
+                result = None
+                self.error = ex
+
+            if result is not None:
+                # Complete
+                if isinstance(result, list):
+                    from enfugue.diffusion.util.video_util import Video
+                    self.interpolate_end_time = datetime.datetime.now()
+                    video_path = f"{self.results_dir}/{self.uuid}.{self.video_format}"
+                    Video(result).save(
+                        video_path,
+                        rate=self.video_rate,
+                        encoder=self.video_codec
+                    )
+                    self.interpolate_result = video_path
+                else:
+                    self.interpolate_result = result
+        except TimeoutError:
+            return
+
+    def poll_interpolator(self) -> None:
+        """
+        Calls communicate on the interpolator once (locks)
+        """
+        with self.lock:
+            self._interpolate_communicate()
 
     @property
     def is_dangling(self) -> bool:
@@ -230,17 +315,28 @@ class Invocation:
 
             images = None
             video = None
-            if self.results is not None or self.video_result is not None:
-                status = "completed"
-                if self.results is not None:
-                    images = ["/".join(re.split(r"/|\\", path)[-2:]) for path in self.results]
-                if self.video_result is not None:
-                    video = "/".join(re.split(r"/|\\", self.video_result)[-2:])
+
+            if self.results is not None:
+                if (self.plan.interpolate_frames or self.plan.reflect) and self.plan.animation_frames:
+                    if self.interpolate_result:
+                        status = "completed" # type: ignore[unreachable]
+                        video = get_relative_paths([self.interpolate_result])[0]
+                    else:
+                        status = "interpolating"
+                        self._interpolate_communicate()
+                else:
+                    status = "completed"
+                images = get_relative_paths(self.results)
             else:
                 status = "processing"
                 self._communicate()
-                if self.last_images is not None:
-                    images = ["/".join(re.split(r"/|\\", path)[-2:]) for path in self.last_images]
+                if self.results is not None:
+                    # Finished in previous _communicate() calling
+                    if not ((self.plan.interpolate_frames or self.plan.reflect) and self.plan.animation_frames): # type: ignore[unreachable]
+                        status = "completed"
+                    images = get_relative_paths(self.results)
+                elif self.last_images is not None:
+                    images = get_relative_paths(self.last_images)
 
             if self.end_time is None:
                 duration = (datetime.datetime.now() - self.start_time).total_seconds()
@@ -272,6 +368,7 @@ class Invocation:
                 "rate": rate,
                 "task": self.last_task
             }
+
             if self.metadata:
                 formatted["metadata"] = self.metadata
 

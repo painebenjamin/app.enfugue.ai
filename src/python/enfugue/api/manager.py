@@ -14,6 +14,8 @@ from pibble.util.numeric import human_size
 from enfugue.api.downloads import Download
 from enfugue.api.invocations import Invocation
 from enfugue.diffusion.engine import DiffusionEngine
+from enfugue.diffusion.interpolate import InterpolationEngine
+
 from enfugue.diffusion.invocation import LayeredInvocation
 from enfugue.util import logger, check_make_directory, find_file_in_directory
 from enfugue.diffusion.constants import (
@@ -100,6 +102,7 @@ class SystemManager:
         self.active_invocation = None
         self.configuration = configuration
         self.engine = DiffusionEngine(self.configuration)
+        self.interpolator = InterpolationEngine(self.configuration)
         self.downloads = {}
         self.invocations = {}
         self.download_queue = []
@@ -484,6 +487,7 @@ class SystemManager:
 
         invocation = Invocation(
             engine=self.engine,
+            interpolator=self.interpolator,
             plan=plan,
             engine_image_dir=self.engine_image_dir,
             engine_intermediate_dir=self.engine_intermediate_dir,
@@ -498,6 +502,7 @@ class SystemManager:
             self.invocation_queue.append(invocation)
         if user_id not in self.invocations:
             self.invocations[user_id] = []
+
         self.invocations[user_id].append(invocation)
         return invocation
 
@@ -515,16 +520,22 @@ class SystemManager:
 
     def stop_engine(self) -> None:
         """
-        Stops the engine forcibly.
+        stops the engine forcibly.
         """
         if self.active_invocation is not None:
             try:
                 self.active_invocation.terminate()
                 time.sleep(5)
             except Exception as ex:
-                logger.info(f"Ignoring exception during invocation termination: {ex}")
+                logger.info(f"ignoring exception during invocation termination: {ex}")
             self.active_invocation = None
         self.engine.terminate_process()
+
+    def stop_interpolator(self) -> None:
+        """
+        stops the interpolator forcibly.
+        """
+        self.interpolator.terminate_process()
 
     def clean_intermediates(self) -> None:
         """

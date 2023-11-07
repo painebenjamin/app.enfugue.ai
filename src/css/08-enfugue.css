@@ -2313,6 +2313,25 @@ enfugue-application.prompt-travel div.controls-helper-view {
     bottom: 215px;
 }
 
+enfugue-video-view {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+}
+
+enfugue-video-view video {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
 /**
  * Temporary color highlights for new features
  */

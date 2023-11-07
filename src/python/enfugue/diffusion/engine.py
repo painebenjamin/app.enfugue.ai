@@ -3,7 +3,8 @@ from __future__ import annotations
 import time
 import datetime
 
-from typing import Optional, Any, Union, Dict, TYPE_CHECKING
+from typing import Optional, Any, Union, Dict, Type, List, TYPE_CHECKING
+from typing_extensions import Self
 from multiprocessing import Queue as MakeQueue
 from multiprocessing.queues import Queue
 from queue import Empty
@@ -12,20 +13,23 @@ from pibble.api.configuration import APIConfiguration
 from pibble.util.strings import Serializer
 from pibble.util.helpers import resolve
 
-from enfugue.diffusion.process import DiffusionEngineProcess
 from enfugue.util import logger
+from enfugue.diffusion.process import (
+    EngineProcess,
+    DiffusionEngineProcess
+)
 
 if TYPE_CHECKING:
     from enfugue.diffusion.invocation import LayeredInvocation
 
+__all__ = [
+    "Engine",
+    "DiffusionEngine"
+]
 
-__all__ = ["DiffusionEngine"]
-
-
-class DiffusionEngine:
+class Engine:
     LOGGING_DELAY_MS = 10000
-
-    process: DiffusionEngineProcess
+    process: EngineProcess
 
     def __init__(self, configuration: Optional[APIConfiguration] = None):
         self.configuration = APIConfiguration()
@@ -34,7 +38,14 @@ class DiffusionEngine:
         if configuration is not None:
             self.configuration = configuration
 
-    def __enter__(self) -> DiffusionEngine:
+    @property
+    def process_class(self) -> Type[EngineProcess]:
+        """
+        Gets the class of the process
+        """
+        return EngineProcess
+
+    def __enter__(self) -> Self:
         """
         When entering the engine via context manager, start the process.
         """
@@ -62,8 +73,6 @@ class DiffusionEngine:
         Deletes a queue.
         """
         if hasattr(self, f"_{queue_name}"):
-            if self.is_alive():
-                raise IOError(f"Attempted to close queue {queue_name} while process is still alive")
             delattr(self, f"_{queue_name}")
 
     @property
@@ -81,6 +90,20 @@ class DiffusionEngine:
         self.check_delete_queue("instructions")
 
     @property
+    def intermediates(self) -> Queue:
+        """
+        Gets the intemerdiates queue
+        """
+        return self.check_get_queue("intermediates")
+
+    @intermediates.deleter
+    def intermediates(self) -> None:
+        """
+        Deletes the intermediates queue
+        """
+        self.check_delete_queue("intermediates")
+
+    @property
     def results(self) -> Queue:
         """
         Gets the results queue
@@ -94,19 +117,28 @@ class DiffusionEngine:
         """
         self.check_delete_queue("results")
 
-    @property
-    def intermediates(self) -> Queue:
+    def get_queues(self) -> List[Queue]:
         """
-        Gets the intemerdiates queue
+        Gets queues to pass to the process
         """
-        return self.check_get_queue("intermediates")
+        return [self.instructions, self.results, self.intermediates]
 
-    @intermediates.deleter
-    def intermediates(self) -> None:
+    def delete_queues(self) -> None:
         """
-        Deletes the intermediates queue
+        Deletes queues after killing a process
         """
-        self.check_delete_queue("intermediates")
+        try:
+            del self.instructions
+        except:
+            pass
+        try:
+            del self.results
+        except:
+            pass
+        try:
+            del self.intermediates
+        except:
+            pass
 
     def spawn_process(
         self,
@@ -122,9 +154,8 @@ class DiffusionEngine:
             return
 
         logger.debug("No current engine process, creating.")
-        self.process = DiffusionEngineProcess(self.instructions, self.results, self.intermediates, self.configuration)
-
-        poll_delay_seconds = DiffusionEngineProcess.POLLING_DELAY_MS / 250
+        poll_delay_seconds = self.process_class.POLLING_DELAY_MS / 250
+        self.process = self.process_class(self.configuration, *self.get_queues())
 
         try:
             logger.debug("Starting process.")
@@ -158,7 +189,7 @@ class DiffusionEngine:
 
         if self.process.is_alive():
             start = datetime.datetime.now()
-            sleep_time = DiffusionEngineProcess.POLLING_DELAY_MS / 500
+            sleep_time = self.process_class.POLLING_DELAY_MS / 500
             self.dispatch("stop")
             time.sleep(sleep_time)
             while self.process.is_alive():
@@ -169,29 +200,17 @@ class DiffusionEngine:
                     time.sleep(sleep_time)
                     break
                 time.sleep(sleep_time)
+
         if hasattr(self, "process") and self.process.is_alive():
             logger.debug("Sending term one more time...")
             self.process.terminate()
             time.sleep(sleep_time)
 
-        if hasattr(self, "process") and self.process.is_alive():
-            raise IOError("Couldn't terminate process")
-        try:
-            del self.process
-        except AttributeError:
-            pass
-        try:
-            del self.intermediates
-        except AttributeError:
-            pass
-        try:
-            del self.results
-        except AttributeError:
-            pass
-        try:
-            del self.instructions
-        except AttributeError:
-            pass
+        if hasattr(self, "process"):
+            if self.process.is_alive():
+                raise IOError("Couldn't terminate process")
+            delattr(self, "process")
+        self.delete_queues()
 
     def keepalive(self, timeout: Union[int, float] = 0.2) -> bool:
         """
@@ -211,7 +230,12 @@ class DiffusionEngine:
                 raise IOError(f"Incorrect ping response {ping_response}")
         return True
 
-    def dispatch(self, action: str, payload: Any = None, spawn_process: bool = True) -> Any:
+    def dispatch(
+        self,
+        action: str,
+        payload: Any = None,
+        spawn_process: bool = True
+    ) -> Any:
         """
         Sends a payload, does not wait for a response.
         """
@@ -291,13 +315,33 @@ class DiffusionEngine:
             if timeout is not None and (datetime.datetime.now() - start).total_seconds() > timeout:
                 raise TimeoutError("Timed out waiting for response.")
 
-    def invoke(self, action: str, payload: Any = None, timeout: Optional[Union[int, float]] = None) -> Any:
+    def invoke(
+        self,
+        action: str,
+        payload: Any = None,
+        timeout: Optional[Union[int, float]] = None
+    ) -> Any:
         """
         Issue a single request synchronously using arg syntax.
         """
         return self.wait(self.dispatch(action, payload), timeout)
 
-    def execute(self, plan: LayeredInvocation, timeout: Optional[Union[int, float]] = None, wait: bool = False) -> Any:
+class DiffusionEngine(Engine):
+    """
+    The base extension of this class is for the stable diffusion engine
+    """
+    @property
+    def process_class(self) -> Type[EngineProcess]:
+        """
+        Change to diffusionengine
+        """
+        return DiffusionEngineProcess
+
+    def execute(
+        self,
+        plan: LayeredInvocation,
+        timeout: Optional[Union[int, float]] = None, wait: bool = False
+    ) -> Any:
         """
         This is a helpful method to just serialize and execute a plan.
         """
