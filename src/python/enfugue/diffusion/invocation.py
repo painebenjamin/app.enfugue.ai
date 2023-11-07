@@ -1008,7 +1008,7 @@ class LayeredInvocation:
 
         # Completed pre-processing
         results_dict: Dict[str, Any] = {
-            "no_inference": no_inference or (not invocation_mask and not self.strength and not control_images and not ip_adapter_images)
+            "no_inference": no_inference or (self.layers and (not invocation_mask and not self.strength and not control_images and not ip_adapter_images))
         }
 
         if invocation_image:
