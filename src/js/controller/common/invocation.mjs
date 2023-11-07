@@ -1231,6 +1231,13 @@ class InvocationController extends Controller {
     }
 
     /**
+     * Sets the sample video in the viewer, enabling video operations
+     */
+    setSampleVideo(video) {
+        this.application.samples.setVideo(video);
+    }
+
+    /**
      * This is the meat and potatoes of watching an invocation as it goes; this method will be called by implementing functions with callbacks.
      * We estimate using total duration, this will end up being more accurate over the entirety of the invocation is they will typically
      * start slow, speed up, then slow down again.
@@ -1432,7 +1439,7 @@ class InvocationController extends Controller {
                 }
             },
             onVideoReceived = async (video) => {
-                let videoWindow = await this.application.spawnVideoPlayer(video);
+                this.setSampleVideo(video);
             },
             onTaskChanged = (newTask) => {
                 lastTask = newTask;

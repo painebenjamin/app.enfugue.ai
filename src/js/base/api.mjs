@@ -185,7 +185,7 @@ class API {
             }
         });
     }
-    
+
     download(method, url, headers, parameters, payload) {
         headers = headers || {};
         parameters = parameters || {};
@@ -234,7 +234,6 @@ class API {
             }
         });
     }
-
 }
 
 /**

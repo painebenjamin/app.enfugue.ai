@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 import datetime
+import traceback
 
 from typing import Any, Optional, List, Dict
 from pibble.util.helpers import resolve
@@ -147,6 +148,26 @@ class Invocation:
                         else:
                             self.results.append("unsaved")
 
+                    if self.plan.animation_frames:
+                        if self.plan.interpolate_frames or self.plan.reflect:
+                            # Start interpolation
+                            self.start_interpolate()
+                        else:
+                            # Save video
+                            try:
+                                from enfugue.diffusion.util.video_util import Video
+                                video_path = f"{self.results_dir}/{self.uuid}.{self.video_format}"
+                                Video(result["images"]).save(
+                                    video_path,
+                                    rate=self.video_rate,
+                                    encoder=self.video_codec
+                                )
+                                self.interpolate_result = video_path # type: ignore[assignment]
+                            except Exception as ex:
+                                self.error = ex
+                                logger.error(f"Couldn't save video: {ex}")
+                                logger.debug(traceback.format_exc())
+
                 if "error" in result:
                     error_type = resolve(result["error"])
                     self.error = error_type(result["message"])
@@ -157,10 +178,6 @@ class Invocation:
                 if self.metadata is not None and "tensorrt_build" in self.metadata:
                     logger.info("TensorRT build complete, terminating engine to start fresh on next invocation.")
                     self.engine.terminate_process()
-
-                if self.results and self.plan.interpolate_frames and self.plan.animation_frames:
-                    # Start interpolation
-                    self.start_interpolate()
 
         except TimeoutError:
             return
@@ -317,22 +334,34 @@ class Invocation:
             video = None
 
             if self.results is not None:
-                if (self.plan.interpolate_frames or self.plan.reflect) and self.plan.animation_frames:
+                if self.plan.animation_frames:
                     if self.interpolate_result:
                         status = "completed" # type: ignore[unreachable]
                         video = get_relative_paths([self.interpolate_result])[0]
-                    else:
+                    elif self.plan.interpolate_frames or self.plan.reflect:
                         status = "interpolating"
                         self._interpolate_communicate()
+                    else:
+                        # Saving
+                        status = "processing"
                 else:
                     status = "completed"
+                    if self.plan.animation_frames:
+                        video = get_relative_paths([self.interpolate_result])[0] # type: ignore[list-item]
                 images = get_relative_paths(self.results)
             else:
                 status = "processing"
                 self._communicate()
                 if self.results is not None:
                     # Finished in previous _communicate() calling
-                    if not ((self.plan.interpolate_frames or self.plan.reflect) and self.plan.animation_frames): # type: ignore[unreachable]
+                    if self.plan.animation_frames: # type: ignore[unreachable]
+                        if self.plan.interpolate_frames or self.plan.reflect:
+                            # Interpolation just started
+                            ...
+                        elif self.interpolate_result:
+                            status = "completed"
+                            video = get_relative_paths([self.interpolate_result])[0]
+                    else:
                         status = "completed"
                     images = get_relative_paths(self.results)
                 elif self.last_images is not None:
@@ -354,6 +383,9 @@ class Invocation:
                 rate = self.last_rate
             elif step is not None:
                 rate = step / duration
+
+            if video:
+                video = f"animation/{video}"
 
             formatted = {
                 "id": self.id,

@@ -194,7 +194,13 @@ class LayerView extends View {
 
         if (nodeState.src) {
             let imageSource = nodeState.src;
-            if (imageSource.startsWith("data:video")) {
+            if (
+                imageSource.startsWith("data:video") ||
+                imageSource.endsWith("mp4") ||
+                imageSource.endsWith("webp") ||
+                imageSource.endsWith("avi") ||
+                imageSource.endsWith("mov")
+            ) {
                 // Get the current frame
                 let frameCanvas = document.createElement("canvas");
                 frameCanvas.width = this.editorNode.content.video.videoWidth;

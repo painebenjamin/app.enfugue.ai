@@ -1,5 +1,11 @@
 /** @module controller/common/samples */
-import { isEmpty, waitFor, sleep } from "../../base/helpers.mjs";
+import {
+    downloadAsDataURL,
+    isEmpty,
+    waitFor,
+    sleep
+} from "../../base/helpers.mjs";
+import { ElementBuilder } from "../../base/builder.mjs";
 import { Controller } from "../base.mjs";
 import { SimpleNotification } from "../../common/notify.mjs";
 import { SampleChooserView } from "../../view/samples/chooser.mjs";
@@ -15,6 +21,8 @@ import {
     UpscaleFormView,
     DownscaleFormView
 } from "../../forms/enfugue/upscale.mjs";
+
+const E = new ElementBuilder();
 
 /**
  * This is the main controller that manages state and views
@@ -98,6 +106,29 @@ class SamplesController extends Controller {
     }
 
     /**
+     * Adds the video menu to the passed menu
+     */
+    async prepareVideoMenu(menu) {
+        let popoutVideo = await menu.addItem("Popout Video", "fa-solid fa-arrow-up-right-from-square", "p");
+        popoutVideo.onClick(() => this.sendVideoToWindow());
+
+        let saveVideo = await menu.addItem("Save As", "fa-solid fa-floppy-disk", "a");
+        saveVideo.onClick(() => this.saveVideoToDisk());
+
+        let editVideo = await menu.addItem("Edit Video", "fa-solid fa-pen-to-square", "t");
+        editVideo.onClick(() => this.sendVideoToCanvas());
+
+        let upscaleVideo = await menu.addItem("Upscale Video", "fa-solid fa-up-right-and-down-left-from-center", "u");
+        upscaleVideo.onClick(() => this.startVideoUpscale());
+
+        let gifVideo = await menu.addItem("Get as GIF", "fa-solid fa-file-video", "g");
+        gifVideo.onClick(() => this.getVideoGif());
+
+        let interpolateVideo = await menu.addItem("Interpolate Video", "fa-solid fa-film", "i");
+        interpolateVideo.onClick(() => this.startVideoInterpolate());
+    }
+
+    /**
      * Triggers the copy to clipboard
      */
     async copyToClipboard() {
@@ -122,19 +153,48 @@ class SamplesController extends Controller {
     }
 
     /**
+     * Saves the image to disk
+     * Asks for a filename first
+     */
+    async saveVideoToDisk() {
+        this.application.saveRemoteAs("Save Video", this.video);
+    }
+
+    /**
      * Sends the image to a new canvas
-     * Asks for details regarding additional state when clicked
      */
     async sendToCanvas() {
-        await this.application.layers.emptyLayers();
-        await this.application.images.setDimension(
-            this.sampleViewer.width,
-            this.sampleViewer.height,
-            false,
-            true
+        return await this.application.initializeStateFromImage(
+            this.sampleViewer.getDataURL(),
+            true, // Save history
+            null, // Prompt for settings
+            null, // No state overrides
+            false, // Not video
         );
-        await this.application.layers.addImageLayer(this.sampleViewer.getDataURL());
-        this.showCanvas();
+    }
+
+    /*
+     * Sends the video to a new canvas
+     */
+    async sendVideoToCanvas() {
+        return await this.application.initializeStateFromImage(
+            await downloadAsDataURL(this.video),
+            true, // Save history
+            null, // Prompt for settings
+            null, // No state overrides
+            true, // Video
+        );
+    }
+
+    /**
+     * Opens the video as a gif
+     */
+    async getVideoGif() {
+        if (isEmpty(this.video) || !this.video.endsWith("mp4")) {
+            throw `Video is empty or not a URL.`;
+        }
+        let gifURL = this.video.substring(0, this.video.length-4) + ".gif";
+        window.open(gifURL, "_blank");
     }
 
     /**
@@ -216,6 +276,49 @@ class SamplesController extends Controller {
             this.publish("quickUpscale", values);
             // Remove window
             this.imageUpscaleWindow.remove();
+            // Show the canvas
+            this.showCanvas();
+            // Wait a tick then trigger invoke
+            setTimeout(() => {
+                this.application.publish("tryInvoke");
+            }, 1000);
+        });
+    }
+
+    /**
+     * Starts upscaling the video
+     * Does not replace the current visible canvas.
+     * This will use the canvas and upscale settings to send to the backend.
+     */
+    async startVideoUpscale() {
+        if (this.checkActiveTool("upscale")) return;
+
+        this.videoUpscaleForm = new UpscaleFormView(this.config);
+        this.videoUpscaleWindow = await this.application.windows.spawnWindow(
+            "Upscale Video",
+            this.videoUpscaleForm,
+            this.constructor.imageUpscaleWindowWidth,
+            this.constructor.imageUpscaleWindowHeight
+        );
+        this.videoUpscaleWindow.onClose(() => {
+            this.videoUpscaleForm = null;
+            this.videoUpscaleWindow = null;
+        });
+        this.videoUpscaleForm.onCancel(() => this.videoUpscaleWindow.remove());
+        this.videoUpscaleForm.onSubmit(async (values) => {
+            await this.application.layers.emptyLayers();
+            await this.application.images.setDimension(
+                this.sampleViewer.width,
+                this.sampleViewer.height,
+                false,
+                true
+            );
+            await this.application.layers.addVideoLayer(
+                await downloadAsDataURL(this.video)
+            );
+            this.publish("quickUpscale", values);
+            // Remove window
+            this.videoUpscaleWindow.remove();
             // Show the canvas
             this.showCanvas();
             // Wait a tick then trigger invoke
@@ -374,6 +477,13 @@ class SamplesController extends Controller {
     }
 
     /**
+     * Opens the video in a new window
+     */
+    async sendVideoToWindow() {
+        window.open(this.video, "_blank");
+    }
+
+    /**
      * The callback when the toolbar has been entered
      */
     async toolbarEntered() {
@@ -448,6 +558,43 @@ class SamplesController extends Controller {
     }
 
     /**
+     * Spawns a video player if one doesn't exist
+     */
+    async spawnVideoPlayer() {
+        if (isEmpty(this.videoPlayerWindow)) {
+            this.videoPlayerWindow = await this.application.spawnVideoPlayer(this.video);
+            this.videoPlayerWindow.onClose(() => { delete this.videoPlayerWindow; });
+        } else {
+            this.videoPlayerWindow.focus();
+        }
+    }
+
+    /**
+     * Closes the video player if it exists
+     */
+    closeVideoPlayer() {
+        if (!isEmpty(this.videoPlayerWindow)) {
+            this.videoPlayerWindow.remove();
+        }
+    }
+
+    /**
+     * Sets a final video
+     */
+    setVideo(newVideo) {
+        if (this.video !== newVideo) {
+            this.closeVideoPlayer();
+        }
+        this.video = newVideo;
+        if (!isEmpty(newVideo)) {
+            this.videoToolsMenu.show();
+            this.spawnVideoPlayer();
+        } else {
+            this.videoToolsMenu.hide();
+        }
+    }
+
+    /**
      * Sets samples
      */
     setSamples(sampleImages, isAnimation) {
@@ -471,6 +618,15 @@ class SamplesController extends Controller {
             this.sampleViewer.setFrame(this.activeIndex);
         }
         if (!isEmpty(this.activeIndex)) {
+            if (this.isAnimation) {
+                this.imageToolsMenu.hide();
+                if (!isEmpty(this.video)) {
+                    this.videoToolsMenu.show();
+                }
+            } else {
+                this.imageToolsMenu.show();
+                this.videoToolsMenu.hide();
+            }
             sleep(100).then(() => {
                 waitFor(() => !isEmpty(this.sampleViewer.width)).then(() => {
                     this.images.setDimension(this.sampleViewer.width, this.sampleViewer.height);
@@ -481,13 +637,6 @@ class SamplesController extends Controller {
     }
 
     /**
-     * Gets active image
-     */
-    getActiveImage() {
-        
-    }
-
-    /**
      * Sets the active index when looking at images
      */
     setActive(activeIndex) {
@@ -495,8 +644,18 @@ class SamplesController extends Controller {
         if (this.isAnimation) {
             this.sampleChooser.setActiveIndex(activeIndex, false);
             this.sampleViewer.setFrame(activeIndex);
+            if (!isEmpty(activeIndex)) {
+                this.imageToolsMenu.hide();
+                if (!isEmpty(this.video)) {
+                    this.videoToolsMenu.show();
+                }
+            }
         } else {
             this.sampleViewer.setImage(this.sampleUrls[this.activeIndex]);
+            if (!isEmpty(activeIndex)) {
+                this.imageToolsMenu.show();
+                this.videoToolsMenu.hide();
+            }
         }
 
         if (isEmpty(activeIndex)) {
@@ -620,6 +779,8 @@ class SamplesController extends Controller {
     async showCanvas(updateChooser = true) {
         this.setPlay(false);
         this.sampleViewer.hide();
+        this.imageToolsMenu.hide();
+        this.videoToolsMenu.hide();
         if (updateChooser) {
             this.sampleChooser.setActiveIndex(null);
         }
@@ -646,6 +807,8 @@ class SamplesController extends Controller {
         // Create toolbars
         this.imageToolsMenu = new ToolbarView(this.config);
         this.prepareImageMenu(this.imageToolsMenu);
+        this.videoToolsMenu = new ToolbarView(this.config);
+        this.prepareVideoMenu(this.videoToolsMenu);
 
         // Get initial variables
         this.activeIndex = 0;
@@ -660,7 +823,10 @@ class SamplesController extends Controller {
         // Add sample viewer and toolbars to canvas
         imageEditor.find("enfugue-node-canvas").append(
             await this.sampleViewer.getNode(),
-            await this.imageToolsMenu.getNode(),
+            E.div().class("sample-tools-container").content(
+                await this.imageToolsMenu.getNode(),
+                await this.videoToolsMenu.getNode(),
+            )
         );
         imageEditor.render();
     }
@@ -673,6 +839,7 @@ class SamplesController extends Controller {
             "samples": {
                 "urls": null,
                 "active": null,
+                "video": null,
                 "animation": false
             }
         };
@@ -690,7 +857,8 @@ class SamplesController extends Controller {
             "samples": {
                 "urls": this.sampleUrls,
                 "active": this.activeIndex,
-                "animation": this.isAnimation
+                "animation": this.isAnimation,
+                "video": this.video
             }
         };
     }
@@ -701,12 +869,14 @@ class SamplesController extends Controller {
     setState(newState) {
         if (isEmpty(newState) || isEmpty(newState.samples) || isEmpty(newState.samples.urls)) {
             this.setSamples(null);
+            this.setVideo(null);
         } else {
             this.activeIndex = newState.samples.active;
             this.setSamples(
                 newState.samples.urls,
                 newState.samples.animation === true
             );
+            this.setVideo(newState.samples.video);
         }
     }
 }

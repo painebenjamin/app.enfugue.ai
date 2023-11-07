@@ -1122,3 +1122,38 @@ export let bindMouseUntilRelease = (callback, releaseCallback = null) => {
     window.addEventListener("mouseleave", onWindowMouseUpOrLeave, true);
     window.addEventListener("mousemove", onWindowMouseMove, true);
 };
+
+/**
+ * Downloads a remote file as blob
+ */
+export let downloadAsBlob = (url) => {
+    return new Promise((resolve, reject) => {
+        let xhr = new XMLHttpRequest();
+        xhr.open("GET", url, true);
+        xhr.addEventListener("load", function() {
+            if (this.readyState === 4 && this.status >= 200 && this.status < 400) {
+                resolve(this.response);
+            } else {
+                reject(this);
+            }
+        });
+        xhr.responseType = "blob";
+        xhr.send();
+    });
+}
+
+/**
+ * Downloads a remote file as data URL
+ */
+export let downloadAsDataURL = (url) => {
+    return new Promise(async (resolve, reject) => {
+        try {
+            let blob = await downloadAsBlob(url),
+                reader = new FileReader();
+            reader.onload = () => { resolve(reader.result); }
+            reader.readAsDataURL(blob);
+        } catch(e) {
+            reject(e);
+        }
+    });
+}

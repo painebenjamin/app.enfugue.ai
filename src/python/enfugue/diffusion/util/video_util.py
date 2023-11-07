@@ -1,10 +1,11 @@
 from __future__ import annotations
 import os
-from typing import TYPE_CHECKING, Optional, Iterator, Iterable
+from typing import TYPE_CHECKING, Optional, Iterator, Callable, Iterable
 from enfugue.util import logger
 
 if TYPE_CHECKING:
     from PIL.Image import Image
+    import cv2
 
 __all__ = ["Video"]
 
@@ -71,6 +72,7 @@ class Video:
         skip_frames: Optional[int] = None,
         maximum_frames: Optional[int] = None,
         resolution: Optional[int] = None,
+        on_open: Optional[Callable[[cv2.VideoCapture], None]] = None,
     ) -> Iterator[Image.Image]:
         """
         Starts a video capture and yields PIL images for each frame.
@@ -103,6 +105,8 @@ class Video:
         logger.debug(f"Reading video file at {path} starting from frame {frame_start} until {frame_string}")
 
         capture = cv2.VideoCapture(path)
+        if on_open is not None:
+            on_open(capture)
 
         def resize_image(image: Image.Image) -> Image.Image:
             """
@@ -144,6 +148,7 @@ class Video:
         skip_frames: Optional[int] = None,
         maximum_frames: Optional[int] = None,
         resolution: Optional[int] = None,
+        on_open: Optional[Callable[[cv2.VideoCapture], None]] = None,
     ) -> Video:
         """
         Uses Video.frames_from_file and instantiates a Video object.
@@ -153,6 +158,7 @@ class Video:
                 path=path,
                 skip_frames=skip_frames,
                 maximum_frames=maximum_frames,
-                resolution=resolution
+                resolution=resolution,
+                on_open=on_open,
             )
         )

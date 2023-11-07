@@ -1049,9 +1049,13 @@ class LayeredInvocation:
 
         cropped_inpaint_position = None
         background = None
+        has_post_processing = bool(self.upscale)
+        if self.animation_frames:
+            has_post_processing = has_post_processing or bool(self.interpolate_frames) or self.reflect
+
         invocation_kwargs = self.preprocess(
             pipeline,
-            raise_when_unused = not self.upscale,
+            raise_when_unused=not has_post_processing,
             task_callback=task_callback,
         )
 

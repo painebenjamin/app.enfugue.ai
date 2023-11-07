@@ -1,10 +1,11 @@
 /** @module application/index */
 import {
-    isEmpty,
     getQueryParameters,
     getDataParameters,
-    waitFor,
+    downloadAsBlob,
     createEvent,
+    waitFor,
+    isEmpty,
     merge,
     sleep
 } from "../base/helpers.mjs";
@@ -817,7 +818,25 @@ class Application {
         let blob = new Blob([content], {"type": fileType});
         return this.saveBlobAs(message, blob, extension);
     }
-    
+
+    /**
+     * Spawns a window asking for a filename, then downloads a remote file.
+     * Uses Blob and Object URLs.
+     * @param string $message The message to display before the input.
+     * @param string $filename The default filename.
+     * @param string $content The content of the blob.
+     * @param string $fileType The file type of the content.
+     * @param string $extension The file extension to append,
+     */
+    async saveRemoteAs(message, url) {
+        let extension = url.split("/").slice(-1)[0].split(".")[1];
+        return this.saveBlobAs(
+            message,
+            await downloadAsBlob(url),
+            extension
+        )
+    }
+
     /**
      * Spawns a window asking for a filename, then downloads a blob.
      * Uses Blob and Object URLs.
@@ -1023,7 +1042,13 @@ class Application {
     /**
      * Initializes state from an image
      */
-    async initializeStateFromImage(image, saveHistory = true, keepState = null, overrideState = null) {
+    async initializeStateFromImage(
+        image,
+        saveHistory = true,
+        keepState = null,
+        overrideState = null,
+        isVideo = false,
+    ) {
         try {
             let baseState = {},
                 controllerArray = this.getStatefulControllers();
@@ -1040,12 +1065,6 @@ class Application {
                 }
             }
 
-            if (isEmpty(baseState.canvas)) {
-                baseState.canvas = {};
-            }
-
-            baseState.canvas.width = image.width;
-            baseState.canvas.height = image.height;
             baseState.layers = [];
 
             if (!isEmpty(overrideState)) {
@@ -1061,11 +1080,19 @@ class Application {
                     }
                 }
             }
+
             this.samples.showCanvas();
             await sleep(1); // Sleep 1 frame
             await this.setState(baseState, saveHistory);
             await sleep(1); // Sleep 1 frame
-            await this.layers.addImageLayer(image);
+            let addedLayer;
+            if (isVideo) {
+                addedLayer = await this.layers.addVideoLayer(image);
+            } else {
+                addedLayer = await this.layers.addImageLayer(image);
+            }
+            await sleep(1); // Sleep 1 frame
+            await addedLayer.editorNode.scaleCanvasToSize();
         } catch(e) {
             console.error(e);
             // pass

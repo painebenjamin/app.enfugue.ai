@@ -2332,6 +2332,40 @@ enfugue-video-view video {
     object-fit: cover;
 }
 
+enfugue-invocation-outputs {
+    display: flex;
+    flex-flow: row wrap;
+}
+
+enfugue-invocation-output {
+    cursor: pointer;
+    position: relative;
+}
+
+enfugue-invocation-output .buttons {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    pointer-events: none;
+    gap: 1px;
+    display: flex;
+    flex-flow: row nowrap;
+    justify-content: flex-end;
+}
+
+enfugue-invocation-output .buttons button {
+    pointer-events: all;
+    width: 15px;
+    height: 15px;
+    line-height: 0;
+    padding: 0;
+}
+
+enfugue-invocation-output .buttons button i {
+    font-size: 10px;
+}
+
 /**
  * Temporary color highlights for new features
  */

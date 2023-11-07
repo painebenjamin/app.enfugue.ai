@@ -63,7 +63,7 @@ class InterpolatorEngineProcess(EngineProcess):
         """
         Provides a generator for interpolating between multiple frames.
         """
-        if isinstance(multiplier, tuple):
+        if isinstance(multiplier, tuple) or isinstance(multiplier, list): # type: ignore[unreachable]
             if len(multiplier) == 1:
                 multiplier = multiplier[0]
             else:
@@ -239,16 +239,20 @@ class InterpolatorEngineProcess(EngineProcess):
             frame_start = frame_time
             return image
 
-        logger.debug(f"Beginning interpolation - will interpolate {image_count} frames with interpolation amount(s) [{interpolate_frames}] (a total of {interpolated_count} frames")
-        images = [
-            trigger_callback(img) for img in
-            self.interpolate_recursive(
-                frames=images,
-                multiplier=interpolate_frames,
-            )
-        ]
+        if interpolate_frames:
+            logger.debug(f"Beginning interpolation - will interpolate {image_count} frames with interpolation amount(s) [{interpolate_frames}] (a total of {interpolated_count} frames")
+            images = [
+                trigger_callback(img) for img in
+                self.interpolate_recursive(
+                    frames=images,
+                    multiplier=interpolate_frames,
+                )
+            ]
+        elif reflect:
+            interpolated_count -= image_count # Small interpolation amount
 
         if reflect:
+            logger.debug(f"Beginning reflection, will interpolate {double_ease_frames} frame(s) twice, {ease_frames} frame(s) once and hold {hold_frames} frame(s).")
             images = self.loop(
                 frames=images,
                 ease_frames=ease_frames,
