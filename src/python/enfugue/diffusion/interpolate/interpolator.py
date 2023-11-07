@@ -233,7 +233,7 @@ class InterpolatorEngineProcess(EngineProcess):
                 "id": instruction_id,
                 "step": frame_complete,
                 "total": interpolated_count,
-                "rate": 1.0 / frame_seconds,
+                "rate": 1.0 / frame_rate,
                 "task": "Interpolating"
             })
             frame_start = frame_time
@@ -259,7 +259,6 @@ class InterpolatorEngineProcess(EngineProcess):
 
         if "save_path" in instruction_payload:
             from enfugue.diffusion.util.video_util import Video
-            logger.info(f"Saving {len(images)} images to video at {instruction_payload['save_path']}")
             Video(images).save(
                 instruction_payload["save_path"],
                 rate=instruction_payload.get("video_rate", 8.0),

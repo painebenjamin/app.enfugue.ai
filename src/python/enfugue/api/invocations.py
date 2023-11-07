@@ -347,7 +347,7 @@ class Invocation:
             if self.last_total is not None and self.last_total > 0:
                 total = self.last_total
             if self.last_step is not None:
-                step = total if self.results is not None else self.last_step
+                step = self.last_total if status == "completed" else self.last_step
             if total is not None and step is not None:
                 progress = step / total
             if self.last_rate is not None:
