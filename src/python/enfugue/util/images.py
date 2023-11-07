@@ -101,9 +101,13 @@ def fit_image(
             top += offset_top
         if offset_left is not None:
             left += offset_left
+        if image.mode == "RGBA":
+            blank_image.paste(image, (left, top), image)
+        else:
+            blank_image.paste(image, (left, top))
 
-        blank_image.paste(image, (left, top))
         return blank_image
+
     elif fit == "contain":
         image_width, image_height = image.size
         width_ratio, height_ratio = width / image_width, height / image_height
@@ -136,9 +140,13 @@ def fit_image(
             left += offset_left
 
         blank_image = Image.new("RGBA", (width, height))
-        blank_image.paste(input_image, (left, top))
+        if input_image.mode == "RGBA":
+            blank_image.paste(input_image, (left, top), input_image)
+        else:
+            blank_image.paste(input_image, (left, top))
 
         return blank_image
+
     elif fit == "cover":
         image_width, image_height = image.size
         width_ratio, height_ratio = width / image_width, height / image_height
@@ -173,11 +181,16 @@ def fit_image(
             left += offset_left
 
         blank_image = Image.new("RGBA", (width, height))
-        blank_image.paste(input_image, (left, top))
+        if input_image.mode == "RGBA":
+            blank_image.paste(input_image, (left, top), input_image)
+        else:
+            blank_image.paste(input_image, (left, top))
 
         return blank_image
+
     elif fit == "stretch":
         return image.resize((width, height)).convert("RGBA")
+
     else:
         raise ValueError(f"Unknown fit {fit}")
 

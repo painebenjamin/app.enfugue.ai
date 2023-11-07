@@ -330,11 +330,17 @@ class LayeredInvocation:
             if isinstance(fitted_image, list):
                 for i, img in enumerate(fitted_image):
                     blank_image = Image.new("RGBA", (width, height), (0,0,0,0))
-                    blank_image.paste(img, (x, y))
+                    if img.mode == "RGBA":
+                        blank_image.paste(img, (x, y), img)
+                    else:
+                        blank_image.paste(img, (x, y))
                     fitted_image[i] = blank_image
             else:
                 blank_image = Image.new("RGBA", (width, height), (0,0,0,0))
-                blank_image.paste(fitted_image, (x, y))
+                if fitted_image.mode == "RGBA":
+                    blank_image.paste(fitted_image, (x, y), fitted_image)
+                else:
+                    blank_image.paste(fitted_image, (x, y))
                 fitted_image = blank_image
 
         if isinstance(fitted_image, list):
@@ -647,7 +653,7 @@ class LayeredInvocation:
             if image_dict.get("remove_background", False):
                 needs_background_remover = True
             for control_dict in image_dict.get("control_units", []):
-                if control_dict.get("process", False) and control_dict.get("controlnet", None) is not None:
+                if control_dict.get("process", True) and control_dict.get("controlnet", None) is not None:
                     needs_control_processors.append(control_dict["controlnet"])
 
         with ExitStack() as stack:
@@ -729,11 +735,11 @@ class LayeredInvocation:
                     for i in range(self.animation_frames)
                 ]
                 invocation_image = [
-                    black.convert("RGB")
+                    Image.new("RGBA", (self.width, self.height), (0,0,0,0))
                     for i in range(self.animation_frames)
                 ]
             else:
-                invocation_image = black.convert("RGB")
+                invocation_image = Image.new("RGBA", (self.width, self.height), (0,0,0,0))
                 invocation_mask = white.copy()
 
             has_invocation_image = False
@@ -1002,8 +1008,9 @@ class LayeredInvocation:
 
         # Completed pre-processing
         results_dict: Dict[str, Any] = {
-            "no_inference": no_inference
+            "no_inference": no_inference or (not invocation_mask and not self.strength and not control_images and not ip_adapter_images)
         }
+
         if invocation_image:
             results_dict["image"] = invocation_image
             if invocation_mask:

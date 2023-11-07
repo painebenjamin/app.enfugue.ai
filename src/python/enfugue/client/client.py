@@ -294,6 +294,8 @@ class EnfugueClient(UserExtensionClientBase, JSONWebServiceAPIClient):
             kwargs["loop"] = loop
         if tile is not None:
             kwargs["tile"] = tile
+        if outpaint is not None:
+            kwargs["outpaint"] = outpaint
 
         logger.info(f"Invoking with keyword arguments {kwargs}")
 
