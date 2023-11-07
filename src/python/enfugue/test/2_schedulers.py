@@ -48,7 +48,7 @@ def main() -> None:
         }
         multi_kwargs = {
             "width": 768,
-            "chunking_size": 64,
+            "tiling_stride": 64,
         }
 
         def run_and_save(target_dir: str, **other_kwargs: Any) -> None:

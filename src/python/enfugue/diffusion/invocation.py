@@ -1348,7 +1348,6 @@ class LayeredInvocation:
         Executes upscale steps
         """
         from diffusers.utils.pil_utils import PIL_INTERPOLATION
-
         animation_frames = invocation_kwargs.get("animation_frames", None)
 
         for upscale_step in self.upscale_steps:
@@ -1568,9 +1567,9 @@ class LayeredInvocation:
                             upscale_pipeline = pipeline.pipeline
                             is_sdxl = pipeline.is_sdxl
 
-                        controlnet_unique_names = set(controlnet_names)
+                        controlnet_unique_names = list(set(controlnet_names))
 
-                        with pipeline.control_image_processor.processors(controlnet_unique_names) as controlnet_processors:
+                        with pipeline.control_image_processor.processors(*controlnet_unique_names) as controlnet_processors:
                             controlnet_processor_dict = dict(zip(controlnet_unique_names, controlnet_processors))
 
                             def get_processed_image(controlnet: str) -> Union[Image, List[Image]]:

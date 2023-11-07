@@ -25,17 +25,13 @@ def main() -> None:
 
         #manager = DiffusionPipelineManager()
         frames = 32
-        from enfugue.diffusion.support.interpolate.interpolator import Interpolator
-        interpolator = Interpolator()
-        with interpolator.interpolate() as interpolate:
+        from enfugue.diffusion.interpolate.interpolator import InterpolationEngine
+        interpolator = InterpolationEngine()
+        with interpolator:
             start = datetime.now()
-            frame_list = interpolate(
-                left,
-                right,
-                [
-                    (i+1)/(frames-1)
-                    for i in range(frames-2)
-                ]
+            frame_list = interpolator(
+                [left, right],
+                (2,2)
             )
             for i, frame in enumerate(frame_list):
                 frame.save(os.path.join(save_dir, f"interpolated-{i+1}.png"))

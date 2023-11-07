@@ -29,7 +29,7 @@ install_requires = [
     "colored>=1.4,<1.5",
     "diffusers>=0.18", # Minimum, works with 0.20.dev
     "albumentations>=0.4.3,<0.5",
-    "opencv-python>=4.7.0.72,<5.0",
+    "opencv-python>=4.6.0.66,<5.0",
     "pudb==2019.2",
     "invisible-watermark>=0.2,<0.3",
     "imageio>=2.31.1,<3.0",
@@ -56,6 +56,7 @@ install_requires = [
     "torchsde>=0.2.5,<0.3",
     "timm>=0.9.2,<1.0",
     "opensimplex>=0.4.5,<0.5",
+    "tensorflow", # Any version
     "taming-transformers",
     "clip",
     "latent-diffusion",

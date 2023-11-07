@@ -34,11 +34,10 @@ def main() -> None:
             logger.debug(f"Result is {len(base_result)} frames, writing.")
 
             target = os.path.join(output_dir, "base.mp4")
-            size = Video.frames_to_video(
-                path=target,
-                frames=base_result,
-                overwrite=True,
+            size = Video(base_result).save(
+                target,
                 rate=RATE,
+                overwrite=True,
             )
             print(f"Wrote {FRAMES} frames to {target} ({human_size(size)}")
 

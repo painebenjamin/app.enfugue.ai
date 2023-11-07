@@ -275,15 +275,15 @@ def main() -> None:
                 prompt=prompt,
                 scheduler=scheduler
             )
-
-            invoke(
-                f"txt2img-multi-scheduler-{scheduler}",
-                prompt=prompt,
-                scheduler=scheduler,
-                height=768,
-                width=786,
-                tiling_stride=256,
-            )
+            if scheduler != "dpmsde":
+                invoke(
+                    f"txt2img-multi-scheduler-{scheduler}",
+                    prompt=prompt,
+                    scheduler=scheduler,
+                    height=768,
+                    width=786,
+                    tiling_stride=256,
+                )
 
         # Upscalers
         invoke(
@@ -306,6 +306,7 @@ def main() -> None:
                 "image": base
             }]
         )
+
         invoke(
             f"upscale-iterative-diffusion",
             prompt="A green tree frog",
@@ -315,7 +316,7 @@ def main() -> None:
                     "method": "esrgan",
                     "strength": 0.15,
                     "controlnets": "tile",
-                    "chunking_size": 128,
+                    "tiling_stride": 128,
                     "guidance_scale": 8
                 },
                 {
@@ -323,13 +324,10 @@ def main() -> None:
                     "method": "esrgan",
                     "strength": 0.1,
                     "controlnets": "tile",
-                    "chunking_size": 256,
+                    "tiling_stride": 256,
                     "guidance_scale": 8
                 }
-            ],
-            layers=[{
-                "image": base
-            }]
+            ]
         )
 
         # SDXL

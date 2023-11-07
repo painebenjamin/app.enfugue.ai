@@ -2996,7 +2996,7 @@ class DiffusionPipelineManager:
         Otherwise, we guess by file name.
         """
         if not self.inpainter_name:
-            return False
+            return self.is_sdxl
         if getattr(self, "_inpainter_pipeline", None) is not None:
             return self._inpainter_pipeline.is_sdxl
         if self.inpainter_diffusers_cache_dir is not None:

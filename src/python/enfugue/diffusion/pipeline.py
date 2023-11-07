@@ -788,7 +788,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         """
         Reverts the scheduler back to whatever the original was.
         """
-        self.scheduler = self.scheduler_class.from_config(**self.scheduler_config) # type: ignore[attr-defined]
+        self.scheduler = self.scheduler_class.from_config(self.scheduler_config) # type: ignore[attr-defined]
 
     def get_size_from_module(self, module: torch.nn.Module) -> int:
         """
@@ -3058,7 +3058,10 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             elif isinstance(image, str):
                 img = self.open_image(img)
                 scale = 1.0
-            
+            else:
+                img = image
+                scale = 1.0
+
             if not isinstance(img, list):
                 img = [img]
 
