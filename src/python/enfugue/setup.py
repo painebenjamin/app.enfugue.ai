@@ -57,9 +57,6 @@ install_requires = [
     "timm>=0.9.2,<1.0",
     "opensimplex>=0.4.5,<0.5",
     "tensorflow", # Any version
-    "taming-transformers",
-    "clip",
-    "latent-diffusion",
 ]
 
 extras_require = {
@@ -70,6 +67,12 @@ extras_require = {
         "onnxruntime-gpu==1.12.1",
         "onnx-graphsurgeon==0.3.26",
         "tensorrt>=8.6.0,<8.7",
+    ],
+    "source": [ 
+        # These packages should be installed from source, but we'll put them herer too
+        "taming-transformers",
+        "clip",
+        "latent-diffusion",
     ],
     "build": [
         "mypy==1.2.0",
