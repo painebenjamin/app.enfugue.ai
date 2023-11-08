@@ -88,10 +88,11 @@ jobs:
     - name: Clean space
       run: |
         conda clean -aqy
-    - name: Output Environment Information for Debugging (Linux/MacOS)
+    - name: Clear Superfluous Libraries, Output Environment Information (Linux/MacOS)
       if: ${{ !contains(inputs.os, 'windows') }}
       run: |
         conda list
+        pip uninstall opencv-python opencv-python-headless
         pip freeze
     - name: Output Environment Information for Debugging (Windows)
       if: ${{ contains(inputs.os, 'windows') }}
@@ -99,6 +100,7 @@ jobs:
         . /c/Miniconda/etc/profile.d/conda.sh
         conda activate base
         conda list
+        pip uninstall opencv-python opencv-python-headless
         pip freeze
     - name: Compile Linux package
       if: ${{ !contains(inputs.os, 'windows') }} 
