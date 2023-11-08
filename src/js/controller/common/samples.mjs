@@ -630,7 +630,7 @@ class SamplesController extends Controller {
             }
             sleep(100).then(() => {
                 waitFor(() => !isEmpty(this.sampleViewer.width)).then(() => {
-                    this.images.setDimension(this.sampleViewer.width, this.sampleViewer.height);
+                    this.images.setDimension(this.sampleViewer.width, this.sampleViewer.height, false);
                     this.images.addClass("has-sample");
                 });
             });
@@ -666,7 +666,7 @@ class SamplesController extends Controller {
         } else {
             sleep(100).then(() => {
                 waitFor(() => !isEmpty(this.sampleViewer.width)).then(() => {
-                    this.images.setDimension(this.sampleViewer.width, this.sampleViewer.height);
+                    this.images.setDimension(this.sampleViewer.width, this.sampleViewer.height, false);
                     this.images.addClass("has-sample");
                 });
             });
@@ -785,7 +785,8 @@ class SamplesController extends Controller {
         if (updateChooser) {
             this.sampleChooser.setActiveIndex(null);
         }
-        this.images.setDimension(this.engine.width, this.engine.height);
+        this.images.setDimension(this.engine.width, this.engine.height, false);
+        setTimeout(() => { this.images.removeClass("has-sample"); }, 250);
     }
 
     /**

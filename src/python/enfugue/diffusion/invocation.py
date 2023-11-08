@@ -442,23 +442,33 @@ class LayeredInvocation:
             invocation_kwargs["layers"] = added_layers
 
         # Gather size of images for defaults and trim video
+        animation_frames = invocation_kwargs.get("animation_frames", None)
         image_width, image_height = 0, 0
         for layer in invocation_kwargs["layers"]:
             # Standardize images
             if isinstance(layer["image"], str):
                 layer["image"] = get_frames_or_image_from_file(layer["image"])
+
             elif not isinstance(layer["image"], list):
                 layer["image"] = get_frames_or_image(layer["image"])
 
             skip_frames = layer.pop("skip_frames", None)
             divide_frames = layer.pop("divide_frames", None)
+
             if skip_frames and isinstance(layer["image"], list):
                 layer["image"] = layer["image"][skip_frames:]
+
             if divide_frames and isinstance(layer["image"], list):
                 layer["image"] = [
                     img for i, img in enumerate(layer["image"])
                     if i % divide_frames == 0
                 ]
+
+            if isinstance(layer["image"], list):
+                if animation_frames:
+                    layer["image"] = layer["image"][:animation_frames]
+                else:
+                    layer["image"] = layer["image"][0]
 
             # Check if this image is visible
             if (
@@ -583,7 +593,7 @@ class LayeredInvocation:
             if mask is not None:
                 if isinstance(mask, dict):
                     mask["image"] = save_frames_or_image(
-                        image=image,
+                        image=mask["image"],
                         directory=save_directory,
                         name=save_name
                     )
