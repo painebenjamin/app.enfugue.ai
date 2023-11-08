@@ -10,6 +10,15 @@ if [ $# -gt 0 ]; then
 else
     CONFIG=server
 fi
-CUDNN_PATH=$(dirname $(python -c "import nvidia.cudnn; print(nvidia.cudnn.__file__)"))
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$CONDA_PREFIX/lib/:$CUDNN_PATH/lib
+
+if [ "${CONDA_PREFIX}" != "" ]; then
+    export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$CONDA_PREFIX/lib/
+fi
+
+CUDNN_PATH=$(python -c "import nvidia.cudnn; print(nvidia.cudnn.__file__)" 2> /dev/null)
+if [ "${CUDNN_PATH}" != "" ]; then
+    CUDNN_PATH=$(dirname ${CUDNN_PATH})
+    export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$CUDNN_PATH/lib
+fi
+
 python -m pibble server ../../config/development/$CONFIG.yml $@

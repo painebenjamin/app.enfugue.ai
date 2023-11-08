@@ -233,7 +233,7 @@ class InterpolatorEngineProcess(EngineProcess):
                 "id": instruction_id,
                 "step": frame_complete,
                 "total": interpolated_count,
-                "rate": 1.0 / frame_rate,
+                "rate": None if not frame_rate else 1.0 / frame_rate,
                 "task": "Interpolating"
             })
             frame_start = frame_time
