@@ -570,33 +570,16 @@ class LayeredInvocation:
         cls,
         save_directory: Optional[str]=None,
         save_name: Optional[str]=None,
-        image: Optional[Union[str, Image, List[Image]]]=None,
         mask: Optional[Union[str, Image, List[Image]]]=None,
-        control_images: Optional[Dict[str, List[Dict]]]=None,
-        ip_adapter_images: Optional[List[Dict]]=None,
+        layers: Optional[List[Dict]]=None,
         **kwargs: Any
     ) -> Dict[str, Any]:
         """
         Formats kwargs to remove images and instead reutnr temporary paths if possible
         """
-        if save_directory is None:
-            kwargs["image"] = image
-            kwargs["mask"] = mask
-        else:
-            if image is not None:
-                if isinstance(image, dict):
-                    image["image"] = save_frames_or_image(
-                        image=image["image"],
-                        directory=save_directory,
-                        name=save_name
-                    )
-                    kwargs["image"] = image
-                else:
-                    kwargs["image"] = save_frames_or_image(
-                        image=image,
-                        directory=save_directory,
-                        name=save_name
-                    )
+        kwargs["mask"] = mask
+        kwargs["layers"] = layers
+        if save_directory is not None:
             if mask is not None:
                 if isinstance(mask, dict):
                     mask["image"] = save_frames_or_image(
@@ -604,7 +587,6 @@ class LayeredInvocation:
                         directory=save_directory,
                         name=save_name
                     )
-                    kwargs["mask"] = mask
                 else:
                     kwargs["mask"] = save_frames_or_image(
                         image=mask,
@@ -612,32 +594,16 @@ class LayeredInvocation:
                         name=f"{save_name}_mask" if save_name is not None else None
                     )
 
-            if control_images is not None:
-                if isinstance(control_images, dict):
-                    for controlnet in control_images:
-                        for i, control_dict in enumerate(control_images[controlnet]):
-                            control_dict["image"] = save_frames_or_image(
-                                image=control_dict["image"],
-                                directory=save_directory,
-                                name=f"{save_name}_{controlnet}_{i}" if save_name is not None else None
-                            )
-                else:
-                    for i, control_dict in enumerate(control_images): # type: ignore[unreachable]
-                        control_dict["image"] = save_frames_or_image(
-                            image=control_dict["image"],
+            if layers is not None:
+                for i, layer in enumerate(layers):
+                    layer_image = layer.get("image", None)
+                    if layer_image:
+                        layer["image"] = save_frames_or_image(
+                            image=layer_image,
                             directory=save_directory,
-                            name=f"{save_name}_{controlnet}_{i}" if save_name is not None else None
+                            name=f"{save_name}_layer_{i}" if save_name is not None else None
                         )
-            if ip_adapter_images is not None:
-                for i, ip_dict in enumerate(ip_adapter_images):
-                    ip_dict["image"] = save_frames_or_image(
-                        image=ip_dict["image"],
-                        directory=save_directory,
-                        name=f"{save_name}_ip_{i}" if save_name is not None else None
-                    )
 
-        kwargs["control_images"] = control_images
-        kwargs["ip_adapter_images"] = ip_adapter_images
         return cls.minimize_dict(kwargs)
 
     def serialize(
