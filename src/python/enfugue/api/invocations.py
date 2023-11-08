@@ -335,7 +335,7 @@ class Invocation:
                 if self.end_time is not None:
                     duration = (self.end_time - self.start_time).total_seconds()
                 else:
-                    duration = None
+                    duration = 0
                 return {
                     "status": "error",
                     "uuid": self.uuid,
