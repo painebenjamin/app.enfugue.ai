@@ -1,5 +1,5 @@
 /** @module view/samples/viewer  */
-import { isEmpty } from "../../base/helpers.mjs";
+import { isEmpty, isEquivalent } from "../../base/helpers.mjs";
 import { ElementBuilder } from "../../base/builder.mjs";
 import { SimpleNotification } from "../../common/notify.mjs";
 import { View } from "../../view/base.mjs";
@@ -121,11 +121,13 @@ class SampleView extends View {
      * Sets the image, either a single image or multiple
      */
     setImage(image) {
+        if (isEquivalent(this.image, image)) {
+            return;
+        }
         this.image = image;
         if (Array.isArray(image)) {
             for (let animationView of this.animationViews) {
                 animationView.setImages(image);
-                animationView.setFrame(0);
             }
             window.requestAnimationFrame(() => { 
                 this.checkVisibility();

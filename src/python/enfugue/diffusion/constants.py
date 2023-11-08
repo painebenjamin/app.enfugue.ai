@@ -353,6 +353,8 @@ class ImageDict(TypedDict):
     An image or video with optional fitting details
     """
     image: Union[str, Image, List[Image]]
+    skip_frames: NotRequired[Optional[int]]
+    divide_frames: NotRequired[Optional[int]]
     fit: NotRequired[Optional[IMAGE_FIT_LITERAL]]
     anchor: NotRequired[Optional[IMAGE_ANCHOR_LITERAL]]
     invert: NotRequired[bool]

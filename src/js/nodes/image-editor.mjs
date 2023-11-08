@@ -66,10 +66,10 @@ class ImageEditorView extends NodeEditorView {
     async focusNode(node) {
         super.focusNode(node);
         this.focusedNode = node;
-        this.application.menu.removeCategory("Node");
+        this.application.menu.removeCategory("Element");
         let nodeButtons = node.getButtons();
         if (!isEmpty(nodeButtons)) {
-            let menuCategory = await this.application.menu.addCategory("Node", "n");
+            let menuCategory = await this.application.menu.addCategory("Element", "e");
             for (let buttonName in nodeButtons) {
                 let buttonConfiguration = nodeButtons[buttonName];
                 let menuItem = await menuCategory.addItem(
@@ -89,7 +89,7 @@ class ImageEditorView extends NodeEditorView {
         super.removeNode(node);
         if (this.focusedNode === node) {
             this.focusedNode = null;
-            this.application.menu.removeCategory("Node");
+            this.application.menu.removeCategory("Element");
         }
     }
 

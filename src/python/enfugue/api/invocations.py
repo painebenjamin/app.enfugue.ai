@@ -324,10 +324,25 @@ class Invocation:
                 return {"status": "queued", "uuid": self.uuid}
 
             if self.error is not None:
+                if self.results:
+                    images = get_relative_paths(self.results)
+                else:
+                    images = None
+                if self.interpolate_result:
+                    video = get_relative_paths([self.interpolate_result])[0] # type: ignore[unreachable]
+                else:
+                    video = None
+                if self.end_time is not None:
+                    duration = (self.end_time - self.start_time).total_seconds()
+                else:
+                    duration = None
                 return {
                     "status": "error",
                     "uuid": self.uuid,
                     "message": str(self.error),
+                    "images": images,
+                    "video": video,
+                    "duration": duration,
                 }
 
             images = None

@@ -75,6 +75,9 @@ class InvocationTableView extends ModelTableView {
     static columnFormatters = {
         "duration": (value) => humanDuration(parseFloat(value), true, true),
         "plan": (plan) => {
+            plan.layers = isEmpty(plan.layers)
+                ? "(none)"
+                : `(${plan.layers.length} layer${plan.layers.length==1?'':'s'})`;
             return JSON.stringify(plan);
         },
         "prompt": (_, datum) => datum.plan.prompt,
@@ -94,6 +97,16 @@ class InvocationTableView extends ModelTableView {
                                     .muted(true)
                                     .loop(true),
                                 E.div().class("buttons").content(
+                                    E.button()
+                                        .content(E.i().class("fa-solid fa-film"))
+                                        .on("click", (e) => {
+                                            e.stopPropagation();
+                                            let imageURLs = new Array(datum.plan.animation_frames).fill(null).map((_, i) => {
+                                                return `/api/invocation/images/${datum.id}_${i}.png`;
+                                            });
+                                            InvocationTableView.showAnimationFrames(imageURLs);
+                                        })
+                                        .data("tooltip", "Click to View Frames"),
                                     E.button()
                                         .content(E.i().class("fa-solid fa-file-video"))
                                         .on("click", (e) => {
@@ -204,6 +217,10 @@ class ResultsController extends MenuController {
         await super.initialize();
         InvocationTableView.deleteInvocation = (id) => { this.model.delete(`/invocation/${id}`); };
         InvocationTableView.initializeStateFromImage = (image, isVideo) => this.application.initializeStateFromImage(image, true, null, null, isVideo);
+        InvocationTableView.showAnimationFrames = async (frames) => {
+            await this.application.samples.setSamples(frames, true);
+            setTimeout(() => this.application.samples.setPlay(true), 250);
+        };
     }
 
     /**

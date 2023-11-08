@@ -60,7 +60,7 @@ class InvokeButtonController extends Controller {
             switch (datum.classname) {
                 case "ImageEditorScribbleNodeView":
                     formattedState["control_units"] = [
-                        {"process": false, "invert": true, "controlnet": "scribble"}
+                        {"process": false, "controlnet": "scribble"}
                     ];
                     break;
                 case "ImageEditorImageNodeView":
@@ -81,6 +81,12 @@ class InvokeButtonController extends Controller {
                                 "controlnet": unit.controlnet
                             };
                         });
+                    }
+                    if (!isEmpty(datum.skipFrames)) {
+                        formattedState["skip_frames"] = datum.skipFrames;
+                    }
+                    if (!isEmpty(datum.divideFrames)) {
+                        formattedState["divide_frames"] = datum.divideFrames;
                     }
                     break;
                 default:

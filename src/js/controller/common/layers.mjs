@@ -8,7 +8,8 @@ import { ToolbarView } from "../../view/menu.mjs";
 import { 
     ImageEditorScribbleNodeOptionsFormView,
     ImageEditorPromptNodeOptionsFormView,
-    ImageEditorImageNodeOptionsFormView
+    ImageEditorImageNodeOptionsFormView,
+    ImageEditorVideoNodeOptionsFormView
 } from "../../forms/enfugue/image-editor.mjs";
 
 const E = new ElementBuilder();
@@ -731,7 +732,7 @@ class LayersController extends Controller {
             videoNode = await this.images.addVideoNode(videoData, name);
         }
 
-        let videoForm = new ImageEditorImageNodeOptionsFormView(this.config),
+        let videoForm = new ImageEditorVideoNodeOptionsFormView(this.config),
             videoLayer = new LayerView(this, videoNode, videoForm);
 
         videoForm.onSubmit((values) => {

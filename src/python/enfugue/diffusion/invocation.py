@@ -307,6 +307,8 @@ class LayeredInvocation:
         animation_frames: Optional[int]=None,
         fit: Optional[IMAGE_FIT_LITERAL]=None,
         anchor: Optional[IMAGE_ANCHOR_LITERAL]=None,
+        skip_frames: Optional[int]=None,
+        divide_frames: Optional[int]=None,
         x: Optional[int]=None,
         y: Optional[int]=None,
         w: Optional[int]=None,
@@ -320,6 +322,14 @@ class LayeredInvocation:
 
         if isinstance(image, str):
             image = get_frames_or_image_from_file(image)
+
+        if skip_frames:
+            image = image[skip_frames:]
+        if divide_frames:
+            image = [
+                img for i, img in enumerate(image)
+                if i % divide_frames == 0
+            ]
 
         if w is not None and h is not None:
             fitted_image = fit_image(image, w, h, fit, anchor)
@@ -431,7 +441,7 @@ class LayeredInvocation:
         else:
             invocation_kwargs["layers"] = added_layers
 
-        # Gather size of images for defaults
+        # Gather size of images for defaults and trim video
         image_width, image_height = 0, 0
         for layer in invocation_kwargs["layers"]:
             # Standardize images
@@ -439,6 +449,17 @@ class LayeredInvocation:
                 layer["image"] = get_frames_or_image_from_file(layer["image"])
             elif not isinstance(layer["image"], list):
                 layer["image"] = get_frames_or_image(layer["image"])
+
+            skip_frames = layer.pop("skip_frames", None)
+            divide_frames = layer.pop("divide_frames", None)
+            if skip_frames and isinstance(layer["image"], list):
+                layer["image"] = layer["image"][skip_frames:]
+            if divide_frames and isinstance(layer["image"], list):
+                layer["image"] = [
+                    img for i, img in enumerate(layer["image"])
+                    if i % divide_frames == 0
+                ]
+
             # Check if this image is visible
             if (
                 layer.get("image", None) is not None and
@@ -676,6 +697,7 @@ class LayeredInvocation:
         intermediate_dir: Optional[str]=None,
         raise_when_unused: bool=True,
         task_callback: Optional[Callable[[str], None]]=None,
+        progress_callback: Optional[Callable[[int, int, float], None]]=None,
         **kwargs: Any
     ) -> Dict[str, Any]:
         """
@@ -744,7 +766,62 @@ class LayeredInvocation:
 
             has_invocation_image = False
 
+            # Get a count of preprocesses required
+            images_to_preprocess = 0
+            for i, layer in enumerate(self.layers):
+                layer_image = layer.get("image", None)
+                layer_skip_frames = layer.get("skip_frames", None)
+                layer_divide_frames = layer.get("divide_frames", None)
+
+                if isinstance(layer_image, str):
+                    layer_image = get_frames_or_image_from_file(layer_image)
+                    layer["image"] = layer_image
+
+                image_count = len(layer_image) if isinstance(layer_image, list) else 1
+                if layer_skip_frames:
+                    image_count -= layer_skip_frames
+                if layer_divide_frames:
+                    image_count = image_count // layer_divide_frames
+
+                if self.animation_frames:
+                    image_count = min(image_count, self.animation_frames)
+
+                if layer.get("remove_background", False):
+                    images_to_preprocess += image_count
+
+                control_units = layer.get("control_units", None)
+                if control_units:
+                    for control_unit in control_units:
+                        if control_unit.get("process", True):
+                            images_to_preprocess += image_count
+
+            images_preprocessed = 0
+            last_frame_time = datetime.now()
+            frame_times = []
+
+            def trigger_preprocess_callback(image: Image) -> Image:
+                """
+                Triggers the preprocessor callback
+                """
+                nonlocal last_frame_time
+                nonlocal images_preprocessed
+                if progress_callback is not None:
+                    images_preprocessed += 1
+                    frame_time = datetime.now()
+                    frame_seconds = (frame_time - last_frame_time).total_seconds()
+                    frame_times.append(frame_seconds)
+                    frame_time_samples = min(len(frame_times), 8)
+                    frame_time_average = sum(frame_times[-8:]) / frame_time_samples
+
+                    progress_callback(images_preprocessed, images_to_preprocess, 1 / frame_time_average)
+
+                    last_frame_time = frame_time
+                return image
+
             # Preprocess images
+            if images_to_preprocess:
+                logger.debug(f"Pre-processing layers, with {images_to_preprocess} image processing step(s)")
+
             with self.preprocessors(pipeline) as processors:
                 # Iterate through layers
                 for i, layer in enumerate(self.layers):
@@ -758,6 +835,8 @@ class LayeredInvocation:
                     fit = layer.get("fit", None)
                     anchor = layer.get("anchor", None)
                     remove_background = layer.get("remove_background", None)
+                    skip_frames = layer.get("skip_frames", None)
+                    divide_frames = layer.get("divide_frames", None)
 
                     # Capabilities of layer
                     denoise = layer.get("denoise", False)
@@ -774,11 +853,11 @@ class LayeredInvocation:
                     if remove_background:
                         if isinstance(layer_image, list):
                             layer_image = [
-                                processors["background_remover"](img)
+                                trigger_preprocess_callback(processors["background_remover"](img))
                                 for img in layer_image
                             ]
                         else:
-                            layer_image = processors["background_remover"](layer_image)
+                            layer_image = trigger_preprocess_callback(processors["background_remover"](layer_image))
 
                     fit_layer_image, fit_layer_mask = self.prepare_image(
                         width=self.width,
@@ -787,6 +866,8 @@ class LayeredInvocation:
                         fit=fit,
                         anchor=anchor,
                         animation_frames=self.animation_frames,
+                        divide_frames=divide_frames,
+                        skip_frames=skip_frames,
                         w=w,
                         h=h,
                         x=x,
@@ -844,11 +925,11 @@ class LayeredInvocation:
                             if control_unit.get("process", True):
                                 if isinstance(fit_layer_image, list):
                                     control_image = [
-                                        processors[controlnet](img)
+                                        trigger_preprocess_callback(processors[controlnet](img))
                                         for img in fit_layer_image
                                     ]
                                 else:
-                                    control_image = processors[controlnet](fit_layer_image)
+                                    control_image = trigger_preprocess_callback(processors[controlnet](fit_layer_image))
                             elif control_unit.get("invert", False):
                                 if isinstance(fit_layer_image, list):
                                     control_image = [
@@ -862,7 +943,7 @@ class LayeredInvocation:
 
                             control_images[controlnet].append({
                                 "start": control_unit.get("start", 0.0),
-                                "end": control_unit.get("end", 0.0),
+                                "end": control_unit.get("end", 1.0),
                                 "scale": control_unit.get("scale", 1.0),
                                 "image": control_image
                             })
@@ -1064,6 +1145,7 @@ class LayeredInvocation:
             pipeline,
             raise_when_unused=not has_post_processing,
             task_callback=task_callback,
+            progress_callback=progress_callback,
         )
 
         if invocation_kwargs.pop("no_inference", False):
