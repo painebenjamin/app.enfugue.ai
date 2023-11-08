@@ -5,18 +5,16 @@ channels:
   - nvidia/label/cuda-11.8.0
   - conda-forge
 dependencies:
-  - python=3.10.11
-  - pip
   - cuda-toolkit=11.8.0
+  - python=3.10.11
+  - opencv=4.5.5
+  - make=4.3
+  - pip
   - numpy
   - 7zip
-  - make=4.3
   - nodejs
   - ffmpeg
-  - opencv=4.5.5
   - pip:
-    - opencv-python=4.5.5.64
-    - opencv-python-headless=4.5.5.64
     - torch>=2.0.1+cu118
     - torchvision>=0.15.2+cu118
     - brotli>=1.0.9
