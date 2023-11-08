@@ -31,7 +31,7 @@ jobs:
             api: mps
           - os: macos-13
             api: mps-latest
-    uses: painebenjamin/app.enfugue.ai/.github/workflows/compile.yml@main
+    uses: ./.github/workflows/compile.yml
     with:
       os: ${{ matrix.os }}
       api: ${{ matrix.api }}

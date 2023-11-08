@@ -10,7 +10,7 @@ dependencies:
   - make=4.3
   - nodejs=18.16.0
   - ffmpeg=6.0.0
-  - opencv=4.8.1
+  - opencv=4.5.5
   - pip:
     - brotli>=1.0.9
     - torch>=2.0.1
@@ -60,6 +60,8 @@ dependencies:
     - lycoris-lora>=1.8
     - openmim>=0.3.9,<0.4
     - opensimplex>=0.4.5,<0.5
+    - opencv-python==4.5.5.64
+    - opencv-python-headless==4.5.5.64
     - git+https://github.com/CompVis/taming-transformers.git@master#egg=taming-transformers
     - git+https://github.com/openai/CLIP.git@main#egg=clip
     - git+https://github.com/CompVis/stable-diffusion.git@main#egg=latent-diffusion
