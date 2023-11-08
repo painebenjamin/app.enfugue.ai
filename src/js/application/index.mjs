@@ -1066,6 +1066,12 @@ class Application {
             }
 
             baseState.layers = [];
+            baseState.samples = {
+                "urls": null,
+                "video": null,
+                "active": null,
+                "animation": false
+            };
 
             if (!isEmpty(overrideState)) {
                 for (let overrideKey in overrideState) {

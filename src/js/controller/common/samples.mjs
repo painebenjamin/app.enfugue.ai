@@ -123,9 +123,10 @@ class SamplesController extends Controller {
 
         let gifVideo = await menu.addItem("Get as GIF", "fa-solid fa-file-video", "g");
         gifVideo.onClick(() => this.getVideoGif());
-
+        /**
         let interpolateVideo = await menu.addItem("Interpolate Video", "fa-solid fa-film", "i");
         interpolateVideo.onClick(() => this.startVideoInterpolate());
+        */
     }
 
     /**
