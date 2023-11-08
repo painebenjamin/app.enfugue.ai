@@ -55,10 +55,10 @@ class CanvasController extends Controller {
             this.engine.height = values.height;
             this.engine.tileHorizontal = values.tileHorizontal;
             this.engine.tileVertical = values.tileVertical;
-            if (values.useTiling) {
+            if (values.useTiling || values.tileHorizontal || values.tileVertical) {
                 this.engine.tilingSize = values.tilingSize;
-                this.engine.tilingStride = values.tilingStride;
                 this.engine.tilingMaskType = values.tilingMaskType;
+                this.engine.tilingStride = isEmpty(values.tilingStride) ? 64 : values.tilingStride;
             } else {
                 this.engine.tilingStride = 0;
             }
