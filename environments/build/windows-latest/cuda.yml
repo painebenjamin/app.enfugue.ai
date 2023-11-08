@@ -12,9 +12,11 @@ dependencies:
   - 7zip=19.00
   - make=4.3
   - nodejs=18.16.0
-  - ffmpeg=4.2.2
-  - opencv=4.6.0
+  - ffmpeg=5.1.2
+  - opencv=4.8.1
   - pip:
+    - opencv-python=4.8.1.78
+    - opencv-python-headless=4.8.1.78
     - torch>=2.0.1+cu118
     - torchvision>=0.15.2+cu118
     - brotli>=1.0.9
