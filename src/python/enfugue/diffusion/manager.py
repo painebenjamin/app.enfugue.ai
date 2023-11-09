@@ -4144,7 +4144,7 @@ class DiffusionPipelineManager:
 
             for controlnet_name in self.animator_controlnet_names:
                 self._animator_controlnets[controlnet_name] = self.get_controlnet(
-                    self.get_controlnet_path_by_name(controlnet_name, self.is_sdxl)
+                    self.get_controlnet_path_by_name(controlnet_name, self.animator_is_sdxl)
                 )
         return self._animator_controlnets # type: ignore[return-value]
 

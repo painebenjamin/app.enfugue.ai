@@ -40,7 +40,6 @@ dependencies:
     - safetensors>=0.3,<0.4
     - realesrgan>=0.3,<0.4
     - gfpgan>=1.3.8,<1.4
-    - backgroundremover>=0.2.3,<0.3
     - beautifulsoup4>=4.12,<5
     - pystray>=0.19,<0.24
     - pydantic==1.10.10
@@ -56,7 +55,7 @@ dependencies:
     - certifi>=2023.5.7
     - openmim>=0.3.9,<0.4
     - tensorflow
-    - enfugue==0.3.0.post0
+    - enfugue==0.3.0.post1
     - git+https://github.com/CompVis/taming-transformers.git@master#egg=taming-transformers
     - git+https://github.com/openai/CLIP.git@main#egg=clip
     - git+https://github.com/CompVis/stable-diffusion.git@main#egg=latent-diffusion

@@ -1,7 +1,10 @@
 FROM {{ docker_container }}
 
-# Install general dependencies
+# Environments
 ENV DEBIAN_FRONTEND=noninteractive
+ENV ENFUGUE_ENFUGUE_ENGINE_ROOT=/opt/enfugue
+
+# Install general dependencies
 RUN apt-get clean
 RUN apt-get update
 RUN apt-get install software-properties-common wget git -y
@@ -15,6 +18,12 @@ RUN python3.10 get-pip.py
 RUN groupadd --gid 1000 {{ docker_username }}
 RUN useradd --uid 1000 --gid 1000 -m {{ docker_username }}
 
+# Create enfugue directory and give permissions
+RUN mkdir -p /opt/enfugue
+RUN chown -R 1000:1000 /opt/enfugue
+VOLUME /opt/enfugue
+
+# Drop to user
 USER {{ docker_username }}
 COPY {{ sdist }} .
 RUN python3.10 -m pip install nvidia-pyindex
