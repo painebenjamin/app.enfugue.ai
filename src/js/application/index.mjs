@@ -1,32 +1,36 @@
 /** @module application/index */
 import {
-    isEmpty,
     getQueryParameters,
     getDataParameters,
-    waitFor,
+    downloadAsBlob,
     createEvent,
+    waitFor,
+    isEmpty,
     merge,
     sleep
 } from "../base/helpers.mjs";
 import { Session } from "../base/session.mjs";
 import { Publisher } from "../base/publisher.mjs";
 import { TooltipHelper } from "../common/tooltip.mjs";
-import { MenuView, SidebarView, ToolbarView } from "../view/menu.mjs";
+import { MenuView, SidebarView } from "../view/menu.mjs";
 import { StatusView } from "../view/status.mjs";
 import { NotificationCenterView } from "../view/notifications.mjs";
 import { WindowsView } from "../nodes/windows.mjs";
-import { ImageView } from "../view/image.mjs";
+import { ImageView, BackgroundImageView } from "../view/image.mjs";
+import { VideoView, VideoPlayerView } from "../view/video.mjs";
 import { Model } from "../model/enfugue.mjs";
 import { View } from "../view/base.mjs";
 import { ControlsHelperView } from "../view/controls.mjs";
 import { FileNameFormView } from "../forms/enfugue/files.mjs";
 import { StringInputView } from "../forms/input.mjs";
 import { InvocationController } from "../controller/common/invocation.mjs";
+import { SamplesController } from "../controller/common/samples.mjs";
 import { ModelPickerController } from "../controller/common/model-picker.mjs";
 import { ModelManagerController } from "../controller/common/model-manager.mjs";
 import { DownloadsController } from "../controller/common/downloads.mjs";
+import { LayersController } from "../controller/common/layers.mjs";
+import { PromptTravelController } from "../controller/common/prompts.mjs";
 import { AnimationsController } from "../controller/common/animations.mjs";
-import { LogsController } from "../controller/common/logs.mjs";
 import { AnnouncementsController } from "../controller/common/announcements.mjs";
 import { HistoryDatabase } from "../common/history.mjs";
 import { SimpleNotification } from "../common/notify.mjs";
@@ -36,7 +40,8 @@ import {
     LycorisInputView,
     InversionInputView,
     ModelPickerInputView,
-    DefaultVaeInputView
+    DefaultVaeInputView,
+    MotionModuleInputView,
 } from "../forms/input.mjs";
 import {
     ConfirmFormView,
@@ -182,7 +187,6 @@ class Application {
         this.model = new Model(this.config);
         this.menu = new MenuView(this.config);
         this.sidebar = new SidebarView(this.config);
-        this.toolbar = new ToolbarView(this.config);
         this.windows = new WindowsView(this.config);
         this.notifications = new NotificationCenterView(this.config);
         this.history = new HistoryDatabase(this.config.history.size, this.config.debug);
@@ -191,25 +195,40 @@ class Application {
 
         this.container.appendChild(await this.menu.render());
         this.container.appendChild(await this.sidebar.render());
-        this.container.appendChild(await this.toolbar.render());
         this.container.appendChild(await this.images.render());
         this.container.appendChild(await this.windows.render());
         this.container.appendChild(await this.notifications.render());
         this.container.appendChild(await this.controlsHelper.render());
-        
+
+        if (this.config.debug) console.log("Starting animations.");
         await this.startAnimations();
+        if (this.config.debug) console.log("Registering dynamic inputs.");
         await this.registerDynamicInputs();
+        if (this.config.debug) console.log("Registering download controllers.");
         await this.registerDownloadsControllers();
+        if (this.config.debug) console.log("Registering animation controllers.");
         await this.registerAnimationsControllers();
+        if (this.config.debug) console.log("Registering model controllers.");
         await this.registerModelControllers();
+        if (this.config.debug) console.log("Registering invocation controllers.");
         await this.registerInvocationControllers();
+        if (this.config.debug) console.log("Registering sample controllers.");
+        await this.registerSampleControllers();
+        if (this.config.debug) console.log("Registering layer controllers.");
+        await this.registerLayersControllers();
+        if (this.config.debug) console.log("Registering prompt controllers.");
+        await this.registerPromptControllers();
+        if (this.config.debug) console.log("Registering menu controllers.");
         await this.registerMenuControllers();
+        if (this.config.debug) console.log("Registering sidebar controllers.");
         await this.registerSidebarControllers();
-        await this.registerToolbarControllers();
+        if (this.config.debug) console.log("Starting autosave.");
         await this.startAutosave();
+        if (this.config.debug) console.log("Starting announcement check.");
         await this.startAnnouncements();
-        await this.startLogs();
+        if (this.config.debug) console.log("Starting keepalive.");
         await this.startKeepalive();
+        if (this.config.debug) console.log("Registering authentication.");
         await this.registerLogout();
 
         window.onpopstate = (e) => this.popState(e);
@@ -219,17 +238,11 @@ class Application {
         document.addEventListener("keypress", (e) => this.onKeyPress(e));
         document.addEventListener("keyup", (e) => this.onKeyUp(e));
         document.addEventListener("keydown", (e) => this.onKeyDown(e));
+
+        if (this.config.debug) console.log("Application initialization complete.");
+
         this.publish("applicationReady");
         this.container.classList.remove("loading");
-    }
-
-    /**
-     * Starts the logs controller which will read engine logs and display a limited
-     * set of information on the screen, with a way to get more details.
-     */
-    async startLogs() {
-        this.logs = new LogsController(this);
-        await this.logs.initialize();
     }
 
     /**
@@ -350,6 +363,17 @@ class Application {
                 return carry;
             }, {});
         };
+        MotionModuleInputView.defaultOptions = async () => {
+            let models = await this.model.get("/motion");
+            return models.reduce((carry, datum) => {
+                if (!isEmpty(datum.directory) && datum.directory !== ".") {
+                    carry[datum.name] = `<strong>${datum.name}</strong><span class='note' style='margin-left: 2px'>(${datum.directory})</note>`;
+                } else {
+                    carry[datum.name] = datum.name;
+                }
+                return carry;
+            }, {});
+        };
         ModelPickerInputView.defaultOptions = async () => {
             let allModels = await this.model.get("/model-options");
             return allModels.reduce((carry, datum) => {
@@ -396,6 +420,30 @@ class Application {
     async registerInvocationControllers() {
         this.engine = new InvocationController(this);
         await this.engine.initialize();
+    }
+
+    /**
+     * Creates the samples manager.
+     */
+    async registerSampleControllers() {
+        this.samples = new SamplesController(this);
+        await this.samples.initialize();
+    }
+
+    /**
+     * Creates the layers manager (handles multiple images)
+     */
+    async registerLayersControllers() {
+        this.layers = new LayersController(this);
+        await this.layers.initialize();
+    }
+
+    /**
+     * Creates the prompts manager (handles prompt travel)
+     */
+    async registerPromptControllers() {
+        this.prompts = new PromptTravelController(this);
+        await this.prompts.initialize();
     }
 
     /**
@@ -492,26 +540,6 @@ class Application {
             let sidebarController = new sidebarControllerClass(this);
             await sidebarController.initialize();
             this.sidebarControllers.push(sidebarController);
-        }
-    }
-
-    /**
-     * Registers toolbar controllers.
-     */
-    async registerToolbarControllers() {
-        let toolbarModule = await import("../controller/toolbar/index.autogenerated.mjs");
-        this.toolbarControllers = [];
-        for (let toolbarControllerPath of toolbarModule.Index) {
-            let toolbarControllerModule = await import(`../controller/toolbar/${toolbarControllerPath}`);
-            let toolbarControllerClass = toolbarControllerModule.ToolbarController;
-            if (isEmpty(toolbarControllerClass)) {
-                throw "Module does not provide a 'ToolbarController' export.";
-            }
-            let toolbarItem = await this.toolbar.addItem(toolbarControllerClass.menuName, toolbarControllerClass.menuIcon),
-                toolbarItemController = new toolbarControllerClass(this);
-            await toolbarItemController.initialize();
-            toolbarItem.onClick(() => toolbarItemController.onClick());
-            this.toolbarControllers.push(toolbarItemController);
         }
     }
 
@@ -642,14 +670,20 @@ class Application {
                 if (this.config.debug) {
                     console.log("Loading autosaved state", existingAutosave);
                 }
-                this.setState(existingAutosave);
+                await this.setState(existingAutosave);
                 this.notifications.push("info", "Session Restored", "Your last autosaved session was successfully loaded.");
+                if (!isEmpty(this.images.node)) {
+                    let reset = this.images.node.find("enfugue-node-editor-zoom-reset");
+                    if (!isEmpty(reset)) {
+                        reset.trigger("click");
+                    }
+                }
             }
             const autosaveInterval = this.config.model.autosave.interval || 30000;
             setInterval(() => this.autosave(), autosaveInterval);
         } catch(e) {
             console.error(e);
-            this.notifications.push("warning", "History Disabled", "Couldn't open IndexedDB, history and autosave are disabled.");
+            this.notifications.push("warn", "History Disabled", "Couldn't open IndexedDB, history and autosave are disabled.");
         }
     }
 
@@ -732,6 +766,23 @@ class Application {
     };
 
     /**
+     * Spawns a video player
+     */
+    spawnVideoPlayer(videoSource, windowName = "Video") {
+        return new Promise(async (resolve, reject) => {
+            let videoPlayer = new VideoPlayerView(this.config, videoSource);
+            await videoPlayer.waitForLoad();
+            let videoPlayerWindow = await this.windows.spawnWindow(
+                windowName,
+                videoPlayer,
+                videoPlayer.width + 4,
+                videoPlayer.height + 34
+            );
+            resolve(videoPlayerWindow);
+        });
+    }
+
+    /**
      * Spawns a window with a confirmation message.
      * The promise returns true if the user confirms, false otherwise.
      * @param string $message The message to display.
@@ -767,7 +818,25 @@ class Application {
         let blob = new Blob([content], {"type": fileType});
         return this.saveBlobAs(message, blob, extension);
     }
-    
+
+    /**
+     * Spawns a window asking for a filename, then downloads a remote file.
+     * Uses Blob and Object URLs.
+     * @param string $message The message to display before the input.
+     * @param string $filename The default filename.
+     * @param string $content The content of the blob.
+     * @param string $fileType The file type of the content.
+     * @param string $extension The file extension to append,
+     */
+    async saveRemoteAs(message, url) {
+        let extension = url.split("/").slice(-1)[0].split(".")[1];
+        return this.saveBlobAs(
+            message,
+            await downloadAsBlob(url),
+            extension
+        )
+    }
+
     /**
      * Spawns a window asking for a filename, then downloads a blob.
      * Uses Blob and Object URLs.
@@ -815,7 +884,7 @@ class Application {
         let pastedItems = (e.clipboardData || e.originalEvent.clipboardData).items;
         for (let item of pastedItems) {
             if (item.kind === "file") {
-                this.loadImage(item.getAsFile());
+                this.loadFile(item.getAsFile());
             } else {
                 item.getAsString((text) => this.onTextPaste(text));
             }
@@ -833,22 +902,57 @@ class Application {
     }
 
     /**
-     * The onImagePaste handlers put an image on the canvas, or loads metadata.
-     * @param string $image The image source as a Data URI
+     * This handler reads the file passed and determines what it is,
+     * then loads it onto the canvas if possible.
      */
-    async loadImage(image, name = "Pasted Image") {
-        let imageView = new ImageView(this.config, image);
-        await imageView.waitForLoad();
-        let stateData = this.getStateFromMetadata(imageView.metadata);
-        if (!isEmpty(stateData)) {
-            if (await this.yesNo("It looks like this image was made with Enfugue. Would you like to load the identified generation settings?")) {
-                await this.setState(stateData);
-                this.notifications.push("info", "Generation Settings Loaded", "Image generation settings were successfully retrieved from image metadata.");
-                return;
+    async loadFile(file, name = "Image") {
+        let reader = new FileReader();
+        reader.addEventListener("load", async () => {
+            let fileType = reader.result.substring(5, reader.result.indexOf(";")),
+                contentStart = fileType.length + 13,
+                contentAsText = () => atob(reader.result.substring(contentStart)),
+                imageView;
+
+            switch (fileType) {
+                case "application/json":
+                    await this.setState(JSON.parse(contentAsText()));
+                    this.notifications.push("info", "Generation Settings Loaded", "Image generation settings were successfully retrieved from image metadata.");
+                    break;
+                    break;
+                case "image/png":
+                    imageView = new BackgroundImageView(this.config, reader.result);
+                    await imageView.waitForLoad();
+                    let stateData = this.getStateFromMetadata(imageView.metadata);
+                    if (!isEmpty(stateData)) {
+                        if (await this.yesNo("It looks like this image was made with Enfugue. Would you like to load the identified generation settings?")) {
+                            await this.setState(stateData);
+                            this.notifications.push("info", "Generation Settings Loaded", "Image generation settings were successfully retrieved from image metadata.");
+                            return;
+                        }
+                    }
+                case "image/gif":
+                case "image/avif":
+                case "image/jpeg":
+                case "image/bmp":
+                case "image/tiff":
+                case "image/x-icon":
+                case "image/webp":
+                    if (isEmpty(imageView)) {
+                        imageView = new BackgroundImageView(this.config, reader.result, false);
+                    }
+                    this.samples.showCanvas();
+                    this.layers.addImageLayer(imageView);
+                    break;
+                case "video/mp4":
+                    this.samples.showCanvas();
+                    this.layers.addVideoLayer(reader.result);
+                    break;
+                default:
+                    this.notifications.push("warn", "Unhandled File Type", `File type "${fileType}" is not handled by Enfugue.`);
+                    break;
             }
-        }
-        this.images.hideCurrentInvocation();
-        this.images.addImageNode(imageView, name);
+        });
+        reader.readAsDataURL(file);
     }
 
     /**
@@ -867,7 +971,12 @@ class Application {
      * Gets all stateful controllers
      */
     getStatefulControllers() {
-        let controllerArray = [this.modelPicker, this.engine].concat(this.toolbarControllers).concat(this.sidebarControllers);
+        let controllerArray = [
+            this.modelPicker,
+            this.layers,
+            this.samples,
+            this.prompts,
+        ].concat(this.sidebarControllers);
         for (let controllerName in this.menuControllers) {
             controllerArray = controllerArray.concat(this.menuControllers[controllerName]);
         }
@@ -878,7 +987,7 @@ class Application {
      * Gets current state of all inputs
      */
     getState(includeImages = true) {
-        let state = {"images": this.images.getState(includeImages)},
+        let state = {},
             controllerArray = this.getStatefulControllers();
         for (let controller of controllerArray) {
             state = {...state, ...controller.getState(includeImages)};
@@ -896,7 +1005,7 @@ class Application {
                 return true;
             }
         }
-        return !isEmpty(state.images);
+        return !isEmpty(state.layers);
     }
 
     /**
@@ -908,14 +1017,11 @@ class Application {
             await this.history.flush(newState);
         }
         let controllerArray = this.getStatefulControllers();
-        for (let controller of controllerArray) {
-            await controller.setState(newState);
-        }
         if (!isEmpty(newState.canvas)) {
             this.images.setDimension(newState.canvas.width, newState.canvas.height);
         }
-        if (newState.images !== undefined && newState.images !== null) {
-            this.images.setState(newState.images);
+        for (let controller of controllerArray) {
+            await controller.setState(newState);
         }
     }
 
@@ -923,18 +1029,26 @@ class Application {
      * Resets state to default values
      */
     async resetState(saveHistory = true) {
-        let state = {"images": []},
+        let state = {"layers": []},
             controllerArray = this.getStatefulControllers();
         for (let controller of controllerArray) {
             state = {...state, ...controller.getDefaultState()};
         }
         await this.setState(state, saveHistory);
+        // Also reset image editor
+        this.images.resetCanvasPosition();
     }
 
     /**
      * Initializes state from an image
      */
-    async initializeStateFromImage(image, saveHistory = true, keepState = null, overrideState = null) {
+    async initializeStateFromImage(
+        image,
+        saveHistory = true,
+        keepState = null,
+        overrideState = null,
+        isVideo = false,
+    ) {
         try {
             let baseState = {},
                 controllerArray = this.getStatefulControllers();
@@ -951,14 +1065,12 @@ class Application {
                 }
             }
 
-            if (isEmpty(baseState.canvas)) {
-                baseState.canvas = {};
-            }
-            baseState.canvas.width = image.width;
-            baseState.canvas.height = image.height;
-            baseState.images = {
-                nodes: [ImageEditorView.getNodeDataForImage(image)],
-                image: null
+            baseState.layers = [];
+            baseState.samples = {
+                "urls": null,
+                "video": null,
+                "active": null,
+                "animation": false
             };
 
             if (!isEmpty(overrideState)) {
@@ -974,10 +1086,19 @@ class Application {
                     }
                 }
             }
-            this.images.hideCurrentInvocation();
-            this.engine.hideSampleChooser();
+
+            this.samples.showCanvas();
             await sleep(1); // Sleep 1 frame
             await this.setState(baseState, saveHistory);
+            await sleep(1); // Sleep 1 frame
+            let addedLayer;
+            if (isVideo) {
+                addedLayer = await this.layers.addVideoLayer(image);
+            } else {
+                addedLayer = await this.layers.addImageLayer(image);
+            }
+            await sleep(1); // Sleep 1 frame
+            await addedLayer.editorNode.scaleCanvasToSize();
         } catch(e) {
             console.error(e);
             // pass
@@ -1028,13 +1149,13 @@ class Application {
     }
 
     /**
-     * On drop, treat as image paste.
+     * On drop, treat as file paste.
      */
     onDrop(e) {
         e.preventDefault();
         e.stopPropagation();
         try {
-            this.loadImage(e.dataTransfer.files[0]);
+            this.loadFile(e.dataTransfer.files[0]);
         } catch(e) {
             console.warn(e);
         }

@@ -1,4 +1,4 @@
-/** @module controller/sidebar/03-tweaks */
+/** @module controller/sidebar/05-tweaks */
 import { isEmpty } from "../../base/helpers.mjs";
 import { Controller } from "../base.mjs";
 import { TweaksFormView } from "../../forms/enfugue/tweaks.mjs";
@@ -39,7 +39,7 @@ class TweaksController extends Controller {
                 "freeUSkip1": 0.9,
                 "freeUSkip2": 0.2,
                 "noiseOffset": 0.0,
-                "noiseMethod": "perlin",
+                "noiseMethod": "simplex",
                 "noiseBlendMethod": "inject"
             }
         }
@@ -101,12 +101,11 @@ class TweaksController extends Controller {
                     tweaksConfig.freeUBackbone2 = defaultConfig.freeu_factors[1];
                     tweaksConfig.freeUSkip1 = defaultConfig.freeu_factors[2];
                     tweaksConfig.freeUSkip2 = defaultConfig.freeu_factors[3];
-                } else {
-                    tweaksConfig.enableFreeU = false;
                 }
                 if (!isEmpty(newModel.scheduler)) {
                     tweaksConfig.scheduler = newModel.scheduler[0].name;
                 }
+
                 if (!isEmpty(tweaksConfig)) {
                     this.tweaksForm.setValues(tweaksConfig);
                 }

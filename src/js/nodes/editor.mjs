@@ -9,12 +9,7 @@ import {
     NodeEditorDecorationsView,
     NodeConnectionSpline
 } from './decorations.mjs';
-
-import {
-    NodeView,
-    OptionsNodeView,
-    CompoundNodeView
-} from './base.mjs';
+import { NodeView } from './base.mjs';
 
 const E = new ElementBuilder({
     node: "enfugue-node",
@@ -93,7 +88,7 @@ class NodeEditorView extends View {
     /**
      * @var array<class> All supported node classes. Used when re-instantiating from static data.
      */
-    static nodeClasses = [NodeView, OptionsNodeView, CompoundNodeView];
+    static nodeClasses = [NodeView];
 
     /**
      * @var array<string> Any number of classes
@@ -136,8 +131,12 @@ class NodeEditorView extends View {
             this.left = 0;
             this.top = 0;
         }
+
         this.nodes = [];
         this.nodeClasses = [].concat(this.constructor.nodeClasses);
+        this.nodeFocusCallbacks = [];
+        this.nodeCopyCallbacks = [];
+        this.setDimensionCallbacks = [];
 
         this.decorations = new NodeEditorDecorationsView(
             config,
@@ -151,10 +150,40 @@ class NodeEditorView extends View {
     }
 
     /**
+     * Gets a unique name for a node, adding numbers if needed.
+     *
+     * @param string $name The name of the node.
+     */
+    getUniqueNodeName(name) {
+        let currentName = name,
+            currentNames = this.nodes.map((node) => node.getName()),
+            duplicates = 1;
+
+        while (currentNames.indexOf(currentName) !== -1) {
+            currentName = `${name} ${++duplicates}`;
+        }
+        return currentName;
+    }
+
+    /**
      * @param callable $callback A callback to perform when the window is resized
      */
     onWindowResize(callback) {
         this.resizeCallbacks.push(callback);
+    }
+
+    /**
+     * @param callable $callback A callback to perform when a node is focused
+     */
+    onNodeFocus(callback) {
+        this.nodeFocusCallbacks.push(callback);
+    }
+
+    /**
+     * @param callable $callback A callback to perform when a node is copied
+     */
+    onNodeCopy(callback) {
+        this.nodeCopyCallbacks.push(callback);
     }
 
     /**
@@ -261,12 +290,20 @@ class NodeEditorView extends View {
     }
 
     /**
+     * Adds a callback when dimensions are set
+     * @param callable $callback The function to execute
+     */
+    onSetDimension(callback) {
+        this.setDimensionCallbacks.push(callback);
+    }
+
+    /**
      * Sets a new width and height for this editor.
      * @param int $newWidth The new width to set.
      * @param int $newHeight The new height to set.
      * @param bool $resetNodes Whether or not to reset the dimensions of the nodes on this canvas.
      */
-    setDimension(newWidth, newHeight, resetNodes = true) {
+    setDimension(newWidth, newHeight, resetNodes = true, triggerCallbacks = false) {
         if (isEmpty(newWidth)){
             newWidth = this.canvasWidth;
         }
@@ -288,6 +325,11 @@ class NodeEditorView extends View {
                 }
             }
         }
+        if (triggerCallbacks) {
+            for (let callback of this.setDimensionCallbacks) {
+                callback(newWidth, newHeight);
+            }
+        }
     }
 
     /**
@@ -304,45 +346,7 @@ class NodeEditorView extends View {
      * @param Node $movedNode The node that was moved.
      */
     nodeMoved(movedNode) {
-        let mergeNode;
-        for (let node of this.nodes) {
-            node.removeClass("merge-source");
-            node.removeClass("merge-target");
-
-            // Check if nodes have zero intersection
-            if (node == movedNode ||
-                !node.canMergeWith(movedNode) ||
-                movedNode.visibleLeft >= node.visibleRight ||
-                movedNode.visibleRight <= node.visibleLeft ||
-                movedNode.visibleTop >= node.visibleTop + node.visibleHeight ||
-                movedNode.visibleTop + movedNode.visibleHeight <= node.visibleTop
-            ) {
-                continue;
-            }
-
-            // Check if dragged header is near target header
-            if (Math.abs(movedNode.visibleTop - node.visibleTop) > movedNode.constructor.headerHeight / 2) {
-                continue;
-            }
-
-            // Check if dragged node is sufficiently intersected by canvas node
-            let intersectLeft = Math.max(movedNode.visibleLeft, node.visibleLeft),
-                intersectTop = Math.max(movedNode.visibleTop, node.visibleTop),
-                intersectRight = Math.min(movedNode.visibleLeft + movedNode.visibleWidth, node.visibleLeft + node.visibleWidth),
-                intersectBottom = Math.min(movedNode.visibleTop + movedNode.visibleHeight, node.visibleTop + node.visibleHeight),
-                intersectArea = (intersectRight - intersectLeft) * (intersectBottom - intersectTop),
-                intersectRatio = intersectArea / (movedNode.visibleWidth * movedNode.visibleHeight);
-
-            if (intersectRatio >= 0.33) {
-                // Set node merge targets
-                mergeNode = node;
-            }
-        }
-
-        if (!isEmpty(mergeNode)) {
-            movedNode.addClass("merge-source");
-            mergeNode.addClass("merge-target");
-        }
+        // TODO
     }
 
     /**
@@ -351,35 +355,7 @@ class NodeEditorView extends View {
      */
     nodePlaced(node) {
         this.nodeMoved(node);
-        let sourceNode, targetNode;
-        for (let childNode of this.nodes) {
-            if (childNode.hasClass("merge-source")) {
-                sourceNode = childNode;
-            }
-            if (childNode.hasClass("merge-target")) {
-                targetNode = childNode;
-            }
-        }
-        if (!isEmpty(sourceNode) && !isEmpty(targetNode)) {
-            this.mergeNodes(sourceNode, targetNode);
-        }
-    }
-
-    /**
-     * Calls callbacks for when a node is placed (released somewhere or programmatically set)
-     * @param Node $movedNode The node that was placed.
-     */
-     mergeNodes(sourceNode, targetNode) {
-        sourceNode.removeClass("merge-source");
-        targetNode.removeClass("merge-target");
-        try {
-            let mergedNode = sourceNode.mergeWith(targetNode);
-            this.removeNode(sourceNode);
-            this.removeNode(targetNode);
-            this.addNode(mergedNode);
-        } catch(e) {
-            console.log("Experienced error merging nodes, ignoring", e);
-        }
+        // TODO
     }
 
     /**
@@ -450,9 +426,6 @@ class NodeEditorView extends View {
             newNode = nodeClass;
             nodeClass.editor = this;
         }
-
-        let enableMerge = newNode.canMerge;
-        newNode.canMerge = false;
         this.nodes.push(newNode);
         this.nodes = this.nodes.map((v, i) => {
             v.index = i;
@@ -466,7 +439,6 @@ class NodeEditorView extends View {
             canvas.append(childNode);
         }
 
-        newNode.canMerge = enableMerge;
         return newNode;
     }
 
@@ -495,20 +467,33 @@ class NodeEditorView extends View {
     }
 
     /**
-     * Focus on an individual node by reordering it.
-     * Pops out of the node array and DOM, then adds at the end.
-     * @param object $node The node to focus on.
+     * Triggers callbacks for node focus.
      */
-    focusNode(node) {
-        let nodeIndex = this.nodes.indexOf(node);
-        if (nodeIndex === this.nodes.length - 1 || nodeIndex === -1) {
+    async focusNode(node) {
+        for (let focusCallback of this.nodeFocusCallbacks) {
+            await focusCallback(node);
+        }
+        return;
+    }
+
+    /**
+     * Re-orders a node.
+     */
+    reorderNode(index, node) {
+        let currentNodeIndex = this.nodes.indexOf(node);
+        if (currentNodeIndex === -1) {
+            console.error("Couldn't reorder node, not found in array.");
             return;
         }
-        this.nodes = this.nodes.slice(0, nodeIndex).concat(this.nodes.slice(nodeIndex + 1));
-        this.nodes.push(node);
+        this.nodes = this.nodes.slice(0, currentNodeIndex).concat(this.nodes.slice(currentNodeIndex + 1));
+        this.nodes.splice(index, 0, node);
         let nodeCanvas = this.node.find(E.getCustomTag("nodeCanvas"));
-        nodeCanvas.remove(node.node).append(node.node);
-        return;
+        nodeCanvas.remove(node.node);
+        if (index > currentNodeIndex) {
+            nodeCanvas.insert(index + 3, node.node);
+        } else {
+            nodeCanvas.insert(index + 2, node.node);
+        }
     }
 
     /**
@@ -518,11 +503,24 @@ class NodeEditorView extends View {
     async copyNode(node) {
         let data = node.getState(),
             newNode = await this.addNode(node.constructor);
+        data.name += " (copy)";
         data.x += node.constructor.padding;
         data.y += node.constructor.padding;
         await newNode.setState(data);
+        for (let copyCallback of this.nodeCopyCallbacks) {
+            await copyCallback(newNode, node);
+        }
         this.focusNode(newNode);
         return newNode;
+    }
+
+    /**
+     * Resets position and zoom.
+     */
+    resetCanvasPosition() {
+        if (!isEmpty(this.node)) {
+            this.node.find(E.getCustomTag("zoomReset")).trigger("click");
+        }
     }
 
     /**
@@ -585,6 +583,7 @@ class NodeEditorView extends View {
         }
 
         node.append(canvas);
+
         if (this.constructor.disableCursor) {
             node.css('pointer-events', 'none');
         } else {
@@ -622,8 +621,8 @@ class NodeEditorView extends View {
                             let canvasReadoutX, canvasReadoutY;
 
                             if (this.constructor.centered) {
-                                let canvasCenterX = (this.constructor.canvasWidth / 2) - (node.element.clientWidth / 2),
-                                    canvasCenterY = (this.constructor.canvasHeight / 2) - (node.element.clientHeight / 2);
+                                let canvasCenterX = (this.width / 2) - (node.element.clientWidth / 2),
+                                    canvasCenterY = (this.height / 2) - (node.element.clientHeight / 2);
                                 
                                 canvasReadoutX = -canvasCenterX - newX / this.zoom,
                                 canvasReadoutY = -canvasCenterY - newY / this.zoom;
@@ -659,8 +658,8 @@ class NodeEditorView extends View {
                             let canvasReadoutX, canvasReadoutY;
 
                             if (this.constructor.centered) {
-                                let canvasCenterX = (this.constructor.canvasWidth / 2) - (node.element.clientWidth / 2),
-                                    canvasCenterY = (this.constructor.canvasHeight / 2) - (node.element.clientHeight / 2);
+                                let canvasCenterX = (this.width / 2) - (node.element.clientWidth / 2),
+                                    canvasCenterY = (this.height / 2) - (node.element.clientHeight / 2);
                                 
                                 canvasReadoutX = -canvasCenterX - this.left / this.zoom,
                                 canvasReadoutY = -canvasCenterY - this.top / this.zoom;
@@ -681,8 +680,8 @@ class NodeEditorView extends View {
                     e.preventDefault();
                     e.stopPropagation();
                     if (this.constructor.centered) {
-                        this.left = -(this.constructor.canvasWidth / 2) * this.zoom + node.element.clientWidth / 2;
-                        this.top =  -(this.constructor.canvasHeight / 2) * this.zoom + node.element.clientHeight / 2;
+                        this.left = -(this.width / 2) * this.zoom + node.element.clientWidth / 2;
+                        this.top =  -(this.height / 2) * this.zoom + node.element.clientHeight / 2;
                     } else {
                         this.left = 0;
                         this.top = 0;
@@ -721,8 +720,8 @@ class NodeEditorView extends View {
                         let canvasReadoutX, canvasReadoutY;
 
                         if (this.constructor.centered) {
-                            let canvasCenterX = (this.constructor.canvasWidth / 2) - (node.element.clientWidth / 2),
-                                canvasCenterY = (this.constructor.canvasHeight / 2) - (node.element.clientHeight / 2);
+                            let canvasCenterX = (this.width / 2) - (node.element.clientWidth / 2),
+                                canvasCenterY = (this.height / 2) - (node.element.clientHeight / 2);
                             
                             canvasReadoutX = -canvasCenterX - this.left / this.zoom,
                             canvasReadoutY = -canvasCenterY - this.top / this.zoom;

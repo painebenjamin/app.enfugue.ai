@@ -16,8 +16,8 @@ from typing import Any, List
 GRID_SIZE = 256
 GRID_COLS = 4
 CAPTION_HEIGHT = 50
-CHECKPOINT = "epicphotogasm_x.safetensors"
-CHECKPOINT_URL = "https://civitai.com/api/download/models/172306?type=Model&format=SafeTensor&size=pruned&fp=fp16"
+CHECKPOINT = "epicphotogasm_zUniversal.safetensors"
+CHECKPOINT_URL = "https://civitai.com/api/download/models/201259"
 INPAINT_IMAGE = "https://huggingface.co/datasets/diffusers/test-arrays/resolve/main/stable_diffusion_inpaint/boy.png"
 INPAINT_MASK = "https://huggingface.co/datasets/diffusers/test-arrays/resolve/main/stable_diffusion_inpaint/boy_mask.png"
 
@@ -83,7 +83,7 @@ def main() -> None:
                 # Two seeds for controlled/non-controlled:
                 # Controlnet doesn't change enough if it uses the same
                 # seed as the prompt the image was generated with
-                kwargs["seed"] = 12345 if "control_images" in kwargs else 54321
+                kwargs["seed"] = 123456 if "control_images" in kwargs else 654321
             if "model" not in kwargs:
                 kwargs["model"] = CHECKPOINT
             kwargs["intermediates"] = False
@@ -127,7 +127,10 @@ def main() -> None:
         invoke(
             "img2img",
             prompt=prompt,
-            image=base,
+            layers=[{
+                "image": base,
+                "denoise": True
+            }],
             strength=0.8
         )
         
@@ -137,63 +140,72 @@ def main() -> None:
         invoke(
             "inpaint", 
             prompt="a handsome man with ray-ban sunglasses",
-            image=inpaint_image,
             mask=inpaint_mask,
+            layers=[{
+                "image": inpaint_image,
+                "fit": "cover"
+            }],
             width=512,
             height=512,
-            fit="cover"
         )
 
         invoke(
             "inpaint-4ch",
             inpainter=CHECKPOINT,
             prompt="a handsome man with ray-ban sunglasses",
-            image=inpaint_image,
             mask=inpaint_mask,
+            layers=[{
+                "image": inpaint_image,
+                "fit": "cover"
+            }],
             width=512,
             height=512,
-            fit="cover"
         )
 
         # Automatic background removal with no inference
         invoke(
             "background", 
-            image=inpaint_image,
-            remove_background=True,
+            layers=[{
+                "image": inpaint_image,
+                "fit": "cover",
+                "remove_background": True
+            }],
+            outpaint=False
         )
         
         # Automatic background removal with outpaint
         invoke(
             "background-fill",
             prompt="a handsome man outside on a sunny day, green forest in the distance",
-            image=inpaint_image,
-            remove_background=True,
-            fill_background=True
+            layers=[{
+                "image": inpaint_image,
+                "fit": "cover",
+                "remove_background": True
+            }]
         )
 
         # IP Adapter
         invoke(
             "ip-adapter",
-            ip_adapter_images=[{
+            layers=[{
                 "image": inpaint_image,
-                "scale": 0.3
+                "ip_adapter_scale": 0.3
             }]
         )
         invoke(
             "ip-adapter-plus",
-            ip_adapter_plus=True,
-            ip_adapter_images=[{
+            ip_adapter_model="plus",
+            layers=[{
                 "image": inpaint_image,
-                "scale": 0.3
+                "ip_adapter_scale": 0.3
             }]
         )
         invoke(
             "ip-adapter-plus-face",
-            ip_adapter_plus=True,
-            ip_adapter_face=True,
-            ip_adapter_images=[{
-                "image": inpaint_image, 
-                "scale": 0.3
+            ip_adapter_model="plus-face",
+            layers=[{
+                "image": inpaint_image,
+                "ip_adapter_scale": 0.3
             }]
         )
         
@@ -202,7 +214,7 @@ def main() -> None:
             "outpaint", 
             prompt="a handsome man walking outside on a boardwalk, distant house, foggy weather, dark clouds overhead",
             negative_prompt="frame, framing, comic book paneling, multiple images, awning, roof, shelter, trellice",
-            nodes=[
+            layers=[
                 {
                     "image": inpaint_image,
                     "x": 128,
@@ -212,43 +224,18 @@ def main() -> None:
                     "fit": "cover"
                 }
             ],
-            strength=1.0
+            outpaint=True
         )
 
-        # Regions + multi-diffusion
-        invoke(
-            "regions", 
-            prompt="Roses in a bouquet",
-            chunking_size=128,
-            nodes=[
-                {
-                    "x": 0,
-                    "y": 0,
-                    "w": 256,
-                    "h": 512,
-                    "prompt": "A single red rose, white background",
-                    "negative_prompt": "bouquet",
-                    "remove_background": True
-                },
-                {
-                    "x": 256,
-                    "y": 0,
-                    "w": 256,
-                    "h": 512,
-                    "prompt": "A single white rose, black background",
-                    "negative_prompt": "bouquet",
-                    "remove_background": True
-                }
-            ]
-        )
-        
         # Controlnets
         for controlnet in ["canny", "hed", "pidi", "scribble", "depth", "normal", "mlsd", "line", "anime", "pose"]:
             invoke(
                 f"txt2img-controlnet-{controlnet}",
                 prompt=prompt,
-                control_images=[{
-                    "controlnet": controlnet,
+                layers=[{
+                    "control_units": [{
+                        "controlnet": controlnet,
+                    }],
                     "image": base,
                 }]
             )
@@ -256,26 +243,28 @@ def main() -> None:
             invoke(
                 f"img2img-controlnet-{controlnet}",
                 prompt=prompt,
-                image=base,
                 strength=0.8,
-                control_images=[{
-                    "controlnet": controlnet,
+                layers=[{
+                    "control_units": [{
+                        "controlnet": controlnet,
+                    }],
                     "image": base,
+                    "denoise": True
                 }]
             )
             
             invoke(
                 f"img2img-ip-controlnet-{controlnet}",
                 prompt=prompt,
-                image=base,
                 strength=0.8,
-                ip_adapter_images=[{
+                layers=[{
+                    "control_units": [{
+                        "controlnet": controlnet,
+                    }],
+
                     "image": base,
-                    "scale": 0.5
-                }],
-                control_images=[{
-                    "controlnet": controlnet,
-                    "image": base,
+                    "denoise": True,
+                    "ip_adapter_scale": 0.5
                 }]
             )
         
@@ -286,43 +275,48 @@ def main() -> None:
                 prompt=prompt,
                 scheduler=scheduler
             )
-
-            invoke(
-                f"txt2img-multi-scheduler-{scheduler}",
-                prompt=prompt,
-                scheduler=scheduler,
-                height=768,
-                width=786,
-                chunking_size=256,
-            )
+            if scheduler != "dpmsde":
+                invoke(
+                    f"txt2img-multi-scheduler-{scheduler}",
+                    prompt=prompt,
+                    scheduler=scheduler,
+                    height=768,
+                    width=786,
+                    tiling_stride=256,
+                )
 
         # Upscalers
         invoke(
             f"upscale-standalone-esrgan",
-            upscale_steps=[{
+            upscale=[{
                 "amount": 2,
                 "method": "esrgan"
             }],
-            image=base
+            layers=[{
+                "image": base
+            }]
         )
         invoke(
             f"upscale-standalone-gfpgan",
-            upscale_steps=[{
+            upscale=[{
                 "amount": 2,
                 "method": "gfpgan"
             }],
-            image=base
+            layers=[{
+                "image": base
+            }]
         )
+
         invoke(
             f"upscale-iterative-diffusion",
             prompt="A green tree frog",
-            upscale_steps=[
+            upscale=[
                 {
                     "amount": 2,
                     "method": "esrgan",
                     "strength": 0.15,
                     "controlnets": "tile",
-                    "chunking_size": 128,
+                    "tiling_stride": 128,
                     "guidance_scale": 8
                 },
                 {
@@ -330,10 +324,10 @@ def main() -> None:
                     "method": "esrgan",
                     "strength": 0.1,
                     "controlnets": "tile",
-                    "chunking_size": 256,
+                    "tiling_stride": 256,
                     "guidance_scale": 8
                 }
-            ],
+            ]
         )
 
         # SDXL
@@ -349,20 +343,24 @@ def main() -> None:
                 "sdxl-inpaint",
                 prompt="a handsome man with ray-ban sunglasses",
                 model=DEFAULT_SDXL_MODEL,
-                image=fit_image(inpaint_image, width=1024, height=1024, fit="stretch"),
                 mask=fit_image(inpaint_mask, width=1024, height=1024, fit="stretch"),
                 width=1024,
                 height=1024,
+                layers=[{
+                    "image": fit_image(inpaint_image, width=1024, height=1024, fit="stretch")
+                }]
             )
 
             invoke(
                 "sdxl-inpaint-4ch",
                 prompt="a handsome man with ray-ban sunglasses",
                 inpainter=DEFAULT_SDXL_MODEL,
-                image=fit_image(inpaint_image, width=1024, height=1024, fit="stretch"),
                 mask=fit_image(inpaint_mask, width=1024, height=1024, fit="stretch"),
                 width=1024,
                 height=1024,
+                layers=[{
+                    "image": fit_image(inpaint_image, width=1024, height=1024, fit="stretch")
+                }]
             )
 
             control = invoke(
@@ -379,23 +377,27 @@ def main() -> None:
                 invoke(
                     f"sdxl-{controlnet}-txt2img",
                     model=DEFAULT_SDXL_MODEL,
-                    control_images=[{
-                        "controlnet": controlnet,
-                        "image": control,
-                        "scale": 0.5
+                    layers=[{
+                        "control_units": [{
+                            "controlnet": controlnet,
+                            "scale": 0.5
+                        }],
+                        "image": control
                     }],
                     prompt="A bride and groom on their wedding day",
                     guidance_scale=6
                 )[0]
-                
+
                 invoke(
                     f"sdxl-{controlnet}-txt2img-refined",
                     model=DEFAULT_SDXL_MODEL,
                     refiner=DEFAULT_SDXL_REFINER,
-                    control_images=[{
-                        "controlnet": controlnet,
-                        "image": control,
-                        "scale": 0.5
+                    layers=[{
+                        "control_units": [{
+                            "controlnet": controlnet,
+                            "scale": 0.5
+                        }],
+                        "image": control
                     }],
                     prompt="A bride and groom on their wedding day",
                     refiner_start=0.85,
@@ -405,15 +407,15 @@ def main() -> None:
                 invoke(
                     f"sdxl-{controlnet}-img2img",
                     model=DEFAULT_SDXL_MODEL,
-                    image=control,
                     strength=0.8,
-                    control_images=[
-                        {
+                    layers=[{
+                        "control_units": [{
                             "controlnet": controlnet,
-                            "image": control,
                             "scale": 0.5
-                        }
-                    ],
+                        }],
+                        "image": control,
+                        "denoise": True
+                    }],
                     prompt="A bride and groom on their wedding day",
                     guidance_scale=6
                 )[0]
@@ -422,14 +424,14 @@ def main() -> None:
                     f"sdxl-{controlnet}-img2img-refined",
                     model=DEFAULT_SDXL_MODEL,
                     refiner=DEFAULT_SDXL_REFINER,
-                    control_images=[
-                        {
+                    layers=[{
+                        "control_units": [{
                             "controlnet": controlnet,
-                            "image": control,
                             "scale": 0.5
-                        }
-                    ],
-                    image=control,
+                        }],
+                        "image": control,
+                        "denoise": True
+                    }],
                     strength=0.8,
                     refiner_start=0.85,
                     prompt="A bride and groom on their wedding day",
@@ -440,18 +442,15 @@ def main() -> None:
                     f"sdxl-{controlnet}-img2img-ip-refined",
                     model=DEFAULT_SDXL_MODEL,
                     refiner=DEFAULT_SDXL_REFINER,
-                    control_images=[
-                        {
-                            "controlnet": controlnet,
-                            "image": control,
-                            "scale": 0.5
-                        }
-                    ],
-                    image=control,
                     strength=0.8,
-                    ip_adapter_images=[{
+                    layers=[{
+                        "control_units": [{
+                            "controlnet": controlnet,
+                            "scale": 0.5
+                        }],
                         "image": control,
-                        "scale": 0.5
+                        "denoise": True,
+                        "ip_adapter_scale": 0.5
                     }],
                     prompt="A bride and groom on their wedding day",
                     refiner_start=0.85,
@@ -462,20 +461,17 @@ def main() -> None:
                     f"sdxl-{controlnet}-img2img-ip-plus-refined",
                     model=DEFAULT_SDXL_MODEL,
                     refiner=DEFAULT_SDXL_REFINER,
-                    control_images=[
-                        {
-                            "controlnet": controlnet,
-                            "image": control,
-                            "scale": 0.5
-                        }
-                    ],
-                    image=control,
                     strength=0.8,
-                    ip_adapter_images=[{
+                    ip_adapter_model="plus",
+                    layers=[{
+                        "control_units": [{
+                            "controlnet": controlnet,
+                            "scale": 0.5
+                        }],
                         "image": control,
-                        "scale": 0.5
+                        "denoise": True,
+                        "ip_adapter_scale": 0.5
                     }],
-                    ip_adapter_plus=True,
                     prompt="A bride and groom on their wedding day",
                     refiner_start=0.85,
                     guidance_scale=6

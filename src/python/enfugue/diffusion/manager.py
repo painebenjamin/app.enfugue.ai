@@ -16,6 +16,7 @@ from hashlib import md5
 from pibble.api.configuration import APIConfiguration
 from pibble.api.exceptions import ConfigurationError
 from pibble.util.files import dump_json, load_json
+from pibble.util.numeric import human_size
 
 from enfugue.util import logger, check_download, check_make_directory, find_file_in_directory
 from enfugue.diffusion.constants import *
@@ -35,6 +36,7 @@ if TYPE_CHECKING:
     from diffusers.schedulers.scheduling_utils import KarrasDiffusionSchedulers
     from enfugue.diffusion.pipeline import EnfugueStableDiffusionPipeline
     from enfugue.diffusion.support import ControlImageProcessor, Upscaler, IPAdapter, BackgroundRemover
+    from enfugue.diffusion.animate.pipeline import EnfugueAnimateStableDiffusionPipeline
 
 def noop(*args: Any) -> None:
     """
@@ -110,6 +112,11 @@ class DiffusionPipelineManager:
 
     DEFAULT_CHUNK = 64
     DEFAULT_SIZE = 512
+    DEFAULT_TEMPORAL_CHUNK = 4
+    DEFAULT_TEMPORAL_SIZE = 16
+
+    is_default_inpainter: bool = False
+    is_default_animator: bool = False
 
     _keepalive_thread: KeepaliveThread
     _keepalive_callback: Callable[[], None]
@@ -117,17 +124,20 @@ class DiffusionPipelineManager:
     _pipeline: EnfugueStableDiffusionPipeline
     _refiner_pipeline: EnfugueStableDiffusionPipeline
     _inpainter_pipeline: EnfugueStableDiffusionPipeline
-    _size: int
-    _refiner_size: int
-    _inpainter_size: int
+    _animator_pipeline: EnfugueAnimateStableDiffusionPipeline
     _task_callback: Optional[Callable[[str], None]] = None
 
-    def __init__(self, configuration: Optional[APIConfiguration] = None, optimize: bool = True) -> None:
+    def __init__(
+        self,
+        configuration: Optional[APIConfiguration] = None,
+        optimize: bool = True
+    ) -> None:
         self.configuration = APIConfiguration()
         if configuration:
             self.configuration = configuration
         if optimize:
             self.optimize_configuration()
+        self.hijack_downloads()
 
     def optimize_configuration(self) -> None:
         """
@@ -147,6 +157,28 @@ class DiffusionPipelineManager:
         """
         if getattr(self, "_task_callback", None) is not None:
             self._task_callback(message) # type: ignore[misc]
+        else:
+            logger.debug(message)
+
+    def hijack_downloads(self) -> None:
+        """
+        Steals huggingface hub HTTP GET to report back to the UI.
+        """
+        import huggingface_hub
+        import huggingface_hub.file_download
+
+        huggingface_http_get = huggingface_hub.file_download.http_get
+
+        def http_get(url: str, *args: Any, **kwargs: Any) -> Any:
+            """
+            Call the task callback then execute the standard function
+            """
+            if self.offline:
+                raise ValueError(f"Offline mode enabled, but need to download {url}. Exiting.")
+            self.task_callback(f"Downloading {url}")
+            return huggingface_http_get(url, *args, **kwargs)
+
+        huggingface_hub.file_download.http_get = http_get
 
     def check_download_model(self, local_dir: str, remote_url: str) -> str:
         """
@@ -160,7 +192,16 @@ class DiffusionPipelineManager:
         if self.offline:
             raise ValueError(f"File {output_file} does not exist in {local_dir} and offline mode is enabled, refusing to download from {remote_url}")
         self.task_callback(f"Downloading {remote_url}")
-        check_download(remote_url, output_path)
+
+        def progress_callback(written_bytes: int, total_bytes: int) -> None:
+            percentage = (written_bytes / total_bytes) * 100.0
+            self.task_callback(f"Downloading {remote_url}: {percentage:0.1f}% ({human_size(written_bytes)}/{human_size(total_bytes)})")
+
+        check_download(
+            remote_url,
+            output_path,
+            progress_callback=progress_callback
+        )
         return output_path
 
     @classmethod
@@ -201,7 +242,21 @@ class DiffusionPipelineManager:
         """
         if val != getattr(self, "_safe", None):
             self._safe = val
-            self.unload_pipeline("safety checking enabled or disabled")
+            if hasattr(self, "_pipeline"):
+                if self._pipeline.safety_checker is None and val:
+                    self.unload_pipeline("safety checking enabled")
+                else:
+                    self._pipeline.safety_checking_disabled = not val
+            if hasattr(self, "_inpainter_pipeline"):
+                if self._inpainter_pipeline.safety_checker is None and val:
+                    self.unload_inpainter("safety checking enabled")
+                else:
+                    self._inpainter_pipeline.safety_checking_disabled = not val
+            if hasattr(self, "_animator_pipeline"):
+                if self._animator_pipeline.safety_checker is None and val:
+                    self.unload_animator("safety checking enabled")
+                else:
+                    self._animator_pipeline.safety_checking_disabled = not val
 
     @property
     def device(self) -> torch.device:
@@ -240,19 +295,19 @@ class DiffusionPipelineManager:
         if self.device.type == "cuda":
             import torch
             import torch.cuda
-
             torch.cuda.empty_cache()
+            torch.cuda.synchronize()
         elif self.device.type == "mps":
             import torch
             import torch.mps
-
             torch.mps.empty_cache()
+            torch.mps.synchronize()
         gc.collect()
 
     @property
     def seed(self) -> int:
         """
-        Gets the seed. If there is none, creates a random one once.
+        Gets the seed. If there is None, creates a random one once.
         """
         if not hasattr(self, "_seed"):
             self._seed = self.configuration.get("enfugue.seed", random.randint(0, 2**63 - 1))
@@ -368,12 +423,12 @@ class DiffusionPipelineManager:
         kwargs: Dict[str, Any] = {}
         if not scheduler:
             return None
-        elif scheduler in ["dpmsm", "dpmsmk", "dpmsmka"]:
+        elif scheduler in ["dpmsm", "dpmsms", "dpmsmk", "dpmsmka"]:
             from diffusers.schedulers import DPMSolverMultistepScheduler
+            if scheduler in ["dpmsms", "dpmsmka"]:
+                kwargs["algorithm_type"] = "sde-dpmsolver++"
             if scheduler in ["dpmsmk", "dpmsmka"]:
                 kwargs["use_karras_sigmas"] = True
-                if scheduler == "dpmsmka":
-                    kwargs["algorithm_type"] = "sde-dpmsolver++"
             return (DPMSolverMultistepScheduler, kwargs)
         elif scheduler in ["dpmss", "dpmssk"]:
             from diffusers.schedulers import DPMSolverSinglestepScheduler
@@ -449,7 +504,18 @@ class DiffusionPipelineManager:
         if not new_scheduler:
             if hasattr(self, "_scheduler"):
                 delattr(self, "_scheduler")
-                self.unload_pipeline("returning to default scheduler")
+                if hasattr(self, "_pipeline"):
+                    logger.debug("Reverting pipeline scheduler to default.")
+                    self._pipeline.revert_scheduler()
+                if hasattr(self, "_inpainter_pipeline"):
+                    logger.debug("Reverting inpainter pipeline scheduler to default.")
+                    self._inpainter_pipeline.revert_scheduler()
+                if hasattr(self, "_refiner_pipeline"):
+                    logger.debug("Reverting refiner pipeline scheduler to default.")
+                    self._refiner_pipeline.revert_scheduler()
+                if hasattr(self, "_animator_pipeline"):
+                    logger.debug("Reverting animator pipeline scheduler to default.")
+                    self._animator_pipeline.revert_scheduler()
             return
         scheduler_class = self.get_scheduler_class(new_scheduler)
         scheduler_config: Dict[str, Any] = {}
@@ -470,6 +536,9 @@ class DiffusionPipelineManager:
         if hasattr(self, "_refiner_pipeline"):
             logger.debug(f"Hot-swapping refiner pipeline scheduler.")
             self._refiner_pipeline.scheduler = self.scheduler.from_config({**self._refiner_pipeline.scheduler_config, **self.scheduler_config})  # type: ignore
+        if hasattr(self, "_animator_pipeline"):
+            logger.debug(f"Hot-swapping animator pipeline scheduler.")
+            self._animator_pipeline.scheduler = self.scheduler.from_config({**self._animator_pipeline.scheduler_config, **self.scheduler_config})  # type: ignore
 
     def get_vae_path(self, vae: Optional[str] = None) -> Optional[Union[str, Tuple[str, ...]]]:
         """
@@ -562,13 +631,6 @@ class DiffusionPipelineManager:
                 logger.debug(f"Received KeyError on '{ex}' when instantiating VAE from single file, trying to use XL VAE loader fix.")
                 result = self.get_xl_vae(vae)
         else:
-            expected_vae_location = os.path.join(self.engine_cache_dir, "models--" + vae.replace("/", "--"))
-
-            if not os.path.exists(expected_vae_location):
-                if self.offline:
-                    raise IOError(f"Offline mode enabled, cannot download {vae} to {expected_vae_location}")
-                self.task_callback(f"Downloading VAE weights from repository {vae}")
-                logger.info(f"VAE {vae} does not exist in cache directory {self.engine_cache_dir}, it will be downloaded.")
             result = AutoencoderKL.from_pretrained(
                 vae,
                 torch_dtype=self.dtype,
@@ -584,11 +646,6 @@ class DiffusionPipelineManager:
         """
         from diffusers.models import AutoencoderTiny
         repo = "madebyollin/taesdxl" if use_xl else "madebyollin/taesd"
-        expected_path = os.path.join(self.engine_cache_dir, "models--{0}".format(repo.replace("/", "--")))
-        if not os.path.exists(expected_path):
-            if self.offline:
-                raise IOError(f"Offline mode enabled, cannot download {repo} to {expected_path}")
-            self.task_callback(f"Downloading preview VAE weights from repository {repo}")
         return AutoencoderTiny.from_pretrained(
             repo,
             cache_dir=self.engine_cache_dir,
@@ -598,7 +655,7 @@ class DiffusionPipelineManager:
     @property
     def vae(self) -> Optional[AutoencoderKL]:
         """
-        Gets the configured VAE (or none.)
+        Gets the configured VAE (or None.)
         """
         if not hasattr(self, "_vae"):
             self._vae = self.get_vae(self.vae_name)
@@ -649,7 +706,7 @@ class DiffusionPipelineManager:
     @property
     def refiner_vae(self) -> Optional[AutoencoderKL]:
         """
-        Gets the configured refiner VAE (or none.)
+        Gets the configured refiner VAE (or None.)
         """
         if not hasattr(self, "_refiner_vae"):
             self._refiner_vae = self.get_vae(self.refiner_vae_name)
@@ -700,7 +757,7 @@ class DiffusionPipelineManager:
     @property
     def inpainter_vae(self) -> Optional[AutoencoderKL]:
         """
-        Gets the configured inpainter VAE (or none.)
+        Gets the configured inpainter VAE (or None.)
         """
         if not hasattr(self, "_inpainter_vae"):
             self._inpainter_vae = self.get_vae(self.inpainter_vae_name)
@@ -749,72 +806,78 @@ class DiffusionPipelineManager:
         return self._inpainter_vae_name
 
     @property
+    def animator_vae(self) -> Optional[AutoencoderKL]:
+        """
+        Gets the configured animator VAE (or None.)
+        """
+        if not hasattr(self, "_animator_vae"):
+            self._animator_vae = self.get_vae(self.animator_vae_name)
+        return self._animator_vae
+
+    @animator_vae.setter
+    def animator_vae(
+        self,
+        new_vae: Optional[str],
+    ) -> None:
+        """
+        Sets a new animator vae.
+        """
+        pretrained_path = self.get_vae_path(new_vae)
+        existing_vae = getattr(self, "_animator_vae", None)
+
+        if (
+            (not existing_vae and new_vae)
+            or (existing_vae and not new_vae)
+            or (existing_vae and new_vae and self.animator_vae_name != new_vae)
+        ):
+            if not new_vae:
+                self._animator_vae_name = None  # type: ignore
+                self._animator_vae = None
+                self.unload_animator("VAE resetting to default")
+            else:
+                self._animator_vae_name = new_vae
+                self._animator_vae = self.get_vae(pretrained_path)
+                if self.animator_tensorrt_is_ready and "vae" in self.TENSORRT_STAGES:
+                    self.unload_animator("VAE changing")
+                elif hasattr(self, "_animator_pipeline"):
+                    logger.debug(f"Hot-swapping animator pipeline VAE to {new_vae}")
+                    self._animator_pipeline.vae = self._animator_vae # type: ignore [assignment]
+                    if self.animator_is_sdxl:
+                        self._animator_pipeline.register_to_config( # type: ignore[attr-defined]
+                            force_full_precision_vae = new_vae in ["xl", "stabilityai/sdxl-vae"]
+                        )
+
+    @property
+    def animator_vae_name(self) -> Optional[str]:
+        """
+        Gets the name of the VAE, if one was set.
+        """
+        if not hasattr(self, "_animator_vae_name"):
+            self._animator_vae_name = self.configuration.get("enfugue.vae.animator", None)
+        return self._animator_vae_name
+
+    @property
     def size(self) -> int:
         """
-        Gets the base engine size in pixels when chunking (default always.)
+        Gets the trained size of the model
         """
         if not hasattr(self, "_size"):
             return 1024 if self.is_sdxl else 512
         return self._size
 
-    @size.setter
-    def size(self, new_size: Optional[int]) -> None:
-        """
-        Sets the base engine size in pixels.
-        """
-        if new_size is None:
-            if hasattr(self, "_size"):
-                check_reload_size = self._size
-                delattr(self, "_size")
-                if check_reload_size != self.size and self.tensorrt_is_ready:
-                    self.unload_pipeline("engine size changing")
-                elif hasattr(self, "_pipeline"):
-                    logger.debug("setting pipeline engine size in place.")
-                    self._pipeline.engine_size = self.size
-            return
-        if hasattr(self, "_size") and self._size != new_size:
-            if self.tensorrt_is_ready:
-                self.unload_pipeline("engine size changing")
-            elif hasattr(self, "_pipeline"):
-                logger.debug("Setting pipeline engine size in-place.")
-                self._pipeline.engine_size = new_size
-        self._size = new_size
-
     @property
     def refiner_size(self) -> int:
         """
-        Gets the refiner engine size in pixels when chunking (default always.)
+        Gets the trained size of the refiner
         """
         if not hasattr(self, "_refiner_size"):
             return 1024 if self.refiner_is_sdxl else 512
         return self._refiner_size
 
-    @refiner_size.setter
-    def refiner_size(self, new_refiner_size: Optional[int]) -> None:
-        """
-        Sets the refiner engine size in pixels.
-        """
-        if new_refiner_size is None:
-            if hasattr(self, "_refiner_size"):
-                if self._refiner_size != self.size and self.refiner_tensorrt_is_ready:
-                    self.unload_refiner("engine size changing")
-                elif hasattr(self, "_refiner_pipeline"):
-                    logger.debug("Setting refiner engine size in-place.")
-                    self._refiner_pipeline.engine_size = self.size
-                delattr(self, "_refiner_size")
-        elif hasattr(self, "_refiner_size") and self._refiner_size != new_refiner_size:
-            if self.refiner_tensorrt_is_ready:
-                self.unload_refiner("engine size changing")
-            elif hasattr(self, "_refiner_pipeline"):
-                logger.debug("Setting refiner engine size in-place.")
-                self._refiner_pipeline.engine_size = new_refiner_size
-        if new_refiner_size is not None:
-            self._refiner_size = new_refiner_size
-
     @property
     def inpainter_size(self) -> int:
         """
-        Gets the inpainter engine size in pixels when chunking (default always.)
+        Gets the trained size of the inpainter
         """
         if not hasattr(self, "_inpainter_size"):
             if self.inpainter:
@@ -822,45 +885,149 @@ class DiffusionPipelineManager:
             return self.size
         return self._inpainter_size
 
-    @inpainter_size.setter
-    def inpainter_size(self, new_inpainter_size: Optional[int]) -> None:
+    @property
+    def animator_size(self) -> int:
         """
-        Sets the inpainter engine size in pixels.
+        Gets the trained size of the animator
         """
-        if new_inpainter_size is None:
-            if hasattr(self, "_inpainter_size"):
-                if self._inpainter_size != self.size and self.inpainter_tensorrt_is_ready:
-                    self.unload_inpainter("engine size changing")
-                elif hasattr(self, "_inpainter_pipeline"):
-                    logger.debug("Setting inpainter engine size in-place.")
-                    self._inpainter_pipeline.engine_size = self.size
-                delattr(self, "_inpainter_size")
-        elif hasattr(self, "_inpainter_size") and self._inpainter_size != new_inpainter_size:
-            if self.inpainter_tensorrt_is_ready:
-                self.unload_inpainter("engine size changing")
-            elif hasattr(self, "_inpainter_pipeline"):
-                logger.debug("Setting inpainter engine size in-place.")
-                self._inpainter_pipeline.engine_size = new_inpainter_size
-        if new_inpainter_size is not None:
-            self._inpainter_size = new_inpainter_size
+        if not hasattr(self, "_animator_size"):
+            if self.animator:
+                return 1024 if self.animator_is_sdxl else 512
+            return self.size
+        return self._animator_size
 
     @property
-    def chunking_size(self) -> int:
+    def tiling_size(self) -> Optional[int]:
+        """
+        Gets the tiling size in pixels.
+        """
+        if not hasattr(self, "_tiling_size"):
+            self._tiling_size = self.configuration.get("enfugue.tile.size", None)
+        return self._tiling_size
+
+    @tiling_size.setter
+    def tiling_size(self, new_tiling_size: Optional[int]) -> None:
+        """
+        Sets the new tiling size. This will require a restart if pipelines are loaded and using tensorrt.
+        """
+        if (
+            (self.tiling_size is None and new_tiling_size is not None) or
+            (self.tiling_size is not None and new_tiling_size is None) or
+            (self.tiling_size is not None and new_tiling_size is not None and self.tiling_size != new_tiling_size)
+        ):
+            if hasattr(self, "_pipeline") and self.tensorrt_is_ready:
+                self.unload_pipeline("engine tiling size changing")
+            if hasattr(self, "_inpainter_pipeline") and self.inpainter_tensorrt_is_ready:
+                self.unload_inpainter("engine tiling size changing")
+            if hasattr(self, "_refiner_pipeline") and self.refiner_tensorrt_is_ready:
+                self.unload_refiner("engine tiling size changing")
+            if hasattr(self, "_animator_pipeline") and self.animator_tensorrt_is_ready:
+                self.unload_animator("engine tiling size changing")
+
+    @property
+    def tiling_stride(self) -> int:
         """
         Gets the chunking size in pixels.
         """
-        if not hasattr(self, "_chunking_size"):
-            self._chunking_size = int(
-                self.configuration.get("enfugue.chunk.size", DiffusionPipelineManager.DEFAULT_CHUNK)
+        if not hasattr(self, "_tiling_stride"):
+            self._tiling_stride = int(
+                self.configuration.get("enfugue.tile.stride", self.size // 4)
             )
-        return self._chunking_size
+        return self._tiling_stride
 
-    @chunking_size.setter
-    def chunking_size(self, new_chunking_size: int) -> None:
+    @tiling_stride.setter
+    def tiling_stride(self, new_tiling_stride: int) -> None:
+        """
+        Sets the new tiling stride. This doesn't require a restart.
+        """
+        self._tiling_stride = new_tiling_stride
+
+    @property
+    def tensorrt_size(self) -> int:
+        """
+        Gets the size of an active tensorrt engine.
+        """
+        if self.tiling_size is not None:
+            return self.tiling_size
+        return self.size
+
+    @property
+    def inpainter_tensorrt_size(self) -> int:
+        """
+        Gets the size of an active inpainter tensorrt engine.
+        """
+        if self.tiling_size is not None:
+            return self.tiling_size
+        return self.inpainter_size
+
+    @property
+    def refiner_tensorrt_size(self) -> int:
+        """
+        Gets the size of an active refiner tensorrt engine.
+        """
+        if self.tiling_size is not None:
+            return self.tiling_size
+        return self.refiner_size
+
+    @property
+    def animator_tensorrt_size(self) -> int:
+        """
+        Gets the size of an active animator tensorrt engine.
+        """
+        if self.tiling_size is not None:
+            return self.tiling_size
+        return self.animator_size
+
+    @property
+    def frame_window_size(self) -> int:
+        """
+        Gets the animator frame window engine size in frames when chunking (default always.)
+        """
+        if not hasattr(self, "_frame_window_size"):
+            self._frame_window_size = self.configuration.get("enfugue.frames", DiffusionPipelineManager.DEFAULT_TEMPORAL_SIZE)
+        return self._frame_window_size
+
+    @frame_window_size.setter
+    def frame_window_size(self, new_frame_window_size: Optional[int]) -> None:
+        """
+        Sets the animator engine size in pixels.
+        """
+        if new_frame_window_size is None:
+            if hasattr(self, "_frame_window_size"):
+                if self._frame_window_size != self.frame_window_size and self.tensorrt_is_ready:
+                    self.unload_animator("engine frame window size changing")
+                elif hasattr(self, "_animator_pipeline"):
+                    logger.debug("Setting animator engine size in-place.")
+                    self._animator_pipeline.frame_window_size = new_frame_window_size # type: ignore[assignment]
+                delattr(self, "_frame_window_size")
+        elif hasattr(self, "_frame_window_size") and self._frame_window_size != new_frame_window_size:
+            if self.tensorrt_is_ready:
+                self.unload_animator("engine size changing")
+            elif hasattr(self, "_animator_pipeline"):
+                logger.debug("Setting animator frame window engine size in-place.")
+                self._animator_pipeline.frame_window_size = new_frame_window_size
+        if new_frame_window_size is not None:
+            self._frame_window_size = new_frame_window_size
+
+    @property
+    def frame_window_stride(self) -> Optional[int]:
+        """
+        Gets the chunking size in pixels.
+        """
+        if not hasattr(self, "_frame_window_stride"):
+            self._frame_window_stride = int(
+                self.configuration.get("enfugue.temporal.size", DiffusionPipelineManager.DEFAULT_TEMPORAL_CHUNK)
+            )
+        return self._frame_window_stride
+
+    @frame_window_stride.setter
+    def frame_window_stride(self, new_frame_window_stride: Optional[int]) -> None:
         """
         Sets the new chunking size. This doesn't require a restart.
         """
-        self._chunking_size = new_chunking_size
+        self._frame_window_stride = new_frame_window_stride # type: ignore[assignment]
+        if hasattr(self, "_animator_pipeline"):
+            self._animator_pipeline.frame_window_stride = new_frame_window_stride # type: ignore[assignment]
 
     @property
     def engine_root(self) -> str:
@@ -959,6 +1126,18 @@ class DiffusionPipelineManager:
         return path
 
     @property
+    def engine_motion_dir(self) -> str:
+        """
+        Gets where motion modules are saved.
+        """
+        path = self.configuration.get("enfugue.engine.motion", "~/.cache/enfugue/motion")
+        if path.startswith("~"):
+            path = os.path.expanduser(path)
+        path = os.path.realpath(path)
+        check_make_directory(path)
+        return path
+
+    @property
     def model_tensorrt_dir(self) -> str:
         """
         Gets where tensorrt engines will be built per model.
@@ -986,6 +1165,17 @@ class DiffusionPipelineManager:
         if not self.inpainter_name:
             raise ValueError("No inpainter set")
         path = os.path.join(self.engine_tensorrt_dir, self.inpainter_name)
+        check_make_directory(path)
+        return path
+
+    @property
+    def animator_tensorrt_dir(self) -> str:
+        """
+        Gets where tensorrt engines will be built per animator.
+        """
+        if not self.animator_name:
+            raise ValueError("No animator set")
+        path = os.path.join(self.engine_tensorrt_dir, self.animator_name)
         check_make_directory(path)
         return path
 
@@ -1033,6 +1223,17 @@ class DiffusionPipelineManager:
         return path
 
     @property
+    def animator_diffusers_dir(self) -> str:
+        """
+        Gets where the diffusers cache will be for the current animator.
+        """
+        if not self.animator_name:
+            raise ValueError("No animator set")
+        path = os.path.join(self.engine_diffusers_dir, f"{self.animator_name}-animator")
+        check_make_directory(path)
+        return path
+
+    @property
     def engine_onnx_dir(self) -> str:
         """
         Gets where ONNX models are built (when using DirectML)
@@ -1072,6 +1273,17 @@ class DiffusionPipelineManager:
         if not self.inpainter_name:
             raise ValueError("No inpainter set")
         path = os.path.join(self.engine_onnx_dir, self.inpainter_name)
+        check_make_directory(path)
+        return path
+
+    @property
+    def animator_onnx_dir(self) -> str:
+        """
+        Gets where the onnx cache will be for the current animator.
+        """
+        if not self.animator_name:
+            raise ValueError("No animator set")
+        path = os.path.join(self.engine_onnx_dir, self.animator_name)
         check_make_directory(path)
         return path
 
@@ -1213,6 +1425,42 @@ class DiffusionPipelineManager:
             self.write_model_metadata(metadata_path)
         return path
 
+    @property
+    def animator_clip_key(self) -> str:
+        """
+        Gets the CLIP key for the current configuration.
+        """
+        return DiffusionPipelineManager.get_clip_key(
+            size=self.animator_size,
+            lora=[],
+            lycoris=[],
+            inversion=[]
+        )
+
+    @property
+    def animator_tensorrt_clip_dir(self) -> str:
+        """
+        Gets where the tensorrt CLIP engine will be stored.
+        """
+        path = os.path.join(self.animator_tensorrt_dir, "clip", self.animator_clip_key)
+        check_make_directory(path)
+        metadata_path = os.path.join(path, "metadata.json")
+        if not os.path.exists(metadata_path):
+            self.write_model_metadata(metadata_path)
+        return path
+
+    @property
+    def animator_onnx_clip_dir(self) -> str:
+        """
+        Gets where the onnx CLIP engine will be stored.
+        """
+        path = os.path.join(self.animator_onnx_dir, "clip", self.animator_clip_key)
+        check_make_directory(path)
+        metadata_path = os.path.join(path, "metadata.json")
+        if not os.path.exists(metadata_path):
+            self.write_model_metadata(metadata_path)
+        return path
+
     @staticmethod
     def get_unet_key(
         size: int,
@@ -1253,7 +1501,7 @@ class DiffusionPipelineManager:
         Gets the UNET key for the current configuration.
         """
         return DiffusionPipelineManager.get_unet_key(
-            size=self.size,
+            size=self.tensorrt_size,
             lora=self.lora_names_weights,
             lycoris=self.lycoris_names_weights,
             inversion=self.inversion_names,
@@ -1289,7 +1537,7 @@ class DiffusionPipelineManager:
         Gets the UNET key for the current configuration.
         """
         return DiffusionPipelineManager.get_unet_key(
-            size=self.refiner_size,
+            size=self.refiner_tensorrt_size,
             lora=[],
             lycoris=[],
             inversion=[]
@@ -1325,7 +1573,7 @@ class DiffusionPipelineManager:
         Gets the UNET key for the current configuration.
         """
         return DiffusionPipelineManager.get_unet_key(
-            size=self.inpainter_size,
+            size=self.inpainter_tensorrt_size,
             lora=[],
             lycoris=[],
             inversion=[]
@@ -1349,6 +1597,42 @@ class DiffusionPipelineManager:
         Gets where the onnx UNET engine will be stored for the inpainter.
         """
         path = os.path.join(self.inpainter_onnx_dir, "unet", self.inpainter_unet_key)
+        check_make_directory(path)
+        metadata_path = os.path.join(path, "metadata.json")
+        if not os.path.exists(metadata_path):
+            self.write_model_metadata(metadata_path)
+        return path
+
+    @property
+    def animator_unet_key(self) -> str:
+        """
+        Gets the UNET key for the current configuration.
+        """
+        return DiffusionPipelineManager.get_unet_key(
+            size=self.animator_tensorrt_size,
+            lora=[],
+            lycoris=[],
+            inversion=[]
+        )
+
+    @property
+    def animator_tensorrt_unet_dir(self) -> str:
+        """
+        Gets where the tensorrt UNET engine will be stored for the animator.
+        """
+        path = os.path.join(self.animator_tensorrt_dir, "unet", self.animator_unet_key)
+        check_make_directory(path)
+        metadata_path = os.path.join(path, "metadata.json")
+        if not os.path.exists(metadata_path):
+            self.write_model_metadata(metadata_path)
+        return path
+
+    @property
+    def animator_onnx_unet_dir(self) -> str:
+        """
+        Gets where the onnx UNET engine will be stored for the animator.
+        """
+        path = os.path.join(self.animator_onnx_dir, "unet", self.animator_unet_key)
         check_make_directory(path)
         metadata_path = os.path.join(path, "metadata.json")
         if not os.path.exists(metadata_path):
@@ -1469,7 +1753,7 @@ class DiffusionPipelineManager:
         Gets the UNET key for the current configuration.
         """
         return DiffusionPipelineManager.get_controlled_unet_key(
-            size=self.inpainter_size,
+            size=self.inpainter_tensorrt_size,
             lora=[],
             lycoris=[],
             inversion=[]
@@ -1495,6 +1779,44 @@ class DiffusionPipelineManager:
         TODO: determine if this should exist.
         """
         path = os.path.join(self.inpainter_onnx_dir, "controlledunet", self.inpainter_controlled_unet_key)
+        check_make_directory(path)
+        metadata_path = os.path.join(path, "metadata.json")
+        if not os.path.exists(metadata_path):
+            self.write_model_metadata(metadata_path)
+        return path
+
+    @property
+    def animator_controlled_unet_key(self) -> str:
+        """
+        Gets the UNET key for the current configuration.
+        """
+        return DiffusionPipelineManager.get_controlled_unet_key(
+            size=self.animator_tensorrt_size,
+            lora=[],
+            lycoris=[],
+            inversion=[]
+        )
+
+    @property
+    def animator_tensorrt_controlled_unet_dir(self) -> str:
+        """
+        Gets where the tensorrt Controlled UNet engine will be stored for the animator.
+        TODO: determine if this should exist.
+        """
+        path = os.path.join(self.animator_tensorrt_dir, "controlledunet", self.animator_controlled_unet_key)
+        check_make_directory(path)
+        metadata_path = os.path.join(path, "metadata.json")
+        if not os.path.exists(metadata_path):
+            self.write_model_metadata(metadata_path)
+        return path
+
+    @property
+    def animator_onnx_controlled_unet_dir(self) -> str:
+        """
+        Gets where the onnx Controlled UNet engine will be stored for the animator.
+        TODO: determine if this should exist.
+        """
+        path = os.path.join(self.animator_onnx_dir, "controlledunet", self.animator_controlled_unet_key)
         check_make_directory(path)
         metadata_path = os.path.join(path, "metadata.json")
         if not os.path.exists(metadata_path):
@@ -1605,6 +1927,37 @@ class DiffusionPipelineManager:
         return path
 
     @property
+    def animator_vae_key(self) -> str:
+        """
+        Gets the UNET key for the current configuration.
+        """
+        return DiffusionPipelineManager.get_vae_key(size=self.animator_size)
+
+    @property
+    def animator_tensorrt_vae_dir(self) -> str:
+        """
+        Gets where the tensorrt VAE engine will be stored for the animator.
+        """
+        path = os.path.join(self.animator_tensorrt_dir, "vae", self.animator_vae_key)
+        check_make_directory(path)
+        metadata_path = os.path.join(path, "metadata.json")
+        if not os.path.exists(metadata_path):
+            self.write_model_metadata(metadata_path)
+        return path
+
+    @property
+    def animator_onnx_vae_dir(self) -> str:
+        """
+        Gets where the onnx VAE engine will be stored for the animator.
+        """
+        path = os.path.join(self.animator_onnx_dir, "vae", self.animator_vae_key)
+        check_make_directory(path)
+        metadata_path = os.path.join(path, "metadata.json")
+        if not os.path.exists(metadata_path):
+            self.write_model_metadata(metadata_path)
+        return path
+
+    @property
     def tensorrt_is_supported(self) -> bool:
         """
         Tries to import tensorrt to see if it's supported.
@@ -1632,6 +1985,8 @@ class DiffusionPipelineManager:
             self.unload_pipeline("TensorRT enabled or disabled")
         if new_enabled != self.tensorrt_is_enabled and self.inpainter_tensorrt_is_ready:
             self.unload_inpainter("TensorRT enabled or disabled")
+        if new_enabled != self.tensorrt_is_enabled and self.animator_tensorrt_is_ready:
+            self.unload_animator("TensorRT enabled or disabled")
         if new_enabled != self.tensorrt_is_enabled and self.refiner_tensorrt_is_ready:
             self.unload_refiner("TensorRT enabled or disabled")
         self._tensorrt_enabled = new_enabled
@@ -1710,6 +2065,31 @@ class DiffusionPipelineManager:
         return trt_ready
 
     @property
+    def animator_tensorrt_is_ready(self) -> bool:
+        """
+        Checks to determine if Tensor RT is ready based on the existence of engines for the animator
+        """
+        if not self.tensorrt_is_supported:
+            return False
+        if self.animator is None:
+            return False
+        from enfugue.diffusion.rt.engine import Engine
+
+        trt_ready = True
+        if "vae" in self.TENSORRT_STAGES:
+            trt_ready = trt_ready and os.path.exists(Engine.get_engine_path(self.animator_tensorrt_vae_dir))
+        if "clip" in self.TENSORRT_STAGES:
+            trt_ready = trt_ready and os.path.exists(Engine.get_engine_path(self.animator_tensorrt_clip_dir))
+        if self.animator_controlnets or self.TENSORRT_ALWAYS_USE_CONTROLLED_UNET:
+            if "unet" in self.TENSORRT_STAGES:
+                trt_ready = trt_ready and os.path.exists(
+                    Engine.get_engine_path(self.animator_tensorrt_controlled_unet_dir)
+                )
+        elif "unet" in self.TENSORRT_STAGES:
+            trt_ready = trt_ready and os.path.exists(Engine.get_engine_path(self.animator_tensorrt_unet_dir))
+        return trt_ready
+
+    @property
     def build_tensorrt(self) -> bool:
         """
         Checks to see if TensorRT should be built based on configuration.
@@ -1731,6 +2111,8 @@ class DiffusionPipelineManager:
             self.unload_pipeline("preparing for TensorRT build")
         if not self.inpainter_tensorrt_is_ready and self.tensorrt_is_supported:
             self.unload_inpainter("preparing for TensorRT build")
+        if not self.animator_tensorrt_is_ready and self.tensorrt_is_supported:
+            self.unload_animator("preparing for TensorRT build")
         if not self.refiner_tensorrt_is_ready and self.tensorrt_is_supported:
             self.unload_refiner("preparing for TensorRT build")
 
@@ -1754,6 +2136,14 @@ class DiffusionPipelineManager:
         Gets the ultimate decision on whether the tensorrt pipeline should be used for the inpainter.
         """
         return (self.inpainter_tensorrt_is_ready or self.build_tensorrt) and self.tensorrt_is_enabled
+
+    @property
+    def animator_use_tensorrt(self) -> bool:
+        """
+        Gets the ultimate decision on whether the tensorrt pipeline should be used for the animator.
+        """
+        return False
+        # return (self.animator_tensorrt_is_ready or self.build_tensorrt) and self.tensorrt_is_enabled
 
     @property
     def use_directml(self) -> bool:
@@ -1803,6 +2193,16 @@ class DiffusionPipelineManager:
         Defines how to switch to inpainting.
         """
         return bool(self.configuration.get("enfugue.pipeline.inpainter", True))
+
+    @property
+    def create_animator(self) -> bool:
+        """
+        Defines how to switch to inpainting.
+        """
+        configured = self.configuration.get("enfugue.pipeline.animator", None)
+        if configured is None:
+            return not self.is_sdxl
+        return configured
 
     @property
     def refiner_strength(self) -> float:
@@ -1928,6 +2328,17 @@ class DiffusionPipelineManager:
 
             return EnfugueStableDiffusionPipeline
 
+    @property
+    def animator_pipeline_class(self) -> Type:
+        """
+        Gets the pipeline class to use.
+        """
+        if self.animator_use_tensorrt:
+            raise RuntimeError("No TensorRT animation pipeline exists yet.")
+        else:
+            from enfugue.diffusion.animate.pipeline import EnfugueAnimateStableDiffusionPipeline
+            return EnfugueAnimateStableDiffusionPipeline
+
     def check_get_default_model(self, model: str) -> str:
         """
         Checks if a model is a default model, in which case the remote URL is returned
@@ -1971,11 +2382,16 @@ class DiffusionPipelineManager:
             model = find_file_in_directory(self.engine_checkpoints_dir, model)
         if not model:
             raise ValueError(f"Cannot find model {new_model}")
+
         model_name, _ = os.path.splitext(os.path.basename(model))
         if self.model_name != model_name:
             self.unload_pipeline("model changing")
-            if not hasattr(self, "_inpainter") and getattr(self, "_inpainter_pipeline", None) is not None:
+            if self.is_default_animator and getattr(self, "_animator_pipeline", None) is not None:
+                self.unload_animator("base model changing")
+                self.is_default_animator = False
+            if self.is_default_inpainter and getattr(self, "_inpainter_pipeline", None) is not None:
                 self.unload_inpainter("base model changing")
+                self.is_default_inpainter = False
         self._model = model
 
     @property
@@ -2078,6 +2494,53 @@ class DiffusionPipelineManager:
         if self.inpainter is None:
             return None
         return os.path.splitext(os.path.basename(self.inpainter))[0]
+    
+    @property
+    def animator(self) -> Optional[str]:
+        """
+        Gets the configured animator.
+        """
+        if not hasattr(self, "_animator"):
+            self._animator = self.configuration.get("enfugue.animator", None)
+        return self._animator
+
+    @animator.setter
+    def animator(self, new_animator: Optional[str]) -> None:
+        """
+        Sets a new animator. Destroys the animator pipelline.
+        """
+        if new_animator is None:
+            self._animator = None
+            return
+        animator = self.check_get_default_model(new_animator)
+        if animator.startswith("http"):
+            animator = self.check_download_model(self.engine_checkpoints_dir, animator)
+        elif not os.path.isabs(animator):
+            animator = find_file_in_directory(self.engine_checkpoints_dir, animator) # type: ignore[assignment]
+        if not animator:
+            raise ValueError(f"Cannot find animator {new_animator}")
+
+        animator_name, _ = os.path.splitext(os.path.basename(animator))
+        if self.animator_name != animator_name:
+            self.unload_animator("model changing")
+
+        self._animator = animator
+
+    @property
+    def animator_name(self) -> Optional[str]:
+        """
+        Gets just the basename of the animator
+        """
+        if self.animator is None:
+            return None
+        return os.path.splitext(os.path.basename(self.animator))[0]
+
+    @property
+    def has_animator(self) -> bool:
+        """
+        Returns true if the animator is set.
+        """
+        return self.animator is not None
 
     @property
     def dtype(self) -> torch.dtype:
@@ -2092,9 +2555,6 @@ class DiffusionPipelineManager:
             if device_type == "cpu":
                 logger.debug("Inferencing on cpu, must use dtype bfloat16")
                 self._torch_dtype = torch.bfloat16
-            elif device_type == "mps":
-                logger.debug("Inferencing on mps, defaulting to dtype float16")
-                self._torch_dtype = torch.float16
             elif device_type == "cuda" and torch.version.hip:
                 logger.debug("Inferencing on rocm, must use dtype float32")  # type: ignore[unreachable]
                 self._torch_dtype = torch.float
@@ -2138,6 +2598,7 @@ class DiffusionPipelineManager:
             self.unload_pipeline("data type changing")
             self.unload_refiner("data type changing")
             self.unload_inpainter("data type changing")
+            self.unload_animator("data type changing")
 
         self._torch_dtype = new_dtype
 
@@ -2175,12 +2636,14 @@ class DiffusionPipelineManager:
 
         for i, (model, weight) in enumerate(lora):
             if model.startswith("http"):
-                model = self.check_download_model(self.engine_lora_dir, model)
+                find_model = self.check_download_model(self.engine_lora_dir, model)
             elif not os.path.isabs(model):
-                model = find_file_in_directory(self.engine_lora_dir, model) # type: ignore[assignment]
-            if not model:
+                find_model = find_file_in_directory(self.engine_lora_dir, model) # type: ignore[assignment]
+            else:
+                find_model = model
+            if not find_model:
                 raise ValueError(f"Cannot find LoRA model {model}")
-            lora[i] = (model, weight)
+            lora[i] = (find_model, weight)
 
         if getattr(self, "_lora", []) != lora:
             self.unload_pipeline("LoRA changing")
@@ -2285,6 +2748,96 @@ class DiffusionPipelineManager:
         return [os.path.splitext(os.path.basename(inversion))[0] for inversion in self.inversion]
 
     @property
+    def reload_motion_module(self) -> bool:
+        """
+        Returns true if the motion module should be reloaded.
+        """
+        return getattr(self, "_reload_motion_module", False)
+
+    @reload_motion_module.setter
+    def reload_motion_module(self, reload: bool) -> None:
+        """
+        Sets if the motion module should be reloaded.
+        """
+        self._reload_motion_module = reload
+
+    @property
+    def motion_module(self) -> Optional[str]:
+        """
+        Gets optional configured non-default motion module.
+        """
+        return getattr(self, "_motion_module", None)
+
+    @motion_module.setter
+    def motion_module(self, new_module: Optional[str]) -> None:
+        """
+        Sets a new motion module or reverts to default.
+        """
+        if (
+            self.motion_module is None and new_module is not None or
+            self.motion_module is not None and new_module is None or
+            (
+                self.motion_module is not None and
+                new_module is not None and
+                self.motion_module != new_module
+            )
+        ):
+            self.reload_motion_module = True
+        if new_module is not None and not os.path.isabs(new_module):
+            new_module = os.path.join(self.engine_motion_dir, new_module)
+        if new_module is not None and not os.path.exists(new_module):
+            raise IOError(f"Cannot find or access motion module at {new_module}")
+        self._motion_module = new_module
+
+    @property
+    def position_encoding_truncate_length(self) -> Optional[int]:
+        """
+        An optional length (frames) to truncate position encoder tensors to
+        """
+        return getattr(self, "_position_encoding_truncate_length", None)
+
+    @position_encoding_truncate_length.setter
+    def position_encoding_truncate_length(self, new_length: Optional[int]) -> None:
+        """
+        Sets position encoder truncate length.
+        """
+        if (
+            self.position_encoding_truncate_length is None and new_length is not None or
+            self.position_encoding_truncate_length is not None and new_length is None or
+            (
+                self.position_encoding_truncate_length is not None and 
+                new_length is not None and
+                self.position_encoding_truncate_length != new_length
+            )
+        ):
+            self.reload_motion_module = True
+        self._position_encoding_truncate_length = new_length
+
+    @property
+    def position_encoding_scale_length(self) -> Optional[int]:
+        """
+        An optional length (frames) to scale position encoder tensors to
+        """
+        return getattr(self, "_position_encoding_scale_length", None)
+
+    @position_encoding_scale_length.setter
+    def position_encoding_scale_length(self, new_length: Optional[int]) -> None:
+        """
+        Sets position encoder scale length.
+        """
+        if (
+            self.position_encoding_scale_length is None and new_length is not None or
+            self.position_encoding_scale_length is not None and new_length is None or
+            (
+                self.position_encoding_scale_length is not None and 
+                new_length is not None and
+                self.position_encoding_scale_length != new_length
+            )
+        ):
+            self.reload_motion_module = True
+        self._position_encoding_scale_length = new_length
+
+    @property
     def model_diffusers_cache_dir(self) -> Optional[str]:
         """
         Ggets where the diffusers cache directory is saved for this model, if there is any.
@@ -2339,6 +2892,24 @@ class DiffusionPipelineManager:
         return self.inpainter_diffusers_cache_dir is not None
 
     @property
+    def animator_diffusers_cache_dir(self) -> Optional[str]:
+        """
+        Ggets where the diffusers cache directory is saved for this animator, if there is any.
+        """
+        if os.path.exists(os.path.join(self.animator_diffusers_dir, "model_index.json")):
+            return self.animator_diffusers_dir
+        elif os.path.exists(os.path.join(self.animator_tensorrt_dir, "model_index.json")):
+            return self.animator_tensorrt_dir
+        return None
+
+    @property
+    def animator_engine_cache_exists(self) -> bool:
+        """
+        Gets whether or not the diffusers cache exists.
+        """
+        return self.animator_diffusers_cache_dir is not None
+
+    @property
     def should_cache(self) -> bool:
         """
         Returns true if the model should always be cached.
@@ -2356,6 +2927,16 @@ class DiffusionPipelineManager:
         configured = self.configuration.get("enfugue.pipeline.cache", None)
         if configured == "xl":
             return self.inpainter_is_sdxl
+        return configured in ["always", True]
+
+    @property
+    def should_cache_animator(self) -> bool:
+        """
+        Returns true if the animator model should always be cached.
+        """
+        configured = self.configuration.get("enfugue.pipeline.cache", None)
+        if configured == "xl":
+            return self.animator_is_sdxl
         return configured in ["always", True]
 
     @property
@@ -2415,12 +2996,26 @@ class DiffusionPipelineManager:
         Otherwise, we guess by file name.
         """
         if not self.inpainter_name:
-            return False
+            return self.is_sdxl
         if getattr(self, "_inpainter_pipeline", None) is not None:
             return self._inpainter_pipeline.is_sdxl
         if self.inpainter_diffusers_cache_dir is not None:
             return os.path.exists(os.path.join(self.inpainter_diffusers_cache_dir, "text_encoder_2"))  # type: ignore[arg-type]
         return "xl" in self.inpainter_name.lower()
+
+    @property
+    def animator_is_sdxl(self) -> bool:
+        """
+        If the animator model is cached, we can know for sure by checking for sdxl-exclusive models.
+        Otherwise, we guess by file name.
+        """
+        if not self.animator_name:
+            return False
+        if getattr(self, "_animator_pipeline", None) is not None:
+            return self._animator_pipeline.is_sdxl
+        if self.animator_diffusers_cache_dir is not None:
+            return os.path.exists(os.path.join(self.animator_diffusers_cache_dir, "text_encoder_2"))  # type: ignore[arg-type]
+        return "xl" in self.animator_name.lower()
 
     def check_create_engine_cache(self) -> None:
         """
@@ -2477,6 +3072,25 @@ class DiffusionPipelineManager:
             del pipe
             self.clear_memory()
 
+    def check_create_animator_engine_cache(self) -> None:
+        """
+        Converts a .safetensor file to diffusers cache
+        """
+        if not self.animator_engine_cache_exists and self.animator:
+            from diffusers.pipelines.stable_diffusion.convert_from_ckpt import (
+                download_from_original_stable_diffusion_ckpt,
+            )
+
+            _, ext = os.path.splitext(self.animator)
+            pipe = download_from_original_stable_diffusion_ckpt(
+                self.animator,
+                num_in_channels=9 if "inpaint" in self.animator.lower() else 4,
+                from_safetensors=ext == ".safetensors"
+            ).to(torch_dtype=self.dtype)
+            pipe.save_pretrained(self.animator_diffusers_dir)
+            del pipe
+            self.clear_memory()
+
     def swap_pipelines(self, to_gpu: EnfugueStableDiffusionPipeline, to_cpu: EnfugueStableDiffusionPipeline) -> None:
         """
         Swaps pipelines in and out of GPU.
@@ -2503,8 +3117,8 @@ class DiffusionPipelineManager:
 
             kwargs = {
                 "cache_dir": self.engine_cache_dir,
-                "engine_size": self.size,
-                "chunking_size": self.chunking_size,
+                "engine_size": self.tensorrt_size,
+                "tiling_stride": self.tiling_stride,
                 "requires_safety_checker": self.safe,
                 "torch_dtype": self.dtype,
                 "cache_dir": self.engine_cache_dir,
@@ -2542,7 +3156,10 @@ class DiffusionPipelineManager:
                     kwargs["tokenizer_2"] = None
                     kwargs["text_encoder_2"] = None
 
-                kwargs["build_half"] = "16" in str(self.dtype)
+                if "16" in str(self.dtype):
+                    kwargs["build_half"] = True
+                    kwargs["variant"] = "fp16"
+
                 logger.debug(
                     f"Initializing TensorRT pipeline from diffusers cache directory at {self.model_diffusers_cache_dir}. Arguments are {redact(kwargs)}"
                 )
@@ -2560,9 +3177,14 @@ class DiffusionPipelineManager:
                     kwargs["text_encoder_2"] = None
                 if vae is not None:
                     kwargs["vae"] = vae
+
+                if "16" in str(self.dtype):
+                    kwargs["variant"] = "fp16"
+
                 logger.debug(
                     f"Initializing pipeline from diffusers cache directory at {self.model_diffusers_cache_dir}. Arguments are {redact(kwargs)}"
                 )
+
                 pipeline = self.pipeline_class.from_pretrained(
                     self.model_diffusers_cache_dir,
                     local_files_only=self.offline,
@@ -2583,17 +3205,17 @@ class DiffusionPipelineManager:
                     # We can fix that here, though, by forcing full precision VAE
                     pipeline.register_to_config(force_full_precision_vae=True)
                 if self.should_cache:
-                    logger.debug("Saving pipeline to pretrained.")
+                    self.task_callback("Saving pipeline to pretrained cache.")
                     pipeline.save_pretrained(self.model_diffusers_dir)
             if not self.tensorrt_is_ready:
                 for lora, weight in self.lora:
-                    logger.debug(f"Adding LoRA {lora} to pipeline with weight {weight}")
+                    self.task_callback(f"Adding LoRA {os.path.basename(lora)} to pipeline with weight {weight}")
                     pipeline.load_lora_weights(lora, multiplier=weight)
                 for lycoris, weight in self.lycoris:
-                    logger.debug(f"Adding lycoris {lycoris} to pipeline")
+                    self.task_callback(f"Adding lycoris {os.path.basename(lycoris)} to pipeline")
                     pipeline.load_lycoris_weights(lycoris, multiplier=weight)
                 for inversion in self.inversion:
-                    logger.debug(f"Adding textual inversion {inversion} to pipeline")
+                    self.task_callback(f"Adding textual inversion {os.path.basename(inversion)} to pipeline")
                     pipeline.load_textual_inversion(inversion)
 
             # load scheduler
@@ -2629,8 +3251,8 @@ class DiffusionPipelineManager:
 
             kwargs = {
                 "cache_dir": self.engine_cache_dir,
-                "engine_size": self.refiner_size,
-                "chunking_size": self.chunking_size,
+                "engine_size": self.refiner_tensorrt_size,
+                "tiling_stride": self.tiling_stride,
                 "torch_dtype": self.dtype,
                 "requires_safety_checker": False,
                 "force_full_precision_vae": self.refiner_is_sdxl and "16" not in self.refiner and (
@@ -2669,7 +3291,10 @@ class DiffusionPipelineManager:
                     kwargs["text_encoder_2"] = None
                     kwargs["tokenizer_2"] = None
 
-                kwargs["build_half"] = "16" in str(self.dtype)
+                if "16" in str(self.dtype):
+                    kwargs["build_half"] = True
+                    kwargs["variant"] = "fp16"
+
                 logger.debug(
                     f"Initializing refiner TensorRT pipeline from diffusers cache directory at {self.refiner_diffusers_cache_dir}. Arguments are {redact(kwargs)}"
                 )
@@ -2690,11 +3315,17 @@ class DiffusionPipelineManager:
                 else:
                     kwargs["text_encoder_2"] = None
                     kwargs["tokenizer_2"] = None
+
                 if vae is not None:
                     kwargs["vae"] = vae
+
+                if "16" in str(self.dtype):
+                    kwargs["variant"] = "fp16"
+
                 logger.debug(
                     f"Initializing refiner pipeline from diffusers cache directory at {self.refiner_diffusers_cache_dir}. Arguments are {redact(kwargs)}"
                 )
+
                 refiner_pipeline = self.refiner_pipeline_class.from_pretrained(
                     self.refiner_diffusers_cache_dir,
                     safety_checker=None,
@@ -2714,11 +3345,13 @@ class DiffusionPipelineManager:
                     load_safety_checker=False,
                     **kwargs,
                 )
+
                 if refiner_pipeline.is_sdxl and "16" not in self.refiner and (self.refiner_vae_name is None or "16" not in self.refiner_vae_name):
                     refiner_pipeline.register_to_config(force_full_precision_vae=True)
                 if self.should_cache_refiner:
-                    logger.debug("Saving pipeline to pretrained.")
+                    self.task_callback("Saving pipeline to pretrained.")
                     refiner_pipeline.save_pretrained(self.refiner_diffusers_dir)
+
             # load scheduler
             if self.scheduler is not None:
                 logger.debug(f"Setting refiner scheduler to {self.scheduler.__name__}") # type: ignore[attr-defined]
@@ -2778,14 +3411,17 @@ class DiffusionPipelineManager:
                     else:
                         raise ConfigurationError(f"No target inpainter, creation is disabled, and default inpainter does not exist at {target_checkpoint_path}")
                 self.inpainter = target_checkpoint_path
+                self.is_default_inpainter = True
+            else:
+                self.is_default_inpainter = False
 
             if self.inpainter.startswith("http"):
                 self.inpainter = self.check_download_model(self.engine_checkpoints_dir, self.inpainter)
 
             kwargs = {
                 "cache_dir": self.engine_cache_dir,
-                "engine_size": self.inpainter_size,
-                "chunking_size": self.chunking_size,
+                "engine_size": self.inpainter_tensorrt_size,
+                "tiling_stride": self.tiling_stride,
                 "torch_dtype": self.dtype,
                 "requires_safety_checker": self.safe,
                 "requires_aesthetic_score": False,
@@ -2826,10 +3462,14 @@ class DiffusionPipelineManager:
                     kwargs["text_encoder_2"] = None
                     kwargs["tokenizer_2"] = None
 
-                kwargs["build_half"] = "16" in str(self.dtype)
+                if "16" in str(self.dtype):
+                    kwargs["variant"] = "fp16"
+                    kwargs["build_half"] = True
+
                 logger.debug(
                     f"Initializing inpainter TensorRT pipeline from diffusers cache directory at {self.inpainter_diffusers_cache_dir}. Arguments are {redact(kwargs)}"
                 )
+
                 inpainter_pipeline = self.inpainter_pipeline_class.from_pretrained(
                     self.inpainter_diffusers_cache_dir,
                     local_files_only=self.offline,
@@ -2846,6 +3486,8 @@ class DiffusionPipelineManager:
                     kwargs["tokenizer_2"] = None
                 if vae is not None:
                     kwargs["vae"] = vae
+                if "16" in str(self.dtype):
+                    kwargs["variant"] = "fp16"
                 
                 logger.debug(
                     f"Initializing inpainter pipeline from diffusers cache directory at {self.inpainter_diffusers_cache_dir}. Arguments are {redact(kwargs)}"
@@ -2872,18 +3514,19 @@ class DiffusionPipelineManager:
                 if inpainter_pipeline.is_sdxl and "16" not in self.inpainter and (self.inpainter_vae_name is None or "16" not in self.inpainter_vae_name):
                     inpainter_pipeline.register_to_config(force_full_precision_vae=True)
                 if self.should_cache_inpainter:
-                    logger.debug("Saving inpainter pipeline to pretrained cache.")
+                    self.task_callback("Saving inpainter pipeline to pretrained cache.")
                     inpainter_pipeline.save_pretrained(self.inpainter_diffusers_dir)
             if not self.inpainter_tensorrt_is_ready:
                 for lora, weight in self.lora:
-                    logger.debug(f"Adding LoRA {lora} to inpainter pipeline with weight {weight}")
+                    self.task_callback(f"Adding LoRA {os.path.basename(lora)} to inpainter pipeline with weight {weight}")
                     inpainter_pipeline.load_lora_weights(lora, multiplier=weight)
                 for lycoris, weight in self.lycoris:
-                    logger.debug(f"Adding lycoris {lycoris} to inpainter pipeline")
+                    self.task_callback(f"Adding lycoris {os.path.basename(lycoris)} to inpainter pipeline")
                     inpainter_pipeline.load_lycoris_weights(lycoris, multiplier=weight)
                 for inversion in self.inversion:
-                    logger.debug(f"Adding textual inversion {inversion} to inpainter pipeline")
+                    self.task_callback(f"Adding textual inversion {os.path.basename(inversion)} to inpainter pipeline")
                     inpainter_pipeline.load_textual_inversion(inversion)
+
             # load scheduler
             if self.scheduler is not None:
                 logger.debug(f"Setting inpainter scheduler to {self.scheduler.__name__}") # type: ignore[attr-defined]
@@ -2900,8 +3543,146 @@ class DiffusionPipelineManager:
             logger.debug("Deleting inpainter pipeline.")
             del self._inpainter_pipeline
             self.clear_memory()
+    
+    @property
+    def animator_pipeline(self) -> EnfugueAnimateStableDiffusionPipeline:
+        """
+        Instantiates the animator pipeline.
+        """
+        if not hasattr(self, "_animator_pipeline"):
+            if self.animator is None:
+                logger.info("No animator explicitly set, using base model for animator.")
+                self.animator = self.model
+                self.is_default_animator = True
+            else:
+                self.is_default_animator = False
 
-    def unload_pipeline(self, reason: str = "none") -> None:
+            if self.animator.startswith("http"):
+                self.animator = self.check_download_model(self.engine_checkpoints_dir, self.animator)
+            
+            # Disable reloading if it was set
+            self.reload_motion_module = False
+
+            kwargs = {
+                "cache_dir": self.engine_cache_dir,
+                "engine_size": self.animator_tensorrt_size,
+                "tiling_stride": self.tiling_stride,
+                "frame_window_size": self.frame_window_size,
+                "frame_window_stride": self.frame_window_stride,
+                "torch_dtype": self.dtype,
+                "requires_safety_checker": self.safe,
+                "requires_aesthetic_score": False,
+                "controlnets": self.animator_controlnets,
+                "force_full_precision_vae": self.animator_is_sdxl and self.animator_vae_name not in ["xl16", VAE_XL16],
+                "ip_adapter": self.ip_adapter,
+                "task_callback": getattr(self, "_task_callback", None),
+                "motion_module": self.motion_module,
+                "position_encoding_truncate_length": self.position_encoding_truncate_length,
+                "position_encoding_scale_length": self.position_encoding_scale_length,
+            }
+
+            vae = self.animator_vae
+
+            if self.animator_use_tensorrt:
+                if self.animator_is_sdxl: # Not possible yet
+                    raise ValueError(f"Sorry, TensorRT is not yet supported for SDXL.")
+
+                if "unet" in self.TENSORRT_STAGES:
+                    if not self.animator_controlnets and not self.TENSORRT_ALWAYS_USE_CONTROLLED_UNET:
+                        kwargs["unet_engine_dir"] = self.animator_tensorrt_unet_dir
+                    else:
+                        kwargs["controlled_unet_engine_dir"] = self.animator_tensorrt_controlled_unet_dir
+
+                if "vae" in self.TENSORRT_STAGES:
+                    kwargs["vae_engine_dir"] = self.animator_tensorrt_vae_dir
+                elif vae is not None:
+                    kwargs["vae"] = vae
+
+                if "clip" in self.TENSORRT_STAGES:
+                    kwargs["clip_engine_dir"] = self.animator_tensorrt_clip_dir
+
+                self.check_create_animator_engine_cache()
+
+                if not self.safe:
+                    kwargs["safety_checker"] = None
+                if not self.animator_is_sdxl:
+                    kwargs["text_encoder_2"] = None
+                    kwargs["tokenizer_2"] = None
+                if "16" in str(self.dtype):
+                    kwargs["variant"] = "fp16"
+                    kwargs["build_half"] = True
+
+                logger.debug(
+                    f"Initializing animator TensorRT pipeline from diffusers cache directory at {self.animator_diffusers_cache_dir}. Arguments are {redact(kwargs)}"
+                )
+
+                animator_pipeline = self.animator_pipeline_class.from_pretrained(
+                    self.animator_diffusers_cache_dir, **kwargs
+                )
+            elif self.animator_engine_cache_exists:
+                if not self.safe:
+                    kwargs["safety_checker"] = None
+                if not self.animator_is_sdxl:
+                    kwargs["text_encoder_2"] = None
+                    kwargs["tokenizer_2"] = None
+                    kwargs["text_encoder_2"] = None
+                    kwargs["tokenizer_2"] = None
+                if vae is not None:
+                    kwargs["vae"] = vae
+                if "16" in str(self.dtype):
+                    kwargs["variant"] = "fp16"
+                
+                logger.debug(
+                    f"Initializing animator pipeline from diffusers cache directory at {self.animator_diffusers_cache_dir}. Arguments are {redact(kwargs)}"
+                )
+
+                animator_pipeline = self.animator_pipeline_class.from_pretrained(
+                    self.animator_diffusers_cache_dir, **kwargs
+                )
+            else:
+                if self.animator_vae_name is not None:
+                    kwargs["vae_path"] = self.find_vae_path(self.animator_vae_name)
+                
+                logger.debug(
+                    f"Initializing animator pipeline from checkpoint at {self.animator}. Arguments are {redact(kwargs)}"
+                )
+
+                animator_pipeline = self.animator_pipeline_class.from_ckpt(
+                    self.animator, load_safety_checker=self.safe, **kwargs
+                )
+                if animator_pipeline.is_sdxl and self.animator_vae_name not in ["xl16", VAE_XL16]:
+                    animator_pipeline.register_to_config(force_full_precision_vae=True)
+                if self.should_cache_animator:
+                    self.task_callback("Saving animator pipeline to pretrained cache.")
+                    animator_pipeline.save_pretrained(self.animator_diffusers_dir)
+            if not self.animator_tensorrt_is_ready:
+                for lora, weight in self.lora:
+                    self.task_callback(f"Adding LoRA {os.path.basename(lora)} to animator pipeline with weight {weight}")
+                    animator_pipeline.load_lora_weights(lora, multiplier=weight)
+                for lycoris, weight in self.lycoris:
+                    self.task_callback(f"Adding lycoris {os.path.basename(lycoris)} to animator pipeline")
+                    animator_pipeline.load_lycoris_weights(lycoris, multiplier=weight)
+                for inversion in self.inversion:
+                    self.task_callback(f"Adding textual inversion {os.path.basename(inversion)} to animator pipeline")
+                    animator_pipeline.load_textual_inversion(inversion)
+            # load scheduler
+            if self.scheduler is not None:
+                logger.debug(f"Setting animator scheduler to {self.scheduler.__name__}") # type: ignore [attr-defined]
+                animator_pipeline.scheduler = self.scheduler.from_config({**animator_pipeline.scheduler_config, **self.scheduler_config}) # type: ignore[attr-defined]
+            self._animator_pipeline = animator_pipeline.to(self.device)
+        return self._animator_pipeline
+
+    @animator_pipeline.deleter
+    def animator_pipeline(self) -> None:
+        """
+        Unloads the animator pipeline if present.
+        """
+        if hasattr(self, "_animator_pipeline"):
+            logger.debug("Deleting animator pipeline.")
+            del self._animator_pipeline
+            self.clear_memory()
+
+    def unload_pipeline(self, reason: str = "None") -> None:
         """
         Calls the pipeline deleter.
         """
@@ -2931,7 +3712,7 @@ class DiffusionPipelineManager:
                 self._pipeline = self._pipeline.to("cpu") # type: ignore[attr-defined]
             self.clear_memory()
 
-    def unload_refiner(self, reason: str = "none") -> None:
+    def unload_refiner(self, reason: str = "None") -> None:
         """
         Calls the refiner deleter.
         """
@@ -2961,7 +3742,7 @@ class DiffusionPipelineManager:
                 self._refiner_pipeline = self._refiner_pipeline.to("cpu") # type: ignore[attr-defined]
             self.clear_memory()
 
-    def unload_inpainter(self, reason: str = "none") -> None:
+    def unload_inpainter(self, reason: str = "None") -> None:
         """
         Calls the inpainter deleter.
         """
@@ -2991,6 +3772,41 @@ class DiffusionPipelineManager:
                 import torch
                 logger.debug("Offloading inpainter to CPU")
                 self._inpainter_pipeline = self._inpainter_pipeline.to("cpu") # type: ignore[attr-defined]
+            self.clear_memory()
+
+    def unload_animator(self, reason: str = "None") -> None:
+        """
+        Calls the animator deleter.
+        """
+        if hasattr(self, "_animator_pipeline"):
+            logger.debug(f'Unloading animator pipeline for reason "{reason}"')
+            del self.animator_pipeline
+
+    def offload_animator(self, intention: Optional[Literal["inference", "inpainting", "refining"]] = None) -> None:
+        """
+        Offloads the pipeline to CPU if present.
+        """
+        if hasattr(self, "_animator_pipeline"):
+            import torch
+            
+            if self.pipeline_switch_mode == "unload":
+                logger.debug("Offloading is disabled, unloading animator pipeline.")
+                self.unload_animator("switching modes" if not intention else f"switching to {intention}")
+            elif self.pipeline_switch_mode is None:
+                logger.debug("Offloading is disabled, keeping animator pipeline in memory.")
+            elif intention == "inference" and hasattr(self, "_pipeline"):
+                logger.debug("Swapping pipeline out of CPU and animator into CPU")
+                self.swap_pipelines(self._pipeline, self._animator_pipeline)
+            elif intention == "inpainting" and hasattr(self, "_inpainter_pipeline"):
+                logger.debug("Swapping inpainter out of CPU and animator into CPU")
+                self.swap_pipelines(self._inpainter_pipeline, self._animator_pipeline)
+            elif intention == "refining" and hasattr(self, "_refiner_pipeline"):
+                logger.debug("Swapping refiner out of CPU and animator into CPU")
+                self.swap_pipelines(self._refiner_pipeline, self._animator_pipeline)
+            else:
+                import torch
+                logger.debug("Offloading animator to CPU")
+                self._animator_pipeline = self._animator_pipeline.to("cpu", torch_dtype=torch.float32) # type: ignore[attr-defined]
             self.clear_memory()
 
     @property
@@ -3099,14 +3915,6 @@ class DiffusionPipelineManager:
                 logger.debug(f"Received KeyError on '{ex}' when instantiating controlnet from single file, trying to use XL ControlNet loader fix.")
                 return self.get_xl_controlnet(expected_controlnet_location)
         else:
-            expected_controlnet_location = os.path.join(self.engine_cache_dir, "models--" + controlnet.replace("/", "--"))
-            if not os.path.exists(expected_controlnet_location):
-                if self.offline:
-                    raise IOError(f"Offline mode enabled, cannot find requested ControlNet at {expected_controlnet_location}")
-                logger.info(
-                    f"Controlnet {controlnet} does not exist in cache directory {self.engine_cache_dir}, it will be downloaded."
-                )
-                self.task_callback(f"Downloading {controlnet} model weights")
             result = ControlNetModel.from_pretrained(
                 controlnet,
                 torch_dtype=torch.half,
@@ -3129,8 +3937,12 @@ class DiffusionPipelineManager:
                 return CONTROLNET_CANNY_XL
             elif name == "depth":
                 return CONTROLNET_DEPTH_XL
+            elif name == "pidi":
+                return CONTROLNET_PIDI_XL
             elif name == "pose":
                 return CONTROLNET_POSE_XL
+            elif name == "qr":
+                return CONTROLNET_QR_XL
             else:
                 raise ValueError(f"Sorry, ControlNet “{name}” is not yet supported by SDXL. Check back soon!")
         else:
@@ -3254,7 +4066,6 @@ class DiffusionPipelineManager:
             if getattr(self, "_pipeline", None) is not None:
                 self._pipeline.controlnets = self.controlnets
 
-
     @property
     def inpainter_controlnets(self) -> Dict[str, ControlNetModel]:
         """
@@ -3322,6 +4133,74 @@ class DiffusionPipelineManager:
                         )
             if getattr(self, "_inpainter_pipeline", None) is not None:
                 self._inpainter_pipeline.controlnets = self.inpainter_controlnets
+
+    @property
+    def animator_controlnets(self) -> Dict[str, ControlNetModel]:
+        """
+        Gets the configured controlnets for the animator
+        """
+        if not hasattr(self, "_animator_controlnets"):
+            self._animator_controlnets = {}
+
+            for controlnet_name in self.animator_controlnet_names:
+                self._animator_controlnets[controlnet_name] = self.get_controlnet(
+                    self.get_controlnet_path_by_name(controlnet_name, self.is_sdxl)
+                )
+        return self._animator_controlnets # type: ignore[return-value]
+
+    @animator_controlnets.deleter
+    def animator_controlnets(self) -> None:
+        """
+        Removes current animator controlnets and clears memory
+        """
+        if hasattr(self, "_animator_controlnets"):
+            del self._animator_controlnets
+            self.clear_memory()
+
+    @animator_controlnets.setter
+    def animator_controlnets(
+        self,
+        *new_animator_controlnets: Optional[Union[CONTROLNET_LITERAL, List[CONTROLNET_LITERAL], Set[CONTROLNET_LITERAL]]],
+    ) -> None:
+        """
+        Sets a new list of animator controlnets (optional)
+        """
+        controlnet_names: Set[CONTROLNET_LITERAL] = set()
+
+        for arg in new_animator_controlnets:
+            if arg is None:
+                break
+            if isinstance(arg, str):
+                controlnet_names.add(arg)
+            else:
+                controlnet_names = controlnet_names.union(arg) # type: ignore[arg-type]
+
+        existing_controlnet_names = self.animator_controlnet_names
+
+        if controlnet_names == existing_controlnet_names:
+            return # No changes
+
+        logger.debug(f"Setting animator pipeline ControlNet(s) to {controlnet_names} from {existing_controlnet_names}")
+        self._animator_controlnet_names = controlnet_names
+
+        if (not controlnet_names and existing_controlnet_names):
+            self.unload_animator("Disabling ControlNet")
+            del self.animator_controlnets
+        elif (controlnet_names and not existing_controlnet_names):
+            self.unload_animator("Enabling ControlNet")
+            del self.animator_controlnets
+        elif controlnet_names and existing_controlnet_names:
+            logger.debug("Altering existing animator controlnets")
+            if hasattr(self, "_animator_controlnets"):
+                for controlnet_name in controlnet_names.union(existing_controlnet_names):
+                    if controlnet_name not in controlnet_names:
+                        self._animator_controlnets.pop(controlnet_name, None)
+                    elif controlnet_name not in self._animator_controlnets:
+                        self._animator_controlnets[controlnet_name] = self.get_controlnet(
+                            self.get_controlnet_path_by_name(controlnet_name, self.is_sdxl)
+                        )
+            if getattr(self, "_animator_pipeline", None) is not None:
+                self._animator_pipeline.controlnets = self.animator_controlnets
 
     @property
     def refiner_controlnets(self) -> Dict[str, ControlNetModel]:
@@ -3406,6 +4285,13 @@ class DiffusionPipelineManager:
         return getattr(self, "_inpainter_controlnet_names", set())
 
     @property
+    def animator_controlnet_names(self) -> Set[CONTROLNET_LITERAL]:
+        """
+        Gets the name of the control net, if one was set.
+        """
+        return getattr(self, "_animator_controlnet_names", set())
+
+    @property
     def refiner_controlnet_names(self) -> Set[CONTROLNET_LITERAL]:
         """
         Gets the name of the control net, if one was set.
@@ -3425,7 +4311,8 @@ class DiffusionPipelineManager:
         refiner_negative_prompt_2: Optional[str] = None,
         scale_to_refiner_size: bool = True,
         task_callback: Optional[Callable[[str], None]] = None,
-        next_intention: Optional[Literal["inpainting", "inference", "refining", "upscaling"]] = None,
+        next_intention: Optional[Literal["inpainting", "animation", "inference", "refining", "upscaling"]] = None,
+        scheduler: Optional[SCHEDULER_LITERAL] = None,
         **kwargs: Any,
     ) -> StableDiffusionPipelineOutput:
         """
@@ -3449,25 +4336,44 @@ class DiffusionPipelineManager:
                     previous_callback(images)
                 latent_callback = memoize_callback # type: ignore[assignment]
                 kwargs["latent_callback"] = memoize_callback
+
         self.start_keepalive()
+
         try:
+            animating = bool(kwargs.get("animation_frames", None))
             inpainting = kwargs.get("mask", None) is not None
             refining = (
                 kwargs.get("image", None) is not None and
                 kwargs.get("strength", 0) in [0, None] and
-                kwargs.get("ip_adapter_images", None) is None and
+                kwargs.get("ip_adapter_scale", None) is None and
                 refiner_strength != 0 and
                 refiner_start != 1 and
                 self.refiner is not None
             )
-            intention = "inpainting" if inpainting else "refining" if refining else "inference"
+
+            if animating:
+                intention = "animation"
+            elif inpainting:
+                intention = "inpainting"
+            elif refining:
+                intention = "refining"
+            else:
+                intention = "inference"
+
             task_callback(f"Preparing {intention.title()} Pipeline")
-            if inpainting and (self.has_inpainter or self.create_inpainter):
+
+            if animating and self.has_animator:
+                size = self.animator_size
+            elif inpainting and (self.has_inpainter or self.create_inpainter):
                 size = self.inpainter_size
             elif refining:
                 size = self.refiner_size
             else:
                 size = self.size
+
+            if scheduler is not None:
+                # Allow overriding scheduler
+                self.scheduler = scheduler # type: ignore[assignment]
 
             if refining:
                 # Set result here to passed image
@@ -3477,12 +4383,13 @@ class DiffusionPipelineManager:
                     images=[kwargs["image"]] * samples,
                     nsfw_content_detected=[False] * samples
                 )
+                self.offload_animator(intention) # type: ignore
                 self.offload_pipeline(intention) # type: ignore
                 self.offload_inpainter(intention) # type: ignore
             else:
                 called_width = kwargs.get("width", size)
                 called_height = kwargs.get("height", size)
-                chunk_size = kwargs.get("chunking_size", self.chunking_size)
+                tiling_stride = kwargs.get("tiling_stride", self.tiling_stride)
 
                 # Check sizes
                 if called_width < size:
@@ -3491,7 +4398,7 @@ class DiffusionPipelineManager:
                 elif called_height < size:
                     self.tensorrt_is_enabled = False
                     logger.info(f"height ({called_height}) less than configured height ({size}), disabling TensorRT")
-                elif (called_width != size or called_height != size) and not chunk_size:
+                elif (called_width != size or called_height != size) and not tiling_stride:
                     logger.info(f"Dimensions do not match size of engine and chunking is disabled, disabling TensorRT")
                     self.tensorrt_is_enabled = False
                 else:
@@ -3502,16 +4409,47 @@ class DiffusionPipelineManager:
                     logger.info(f"IP adapter requested, TensorRT is not compatible, disabling.")
                     self.tensorrt_is_enabled = False
 
-                if inpainting and (self.has_inpainter or self.create_inpainter):
+                if animating:
+                    if not self.has_animator:
+                        logger.debug(f"Animation requested but no animator set, setting animator to the same as the base model")
+                        self.animator = self.model
+
                     self.offload_pipeline(intention) # type: ignore
                     self.offload_refiner(intention) # type: ignore
-                    pipe = self.inpainter_pipeline
+                    self.offload_inpainter(intention) # type: ignore
+
+                    pipe = self.animator_pipeline
+
+                    if self.reload_motion_module:
+                        if task_callback is not None:
+                            task_callback("Reloading motion module")
+                        try:
+                            pipe.load_motion_module_weights(
+                                cache_dir=self.engine_cache_dir,
+                                motion_module=self.motion_module,
+                                task_callback=task_callback,
+                                position_encoding_truncate_length=self.position_encoding_truncate_length,
+                                position_encoding_scale_length=self.position_encoding_scale_length,
+                            )
+                        except Exception as ex:
+                            logger.warning(f"Received Exception {ex} when loading motion module weights, will try to reload the entire pipeline.")
+                            del pipe
+                            self.reload_motion_module = False
+                            self.unload_animator("Re-initializing Pipeline")
+                            pipe = self.animator_pipeline # Will raise
+                elif inpainting and (self.has_inpainter or self.create_inpainter):
+                    self.offload_pipeline(intention) # type: ignore
+                    self.offload_refiner(intention) # type: ignore
+                    self.offload_animator(intention) # type: ignore
+                    pipe = self.inpainter_pipeline # type: ignore
                 else:
                     if inpainting:
                         logger.info(f"No inpainter set and creation is disabled; using base pipeline for inpainting.")
                     self.offload_refiner(intention) # type: ignore
                     self.offload_inpainter(intention) # type: ignore
-                    pipe = self.pipeline
+                    self.offload_animator(intention) # type: ignore
+
+                    pipe = self.pipeline # type: ignore
 
                 # Check refining settings
                 if self.refiner is not None and refiner_strength != 0:
@@ -3521,9 +4459,11 @@ class DiffusionPipelineManager:
                         kwargs["output_type"] = "latent"
 
                 # Check IP adapter for downloads
-                if kwargs.get("ip_adapter_scale", None) is not None:
+                if kwargs.get("ip_adapter_images", None) is not None:
                     self.ip_adapter.check_download(
                         is_sdxl=pipe.is_sdxl,
+                        model=kwargs.get("ip_adapter_model", None),
+                        task_callback=task_callback,
                     )
 
                 self.stop_keepalive()
@@ -3597,7 +4537,7 @@ class DiffusionPipelineManager:
                     kwargs["negative_prompt_2"] = refiner_negative_prompt_2
 
                 logger.debug(f"Refining results with arguments {redact(kwargs)}")
-                pipe = self.refiner_pipeline # Instantiate if needed
+                pipe = self.refiner_pipeline # type: ignore 
                 self.stop_keepalive()  # This checks, we can call it all we want
                 task_callback(f"Refining")
 
@@ -3629,12 +4569,12 @@ class DiffusionPipelineManager:
         Writes metadata for TensorRT to a json file
         """
         if "controlnet" in path:
-            dump_json(path, {"size": self.size, "controlnets": self.controlnet_names})
+            dump_json(path, {"size": self.tensorrt_size, "controlnets": self.controlnet_names})
         else:
             dump_json(
                 path,
                 {
-                    "size": self.size,
+                    "size": self.tensorrt_size,
                     "lora": self.lora_names_weights,
                     "lycoris": self.lycoris_names_weights,
                     "inversion": self.inversion_names,

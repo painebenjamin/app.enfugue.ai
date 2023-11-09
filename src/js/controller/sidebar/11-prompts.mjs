@@ -1,4 +1,4 @@
-/** @module controller/sidebar/06-prompts */
+/** @module controller/sidebar/07-prompts */
 import { isEmpty } from "../../base/helpers.mjs";
 import { Controller } from "../base.mjs";
 import { PromptsFormView } from "../../forms/enfugue/prompts.mjs";
@@ -24,6 +24,7 @@ class PromptsController extends Controller {
             "prompts": {
                 "prompt": null,
                 "negativePrompt": null,
+                "usePromptTravel": false,
             }
         };
     }
@@ -39,15 +40,40 @@ class PromptsController extends Controller {
      * On init, append fields
      */
     async initialize() {
+        let isAnimation = false;
         this.promptsForm = new PromptsFormView(this.config);
         this.promptsForm.onSubmit(async (values) => {
             this.engine.prompt = values.prompt;
             this.engine.negativePrompt = values.negativePrompt;
+            if (values.usePromptTravel && isAnimation) {
+                this.publish("promptTravelEnabled");
+                this.promptsForm.addClass("use-prompt-travel");
+            } else {
+                this.publish("promptTravelDisabled");
+                this.promptsForm.removeClass("use-prompt-travel");
+            }
         });
         this.promptsForm.onShortcutSubmit(() => {
             this.application.publish("tryInvoke");
         });
         this.application.sidebar.addChild(this.promptsForm);
+        this.subscribe("engineAnimationFramesChange", (frames) => {
+            isAnimation = !isEmpty(frames) && frames > 0;
+            if (isAnimation) {
+                this.promptsForm.addClass("show-prompt-travel");
+                if (this.promptsForm.values.usePromptTravel) {
+                    this.publish("promptTravelEnabled");
+                    this.promptsForm.addClass("use-prompt-travel");
+                } else {
+                    this.publish("promptTravelDisabled");
+                    this.promptsForm.removeClass("use-prompt-travel");
+                }
+            } else {
+                this.promptsForm.removeClass("show-prompt-travel");
+                this.promptsForm.removeClass("use-prompt-travel");
+                this.publish("promptTravelDisabled");
+            }
+        });
     }
 }
 

@@ -6,6 +6,7 @@ import datetime
 from typing import TypedDict, List, Dict, Any, Iterator, Optional, Union, cast
 
 from semantic_version import Version
+from pibble.api.configuration import APIConfiguration
 from pibble.util.files import load_yaml, load_json
 
 __all__ = [
@@ -22,16 +23,13 @@ __all__ = [
     "find_files_in_directory"
 ]
 
-
 class VersionDict(TypedDict):
     """
     The version dictionary.
     """
-
     version: Version
     release: datetime.date
     description: str
-
 
 def get_local_installation_directory() -> str:
     """
@@ -46,7 +44,6 @@ def get_local_installation_directory() -> str:
             raise IOError("Couldn't find installation directory.")
     return here
 
-
 def get_local_config_directory() -> str:
     """
     Gets where the local configuration directory is.
@@ -57,7 +54,6 @@ def get_local_config_directory() -> str:
         if here == "/":
             raise IOError("Couldn't find config directory.")
     return os.path.join(here, "config")
-
 
 def get_local_static_directory() -> str:
     """
@@ -70,7 +66,6 @@ def get_local_static_directory() -> str:
             raise IOError("Couldn't find static directory.")
     return os.path.join(here, "static")
 
-
 def check_make_directory(directory: str) -> None:
     """
     Checks if a directory doesn't exist, and makes it.
@@ -80,13 +75,12 @@ def check_make_directory(directory: str) -> None:
         try:
             os.makedirs(directory)
             return
-        except:
+        except Exception as ex:
             if not os.path.exists(directory):
-                raise
+                raise IOError(f"Couldn't create directory `{directory}`: {type(ex).__name__}({ex})")
             return
 
-
-def get_local_configuration() -> Dict[str, Any]:
+def get_local_configuration(as_api_configuration: bool = False) -> Union[Dict[str, Any], APIConfiguration]:
     """
     Gets configuration from a file in the environment, or the base config.
     """
@@ -105,6 +99,8 @@ def get_local_configuration() -> Dict[str, Any]:
         raise IOError(f"Unknown extension {ext}")
     if "configuration" in configuration:
         configuration = configuration["configuration"]
+    if as_api_configuration:
+        return APIConfiguration(**configuration)
     return configuration
 
 

@@ -22,7 +22,7 @@ class LogGlanceView extends View {
     /**
      * @var int The maximum number of logs to show.
      */
-    static maximumLogs = 5;
+    static maximumLogs = 15;
 
     /**
      * On construct, set time and hide ourselves
@@ -30,7 +30,6 @@ class LogGlanceView extends View {
     constructor(config) {
         super(config);
         this.start = (new Date()).getTime();
-        this.hide();
     }
 
     /**
@@ -66,11 +65,17 @@ class LogGlanceView extends View {
     async build() {
         let node = await super.build();
         node.append(
-            E.div().class("log-header").content(
-                E.h2().content("Most Recent Logs"),
-                E.a().href("#").content("Show More").on("click", (e) => { e.preventDefault(); e.stopPropagation(); this.showMore(); })
-            ),
-            E.div().class("logs")
+            E.div().class("log-container").content(
+                E.button()
+                .content(E.i().class("fa-regular fa-square-caret-right"))
+                .data("tooltip", "Show More")
+                .on("click", (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this.showMore();
+                }),
+                E.div().class("logs").content("Welcome to ENFUGUE! When the diffusion engine logs to file, the most recent lines will appear here.")
+            )
         );
         return node;
     }
@@ -182,11 +187,6 @@ class LogsController extends Controller {
     static maximumDetailLogs = 100;
 
     /**
-     * @var int Maximum logs to show at once in the glance window
-     */
-    static maximumGlanceLogs = 5;
-
-    /**
      * @var int Log tail interval in MS
      */
     static logTailInterval = 5000;
@@ -268,9 +268,11 @@ class LogsController extends Controller {
     async initialize() {
         this.glanceView = new LogGlanceView(this.config);
         this.glanceView.onShowMore = () => this.showLogDetails();
-        this.application.container.appendChild(await this.glanceView.render());
+        this.application.sidebar.addChild(this.glanceView);
         this.startLogTailer();
     }
 };
 
-export { LogsController };
+export {
+    LogsController as SidebarController
+};

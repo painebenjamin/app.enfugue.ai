@@ -73,7 +73,7 @@ class TweaksFormView extends FormView {
                 "label": "Noise Method",
                 "class": NoiseMethodInputView,
                 "config": {
-                    "value": "perlin"
+                    "value": "simplex"
                 }
             },
             "noiseBlendMethod": {

@@ -2,7 +2,12 @@
 import { MenuController } from "../menu.mjs";
 import { ModelTableView } from "../../view/table.mjs";
 import { ImageView } from "../../view/image.mjs";
-import { isEmpty, humanDuration, sleep } from "../../base/helpers.mjs";
+import {
+    sleep,
+    isEmpty,
+    humanDuration,
+    downloadAsDataURL
+} from "../../base/helpers.mjs";
 import { ElementBuilder } from "../../base/builder.mjs";
 
 const E = new ElementBuilder({
@@ -33,7 +38,7 @@ class InvocationTableView extends ModelTableView {
             "label": "Delete",
             "click": async function(datum) {
                 await InvocationTableView.deleteInvocation(datum.id); // Set at init
-                await sleep(100); // Wait a tick
+                await sleep(250); // Wait 1/4 second
                 await this.parent.requery();
             }
         }
@@ -70,24 +75,89 @@ class InvocationTableView extends ModelTableView {
     static columnFormatters = {
         "duration": (value) => humanDuration(parseFloat(value), true, true),
         "plan": (plan) => {
+            plan.layers = isEmpty(plan.layers)
+                ? "(none)"
+                : `(${plan.layers.length} layer${plan.layers.length==1?'':'s'})`;
             return JSON.stringify(plan);
         },
         "prompt": (_, datum) => datum.plan.prompt,
-        "seed": (_, datum) => datum.plan.seed.toString(),
+        "seed": (_, datum) => `${datum.plan.seed}`,
         "outputs": async function(outputCount, datum) {
             if (outputCount > 0) {
                 let outputContainer = E.invocationOutputs();
-                for (let i = 0; i < outputCount; i++) {
-                    let imageName = `${datum.id}_${i}.png`,
-                        imageSource = `/api/invocation/images/${imageName}`,
-                        thumbnailSource = `/api/invocation/thumbnails/${imageName}`,
-                        imageView = new ImageView(this.config, thumbnailSource, false),
+                if (!isEmpty(datum.plan.animation_frames) && datum.plan.animation_frames > 0) {
+                    let videoSource = `/api/invocation/animation/images/${datum.id}.mp4`,
+                        gifSource = `/api/invocation/animation/images/${datum.id}.gif`,
+                        thumbnailVideoSource = `/api/invocation/animation/thumbnails/${datum.id}.mp4`,
                         imageContainer = E.invocationOutput()
-                            .content(await imageView.getNode())
-                            .on("click", async () => {
-                                InvocationTableView.setCurrentInvocationImage(imageSource); // Set at init
+                            .content(
+                                E.video()
+                                    .content(E.source().src(thumbnailVideoSource))
+                                    .autoplay(true)
+                                    .muted(true)
+                                    .loop(true),
+                                E.div().class("buttons").content(
+                                    E.button()
+                                        .content(E.i().class("fa-solid fa-film"))
+                                        .on("click", (e) => {
+                                            e.stopPropagation();
+                                            let imageURLs = new Array(datum.plan.animation_frames).fill(null).map((_, i) => {
+                                                return `/api/invocation/images/${datum.id}_${i}.png`;
+                                            });
+                                            InvocationTableView.showAnimationFrames(imageURLs);
+                                        })
+                                        .data("tooltip", "Click to View Frames"),
+                                    E.button()
+                                        .content(E.i().class("fa-solid fa-file-video"))
+                                        .on("click", (e) => {
+                                            e.stopPropagation();
+                                            window.open(gifSource, "_blank");
+                                        })
+                                        .data("tooltip", "Click to View as .GIF"),
+                                    E.button()
+                                        .content(E.i().class("fa-solid fa-edit"))
+                                        .on("click", async (e) => {
+                                            e.stopPropagation();
+                                            InvocationTableView.initializeStateFromImage(
+                                                await downloadAsDataURL(videoSource),
+                                                true
+                                            );
+                                        })
+                                        .data("tooltip", "Click to Edit")
+                                )
+                            )
+                            .data("tooltip", "Click to View")
+                            .on("click", () => {
+                                window.open(videoSource, "_blank");
                             });
-                    outputContainer.append(imageContainer);
+
+                     outputContainer.append(imageContainer);
+                } else {
+                    for (let i = 0; i < outputCount; i++) {
+                        let imageName = `${datum.id}_${i}.png`,
+                            imageSource = `/api/invocation/images/${imageName}`,
+                            thumbnailSource = `/api/invocation/thumbnails/${imageName}`,
+                            imageView = new ImageView(this.config, thumbnailSource, false),
+                            imageContainer = E.invocationOutput()
+                                .content(
+                                    await imageView.getNode(),
+                                    E.div().class("buttons").content(
+                                        E.button()
+                                        .content(E.i().class("fa-solid fa-edit"))
+                                        .on("click", (e) => {
+                                            e.stopPropagation();
+                                            InvocationTableView.initializeStateFromImage(imageSource);
+                                        })
+                                        .data("tooltip", "Click to Edit")
+                                    )
+                                )
+                                .data("tooltip", "Click to View")
+                                .on("click", async () => {
+                                    window.open(imageSource, "_blank");
+                                });
+
+                        outputContainer.append(imageContainer);
+                    }
                 }
                 return outputContainer;
             } else if(!isEmpty(datum.error)) {
@@ -146,8 +216,11 @@ class ResultsController extends MenuController {
     async initialize() {
         await super.initialize();
         InvocationTableView.deleteInvocation = (id) => { this.model.delete(`/invocation/${id}`); };
-        InvocationTableView.setCurrentInvocationImage = (image) => this.application.images.setCurrentInvocationImage(image);
-
+        InvocationTableView.initializeStateFromImage = (image, isVideo) => this.application.initializeStateFromImage(image, true, null, null, isVideo);
+        InvocationTableView.showAnimationFrames = async (frames) => {
+            await this.application.samples.setSamples(frames, true);
+            setTimeout(() => this.application.samples.setPlay(true), 250);
+        };
     }
 
     /**

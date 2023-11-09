@@ -1,17 +1,18 @@
+from __future__ import annotations
+
 import os
 import re
 import gc
 
-import torch
-import safetensors.torch
-
 from enfugue.util import logger
+from enfugue.diffusion.constants import *
 
-from typing import Optional, Union, Literal, Dict, cast
+from typing import Optional, Union, Literal, Dict, cast, TYPE_CHECKING
 
-__all__ = [
-    "ModelMerger"
-]
+if TYPE_CHECKING:
+    import torch
+
+__all__ = [ "ModelMerger"]
 
 class ModelMerger:
     """
@@ -55,6 +56,7 @@ class ModelMerger:
         """
         Halves a tensor if necessary
         """
+        import torch
         if tensor.dtype == torch.float:
             return tensor.half()
         return tensor
@@ -104,8 +106,10 @@ class ModelMerger:
         _, ext = os.path.splitext(checkpoint_path)
         logger.debug(f"Model merger loading {checkpoint_path}")
         if ext.lower() == ".safetensors":
+            import safetensors.torch
             ckpt = safetensors.torch.load_file(checkpoint_path, device="cpu")
         else:
+            import torch
             ckpt = torch.load(checkpoint_path, map_location="cpu")
 
         return ModelMerger.get_state_dict_from_checkpoint(ckpt)
@@ -131,6 +135,7 @@ class ModelMerger:
         """
         Runs the configured merger.
         """
+        import torch
         logger.debug(
             f"Executing model merger with interpolation '{self.interpolation}', primary model {self.primary_model}, secondary model {self.secondary_model}, tertiary model {self.tertiary_model}"
         )
@@ -207,6 +212,7 @@ class ModelMerger:
         logger.debug(f"Saving merged model to {output_path}")
         _, extension = os.path.splitext(output_path)
         if extension.lower() == ".safetensors":
+            import safetensors.torch
             safetensors.torch.save_file(theta_0, output_path)
         else:
             torch.save(theta_0, output_path)

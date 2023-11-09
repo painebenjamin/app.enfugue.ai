@@ -90,7 +90,7 @@ ifneq ($(findstring Windows,${OS}),)
   # WINDOWS
   IS_WINDOWS=1
   ARTIFACT=$(WINDOWS_ARTIFACT)
-  PYINSTALLER_DEPENDENCIES=$(WINDOWS_PYINSTALLER_DEPENDENCIES)
+  #PYINSTALLER_DEPENDENCIES=$(WINDOWS_PYINSTALLER_DEPENDENCIES)
   ifeq ($(findstring /cygwin/,$(SHELL)),)
     ifneq ($(findstring .exe,${SHELL}),.exe)
       ifneq (MINGW,$(findstring MINGW,$(shell uname)))

@@ -2,16 +2,14 @@
 import { isEmpty, filterEmpty } from "../base/helpers.mjs";
 import { ElementBuilder } from "../base/builder.mjs";
 import { NodeEditorView } from "./editor.mjs";
-import { ImageView } from "../view/image.mjs";
-import { CompoundNodeView } from "./base.mjs";
+import { ImageView, BackgroundImageView } from "../view/image.mjs";
+import { VideoView } from "../view/video.mjs";
 import { ImageEditorNodeView } from "./image-editor/base.mjs";
 import { ImageEditorScribbleNodeView } from "./image-editor/scribble.mjs";
 import { ImageEditorPromptNodeView } from "./image-editor/prompt.mjs";
-import {
-    ImageEditorImageNodeView,
-    ImageEditorCompoundImageNodeView
-} from "./image-editor/image.mjs";
-import { CurrentInvocationImageView } from "./image-editor/invocation.mjs";
+import { ImageEditorImageNodeView } from "./image-editor/image.mjs";
+import { ImageEditorVideoNodeView } from "./image-editor/video.mjs";
+import { NoImageView, NoVideoView } from "./image-editor/common.mjs";
 
 const E = new ElementBuilder();
 
@@ -26,8 +24,6 @@ class ImageEditorView extends NodeEditorView {
     constructor(application) {
         super(application.config, window.innerWidth-300, window.innerHeight-70);
         this.application = application;
-        this.currentInvocation = new CurrentInvocationImageView(this);
-        this.currentInvocation.hide();
     }
 
     /**
@@ -59,11 +55,9 @@ class ImageEditorView extends NodeEditorView {
      * @var array<class> The node classes for state set/get
      */
     static nodeClasses = [
-        CompoundNodeView,
         ImageEditorScribbleNodeView,
         ImageEditorImageNodeView,
-        ImageEditorPromptNodeView,
-        ImageEditorCompoundImageNodeView
+        ImageEditorVideoNodeView,
     ];
 
     /**
@@ -72,10 +66,10 @@ class ImageEditorView extends NodeEditorView {
     async focusNode(node) {
         super.focusNode(node);
         this.focusedNode = node;
-        this.application.menu.removeCategory("Node");
+        this.application.menu.removeCategory("Element");
         let nodeButtons = node.getButtons();
         if (!isEmpty(nodeButtons)) {
-            let menuCategory = await this.application.menu.addCategory("Node", "n");
+            let menuCategory = await this.application.menu.addCategory("Element", "e");
             for (let buttonName in nodeButtons) {
                 let buttonConfiguration = nodeButtons[buttonName];
                 let menuItem = await menuCategory.addItem(
@@ -95,54 +89,7 @@ class ImageEditorView extends NodeEditorView {
         super.removeNode(node);
         if (this.focusedNode === node) {
             this.focusedNode = null;
-            this.application.menu.removeCategory("Node");
-        }
-    }
-
-    /**
-     * Removes the current invocation from the canvas view.
-     */
-    hideCurrentInvocation() {
-        this.currentInvocation.hide();
-        if (this.hasClass("has-image")) {
-            this.removeClass("has-image");
-            this.application.menu.removeCategory("Image");
-        }
-        this.resetDimension(false);
-    }
-
-    /**
-     * Resets the editor to the previous set of dimensions
-     */
-    resetDimension(resetNodes = true) {
-        if (!isEmpty(this.configuredWidth) && !isEmpty(this.configuredHeight)) {
-            this.setDimension(this.configuredWidth, this.configuredHeight, resetNodes);
-            this.configuredHeight = null;
-            this.configuredWidth = null;
-        }
-    }
-
-    /**
-     * Sets a current invocation on the canvas view.
-     * @param string $href The image source.
-     */
-    async setCurrentInvocationImage(href) {
-        this.currentInvocation.setImage(href);
-        await this.currentInvocation.waitForLoad();
-        if (this.currentInvocation.width != this.width || this.currentInvocation.height != this.height) {
-            if (isEmpty(this.configuredWidth)) {
-                this.configuredWidth = this.width;
-            }
-            if (isEmpty(this.configuredHeight)) {
-                this.configuredHeight = this.height;
-            }
-            this.setDimension(this.currentInvocation.width, this.currentInvocation.height, false);
-        }
-        this.currentInvocation.show();
-        if (!this.hasClass("has-image")) {
-            this.addClass("has-image");
-            let menuCategory = await this.application.menu.addCategory("Image", "e");
-            await this.currentInvocation.prepareMenu(menuCategory);
+            this.application.menu.removeCategory("Element");
         }
     }
 
@@ -170,23 +117,63 @@ class ImageEditorView extends NodeEditorView {
 
         if (imageSource instanceof ImageView) {
             imageView = imageSource;
+        } else if (!isEmpty(imageSource)) {
+            imageView = new BackgroundImageView(this.config, imageSource, false);
         } else {
-            imageView = new ImageView(this.config, imageSource);
+            imageView = new NoImageView(this.config);
         }
 
-        await imageView.waitForLoad();
+        if (imageView instanceof ImageView) {
+            await imageView.waitForLoad();
+        }
+
         let newNode = await this.addNode(
             ImageEditorImageNodeView,
-            imageName,
+            this.getUniqueNodeName(imageName),
             imageView,
             x,
             y,
             imageView.width,
             imageView.height
         );
-        setTimeout(() => newNode.toggleOptions(), 500);
+
         return newNode;
     }
+
+    /**
+     * This is a shorthand helper functinon for adding a video URL.
+     * @param string $videoSource The source of the video - likely a data URL.
+     * @return NodeView The added view.
+     */
+    async addVideoNode(videoSource, videoName = "Video") {
+        let videoView = null,
+            [x, y] = this.getNextNodePoint();
+
+        if (videoSource instanceof VideoView) {
+            videoView = videoSource;
+        } else if (!isEmpty(videoSource)) {
+            videoView = new VideoView(this.config, videoSource, false);
+        } else {
+            videoView = new NoVideoView(this.config);
+        }
+
+        if (videoView instanceof VideoView) {
+            await videoView.waitForLoad();
+        }
+
+        let newNode = await this.addNode(
+            ImageEditorVideoNodeView,
+            this.getUniqueNodeName(videoName),
+            videoView,
+            x,
+            y,
+            videoView.width,
+            videoView.height
+        );
+
+        return newNode;
+    }
+
 
     /**
      * This is a shorthand helper for adding a scribble node.
@@ -196,24 +183,7 @@ class ImageEditorView extends NodeEditorView {
         let [x, y] = this.getNextNodePoint();
         return await this.addNode(
             ImageEditorScribbleNodeView,
-            scribbleName,
-            null,
-            x,
-            y,
-            256,
-            256
-        );
-    }
-    
-    /**
-     * This is a shorthand helper for adding a prompt node.
-     * @return NodeView The added view.
-     */
-    async addPromptNode(promptName = "Prompt") {
-        let [x, y] = this.getNextNodePoint();
-        return await this.addNode(
-            ImageEditorPromptNodeView,
-            promptName,
+            this.getUniqueNodeName(scribbleName),
             null,
             x,
             y,
@@ -227,39 +197,10 @@ class ImageEditorView extends NodeEditorView {
      */
     async build() {
         let node = await super.build(),
+            overlays = E.createElement("enfugue-image-editor-overlay"),
             grid = E.createElement("enfugue-image-editor-grid");
-        node.find("enfugue-node-canvas").append(grid, await this.currentInvocation.getNode());
+        node.find("enfugue-node-canvas").append(overlays.content(grid));
         return node;
-    }
-
-    /**
-     * Get state, includes current invocation
-     */
-    getState(includeImages = true) {
-        let state = super.getState(includeImages);
-        if (this.hasClass("has-image") && includeImages) {
-            return {
-                "image": this.currentInvocation.src,
-                "nodes": state
-            };
-        }
-        return state;
-    }
-
-    /**
-     * Set state, may include current invocation
-     */
-    setState(newState) {
-        if (Array.isArray(newState)) {
-            this.hideCurrentInvocation();
-            return super.setState(newState);
-        }
-        if (isEmpty(newState.image)) {
-            this.hideCurrentInvocation();
-        } else {
-            this.setCurrentInvocationImage(newState.image);
-        }
-        return super.setState(newState.nodes);
     }
 
     /**
@@ -284,5 +225,4 @@ export {
     ImageEditorNodeView,
     ImageEditorImageNodeView,
     ImageEditorScribbleNodeView,
-    ImageEditorPromptNodeView
 };

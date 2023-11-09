@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from typing import Any, Union, Dict, TYPE_CHECKING
+from typing import Any, Union, Dict, Optional, TYPE_CHECKING
 from typing_extensions import Self
 
 from enfugue.diffusion.constants import MASK_TYPE_LITERAL
@@ -15,7 +15,6 @@ if TYPE_CHECKING:
     )
 
 __all__ = ["MaskWeightBuilder"]
-
 
 @dataclass(frozen=True)
 class DiffusionMask:
@@ -321,6 +320,36 @@ class MaskWeightBuilder:
             self.unmasked_weights[unmask]
         )
 
+    def temporal(
+        self,
+        tensor: Tensor,
+        frames: Optional[int] = None,
+        unfeather_start: bool = False,
+        unfeather_end: bool = False
+    ) -> Tensor:
+        """
+        Potentially expands a tensor temporally
+        """
+        import torch
+        if frames is None:
+            return tensor
+        tensor = tensor.unsqueeze(2).repeat(1, 1, frames, 1, 1)
+        if not unfeather_start or not unfeather_end:
+            frame_length = frames // 3
+            for i in range(frame_length):
+                feathered = torch.tensor(i / frame_length)
+                if not unfeather_start:
+                    tensor[:, :, i, :, :] = torch.minimum(
+                        tensor[:, :, i, :, :],
+                        feathered
+                    )
+                if not unfeather_end:
+                    tensor[:, :, frames - i - 1, :, :] = torch.minimum(
+                        tensor[:, :, frames - i - 1, :, :],
+                        feathered
+                    )
+        return tensor
+
     def __call__(
         self,
         mask_type: MASK_TYPE_LITERAL,
@@ -328,10 +357,13 @@ class MaskWeightBuilder:
         dim: int,
         width: int,
         height: int,
+        frames: Optional[int] = None,
         unfeather_left: bool = False,
         unfeather_top: bool = False,
         unfeather_right: bool = False,
         unfeather_bottom: bool = False,
+        unfeather_start: bool = False,
+        unfeather_end: bool = False,
         **kwargs: Any
     ) -> Tensor:
         """
@@ -355,4 +387,10 @@ class MaskWeightBuilder:
             unfeather_bottom=unfeather_bottom,
             **kwargs
         )
-        return mask.unsqueeze(0).unsqueeze(0).repeat(batch, dim, 1, 1)
+
+        return self.temporal(
+            mask.unsqueeze(0).unsqueeze(0).repeat(batch, dim, 1, 1),
+            frames=frames,
+            unfeather_start=unfeather_start,
+            unfeather_end=unfeather_end,
+        )

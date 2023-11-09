@@ -2,7 +2,10 @@ from __future__ import annotations
 
 from typing import Dict, Union, Iterator, Tuple, Optional
 
-__all__ = ["TokenMerger"]
+__all__ = [
+    "TokenMerger",
+    "merge_tokens"
+]
 
 
 class TokenMerger:
@@ -12,10 +15,16 @@ class TokenMerger:
 
     tokens: Dict[str, Union[int, float]]
 
-    def __init__(self, *initial_phrases: str) -> None:
+    def __init__(
+        self,
+        *initial_phrases: Union[str, Tuple[str, Union[int, float]]]
+    ) -> None:
         self.tokens = {}
         for phrase in initial_phrases:
-            self.add(phrase)
+            weight = 1.0
+            if isinstance(phrase, tuple):
+                phrase, weight = phrase
+            self.add(phrase, weight)
 
     def add(self, phrase: str, weight: Union[int, float] = 1) -> None:
         """
@@ -64,3 +73,9 @@ class TokenMerger:
         Stringifies the tokens.
         """
         return ",".join([token for token, weight in iter(self)])
+
+def merge_tokens(**prompt_weights: float) -> str:
+    """
+    Merges any number of tokens quickly.
+    """
+    return str(TokenMerger(*list(prompt_weights.items())))

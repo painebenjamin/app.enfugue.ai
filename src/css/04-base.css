@@ -43,7 +43,7 @@ html,
 body {
     width: 100%;
     height: 100%;
-    font-size: 14px;
+    font-size: 12px;
     font-weight: 400;
     font-family: var(--body-font), sans-serif;
 }
@@ -54,7 +54,7 @@ body {
     align-items: stretch;
     justify-content: stretch;
     position: relative;
-    background-color: var(--darkest-color);
+    background-color: var(--dark-color);
 }
 
 header {
@@ -181,11 +181,11 @@ fieldset {
     display: flex;
     align-items: stretch;
     justify-content: stretch;
-    gap: 1em;
+    gap: 5px;
 }
 
 form {
-    padding: 1em 1em 0 1em;
+    padding: 10px 10px 0 10px;
     flex-flow: column nowrap;
 }
 
@@ -194,12 +194,13 @@ fieldset {
 }
 
 fieldset legend {
-    margin: 0 0 0.5em 0;
-    padding: 0 0 3px 0;
-    font-size: 16px;
+    z-index: 2;
+    margin: 0 0 5px 0;
+    padding: 4px 0;
+    font-size: 14px;
     width: 100%;
     font-weight: bold;
-    border-bottom: 2px solid var(--theme-color-tertiary);
+    border-bottom: 1px solid var(--theme-color-tertiary);
     color: var(--theme-color-tertiary);
     font-family: var(--header-font), sans-serif;
     display: flex;
@@ -212,8 +213,9 @@ fieldset .field-container {
     display: flex;
     flex-flow: column-reverse nowrap;
     align-items: stretch;
-    flex-basis: 110px;
+    flex-basis: 100px;
     flex-grow: 1;
+    z-index: 2;
 }
 
 fieldset.collapsed .field-container {
@@ -229,9 +231,9 @@ fieldset.collapsible > legend::after {
     display: inline-block;
     width: 0;
     height: 0;
-    border-top: 7px solid transparent;
-    border-bottom: 7px solid transparent;
-    border-right: 7px solid var(--theme-color-tertiary);
+    border-top: 5px solid transparent;
+    border-bottom: 5px solid transparent;
+    border-right: 5px solid var(--theme-color-tertiary);
     transform-origin: center;
     transition: all 0.25s ease-in-out;
     transform: rotate(-90deg);
@@ -250,6 +252,7 @@ fieldset .field-container enfugue-slider-input {
     flex-grow: 1;
     margin: 0;
     width: 100%;
+    z-index: 2;
 }
 
 fieldset .field-container.hidden-input-view {
@@ -260,8 +263,8 @@ form label {
     display: inline-block;
     flex-grow: 0;
     font-weight: 400;
-    font-size: 14px;
-    margin-bottom: 0.25em;
+    font-size: 11px;
+    margin-bottom: 2px;
     color: var(--theme-color-secondary);
     min-height: 12px;
     font-family: var(--header-font), sans-serif;
@@ -356,12 +359,9 @@ form.embedded-form {
     background-color: var(--theme-color-primary);
     cursor: pointer;
     transition: background-color 0.25s ease-in-out;
-    border-radius: 5px;
-    padding: 0 10px;
-}
-
-.field-container.checkbox-input-view label {
-    padding: 1em 0;
+    border-radius: 3px;
+    padding: 0 8px;
+    z-index: 1;
 }
 
 .field-container.checkbox-input-view::after {
@@ -386,6 +386,7 @@ form.embedded-form {
     color: var(--lightest-color);
     cursor: pointer;
     margin-top: 2.5px;
+    padding: 7px 0;
 }
 
 .field-container.checkbox-input-view input {
@@ -430,16 +431,16 @@ form.inset-form fieldset legend {
 
 @keyframes loadingBar {
     0% {
-        left: 1em;
-        right: calc(100% - 2em);
+        left: 10px;
+        right: calc(100% - 20px);
     }
     50% {
-        left: 1em;
-        right: 1em;
+        left: 10px;
+        right: 10px;
     }
     100% {
-        left: calc(100% - 2em);
-        right: 1em;
+        left: calc(100% - 20px);
+        right: 10px;
     }
 }
 
@@ -515,17 +516,18 @@ textarea {
     color: white;
     background-color: var(--darker-color);
     border: none;
-    padding: 10px 15px;
+    padding: 8px 12px;
     margin: 0 0 1em 0;
+    font-size: 12px;
     border: 1px solid black;
-    border-radius: 5px;
+    border-radius: 3px;
     transition: all 0.25s ease-in-out;
     outline: none;
     font-family: var(--body-font), sans-serif;
 }
 
 select {
-    padding: 9px 5px;
+    padding: 7px 5px;
 }
 
 option {
@@ -533,7 +535,7 @@ option {
 }
 
 input {
-    padding: 11px 15px;
+    padding: 9px 11px;
 }
 
 input.search {
@@ -887,7 +889,7 @@ ul.list-input-view li.selected {
     color: var(--lighter-color);
     font-weight: 300;
     padding: 10px;
-    border-radius: 5px;
+    border-radius: 3px;
     border: 1px solid var(--lighter-color);
     opacity: 0;
     pointer-events: none;
@@ -939,7 +941,7 @@ ul.list-input-view li.selected {
     background-color: var(--darker-color);
     border: 1px solid var(--light-color);
     padding: 10px;
-    border-radius: 5px;
+    border-radius: 3px;
 }
 
 @keyframes slide-background {

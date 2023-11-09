@@ -44,7 +44,6 @@ class CivitAIItemView extends View {
      */
     async build() {
         // TODO: clean this up, it's messy
-        console.log(this.item);
         let node = await super.build(),
             selectedVersion = this.item.modelVersions[0].name,
             name = E.h2().content(
@@ -74,7 +73,15 @@ class CivitAIItemView extends View {
                     ),
                     versionImageNodes = versionImages.map(
                         (image) => {
-                            let node = E.img().src(image.url).css({
+                            let node;
+                            if (this.item.type === "MotionModule") {
+                                node = E.video().content(
+                                    E.source().src(image.url)
+                                ).autoplay(true).muted(true).loop(true).controls(false);
+                            } else {
+                                node = E.img().src(image.url);
+                            }
+                            node.css({
                                 "max-width": `${((1/versionImages.length)*100).toFixed(2)}%`
                             });
                             if (!isEmpty(image.meta) && !isEmpty(image.meta.prompt)) {
@@ -377,6 +384,14 @@ class CivitAIBrowserView extends TabbedView {
                 config, 
                 (...args) => getCategoryData("inversion", ...args),
                 (...args) => download("inversion", ...args)
+            )
+        );
+        this.addTab(
+            "Motion Modules", 
+            new CivitAICategoryBrowserView(
+                config, 
+                (...args) => getCategoryData("motion", ...args),
+                (...args) => download("motion", ...args)
             )
         );
     }

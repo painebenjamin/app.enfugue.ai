@@ -15,14 +15,6 @@ const E = new ElementBuilder();
  */
 class ModelTensorRTTableView extends TableView {
     /**
-     * Add a parameter for the engine build callable
-     */
-    constructor(config, data, buildEngine) {
-        super(config, data);
-        this.buildEngine = buildEngine;
-    }
-
-    /**
      * @var bool Disable sorting.
      */
     static canSort = false;
@@ -51,6 +43,14 @@ class ModelTensorRTTableView extends TableView {
             }
         }
     };
+
+    /**
+     * Add a parameter for the engine build callable
+     */
+    constructor(config, data, buildEngine) {
+        super(config, data);
+        this.buildEngine = buildEngine;
+    }
 };
 
 /**
@@ -226,6 +226,46 @@ class ModelPickerFormView extends FormView {
     };
 };
 
+/**
+ * This class holds the forms for chosen model and quick-set models
+ */
+class ModelPickerFormsView extends View {
+    /**
+     * @var string tag name
+     */
+    static tagName = "enfugue-model-picker";
+
+    /**
+     * @var string Text in the button
+     */
+    static showMoreText = "More Model Configuration";
+
+    /**
+     * Constructor registers forms
+     */
+    constructor(config, pickerForm, onShowMore) {
+        super(config);
+        this.pickerForm = pickerForm;
+        this.onShowMore = onShowMore;
+    }
+
+    /**
+     * On build, append forms
+     */
+    async build() {
+        let node = await super.build(),
+            showMore = E.button().content(this.constructor.showMoreText).on("click", (e) => {
+                e.stopPropagation();
+                this.onShowMore();
+            });
+
+        node.content(
+            await this.pickerForm.getNode(),
+            showMore
+        );
+        return node;
+    }
+}
 
 /**
  * The ModelPickerController appends the model chooser input to the image editor view.
@@ -241,6 +281,21 @@ class ModelPickerController extends Controller {
      * @var int The height of the TensorRT Status Window
      */
     static tensorRTStatusWindowHeight = 750;
+
+    /**
+     * @var int The width of the model config window
+     */
+    static modelWindowWidth = 500;
+    
+    /**
+     * @var int The height of the model config window
+     */
+    static modelWindowHeight = 500;
+
+    /**
+     * @var string title of the model window
+     */
+    static modelWindowTitle = "More Model Configuration";
 
     /**
      * Get state from the model picker
@@ -268,7 +323,7 @@ class ModelPickerController extends Controller {
     setState(newState) {
         if (!isEmpty(newState.model)) {
             this.modelPickerFormView.suppressDefaults = true;
-            this.modelPickerFormView.setValues(newState.model).then(
+            this.modelPickerFormView.setValues(newState.model, false).then(
                 () => this.modelPickerFormView.submit()
             );
         }
@@ -342,13 +397,43 @@ class ModelPickerController extends Controller {
     }
 
     /**
+     * Shows the abridged model form
+     */
+    async showModelForm() {
+        if (this.engine.modelType === "model") {
+            let modelData = await this.model.DiffusionModel.query({name: this.engine.model});
+            this.application.modelManager.showEditModel(modelData);
+        } else {
+            if (!isEmpty(this.modelFormWindow)) {
+                this.modelFormWindow.focus();
+            } else {
+                this.modelFormWindow = await this.spawnWindow(
+                    this.constructor.modelWindowTitle,
+                    this.abridgedModelFormView,
+                    this.constructor.modelWindowWidth,
+                    this.constructor.modelWindowHeight
+                );
+                this.modelFormWindow.onClose(() => { delete this.modelFormWindow; });
+                setTimeout(() => { this.abridgedModelFormView.setValues(this.abridgedModelFormView.values); }, 100); // Refresh draw
+            }
+        }
+    }
+
+    /**
      * When initialized, append form to container and register callbacks.
      */
     async initialize() {
+        this.xl = false;
         this.builtEngines = {};
 
         this.modelPickerFormView = new ModelPickerFormView(this.config);
         this.abridgedModelFormView = new AbridgedModelFormView(this.config);
+
+        this.formsView = new ModelPickerFormsView(
+            this.config,
+            this.modelPickerFormView,
+            () => this.showModelForm()
+        );
 
         this.modelPickerFormView.onSubmit(async (values) => {
             let suppressDefaults = this.modelPickerFormView.suppressDefaults;
@@ -358,15 +443,16 @@ class ModelPickerController extends Controller {
                 this.engine.model = selectedName;
                 this.engine.modelType = selectedType;
                 if (selectedType === "model") {
-                    this.abridgedModelFormView.hide();
                     try {
                         let fullModel = await this.model.DiffusionModel.query({name: selectedName}),
                             modelStatus = await fullModel.getStatus(),
                             tensorRTStatus = {supported: false};
 
                         fullModel.status = modelStatus;
+
                         if (suppressDefaults) {
                             fullModel._relationships.config = null;
+                            fullModel._relationships.scheduler = null;
                         }
 
                         this.publish("modelPickerChange", fullModel);
@@ -386,9 +472,31 @@ class ModelPickerController extends Controller {
                         console.error(e);
                     }
                 } else {
-                    this.abridgedModelFormView.show();
-                    this.abridgedModelFormView.submit();
-                    this.modelPickerFormView.setTensorRTStatus({supported: false});
+                    // Query for metadata
+                    try {
+                        let modelMetadata = await this.model.get(`/models/${selectedName}/status`);
+                        if (!isEmpty(modelMetadata.metadata.base)) {
+                            if (modelMetadata.metadata.base.inpainter) {
+                                this.notify("warn", "Unexpected Configuration", "You've selected an inpainting model as your base model. This will work as expected for inpainting, but if you aren't inpainting, results will be poorer than desired. Expand 'Additional Models' and put your model under 'Inpainting Checkpoint' to only use it when inpainting.");
+                            }
+                            if (modelMetadata.metadata.base.refiner) {
+                                this.notify("warn", "Unexpected Configuration", "You've selected a refining model as your base model. This will work as expected for refining, but if you aren't refining, results will be poorer than desired. Expand 'Additional Models' and put your model under 'Refining Checkpoint' to only use it when refining.");
+                            }
+                        }
+
+                        this.abridgedModelFormView.submit();
+                        this.modelPickerFormView.setTensorRTStatus({supported: false});
+                        this.publish("modelPickerChange", {"status": modelMetadata, "defaultConfiguration": {}});
+                    } catch(e) {
+                        let errorMessage = "This model's metadata could not be read. It may still work, but it's possible the file is corrupt or otherwise unsupported.";
+                        if (!isEmpty(e.title)) {
+                            errorMessage += ` The error was: ${e.title}`;
+                            if (!isEmpty(e.detail)) {
+                                errorMessage += `(${e.detail})`;
+                            }
+                        }
+                        this.notify("warn", "Metadata Error", errorMessage);
+                    }
                 }
             } else {
                 this.modelPickerFormView.setTensorRTStatus({supported: false});
@@ -404,6 +512,11 @@ class ModelPickerController extends Controller {
             this.engine.refinerVae = values.refiner_vae;
             this.engine.inpainter = values.inpainter;
             this.engine.inpainterVae = values.inpainter_vae;
+            this.engine.motionModule = values.motion_module;
+            this.abridgedModelFormView.enable();
+            if (!isEmpty(this.modelFormWindow)) {
+                this.modelFormWindow.remove();
+            }
         });
 
         this.abridgedModelFormView.onChange(async () => {
@@ -419,8 +532,7 @@ class ModelPickerController extends Controller {
             }
         });
 
-        this.application.container.appendChild(await this.modelPickerFormView.render());
-        this.application.container.appendChild(await this.abridgedModelFormView.render());
+        this.application.container.appendChild(await this.formsView.render());
 
         this.subscribe("invocationError", (payload) => {
             if (!isEmpty(payload.metadata) && !isEmpty(payload.metadata.tensorrt_build)) {

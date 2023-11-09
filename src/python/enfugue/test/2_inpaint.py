@@ -8,8 +8,9 @@ import traceback
 from typing import List
 from pibble.util.log import DebugUnifiedLoggingContext
 from enfugue.util import logger
-from enfugue.diffusion.plan import DiffusionPlan
 from enfugue.diffusion.manager import DiffusionPipelineManager
+from enfugue.diffusion.invocation import LayeredInvocation
+from enfugue.diffusion.constants import DEFAULT_INPAINTING_MODEL
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
@@ -24,30 +25,38 @@ def main() -> None:
 
         image = PIL.Image.open(os.path.join(HERE, "test-images", "small-inpaint.jpg"))
         mask = PIL.Image.open(os.path.join(HERE, "test-images", "small-inpaint-mask-invert.jpg"))
+        
         prompt = "a man breakdancing in front of a bright blue sky"
         negative_prompt = "tree, skyline, buildings"
+        width, height = image.size
         
-        plan = DiffusionPlan.assemble(
-            size=512,
-            prompt = prompt,
-            negative_prompt = negative_prompt,
-            num_inference_steps = 20,
-            image = image,
-            mask = mask,
-            invert_mask = True
+        plan = LayeredInvocation.assemble(
+            width=width,
+            height=height,
+            prompt=prompt,
+            negative_prompt=negative_prompt,
+            num_inference_steps=20,
+            image=image,
+            mask={
+                "image": mask,
+                "invert": True
+            }
         )
 
         plan.execute(manager)["images"][0].save(os.path.join(save_dir, f"result.png"))
         
-        plan = DiffusionPlan.assemble(
-            size=512,
-            inpainter = "v1-5-pruned.ckpt", # Force 4-dim inpainting
-            prompt = "blue sky and green grass",
-            negative_prompt = negative_prompt,
-            num_inference_steps = 20,
-            image = image,
-            mask = mask,
-            invert_mask = True
+        plan = LayeredInvocation.assemble(
+            width=width,
+            height=height,
+            inpainter="v1-5-pruned.ckpt", # Force 4-dim inpainting
+            prompt="blue sky and green grass",
+            negative_prompt=negative_prompt,
+            num_inference_steps=20,
+            image=image,
+            mask={
+                "image": mask,
+                "invert": True
+            }
         )
         plan.execute(manager)["images"][0].save(os.path.join(save_dir, f"result-4-dim.png"))
         

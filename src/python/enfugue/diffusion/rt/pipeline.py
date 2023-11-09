@@ -32,7 +32,7 @@ from enfugue.diffusion.rt.model import BaseModel, UNet, VAE, CLIP, ControlledUNe
 
 if TYPE_CHECKING:
     from enfugue.diffusers.support.ip import IPAdapter
-    from enfugue.diffusion.constants import MASK_TYPE_LITERAL
+    from enfugue.diffusion.constants import MASK_TYPE_LITERAL, IP_ADAPTER_LITERAL
 
 class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
     models: Dict[str, BaseModel]
@@ -57,9 +57,9 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         controlnets: Optional[Dict[str, ControlNetModel]] = None,
         ip_adapter: Optional[IPAdapter] = None,
         engine_size: int = 512,  # Recommended even for machines that can handle more
-        chunking_size: int = 32,
-        chunking_mask_type: MASK_TYPE_LITERAL = "bilinear",
-        chunking_mask_kwargs: Dict[str, Any] = {},
+        tiling_size: int = 32,
+        tiling_mask_type: MASK_TYPE_LITERAL = "bilinear",
+        tiling_mask_kwargs: Dict[str, Any] = {},
         max_batch_size: int = 16,
         # ONNX export parameters
         force_engine_rebuild: bool = False,
@@ -73,6 +73,9 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         build_half: bool = False,
         onnx_opset: int = 17,
     ) -> None:
+        if engine_size is None:
+            raise ValueError("Cannot use TensorRT with a 'None' engine size.")
+
         super(EnfugueTensorRTStableDiffusionPipeline, self).__init__(
             vae=vae,
             vae_preview=vae_preview,
@@ -91,14 +94,15 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
             controlnets=controlnets,
             ip_adapter=ip_adapter,
             engine_size=engine_size,
-            chunking_size=chunking_size,
-            chunking_mask_type=chunking_mask_type,
-            chunking_mask_kwargs=chunking_mask_kwargs,
+            tiling_size=tiling_size,
+            tiling_mask_type=tiling_mask_type,
+            tiling_mask_kwargs=tiling_mask_kwargs,
         )
 
         if self.controlnets:
             # Hijack forward
             self.unet.forward = self.controlled_unet_forward # type: ignore[method-assign]
+
         self.vae.forward = self.vae.decode # type: ignore[method-assign]
         self.onnx_opset = onnx_opset
         self.force_engine_rebuild = force_engine_rebuild
@@ -112,7 +116,7 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         self.build_preview_features = build_preview_features
         self.max_batch_size = max_batch_size
 
-        if self.build_dynamic_shape or self.engine_size > 512:
+        if self.build_dynamic_shape or self.engine_size > 512: # type: ignore
             self.max_batch_size = 4
 
         # Set default to DDIM - The PNDM default that some models have does not work with TRT
@@ -193,11 +197,11 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
     def get_runtime_context(
         self,
         batch_size: int,
+        animation_frames: Optional[int],
         device: Union[str, torch.device],
-        ip_adapter_scale: Optional[Union[float, List[float]]] = None,
-        ip_adapter_plus: bool = False,
-        ip_adapter_face: bool = False,
-        step_complete: Optional[Callable[[bool], None]] = None
+        ip_adapter_scale: Optional[Union[float, List[float]]]=None,
+        ip_adapter_mode: Optional[IP_ADAPTER_LITERAL]=None,
+        step_complete: Optional[Callable[[bool], None]]=None
     ) -> Iterator[None]:
         """
         We initialize the TensorRT runtime here.
@@ -216,8 +220,10 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         self,
         device: torch.device,
         dtype: torch.dtype,
-        freeu_factors: Optional[Tuple[float, float, float, float]] = None,
-        offload_models: bool = False
+        animation_frames: Optional[int]=None,
+        motion_scale: Optional[float]=None,
+        freeu_factors: Optional[Tuple[float, float, float, float]]=None,
+        offload_models: bool=False
     ) -> None:
         """
         TRT skips.
@@ -266,8 +272,8 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
             engines_to_build,
             self.onnx_opset,
             use_fp16=self.build_half,
-            opt_image_height=self.engine_size,
-            opt_image_width=self.engine_size,
+            opt_image_height=self.engine_size, # type: ignore[arg-type]
+            opt_image_width=self.engine_size, # type: ignore[arg-type]
             force_engine_rebuild=self.force_engine_rebuild,
             static_batch=self.build_static_batch,
             static_shape=not self.build_dynamic_shape,
@@ -282,22 +288,23 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         num_channels_latents: int,
         height: int,
         width: int,
-        dtype: Union[str, torch.dtype],
+        dtype: torch.dtype,
         device: Union[str, torch.device],
         generator: Optional[torch.Generator] = None,
+        animation_frames: Optional[int] = None,
     ) -> torch.Tensor:
         """
         Override to change to float32
         """
         return super(EnfugueTensorRTStableDiffusionPipeline, self).create_latents(
-            batch_size, num_channels_latents, height, width, torch.float32, device, generator,
+            batch_size, num_channels_latents, height, width, torch.float32, device, generator, animation_frames
         )
 
     def encode_prompt(
         self,
         prompt: Optional[str],
         device: torch.device,
-        num_images_per_prompt: int = 1,
+        num_results_per_prompt: int = 1,
         do_classifier_free_guidance: bool = False,
         negative_prompt: Optional[str] = None,
         prompt_embeds: Optional[torch.Tensor] = None,
@@ -321,7 +328,7 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
             return super(EnfugueTensorRTStableDiffusionPipeline, self).encode_prompt(
                 prompt=prompt,
                 device=device,
-                num_images_per_prompt=num_images_per_prompt,
+                num_results_per_prompt=num_results_per_prompt,
                 do_classifier_free_guidance=do_classifier_free_guidance,
                 negative_prompt=negative_prompt,
                 prompt_embeds=prompt_embeds,

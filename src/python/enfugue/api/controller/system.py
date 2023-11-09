@@ -95,9 +95,9 @@ class EnfugueAPISystemController(EnfugueAPIControllerBase):
         settings = {
             "safe": self.configuration.get("enfugue.safe", True),
             "auth": not (self.configuration.get("enfugue.noauth", True)),
-            "max_queued_invocations": self.manager.max_queued_invocations,
-            "max_queued_downloads": self.manager.max_queued_downloads,
-            "max_concurrent_downloads": self.manager.max_concurrent_downloads,
+            "max_queued_invocations": self.configuration.get("enfugue.queue", self.manager.DEFAULT_MAX_QUEUED_INVOCATIONS),
+            "max_queued_downloads": self.configuration.get("enfugue.downloads.queue", self.manager.DEFAULT_MAX_QUEUED_DOWNLOADS),
+            "max_concurrent_downloads": self.configuration.get("enfugue.downloads.concurrent", self.manager.DEFAULT_MAX_CONCURRENT_DOWNLOADS),
             "switch_mode": self.configuration.get("enfugue.pipeline.switch", "offload"),
             "sequential": self.configuration.get("enfugue.pipeline.sequential", False),
             "cache_mode": self.configuration.get("enfugue.pipeline.cache", None),
@@ -170,15 +170,15 @@ class EnfugueAPISystemController(EnfugueAPIControllerBase):
                 self.configuration["enfugue.pipeline.inpainter"] = None
             else:
                 self.user_config["enfugue.pipeline.inpainter"] = False
-            
 
-        for key in [
-            "max_queued_invocation",
-            "max_queued_downloads",
-            "max_concurrent_downloads",
-        ]:
-            if key in request.parsed:
-                self.user_config[f"enfugue.{key}"] = request.parsed[key]
+        if "max_queued_invocations" in request.parsed:
+            self.user_config["enfugue.queue"] = request.parsed["max_queued_invocations"]
+
+        if "max_queued_downloads" in request.parsed:
+            self.user_config["enfugue.downloads.queue"] = request.parsed["max_queued_downloads"]
+
+        if "max_concurrent_downloads" in request.parsed:
+            self.user_config["enfugue.downloads.concurrent"] = request.parsed["max_concurrent_downloads"]
 
         for controlnet in self.CONTROLNETS:
             if controlnet in request.parsed:
@@ -316,7 +316,7 @@ class EnfugueAPISystemController(EnfugueAPIControllerBase):
         Gets a summary of files and filesize in the installation
         """
         sizes = {}
-        for dirname in ["cache", "diffusers", "checkpoint", "lora", "lycoris", "inversion", "tensorrt", "other"]:
+        for dirname in ["cache", "diffusers", "checkpoint", "lora", "lycoris", "inversion", "tensorrt", "other", "images", "intermediate"]:
             directory = self.get_configured_directory(dirname)
             items, files, size = get_directory_size(directory)
             sizes[dirname] = {"items": items, "files": files, "bytes": size, "path": directory}

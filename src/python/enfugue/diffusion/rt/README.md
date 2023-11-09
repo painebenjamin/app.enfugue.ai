@@ -30,6 +30,8 @@ def __init__(
     chunking_size: int = 32,
     chunking_mask_type: MASK_TYPE_LITERAL = "bilinear",
     chunking_mask_kwargs: Dict[str, Any] = {},
+    temporal_engine_size: int = 16,
+    temporal_chunking_size: int = 4
     max_batch_size: int = 16,
     force_engine_rebuild: bool = False,
     vae_engine_dir: Optional[str] = None,

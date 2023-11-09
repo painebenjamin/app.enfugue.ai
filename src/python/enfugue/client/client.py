@@ -11,13 +11,8 @@ from urllib.parse import urlparse
 from pibble.api.client.webservice.jsonapi import JSONWebServiceAPIClient
 from pibble.ext.user.client.base import UserExtensionClientBase
 
-from enfugue.diffusion.plan import NodeDict, UpscaleStepDict
 from enfugue.diffusion.constants import *
-from enfugue.util import (
-    logger,
-    IMAGE_FIT_LITERAL,
-    IMAGE_ANCHOR_LITERAL
-)
+from enfugue.util import logger
 from enfugue.client.invocation import RemoteInvocation
 
 __all__ = ["WeightedModelDict", "EnfugueClient"]
@@ -126,6 +121,7 @@ class EnfugueClient(UserExtensionClientBase, JSONWebServiceAPIClient):
 
     def invoke(
         self,
+        prompts: Optional[List[Dict]] = None,
         prompt: Optional[str] = None,
         prompt_2: Optional[str] = None,
         negative_prompt: Optional[str] = None,
@@ -138,9 +134,10 @@ class EnfugueClient(UserExtensionClientBase, JSONWebServiceAPIClient):
         intermediates: Optional[bool] = None,
         width: Optional[int] = None,
         height: Optional[int] = None,
-        chunking_size: Optional[int] = None,
-        chunking_mask_type: Optional[MASK_TYPE_LITERAL] = None,
-        chunking_mask_kwargs: Optional[Dict[str, Any]] = None,
+        tiling_size: Optional[int] = None,
+        tiling_stride: Optional[int] = None,
+        tiling_mask_type: Optional[MASK_TYPE_LITERAL] = None,
+        tiling_mask_kwargs: Optional[Dict[str, Any]] = None,
         samples: Optional[int] = None,
         iterations: Optional[int] = None,
         num_inference_steps: Optional[int] = None,
@@ -154,12 +151,9 @@ class EnfugueClient(UserExtensionClientBase, JSONWebServiceAPIClient):
         refiner_prompt_2: Optional[str] = None,
         refiner_negative_prompt: Optional[str] = None,
         refiner_negative_prompt_2: Optional[str] = None,
-        nodes: Optional[List[NodeDict]] = None,
+        layers: Optional[List[Dict[str, Any]]] = None,
         model: Optional[str] = None,
         model_type: Optional[Literal["checkpoint", "model"]] = None,
-        size: Optional[int] = None,
-        refiner_size: Optional[int] = None,
-        inpainter_size: Optional[int] = None,
         inpainter: Optional[str] = None,
         refiner: Optional[str] = None,
         lora: Optional[List[WeightedModelDict]] = None,
@@ -171,26 +165,21 @@ class EnfugueClient(UserExtensionClientBase, JSONWebServiceAPIClient):
         inpainter_vae: Optional[str] = None,
         freeu_factors: Optional[Tuple[float, float, float, float]] = None,
         seed: Optional[int] = None,
-        image: Optional[Union[str, Image]] = None,
         mask: Optional[Union[str, Image]] = None,
-        ip_adapter_images: Optional[List[Dict[str, Any]]] = None,
-        ip_adapter_plus: bool = False,
-        ip_adapter_face: bool = False,
-        control_images: Optional[List[Dict[str, Any]]] = None,
+        ip_adapter_model: Optional[IP_ADAPTER_LITERAL] = None,
         strength: Optional[float] = None,
-        fit: Optional[IMAGE_FIT_LITERAL] = None,
-        anchor: Optional[IMAGE_ANCHOR_LITERAL] = None,
-        remove_background: Optional[bool] = None,
-        fill_background: Optional[bool] = None,
-        scale_to_model_size: Optional[bool] = None,
-        invert_mask: Optional[bool] = None,
-        conditioning_scale: Optional[float] = None,
-        crop_inpaint: Optional[bool] = None,
-        inpaint_feather: Optional[int] = None,
+        outpaint: Optional[bool] = None,
         noise_offset: Optional[float] = None,
         noise_method: Optional[NOISE_METHOD_LITERAL] = None,
         noise_blend_method: Optional[LATENT_BLEND_METHOD_LITERAL] = None,
-        upscale_steps: Optional[Union[UpscaleStepDict, List[UpscaleStepDict]]] = None,
+        upscale: Optional[Union[UpscaleStepDict, List[UpscaleStepDict]]] = None,
+        motion_scale: Optional[float] = None,
+        position_encoding_truncate_length: Optional[int] = None,
+        position_encoding_scale_length: Optional[int] = None,
+        motion_module: Optional[str] = None,
+        animation_frames: Optional[int] = None,
+        loop: Optional[bool] = None,
+        tile: Optional[Union[bool, Tuple[bool, bool], List[bool]]] = None,
     ) -> RemoteInvocation:
         """
         Invokes the engine.
@@ -209,6 +198,8 @@ class EnfugueClient(UserExtensionClientBase, JSONWebServiceAPIClient):
             kwargs["negative_prompt"] = negative_prompt
         if negative_prompt_2 is not None:
             kwargs["negative_prompt_2"] = negative_prompt_2
+        if prompts is not None:
+            kwargs["prompts"] = prompts
         if model_prompt is not None:
             kwargs["model_prompt"] = model_prompt
         if model_prompt_2 is not None:
@@ -223,12 +214,14 @@ class EnfugueClient(UserExtensionClientBase, JSONWebServiceAPIClient):
             kwargs["width"] = width
         if height is not None:
             kwargs["height"] = height
-        if chunking_size is not None:
-            kwargs["chunking_size"] = chunking_size
-        if chunking_mask_type is not None:
-            kwargs["chunking_mask_type"] = chunking_mask_type
-        if chunking_mask_kwargs is not None:
-            kwargs["chunking_mask_kwargs"] = chunking_mask_kwargs
+        if tiling_size is not None:
+            kwargs["tiling_size"] = tiling_size
+        if tiling_stride is not None:
+            kwargs["tiling_stride"] = tiling_stride
+        if tiling_mask_type is not None:
+            kwargs["tiling_mask_type"] = tiling_mask_type
+        if tiling_mask_kwargs is not None:
+            kwargs["tiling_mask_kwargs"] = tiling_mask_kwargs
         if samples is not None:
             kwargs["samples"] = samples
         if iterations is not None:
@@ -251,14 +244,6 @@ class EnfugueClient(UserExtensionClientBase, JSONWebServiceAPIClient):
             kwargs["refiner_prompt"] = refiner_prompt
         if refiner_negative_prompt is not None:
             kwargs["refiner_negative_prompt"] = refiner_negative_prompt
-        if nodes is not None:
-            kwargs["nodes"] = nodes
-        if size is not None:
-            kwargs["size"] = size
-        if refiner_size is not None:
-            kwargs["refiner_size"] = refiner_size
-        if inpainter_size is not None:
-            kwargs["inpainter_size"] = inpainter_size
         if inpainter is not None:
             kwargs["inpainter"] = inpainter
         if refiner is not None:
@@ -271,42 +256,18 @@ class EnfugueClient(UserExtensionClientBase, JSONWebServiceAPIClient):
             kwargs["scheduler"] = scheduler
         if vae is not None:
             kwargs["vae"] = vae
-        if refiner_vae is not None:
-            kwargs["refiner_vae"] = refiner_vae
+        if inpainter_vae is not None:
+            kwargs["inpainter_vae"] = inpainter_vae
         if refiner_vae is not None:
             kwargs["refiner_vae"] = refiner_vae
         if seed is not None:
             kwargs["seed"] = seed
-        if image is not None:
-            kwargs["image"] = image
         if mask is not None:
             kwargs["mask"] = mask
-        if control_images is not None:
-            kwargs["control_images"] = control_images
         if strength is not None:
             kwargs["strength"] = strength
-        if fit is not None:
-            kwargs["fit"] = fit
-        if anchor is not None:
-            kwargs["anchor"] = anchor
-        if remove_background is not None:
-            kwargs["remove_background"] = remove_background
-        if fill_background is not None:
-            kwargs["fill_background"] = fill_background
-        if scale_to_model_size is not None:
-            kwargs["scale_to_model_size"] = scale_to_model_size
-        if invert_mask is not None:
-            kwargs["invert_mask"] = invert_mask
-        if crop_inpaint is not None:
-            kwargs["crop_inpaint"] = crop_inpaint
-        if inpaint_feather is not None:
-            kwargs["inpaint_feather"] = inpaint_feather
-        if ip_adapter_images is not None:
-            kwargs["ip_adapter_images"] = ip_adapter_images
-            kwargs["ip_adapter_plus"] = ip_adapter_plus
-            kwargs["ip_adapter_face"] = ip_adapter_face
-        if upscale_steps is not None:
-            kwargs["upscale_steps"] = upscale_steps
+        if upscale is not None:
+            kwargs["upscale"] = upscale
         if clip_skip is not None:
             kwargs["clip_skip"] = clip_skip
         if freeu_factors is not None:
@@ -317,6 +278,24 @@ class EnfugueClient(UserExtensionClientBase, JSONWebServiceAPIClient):
             kwargs["noise_method"] = noise_method
         if noise_blend_method is not None:
             kwargs["noise_blend_method"] = noise_blend_method
+        if layers is not None:
+            kwargs["layers"] = layers
+        if motion_scale is not None:
+            kwargs["motion_scale"] = motion_scale
+        if ip_adapter_model is not None:
+            kwargs["ip_adapter_model"] = ip_adapter_model
+        if position_encoding_truncate_length is not None:
+            kwargs["position_encoding_truncate_length"] = position_encoding_truncate_length
+        if position_encoding_scale_length is not None:
+            kwargs["position_encoding_scale_length"] = position_encoding_scale_length
+        if animation_frames is not None:
+            kwargs["animation_frames"] = animation_frames
+        if loop is not None:
+            kwargs["loop"] = loop
+        if tile is not None:
+            kwargs["tile"] = tile
+        if outpaint is not None:
+            kwargs["outpaint"] = outpaint
 
         logger.info(f"Invoking with keyword arguments {kwargs}")
 

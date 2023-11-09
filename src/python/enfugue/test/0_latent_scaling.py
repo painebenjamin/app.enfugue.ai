@@ -20,7 +20,6 @@ def main() -> None:
             downscale_source = image_from_uri(DOWNSCALE_SOURCE)
 
             manager = DiffusionPipelineManager()
-            manager.chunking_size = 0
 
             device = manager.device
             dtype = manager.dtype

@@ -81,6 +81,22 @@ class MenuView extends ParentView {
     }
 
     /**
+     * Starts a hide timer to hide self
+     */
+    startHideTimer() {
+        this.hideTimer = setTimeout(() => {
+            this.hideCategories();
+        }, 500);
+    }
+
+    /**
+     * Stops the hide timer
+     */
+    stopHideTimer() {
+        clearTimeout(this.hideTimer);
+    }
+
+    /**
      * Toggles a specific category
      *
      * @param string $name The name of the category to hide
@@ -88,6 +104,7 @@ class MenuView extends ParentView {
      */
     toggleCategory(name) {
         let found = false, newValue;
+        this.stopHideTimer();
         for (let child of this.children) {
             if (child instanceof MenuCategoryView){
                 if (child.name === name) {
@@ -243,7 +260,8 @@ class MenuCategoryView extends ParentView {
      * @return IconItemView
      */
     async addItem(name, icon, shortcut) {
-        return this.addChild(IconItemView, name, icon, shortcut);
+        let itemView = await this.addChild(IconItemView, name, icon, shortcut);
+        return itemView;
     }
 
     /**
@@ -257,7 +275,11 @@ class MenuCategoryView extends ParentView {
             header.append(button);
         }
 
-        node.prepend(header).on("click", () => this.parent.toggleCategory(this.name));
+        node.prepend(header)
+            .on("click", () => this.parent.toggleCategory(this.name))
+            .on("mouseleave", () => this.parent.startHideTimer())
+            .on("mouseenter,mousemove", () => this.parent.stopHideTimer());
+
         return node;
     }
 }
@@ -318,9 +340,9 @@ class MenuItemView extends View {
     async build() {
         let node = await super.build();
         node.prepend(E.span().content(formatName(this.name, this.shortcut)));
-        node.on("click", async(e) => {
+        node.on("click", (e) => {
             e.preventDefault();
-            this.activate()
+            this.activate();
         });
         return node;
     }
@@ -338,6 +360,20 @@ class IconItemView extends MenuItemView {
     constructor(config, name, icon, shortcut) {
         super(config, name, shortcut);
         this.icon = icon;
+    }
+
+    /**
+     * Sets the icon after initialization
+     */
+    setIcon(newIcon) {
+        this.icon = newIcon;
+        if (!isEmpty(this.node)) {
+            if (newIcon.startsWith("http")) {
+                this.node.find("img").src(newIcon);
+            } else {
+                this.node.find("i").class(newIcon)
+            }
+        }
     }
 
     /**

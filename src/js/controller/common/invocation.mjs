@@ -11,8 +11,6 @@ const E = new ElementBuilder({
     "invocationDuration": "enfugue-invocation-duration",
     "invocationIterations": "enfugue-invocation-iterations",
     "invocationRemaining": "enfugue-invocation-remaining",
-    "invocationSampleChooser": "enfugue-invocation-sample-chooser",
-    "invocationSample": "enfugue-invocation-sample",
     "engineStop": "enfugue-engine-stop"
 });
 
@@ -70,52 +68,52 @@ class InvocationController extends Controller {
     /**
      * @return The engine size when not using preconfigured models
      */
-    get size() {
-        return this.kwargs.size || 512;
+    get tilingSize() {
+        return this.kwargs.tiling_size || null;
     }
     
     /**
      * @param int The engine size when not using preconfigured models
      */
-    set size(newSize) {
-        if (this.size !== newSize) {
-            this.publish("engineSizeChange", newSize);
+    set tilingSize(newTilingSize) {
+        if (this.tilingSize !== newTilingSize) {
+            this.publish("engineTilingSizeChange", newTilingSize);
         }
-        this.kwargs.size = newSize;
+        this.kwargs.tiling_size = newTilingSize;
     }
 
     /**
-     * @return The chunking size; i.e. how many pixels the rendering window moves by during multidiffusion.
+     * @return The tiling stride; i.e. how many pixels the rendering window moves by during multidiffusion.
      */
-    get chunkingSize() {
-        return this.kwargs.chunking_size || this.application.config.model.invocation.chunkingSize;
+    get tilingStride() {
+        return this.kwargs.tiling_stride || this.application.config.model.invocation.tilingStride;
     }
 
     /**
-     * @param int Sets the new chunking size. 0 disables multidiffusion.
+     * @param int Sets the new tiling stride. 0 disables multidiffusion.
      */
-    set chunkingSize(newSize) {
-        if (this.chunkingSize !== newSize){
-            this.publish("engineChunkingSizeChange", newSize);
+    set tilingStride(newStride) {
+        if (this.tilingStride !== newStride){
+            this.publish("engineTilingStrideChange", newStride);
         }
-        this.kwargs.chunking_size = newSize
+        this.kwargs.tiling_stride = newStride
     }
     
     /**
-     * @return The chunking mask type.
+     * @return The tiling mask type.
      */
-    get chunkingMaskType() {
-        return this.kwargs.chunking_mask_type || null;
+    get tilingMaskType() {
+        return this.kwargs.tiling_mask_type || null;
     }
 
     /**
-     * @param int Sets the new chunking blur. 0 disables multidiffusion.
+     * @param int Sets the new tiling blur. 0 disables multidiffusion.
      */
-    set chunkingMaskType(newMaskType) {
-        if (this.chunkingMaskType !== newMaskType){
-            this.publish("engineChunkingMaskTypeChange", newMaskType);
+    set tilingMaskType(newMaskType) {
+        if (this.tilingMaskType !== newMaskType){
+            this.publish("engineTilingMaskTypeChange", newMaskType);
         }
-        this.kwargs.chunking_mask_type = newMaskType
+        this.kwargs.tiling_mask_type = newMaskType
     }
 
     /**
@@ -184,6 +182,44 @@ class InvocationController extends Controller {
         }
         this.kwargs.negative_prompt = prompt1;
         this.kwargs.negative_prompt_2 = prompt2;
+    }
+
+    /**
+     * @return array prompts when using prompt travel
+     */
+    get prompts() {
+        return this.kwargs.prompts || [];
+    }
+
+    /**
+     * @param array prompts when using prompt travel
+     */
+    set prompts(newPromptLayers) {
+        if (isEmpty(newPromptLayers)) newPromptLayers = [];
+        newPromptLayers = newPromptLayers.map((layer) => {
+            let data = {
+                "start": layer.start,
+                "end": layer.end,
+                "weight": layer.weight
+            };
+            if (Array.isArray(layer.positive)) {
+                data.positive = layer.positive[0];
+                data.positive_2 = layer.positive[1];
+            } else {
+                data.positive = layer.positive;
+            }
+            if (Array.isArray(layer.negative)) {
+                data.negative = layer.negative[0];
+                data.negative_2 = layer.negative[1];
+            } else {
+                data.negative = layer.negative;
+            }
+            return data;
+        });
+        if (!isEquivalent(this.prompts, newPromptLayers)) {
+            this.publish("enginePrompsChange", newPromptLayers);
+        }
+        this.kwargs.prompts = newPromptLayers;
     }
 
     /**
@@ -274,6 +310,48 @@ class InvocationController extends Controller {
     }
 
     /**
+     * @return float denoising strength
+     */
+    get strength() {
+        return this.kwargs.strength || 1.0;
+    }
+
+    /**
+     * @param float denoising strength
+     */
+    set strength(newStrength) {
+        if (this.strength !== newStrength) {
+            this.publish("engineStrengthChange", newStrength);
+        }
+        this.kwargs.strength = newStrength;
+    }
+
+    /**
+     * @return image optional mask
+     */
+    get mask() {
+        return this.kwargs.mask || null;
+    }
+
+    /**
+     * @param float denoising strength
+     */
+    set mask(newMask) {
+        this.publish("engineMaskChange", newMask);
+        this.kwargs.mask = newMask;
+    }
+
+    /**
+     * @param int Sets the new number of denoising steps.
+     */
+    set inferenceSteps(newInferenceSteps) {
+        if (this.inferenceSteps !== newInferenceSteps) {
+            this.publish("engineInferenceStepsChange", newInferenceSteps);
+        }
+        this.kwargs.num_inference_steps = newInferenceSteps;
+    }
+
+    /**
      * @return ?string The model to use, null for default.
      */
     get model() {
@@ -311,7 +389,24 @@ class InvocationController extends Controller {
      * @return ?array The upscale steps (none by default)
      */
     get upscaleSteps() {
-        return this.kwargs.upscale_steps || null;
+        return this.kwargs.upscale || null;
+    }
+
+    /**
+     * @return str The IP adapter model
+     */
+    get ipAdapterModel() {
+        return this.kwargs.ip_adapter_model || null;
+    }
+
+    /**
+     * @param str The IP adapter model
+     */
+    set ipAdapterModel(newModel) {
+        if (this.ipAdapterModel !== newModel) {
+            this.publish("engineIpAdapterModelChange", newModel);
+        }
+        this.kwargs.ip_adapter_model = newModel;
     }
 
     /**
@@ -348,11 +443,11 @@ class InvocationController extends Controller {
             if (!isEmpty(step.guidanceScale)) {
                 formattedStep.guidance_scale = step.guidanceScale;
             }
-            if (!isEmpty(step.chunkingSize)) {
-                formattedStep.chunking_size = step.chunkingSize;
+            if (!isEmpty(step.tilingStride)) {
+                formattedStep.tiling_stride = step.tilingStride;
             }
-            if (!isEmpty(step.chunkingMaskType)) {
-                formattedStep.chunking_mask_type = step.chunkingMaskType;
+            if (!isEmpty(step.tilingMaskType)) {
+                formattedStep.tiling_mask_type = step.tilingMaskType;
             }
             if (!isEmpty(step.controlnet)) {
                 formattedStep.controlnets = [step.controlnet];
@@ -374,7 +469,7 @@ class InvocationController extends Controller {
         if (!isEquivalent(this.upscaleSteps, formattedSteps)) {
             this.publish("engineUpscaleStepsChange", formattedSteps);
         }
-        this.kwargs.upscale_steps = formattedSteps;
+        this.kwargs.upscale = formattedSteps;
     }
 
     /**
@@ -580,7 +675,7 @@ class InvocationController extends Controller {
         }
         this.kwargs.refiner_strength = newRefinerStrength;
     }
-    
+
     /**
      * @return float The guidance scale of the refiner when using SDXL
      */
@@ -597,7 +692,7 @@ class InvocationController extends Controller {
         }
         this.kwargs.refiner_guidance_scale = newRefinerGuidanceScale;
     }
-    
+
     /**
      * @return float The aesthetic score of the refiner when using SDXL
      */
@@ -614,7 +709,7 @@ class InvocationController extends Controller {
         }
         this.kwargs.refiner_aesthetic_score = newAestheticScore;
     }
-    
+
     /**
      * @return float The negative aesthetic score of the refiner
      */
@@ -631,7 +726,7 @@ class InvocationController extends Controller {
         }
         this.kwargs.refiner_negative_aesthetic_score = newNegativeAestheticScore;
     }
-    
+
     /**
      * @return string Optional inpainter when not using preconfigured models
      */
@@ -648,24 +743,7 @@ class InvocationController extends Controller {
         }
         this.kwargs.inpainter = newInpainter;
     }
-    
-    /**
-     * @return int Optional inpainting engine size when not using preconfigured models
-     */
-    get inpainterSize() {
-        return this.kwargs.inpainter_size || null;
-    }
 
-    /**
-     * @param int Optional inpainting engine size when not using preconfigured models
-     */
-    set inpainterSize(newInpainterSize) {
-        if(this.inpainterSize !== newInpainterSize) {
-            this.publish("engineInpainterSizeChange", newInpainterSize);
-        }
-        this.kwargs.inpainter_size = newInpainterSize;
-    }
-    
     /**
      * @return int Optional inpainter VAE when not using preconfigured models
      */
@@ -695,7 +773,7 @@ class InvocationController extends Controller {
      */
     set scheduler(newScheduler) {
         if (this.scheduler !== newScheduler) {
-            this.publish("engineSchedulerChange");
+            this.publish("engineSchedulerChange", newScheduler);
         }
         this.kwargs.scheduler = newScheduler;
     }
@@ -712,9 +790,26 @@ class InvocationController extends Controller {
      */
     set vae(newVae) {
         if (this.vae !== newVae) {
-            this.publish("engineVaeChange");
+            this.publish("engineVaeChange", newVae);
         }
         this.kwargs.vae = newVae;
+    }
+
+    /**
+     * @return str The motion module, if set
+     */
+    get motionModule() {
+        return this.kwargs.motion_module || null;
+    }
+
+    /**
+     * @param str The motion module
+     */
+    set motionModule(newModule) {
+        if (this.motionModule !== newModule) {
+            this.publish("engineMotionModuleChange", newModule);
+        }
+        this.kwargs.motion_module = newModule;
     }
 
     /**
@@ -803,6 +898,213 @@ class InvocationController extends Controller {
     }
 
     /**
+     * @return int Optional number of animation frames when rendering animation
+     */
+    get animationFrames() {
+        return this.kwargs.animation_frames || null;
+    }
+
+    /**
+     * @param int New number of animation frames, or null to disable animation
+     */
+    set animationFrames(newFrames) {
+        if (this.animationFrames !== newFrames) {
+            this.publish("engineAnimationFramesChange", newFrames);
+        }
+        this.kwargs.animation_frames = newFrames;
+    }
+
+    /**
+     * @return int Optional number of animation frames to render at once when rendering chunked animation
+     */
+    get animationSize() {
+        return this.kwargs.frame_window_size || null;
+    }
+
+    /**
+     * @param int New number of frames to render at once, or null/0 to disable tiling
+     */
+    set animationSize(newSize) {
+        if (this.animationSize !== newSize) {
+            this.publish("engineAnimationSizeChange", newSize);
+        }
+        this.kwargs.frame_window_size = newSize;
+    }
+
+    /**
+     * @return int Optional number of frames to move when rendering chunked animation
+     */
+    get animationStride() {
+        return this.kwargs.frame_window_stride || null;
+    }
+
+    /**
+     * @param int New number of frames to stride when doing chunked animate diffusion
+     */
+    set animationStride(newStride) {
+        if (this.animationStride !== newStride) {
+            this.publish("engineAnimationStrideChange", newStride);
+        }
+        this.kwargs.frame_window_stride = newStride;
+    }
+    
+    /**
+     * @return ?string loop animation mode
+     */
+    get animationLoop() {
+        return this.kwargs.loop || null;
+    }
+
+    /**
+     * @param ?string loop animation ,pde
+     */
+    set animationLoop(newLoop) {
+        if (this.animationLoop !== newLoop) {
+            this.publish("engineAnimationLoopChange", newLoop);
+        }
+        this.kwargs.loop = newLoop;
+    }
+
+    /**
+     * @return ?float Motion scaling factor
+     */
+    get animationMotionScale() {
+        return this.kwargs.motion_scale || null;
+    }
+
+    /**
+     * @param ?float Motion scaling factor
+     */
+    set animationMotionScale(newMotionScale) {
+        if (this.animationMotionScale !== newMotionScale) {
+            this.publish("engineAnimationMotionScaleChange", newMotionScale);
+        }
+        this.kwargs.motion_scale = newMotionScale;
+    }
+
+    /**
+     * @return ?int Position encoding truncate length
+     */
+    get animationPositionEncodingTruncateLength() {
+        return this.kwargs.position_encoding_truncate_length || null;
+    }
+
+    /**
+     * @param ?float Position encoding truncate length
+     */
+    set animationPositionEncodingTruncateLength(newTruncateLength) {
+        if (this.animationPositionEncodingTruncateLength !== newTruncateLength) {
+            this.publish("engineAnimationPositionEncodingTruncateLengthChange", newTruncateLength);
+        }
+        this.kwargs.position_encoding_truncate_length = newTruncateLength;
+    }
+
+    /**
+     * @return ?int Position encoding scale length
+     */
+    get animationPositionEncodingScaleLength() {
+        return this.kwargs.position_encoding_scale_length || null;
+    }
+
+    /**
+     * @param ?int Scale position encoding length
+     */
+    set animationPositionEncodingScaleLength(newScaleLength) {
+        if (this.animationPositionEncodingScaleLength !== newScaleLength) {
+            this.publish("engineAnimationPositionEncodingScaleLengthChange", newScaleLength);
+        }
+        this.kwargs.position_encoding_scale_length = newScaleLength;
+    }
+
+    /**
+     * @return array<int> interpolation frames
+     */
+    get animationInterpolation() {
+        return this.kwargs.interpolate_frames || null;
+    }
+
+    /**
+     * @param array<int> interpolation frames
+     */
+    set animationInterpolation(newFrames) {
+        if (!isEquivalent(this.animationInterpolation, newFrames)) {
+            this.publish("engineAnimationInterpolationChange", newFrames);
+        }
+        this.kwargs.interpolate_frames = newFrames;
+    }
+
+    /**
+     * @return int Animation frame rate
+     */
+    get animationRate() {
+        return this.kwargs.frame_rate || 8;
+    }
+
+    /**
+     * @param int Animation frame rate
+     */
+    set animationRate(newRate) {
+        if (!isEquivalent(this.animationRate, newRate)) {
+            this.publish("engineAnimationRateChange", newRate);
+        }
+        this.kwargs.frame_rate = newRate;
+    }
+
+    /**
+     * @return bool Tile along the horizontal dimension
+     */
+    get tileHorizontal() {
+        let tile = this.kwargs.tile;
+        if (isEmpty(tile)) return false;
+        return tile[0];
+    }
+
+    /**
+     * @param bool Tile along the horizontal dimension
+     */
+    set tileHorizontal(newTile) {
+        if (newTile !== this.tileHorizontal) {
+            this.publish("engineTileHorizontalChange", newTile);
+        }
+        this.kwargs.tile = [newTile, this.tileVertical];
+    }
+
+    /**
+     * @return bool Tile along the vertical dimension
+     */
+    get tileVertical() {
+        let tile = this.kwargs.tile;
+        if (isEmpty(tile)) return false;
+        return tile[1];
+    }
+
+    /**
+     * @param bool Tile along the horizontal dimension
+     */
+    set tileVertical(newTile) {
+        if (newTile !== this.tileVertical) {
+            this.publish("engineTileVerticalChange", newTile);
+        }
+        this.kwargs.tile = [this.tileHorizontal, newTile];
+    }
+
+    /**
+     * @return bool outpaint empty space
+     */
+    get outpaint() {
+        return isEmpty(this.kwargs.outpaint) ? true : this.kwargs.outpaint;
+    }
+
+    /**
+     * @param bool outpaint empty space
+     */
+    set outpaint(newOutpaint) {
+        if (this.outpaint !== newOutpaint) {
+            this.publish("engineOutpaintChange", newOutpaint);
+        }
+    }
+
+    /**
      * On initialization, create DOM elements related to invocations.
      */
     async initialize() {
@@ -813,10 +1115,9 @@ class InvocationController extends Controller {
             E.invocationTask().hide(),
             E.invocationRemaining().hide()
         );
-        this.invocationSampleChooser = E.invocationSampleChooser().hide();
         this.engineStop = E.engineStop().content("Stop Engine").on("click", () => { this.stopEngine() });
-        (await this.images.getNode()).append(this.loadingBar).append(this.invocationSampleChooser);
         this.application.container.appendChild(await this.engineStop.render());
+        this.application.container.appendChild(await this.loadingBar.render());
         this.subscribe("engineReady", () => {
             this.enableStop();
         });
@@ -826,13 +1127,6 @@ class InvocationController extends Controller {
         this.subscribe("engineIdle", () => {
             this.disableStop();
         });
-    }
-
-    /**
-     * Hides the sample chooser from outside the controller.
-     */
-    hideSampleChooser() {
-        this.invocationSampleChooser.hide();
     }
 
     /**
@@ -887,6 +1181,8 @@ class InvocationController extends Controller {
                     parseInt(invocationPayload.height) || 512
                 );
             } else {
+                this.startSample = true;
+                this.application.samples.resetState();
                 await this.canvasInvocation(result.uuid);
             }
         }
@@ -914,6 +1210,34 @@ class InvocationController extends Controller {
     }
 
     /**
+     * Sets the sample images on the canvas and chooser
+     */
+    setSampleImages(images) {
+        // Get IDs from images
+        let isAnimation = !isEmpty(this.animationFrames) && this.animationFrames > 0;
+        this.application.samples.setSamples(
+            images,
+            isAnimation
+        );
+        if (this.startSample) {
+            if (isAnimation) {
+                this.application.samples.setLoop(true);
+                this.application.samples.setPlay(true);
+            } else {
+                this.application.samples.setActive(0);
+            }
+            this.startSample = false;
+        }
+    }
+
+    /**
+     * Sets the sample video in the viewer, enabling video operations
+     */
+    setSampleVideo(video) {
+        this.application.samples.setVideo(video);
+    }
+
+    /**
      * This is the meat and potatoes of watching an invocation as it goes; this method will be called by implementing functions with callbacks.
      * We estimate using total duration, this will end up being more accurate over the entirety of the invocation is they will typically
      * start slow, speed up, then slow down again.
@@ -923,7 +1247,7 @@ class InvocationController extends Controller {
      * @param callable onError A callback that is called when an error occur.
      * @param callable onEstimatedDuration A callback that will receive (int $millisecondsRemaining) when new estimates are available.
      */
-    async monitorInvocation(uuid, onTaskChanged, onImagesReceived, onError, onEstimatedDuration) {
+    async monitorInvocation(uuid, onTaskChanged, onImagesReceived, onVideoReceived, onError, onEstimatedDuration) {
         const initialInterval = this.application.config.model.invocation.interval || 1000;
         const queuedInterval = this.application.config.model.queue.interval || 5000;
         const consecutiveErrorCutoff = this.application.config.model.invocation.errors.consecutive || 2;
@@ -932,6 +1256,7 @@ class InvocationController extends Controller {
         if (onTaskChanged === undefined) onTaskChanged = () => {};
         if (onError === undefined) onError = () => {};
         if (onEstimatedDuration === undefined) onEstimatedDuration = () => {};
+        if (onVideoReceived === undefined) onVideoReceived = () => {};
 
         let start = (new Date()).getTime(),
             lastTask,
@@ -962,7 +1287,6 @@ class InvocationController extends Controller {
                     onError();
                     return;
                 }
-
                 if (invokeResult.total !== lastTotal) {
                     if (!isEmpty(lastTotal)) {
                         lastTotalDeltaTime = (new Date()).getTime();
@@ -986,6 +1310,10 @@ class InvocationController extends Controller {
                         isCompleted = invokeResult.status === "completed";
                     onImagesReceived(imagePaths, isCompleted);
                 }
+                if (!isEmpty(invokeResult.video)) {
+                    let videoPath = `/api/invocation/${invokeResult.video}`;
+                    onVideoReceived(videoPath);
+                }
                 if (invokeResult.status === "error") {
                     this.notify("error", "Invocation Failed", invokeResult.message);
                     onError();
@@ -1007,59 +1335,6 @@ class InvocationController extends Controller {
                 }
             };
         checkInvocation();
-    }
-
-    /**
-     * Sets the sample images on the canvas and chooser
-     */
-    setSampleImages(images) {
-        let currentSampleCount = this.invocationSampleChooser.children().length;
-        if (isEmpty(images)) {
-            this.images.hideCurrentInvocation();
-            this.invocationSampleChooser.empty().hide();
-            return;
-        } else if (currentSampleCount === 0) {
-            if (this.invocationSampleIndex === null) {
-                this.invocationSampleIndex = 0;
-            }
-            this.invocationSampleChooser.append(
-                E.invocationSample().class("no-sample").content("×").on("click", () => {
-                    this.invocationSampleIndex = null;
-                    this.images.hideCurrentInvocation();
-                })
-            );
-        } else {
-            currentSampleCount--;
-        }
-
-        for (let i = 0; i < images.length; i++) {
-            let imageNode = new Image();
-            if (i >= currentSampleCount) {
-                // Go ahead and add it right away
-                imageNode.src = images[i];
-                let sampleNode = E.invocationSample().content(imageNode).on("click", () => {
-                    this.images.setCurrentInvocationImage(images[i]);
-                    this.invocationSampleIndex = i;
-                });
-                this.invocationSampleChooser.append(sampleNode);
-            } else {
-                // Wait for it to load to avoid flash
-                let imageContainer = this.invocationSampleChooser.getChild(i+1);
-                imageContainer.off("click").on("click", () => {
-                    this.images.setCurrentInvocationImage(images[i]);
-                    this.invocationSampleIndex = i;
-                });
-                imageNode.onload = () => {
-                    imageContainer.content(imageNode);
-                }
-                imageNode.src = images[i];
-            }
-        }
-
-        if (!isEmpty(this.invocationSampleIndex)) {
-            this.images.setCurrentInvocationImage(images[this.invocationSampleIndex]);
-        }
-        this.invocationSampleChooser.show().render();
     }
 
     /**
@@ -1163,6 +1438,9 @@ class InvocationController extends Controller {
                     updateImages();
                 }
             },
+            onVideoReceived = async (video) => {
+                this.setSampleVideo(video);
+            },
             onTaskChanged = (newTask) => {
                 lastTask = newTask;
                 if (isEmpty(newTask)) {
@@ -1199,12 +1477,9 @@ class InvocationController extends Controller {
             };
 
         this.loadingBar.addClass("loading");
-        this.images.hideCurrentInvocation();
-        this.invocationSampleChooser.empty();
-        this.invocationSampleIndex = null;
 
         window.requestAnimationFrame(() => updateEstimate());
-        this.monitorInvocation(uuid, onTaskChanged, onImagesReceived, onError, onEstimatedDuration);
+        this.monitorInvocation(uuid, onTaskChanged, onImagesReceived, onVideoReceived, onError, onEstimatedDuration);
         await waitFor(() => complete);
         taskNode.empty().hide();
         this.loadingBar.removeClass("loading");
@@ -1258,47 +1533,6 @@ class InvocationController extends Controller {
             onError = () => receivedFirstImage = true;
         this.monitorInvocation(uuid, onImagesReceived, onError);
         await waitFor(() => receivedFirstImage === true);
-    }
-
-    /**
-     * Gets default state, no samples
-     */
-    getDefaultState() {
-        return {
-            "samples": null,
-            "sample": null
-        };
-    }
-
-    /**
-     * Get state is only for UI; only use the sample choosers here
-     */
-    getState(includeImages = true) {
-        if (!includeImages) {
-            return this.getDefaultState();
-        }
-        let chooserChildren = this.invocationSampleChooser.children();
-        if (chooserChildren.length < 2) {
-            return this.getDefaultState();
-        }
-        return {
-            "sample": this.invocationSampleIndex,
-            "samples": chooserChildren.slice(1).map((container) => container.getChild(0).src)
-        };
-    }
-
-    /**
-     * Set state is only for UI; set the sample choosers here
-     */
-    setState(newState) {
-        this.invocationSampleChooser.empty();
-        if (isEmpty(newState) || isEmpty(newState.samples)) {
-            this.invocationSampleIndex = null;
-            this.invocationSampleChooser.hide();
-        } else {
-            this.invocationSampleIndex = newState.sample;
-            this.setSampleImages(newState.samples);
-        }
     }
 }
 

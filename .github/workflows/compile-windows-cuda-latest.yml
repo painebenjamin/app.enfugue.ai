@@ -12,7 +12,7 @@ on:
         type: boolean
 jobs:
   compile-windows-cuda:
-    uses: painebenjamin/app.enfugue.ai/.github/workflows/compile.yml@main
+    uses: ./.github/workflows/compile.yml
     with:
       os: windows-latest
       api: cuda-latest

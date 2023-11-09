@@ -3,10 +3,10 @@ Uses the engine to create a simple image using default settings
 """
 import os
 import PIL
+import traceback
 from typing import List, Any
 from pibble.util.log import DebugUnifiedLoggingContext
 from enfugue.util import logger
-from enfugue.diffusion.plan import DiffusionPlan
 from enfugue.diffusion.manager import DiffusionPipelineManager
 
 SCHEDULERS = [
@@ -48,7 +48,7 @@ def main() -> None:
         }
         multi_kwargs = {
             "width": 768,
-            "chunking_size": 64,
+            "tiling_stride": 64,
         }
 
         def run_and_save(target_dir: str, **other_kwargs: Any) -> None:
@@ -79,6 +79,7 @@ def main() -> None:
                 run_and_save(target_dir_multi, **multi_kwargs)
             except Exception as ex:
                 logger.error("Error with scheduler {0}: {1}({2})".format(scheduler, type(ex).__name__, ex))
+                logger.debug(traceback.format_exc())
 
 if __name__ == "__main__":
     main()

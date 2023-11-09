@@ -38,7 +38,7 @@ class Controller {
     }
 
     /**
-     * @return models/view/nodes/images.ImageEditorView A getter for the canvas
+     * @return nodes/image-editor.ImageEditorView A getter for the canvas
      */
     get images() {
         return this.application.images;
@@ -133,6 +133,13 @@ class Controller {
      */
     getDefaultState() {
         return {};
+    }
+
+    /**
+     * Sets default state.
+     */
+    resetState() {
+        this.setState(this.getDefaultState());
     }
 
     /**

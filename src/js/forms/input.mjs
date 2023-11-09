@@ -43,18 +43,24 @@ import {
     MultiLoraInputView,
     MultiLycorisInputView,
     MultiInversionInputView,
-    EngineSizeInputView,
-    RefinerEngineSizeInputView,
-    InpainterEngineSizeInputView,
     VaeInputView,
     DefaultVaeInputView,
-    SchedulerInputView,
     ModelPickerStringInputView,
     ModelPickerListInputView,
     ModelPickerInputView,
-    MaskTypeInputView,
-    ModelMergeModeInputView
+    ModelMergeModeInputView,
+    MotionModuleInputView,
 } from "./input/enfugue/models.mjs";
+import {
+    EngineSizeInputView,
+    RefinerEngineSizeInputView,
+    InpainterEngineSizeInputView,
+    SchedulerInputView,
+    MaskTypeInputView,
+    ControlNetInputView,
+    ControlNetUnitsInputView,
+    ImageColorSpaceInputView,
+} from "./input/enfugue/engine.mjs";
 import {
     PipelineInpaintingModeInputView,
     PipelineSwitchModeInputView,
@@ -62,10 +68,8 @@ import {
     PipelinePrecisionModeInputView
 } from "./input/enfugue/settings.mjs";
 import {
-    ControlNetInputView,
     ImageAnchorInputView,
     ImageFitInputView,
-    ImageColorSpaceInputView,
     FilterSelectInputView
 } from "./input/enfugue/image-editor.mjs";
 import {
@@ -84,7 +88,10 @@ import {
     NoiseMethodInputView,
     BlendMethodInputView
 } from "./input/enfugue/noise.mjs";
-
+import {
+    AnimationLoopInputView,
+    AnimationInterpolationStepsInputView,
+} from "./input/enfugue/animation.mjs";
 export {
     InputView,
     HiddenInputView,
@@ -115,6 +122,7 @@ export {
     CivitAISortInputView,
     CivitAITimePeriodInputView,
     ControlNetInputView,
+    ControlNetUnitsInputView,
     ImageAnchorInputView,
     ImageFitInputView,
     ImageColorSpaceInputView,
@@ -152,5 +160,8 @@ export {
     UpscaleDiffusionGuidanceScaleInputView,
     NoiseOffsetInputView,
     NoiseMethodInputView,
-    BlendMethodInputView
+    BlendMethodInputView,
+    AnimationLoopInputView,
+    AnimationInterpolationStepsInputView,
+    MotionModuleInputView,
 };

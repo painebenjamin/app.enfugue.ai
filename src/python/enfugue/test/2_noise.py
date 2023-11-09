@@ -16,7 +16,6 @@ def main() -> None:
 
         manager = DiffusionPipelineManager()
         manager.seed = 12345
-        manager.chunking_size = 0
         device = manager.device
         dtype = manager.dtype
 

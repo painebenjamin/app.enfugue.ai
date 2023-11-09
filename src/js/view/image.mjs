@@ -23,13 +23,21 @@ class ImageView extends View {
      * @param object $config The base config object
      * @param string $src The image source
      */
-    constructor(config, src, usePng = true) {
+    constructor(config, src, usePng) {
         super(config);
         this.src = src;
         this.usePng = usePng;
         this.loadedCallbacks = [];
         this.metadata = {};
         if (!isEmpty(src)) {
+            if (usePng === null || usePng === undefined) {
+                if (src.startsWith("data")) {
+                    let fileType = src.substring(5, src.indexOf(";"));
+                    usePng = fileType === "image/png";
+                } else {
+                    usePng = src.endsWith(".png");
+                }
+            }
             if (usePng) {
                 let callable = PNG.fromURL;
                 if (src instanceof File) {
@@ -51,7 +59,7 @@ class ImageView extends View {
                 });
             } else {
                 this.image = new Image();
-                this.image.onload = this.imageLoaded();
+                this.image.onload = () => this.imageLoaded();
                 this.image.src = this.src;
             }
         }
@@ -254,12 +262,10 @@ class ImageView extends View {
     async build() {
         let node = await super.build();
         if (!isEmpty(this.src)) {
-            await this.waitForLoad();
             node.attr("src", this.src);
         }
         return node;
     }
-
 }
 
 /**

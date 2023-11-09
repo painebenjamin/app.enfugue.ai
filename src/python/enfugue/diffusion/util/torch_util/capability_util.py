@@ -95,9 +95,11 @@ def empty_cache() -> None:
         import torch
         import torch.cuda
         torch.cuda.empty_cache()
+        torch.cuda.synchronize()
     elif mps_available():
         import torch
         import torch.mps
         torch.mps.empty_cache()
+        torch.mps.synchronize()
     import gc
     gc.collect()

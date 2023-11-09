@@ -37,6 +37,11 @@ class NumberInputView extends InputView {
     static useMouseWheelAltKey = true;
 
     /**
+     * @var Whether or not to allow null values
+     */
+    static allowNull = true;
+
+    /**
      * The constructor just sets static values to mutable local ones.
      */
     constructor(config, fieldName, fieldConfig) {
@@ -50,6 +55,9 @@ class NumberInputView extends InputView {
         this.stepValue = isEmpty(fieldConfig) || isEmpty(fieldConfig.step)
             ? this.constructor.step
             : fieldConfig.step;
+        this.allowNull = isEmpty(fieldConfig) || isEmpty(fieldConfig.allowNull)
+            ? this.constructor.allowNull
+            : fieldConfig.allowNull;
     }
 
     /**
@@ -103,6 +111,12 @@ class NumberInputView extends InputView {
     checkValue() {
         let inputValue = this.getValue(),
             lastValue = this.value;
+
+        if (isEmpty(inputValue) || isNaN(inputValue)) {
+            if (this.allowNull) return;
+            inputValue = isEmpty(this.minValue) ? 0 : this.minValue;
+            this.setValue(inputValue, false);
+        }
 
         if (!isEmpty(this.minValue) && inputValue < this.minValue) {
             this.setValue(this.minValue, false);

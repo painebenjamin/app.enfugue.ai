@@ -44,150 +44,49 @@ class InvokeButtonController extends Controller {
     /**
      * Gets the step data from the canvas for invocation.
      */
-    getNodes() {
-        let canvasState = this.images.getState(),
-            nodes = Array.isArray(canvasState)
-                ? canvasState
-                : canvasState.nodes || [],
-            warningMessages = [];
-
-        return nodes.map((datum, i) => {
+    getLayers() {
+        let layerState = this.application.layers.getState();
+        console.log(layerState);
+        return layerState.layers.map((datum, i) => {
             let formattedState = {
                 "x": datum.x,
                 "y": datum.y,
                 "w": datum.w,
                 "h": datum.h,
-                "inference_steps": datum.inferenceSteps,
-                "guidance_scale": datum.guidanceScale,
-                "scale_to_model_size": datum.scaleToModelSize,
-                "remove_background": datum.removeBackground
+                "remove_background": datum.removeBackground,
+                "image": datum.src
             };
-
-            if (Array.isArray(datum.prompt)) {
-                formattedState["prompt"], formattedState["prompt_2"] = datum.prompt;
-            } else {
-                formattedState["prompt"] = datum.prompt;
-            }
-           
-            if (Array.isArray(datum.negativePrompt)) {
-                formattedState["negative_prompt"], formattedState["negative_prompt_2"] = datum.negativePrompt;
-            } else {
-                formattedState["negative_prompt"] = datum.negativePrompt;
-            }
             
             switch (datum.classname) {
-                case "ImageEditorPromptNodeView":
-                    break;
                 case "ImageEditorScribbleNodeView":
-                    formattedState["control_images"] = [
-                        {"image": datum.src, "process": false, "invert": true, "controlnet": "scribble"}
+                    formattedState["control_units"] = [
+                        {"process": false, "controlnet": "scribble"}
                     ];
                     break;
                 case "ImageEditorImageNodeView":
+                case "ImageEditorVideoNodeView":
                     formattedState["fit"] = datum.fit;
                     formattedState["anchor"] = datum.anchor;
-                    if (datum.infer || datum.inpaint || (!datum.infer && !datum.inpaint && !datum.imagePrompt && !datum.control)) {
-                        formattedState["image"] = datum.src;
-                    }
-                    if (datum.infer) {
-                        formattedState["strength"] = datum.strength;
-                    }
-                    if (datum.inpaint) {
-                        formattedState["mask"] = datum.scribbleSrc;
-                        formattedState["invert_mask"] = true; // The UI is inversed
-                        formattedState["crop_inpaint"] = datum.cropInpaint;
-                        formattedState["inpaint_feather"] = datum.inpaintFeather;
-                    }
-                    if (datum.imagePromptPlus) {
-                        formattedState["ip_adapter_plus"] = true;
-                        if (datum.imagePromptFace) {
-                            formattedState["ip_adapter_face"] = true;
-                        }
-                    }
+                    formattedState["denoise"] = !!datum.denoise;
                     if (datum.imagePrompt) {
-                        formattedState["ip_adapter_images"] = [
-                            {
-                                "image": datum.src,
-                                "scale": datum.imagePromptScale,
-                                "fit": datum.fit,
-                                "anchor": datum.anchor
-                            }
-                        ];
+                        formattedState["ip_adapter_scale"] = datum.imagePromptScale;
                     }
                     if (datum.control) {
-                        formattedState["control_images"] = [
-                            {
-                                "image": datum.src,
-                                "process": datum.processControlImage,
-                                "invert": datum.invertControlImage === true,
-                                "controlnet": datum.controlnet,
-                                "scale": datum.conditioningScale,
-                                "fit": datum.fit,
-                                "anchor": datum.anchor,
-                                "start": datum.conditioningStart,
-                                "end": datum.conditioningEnd
-                            }
-                        ];
+                        formattedState["control_units"] = datum.controlnetUnits.map((unit) => {
+                            return {
+                                "process": unit.processControlImage,
+                                "start": unit.conditioningStart,
+                                "end": unit.conditioningEnd,
+                                "scale": unit.conditioningScale,
+                                "controlnet": unit.controlnet
+                            };
+                        });
                     }
-                    break;
-                case "ImageEditorCompoundImageNodeView":
-                    let imageNodeIndex, promptImageNodeIndex;
-                    for (let j = 0; j < datum.children.length; j++) {
-                        let child = datum.children[j];
-                        if (child.infer || child.inpaint) {
-                            if (!isEmpty(imageNodeIndex)) {
-                                messages.push(`Node {i+1}: Base image set in image {imageNodeIndex+1}, ignoring additional set in {j+1}`);
-                            } else {
-                                imageNodeIndex = j;
-                                formattedState["image"] = child.src;
-                                formattedState["anchor"] = child.anchor;
-                                formattedState["fit"] = child.fit;
-                            }
-                        }
-                        if (child.infer && imageNodeIndex == j) {
-                            formattedState["strength"] = child.strength;
-                        }
-                        if (child.inpaint && imageNodeIndex == j) {
-                            formattedState["mask"] = child.scribbleSrc;
-                            formattedState["invert_mask"] = true; // The UI is inversed
-                            formattedState["crop_inpaint"] = child.cropInpaint;
-                            formattedState["inpaint_feather"] = child.inpaintFeather;
-                        }
-                        if (child.imagePrompt) {
-                            if (isEmpty(formattedState["ip_adapter_images"])) {
-                                formattedState["ip_adapter_images"] = [];
-                            }
-                            if (child.imagePromptPlus) {
-                                formattedState["ip_adapter_plus"] = true;
-                                if (child.imagePromptFace) {
-                                    formattedState["ip_adapter_face"] = true;
-                                }
-                            }
-                            formattedState["ip_adapter_images"].push(
-                                {
-                                    "image": child.src,
-                                    "scale": child.imagePromptScale,
-                                    "fit": child.fit,
-                                    "anchor": child.anchor
-                                }
-                            );
-                        }
-                        if (child.control) {
-                            if (isEmpty(formattedState["control_images"])) {
-                                formattedState["control_images"] = [];
-                            }
-                            formattedState["control_images"].push(
-                                {
-                                    "image": child.src,
-                                    "process": child.processControlImage,
-                                    "invert": child.colorSpace == "invert",
-                                    "controlnet": child.controlnet,
-                                    "scale": child.conditioningScale,
-                                    "fit": child.fit,
-                                    "anchor": child.anchor
-                                }
-                            );
-                        }
+                    if (!isEmpty(datum.skipFrames)) {
+                        formattedState["skip_frames"] = datum.skipFrames;
+                    }
+                    if (!isEmpty(datum.divideFrames)) {
+                        formattedState["divide_frames"] = datum.divideFrames;
                     }
                     break;
                 default:
@@ -207,7 +106,7 @@ class InvokeButtonController extends Controller {
         this.invokeButton.disable().addClass("sliding-gradient");
         try {
             this.application.autosave();
-            await this.application.invoke({"nodes": this.getNodes()});
+            await this.application.invoke({"layers": this.getLayers()});
         } catch(e) {
             console.error(e);
             let errorMessage = `${e}`;

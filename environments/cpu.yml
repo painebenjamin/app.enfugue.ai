@@ -6,19 +6,20 @@ channels:
   - conda-forge
 dependencies:
   - python=3.10.11
-  - pip=23.1.2
-  - numpy=1.24.3
+  - opencv=4.8.1
+  - pip
+  - numpy
+  - ffmpeg
   - pip:
-    - torch==2.2.0.dev20230910+cpu
-    - torchvision==0.17.0.dev20230910+cpu
+    - torch>=2.0.1
+    - torchvisio>=0.15.2
     - brotli>=1.0.9
     - cheroot>=9.0.0
     - nvidia-pyindex>=1.0.9
-    - pibble[cherrypy]>=0.6
+    - pibble[cherrypy]>=0.7
     - numpy>=1.24.3
     - colored>=1.4,<1.5
     - albumentations>=0.4.3,<0.5
-    - opencv-python>=4.7.0.72,<4.8
     - pudb==2019.2
     - invisible-watermark>=0.2,<0.3
     - imageio>=2.31.1,<3.0
@@ -49,10 +50,10 @@ dependencies:
     - certifi>=2023.5.7
     - lycoris-lora>=1.8
     - openmim>=0.3.9,<0.4
-    - enfugue==0.2.5.post0
+    - tensorflow
+    - enfugue==0.3.0.post0
     - git+https://github.com/CompVis/taming-transformers.git@master#egg=taming-transformers
     - git+https://github.com/openai/CLIP.git@main#egg=clip
     - git+https://github.com/CompVis/stable-diffusion.git@main#egg=latent-diffusion
     - git+https://github.com/huggingface/diffusers@main#egg=diffusers
-    - --extra-index-url https://download.pytorch.org/whl/nightly/
     - --extra-index-url https://pypi.ngc.nvidia.com

@@ -54,6 +54,8 @@ class SupportModel:
         dtype: torch.dtype,
         offline: bool = False
     ) -> None:
+        if model_dir.startswith("~"):
+            model_dir = os.path.expanduser(model_dir)
         self.model_dir = model_dir
         self.device = device
         self.dtype = dtype
@@ -92,6 +94,27 @@ class SupportModel:
             return local_path
         raise IOError(f"Cannot retrieve model file {uri}")
 
+    @classmethod
+    def get_default_instance(cls) -> SupportModel:
+        """
+        Builds a default interpolator without a configuration passed
+        """
+        import torch
+        from enfugue.diffusion.util import get_optimal_device
+        from enfugue.util import get_local_configuration
+        device = get_optimal_device()
+        try:
+            configuration = get_local_configuration()
+        except:
+            from pibble.api.configuration import APIConfiguration
+            configuration = APIConfiguration()
+
+        return cls(
+            configuration.get("enfugue.engine.cache", "~/.cache/enfugue/other"),
+            device,
+            torch.float16 if device.type == "cuda" else torch.float32
+        )
+
     @contextmanager
     def context(self) -> Iterator[Self]:
         """
@@ -107,9 +130,11 @@ class SupportModel:
             import torch.cuda
 
             torch.cuda.empty_cache()
+            torch.cuda.synchronize()
         elif self.device.type == "mps":
             import torch
             import torch.mps
 
             torch.mps.empty_cache()
+            torch.mps.synchronize()
         gc.collect()

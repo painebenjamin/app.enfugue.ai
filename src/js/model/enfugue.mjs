@@ -9,11 +9,33 @@ import { Model, ModelObject } from "./index.mjs";
  * @var array<string> $apiScope The scope(s) for this model (the variables that need to be 
  */
 class DiffusionModel extends ModelObject {
+    /**
+     * @var bool Always ask for inclusions
+     */
     static alwaysInclude = true;
-    static apiRoot = "models";
-    static apiScope = ["name"];
-    static apiInclude = ["refiner", "inpainter", "lora", "lycoris", "inversion", "scheduler", "vae", "config"];
 
+    /**
+     * @var array Related models to include
+     */
+    static apiInclude = [
+        "refiner", "inpainter", "lora",
+        "lycoris", "inversion", "scheduler",
+        "vae", "config", "motion_module"
+    ];
+
+    /**
+     * @var string Model root
+     */
+    static apiRoot = "models";
+
+    /**
+     * @var array Scope for an individual item (i.e. primary keys)
+     */
+    static apiScope = ["name"];
+
+    /**
+     * Gets the status for a configured model
+     */
     getStatus() {
         return this.queryModel("get", `${this.url}/status`);
     }
@@ -39,6 +61,7 @@ class DiffusionModelInpainter extends ModelObject {};
 class DiffusionModelInversion extends ModelObject {};
 class DiffusionModelLora extends ModelObject {};
 class DiffusionModelLycoris extends ModelObject {};
+class DiffusionModelMotionModule extends ModelObject {};
 class DiffusionModelDefaultConfiguration extends ModelObject {};
 
 class DiffusionInvocation extends ModelObject {
@@ -67,6 +90,7 @@ class EnfugueModel extends Model {
         DiffusionModelInpainter,
         DiffusionModelInversion,
         DiffusionModelScheduler,
+        DiffusionModelMotionModule,
         DiffusionModelDefaultConfiguration,
         DiffusionModelVAE,
         DiffusionModelLora,

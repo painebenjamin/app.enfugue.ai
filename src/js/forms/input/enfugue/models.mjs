@@ -61,31 +61,6 @@ class ModelPickerInputView extends SearchListInputView {
 };
 
 /**
- * Engine size input
- */
-class EngineSizeInputView extends NumberInputView {
-    /**
-     * @var int Minimum pixel size
-     */
-    static min = 128;
-
-    /**
-     * @var int Maximum pixel size
-     */
-    static max = 2048;
-
-    /**
-     * @var int Multiples of 8
-     */
-    static step = 8;
-
-    /**
-     * @var string The tooltip to display to the user
-     */
-    static tooltip = "When using chunked diffusion, this is the size of the window (in pixels) that will be encoded, decoded or inferred at once. Set the chunking size to 0 in the sidebar to disable chunked diffusion and always try to process the entire image at once.";
-};
-
-/**
  * Default VAE Input View
  */
 class DefaultVaeInputView extends SelectInputView {
@@ -217,107 +192,6 @@ class VaeInputView extends InputView {
 };
 
 /**
- * Mask Type Input View
- */
-class MaskTypeInputView extends SelectInputView {
-    /**
-     * @var object Option values and labels
-     */
-    static defaultOptions = {
-        "constant": "Constant",
-        "bilinear": "Bilinear",
-        "gaussian": "Gaussian"
-    };
-
-    /**
-     * @var string The tooltip
-     */
-    static tooltip = "During multi-diffusion, only a square of the size of the engine is rendereda at any given time. This can cause hard edges between the frames, especially when using a large chunking size. Using a mask allows for blending along the edges - this can remove seams, but also reduce precision.";
-
-    /**
-     * @var string Default value
-     */
-    static defaultValue = "bilinear";
-}
-
-/**
- * Scheduler Input View
- */
-class SchedulerInputView extends SelectInputView {
-    /**
-     * @var object Option values and labels
-     */
-    static defaultOptions = {
-        "ddim": "DDIM: Denoising Diffusion Implicit Models",
-        "ddpm": "DDPM: Denoising Diffusion Probabilistic Models",
-        "deis": "DEIS: Diffusion Exponential Integrator Sampler",
-        "dpmss": "DPM-Solver++ SDE",
-        "dpmssk": "DPM-Solver++ SDE Karras",
-        "dpmsm": "DPM-Solver++ 2M",
-        "dpmsmk": "DPM-Solver++ 2M Karras",
-        "dpmsms": "DPM-Solver++ 2M SDE",
-        "dpmsmka": "DPM-Solver++ 2M SDE Karras",
-        "heun": "Heun Discrete Scheduler",
-        "dpmd": "DPM Discrete Scheduler (KDPM2)",
-        "dpmdk": "DPM Discrete Scheduler (KDPM2) Karras",
-        "adpmd": "DPM Ancestral Discrete Scheduler (KDPM2A)",
-        "adpmdk": "DPM Ancestral Discrete Scheduler (KDPM2A) Karras",
-        "dpmsde": "DPM Solver SDE Scheduler",
-        "unipc": "UniPC: Predictor (UniP) and Corrector (UniC)",
-        "lmsd": "LMS: Linear Multi-Step Discrete Scheduler",
-        "lmsdk": "LMS: Linear Multi-Step Discrete Scheduler Karras",
-        "pndm": "PNDM: Pseudo Numerical Methods for Diffusion Models",
-        "eds": "Euler Discrete Scheduler",
-        "eads": "Euler Ancestral Discrete Scheduler",
-    };
-
-    /**
-     * @var string The tooltip
-     */
-    static tooltip = "Schedulers control how an image is denoiser over the course of the inference steps. Schedulers can have small effects, such as creating 'sharper' or 'softer' images, or drastically change the way images are constructed. Experimentation is encouraged, if additional information is sought, search <strong>Diffusers Schedulers</strong> in your search engine of choice.";
-    
-    /**
-     * @var string Default text
-     */
-    static placeholder = "Default";
-
-    /**
-     * @var bool Allow null
-     */
-    static allowEmpty = true;
-};
-
-/**
- * Add text for inpainter engine size
- */
-class InpainterEngineSizeInputView extends EngineSizeInputView {
-    /**
-     * @var string The tooltip to display to the user
-     */
-    static tooltip = "This engine size functions the same as the base engine size, but only applies when inpainting.\n\n" + EngineSizeInputView.tooltip;
-
-    /**
-     * @var ?int no default value
-     */
-    static defaultValue = null;
-};
-
-/**
- * Add text for refiner engine size
- */
-class RefinerEngineSizeInputView extends EngineSizeInputView {
-    /**
-     * @var string The tooltip to display to the user
-     */
-    static tooltip = "This engine size functions the same as the base engine size, but only applies when refining.\n\n" + EngineSizeInputView.tooltip;
-
-    /**
-     * @var ?int no default value
-     */
-    static defaultValue = null;
-};
-
-/**
  * Inversion input - will be populated at init.
  */
 class InversionInputView extends SearchListInputView {
@@ -351,6 +225,16 @@ class LycorisInputView extends SearchListInputView {
  * Checkpoint input - will be populated at init.
  */
 class CheckpointInputView extends SearchListInputView {
+    /**
+     * @var class The class of the string input, override so we can override setValue
+     */
+    static stringInputClass = ModelPickerStringInputView;
+};
+
+/**
+ * Motion module input - will be populated at init.
+ */
+class MotionModuleInputView extends SearchListInputView {
     /**
      * @var class The class of the string input, override so we can override setValue
      */
@@ -530,15 +414,11 @@ export {
     MultiLoraInputView,
     MultiLycorisInputView,
     MultiInversionInputView,
-    EngineSizeInputView,
-    RefinerEngineSizeInputView,
-    InpainterEngineSizeInputView,
     VaeInputView,
     DefaultVaeInputView,
-    SchedulerInputView,
     ModelPickerStringInputView,
     ModelPickerListInputView,
     ModelPickerInputView,
-    MaskTypeInputView,
-    ModelMergeModeInputView
+    ModelMergeModeInputView,
+    MotionModuleInputView,
 };

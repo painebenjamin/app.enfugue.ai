@@ -42,9 +42,9 @@ Configuration.model = {
     invocation: {
         width: 512,
         height: 512,
-        engineSize: null,
-        chunkingSize: 64,
-        chunkingMaskType: "bilinear",
+        tilingSize: null,
+        tilingStride: 64,
+        tilingMaskType: "bilinear",
         guidanceScale: 6.5,
         inferenceSteps: 20,
         interval: 1000,

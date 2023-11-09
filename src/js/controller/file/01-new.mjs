@@ -25,6 +25,7 @@ class NewFileController extends MenuController {
      */
     async onClick() {
         await this.application.resetState();
+        this.notify("info", "Success", "Successfully reset to defaults.");
     }
 }
 

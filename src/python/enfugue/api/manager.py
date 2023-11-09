@@ -14,7 +14,9 @@ from pibble.util.numeric import human_size
 from enfugue.api.downloads import Download
 from enfugue.api.invocations import Invocation
 from enfugue.diffusion.engine import DiffusionEngine
-from enfugue.diffusion.plan import DiffusionPlan
+from enfugue.diffusion.interpolate import InterpolationEngine
+
+from enfugue.diffusion.invocation import LayeredInvocation
 from enfugue.util import logger, check_make_directory, find_file_in_directory
 from enfugue.diffusion.constants import (
     DEFAULT_MODEL,
@@ -100,6 +102,7 @@ class SystemManager:
         self.active_invocation = None
         self.configuration = configuration
         self.engine = DiffusionEngine(self.configuration)
+        self.interpolator = InterpolationEngine(self.configuration)
         self.downloads = {}
         self.invocations = {}
         self.download_queue = []
@@ -141,7 +144,10 @@ class SystemManager:
         """
         Gets the location for image result outputs.
         """
-        directory = os.path.join(self.engine_root_dir, "images")
+        directory = self.configuration.get(
+            "enfugue.engine.images",
+            os.path.join(self.engine_root_dir, "images")
+        )
         check_make_directory(directory)
         return directory
 
@@ -150,7 +156,10 @@ class SystemManager:
         """
         Gets the location for image intermediate outputs.
         """
-        directory = os.path.join(self.engine_root_dir, "intermediates")
+        directory = self.configuration.get(
+            "enfugue.engine.intermediate",
+            os.path.join(self.engine_root_dir, "intermediate")
+        )
         check_make_directory(directory)
         return directory
     
@@ -328,7 +337,10 @@ class SystemManager:
         Gets a list of active downloads
         """
         return [
-            download for download_list in self.downloads.values() for download in download_list if not download.complete and download.started
+            download
+            for download_list in self.downloads.values()
+            for download in download_list
+            if not download.complete and download.started
         ]
 
     @property
@@ -444,9 +456,12 @@ class SystemManager:
     def invoke(
         self,
         user_id: int,
-        plan: DiffusionPlan,
+        plan: LayeredInvocation,
         ui_state: Optional[str] = None,
         disable_intermediate_decoding: bool = False,
+        video_rate: Optional[float] = None,
+        video_codec: Optional[str] = None,
+        video_format: Optional[str] = None,
         **kwargs: Any,
     ) -> Invocation:
         """
@@ -463,8 +478,16 @@ class SystemManager:
         else:
             kwargs["decode_nth_intermediate"] = self.engine_intermediate_steps
 
+        if video_rate is not None:
+            kwargs["video_rate"] = video_rate
+        if video_codec is not None:
+            kwargs["video_codec"] = video_codec
+        if video_format is not None:
+            kwargs["video_format"] = video_format
+
         invocation = Invocation(
             engine=self.engine,
+            interpolator=self.interpolator,
             plan=plan,
             engine_image_dir=self.engine_image_dir,
             engine_intermediate_dir=self.engine_intermediate_dir,
@@ -479,6 +502,7 @@ class SystemManager:
             self.invocation_queue.append(invocation)
         if user_id not in self.invocations:
             self.invocations[user_id] = []
+
         self.invocations[user_id].append(invocation)
         return invocation
 
@@ -496,16 +520,22 @@ class SystemManager:
 
     def stop_engine(self) -> None:
         """
-        Stops the engine forcibly.
+        stops the engine forcibly.
         """
         if self.active_invocation is not None:
             try:
                 self.active_invocation.terminate()
                 time.sleep(5)
             except Exception as ex:
-                logger.info(f"Ignoring exception during invocation termination: {ex}")
+                logger.info(f"ignoring exception during invocation termination: {ex}")
             self.active_invocation = None
         self.engine.terminate_process()
+
+    def stop_interpolator(self) -> None:
+        """
+        stops the interpolator forcibly.
+        """
+        self.interpolator.terminate_process()
 
     def clean_intermediates(self) -> None:
         """

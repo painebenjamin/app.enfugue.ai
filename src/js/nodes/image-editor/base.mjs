@@ -1,17 +1,11 @@
 /** @module nodes/image-editor/base.mjs */
 import { isEmpty } from "../../base/helpers.mjs";
-import { ImageEditorNodeOptionsFormView } from "../../forms/enfugue/image-editor.mjs";
 import { NodeView } from "../base.mjs";
 
 /**
  * Nodes on the Image Editor use multiples of 8 instead of 10
  */
 class ImageEditorNodeView extends NodeView {
-    /**
-     * @var bool Disable merging for most nodes
-     */
-    static canMerge = false;
-
     /**
      * @var string The name to show in the menu
      */
@@ -25,12 +19,12 @@ class ImageEditorNodeView extends NodeView {
     /**
      * @var int The minimum height, much smaller than normal minimum.
      */
-    static minHeight = 32;
+    static minHeight = 64;
     
     /**
      * @var int The minimum width, much smaller than normal minimum.
      */
-    static minWidth = 32;
+    static minWidth = 64;
 
     /**
      * @var int Change snap size from 10 to 8
@@ -48,11 +42,6 @@ class ImageEditorNodeView extends NodeView {
     static edgeHandlerTolerance = 8;
 
     /**
-     * @var bool All nodes on the image editor try to be as minimalist as possible.
-     */
-    static hideHeader = true;
-
-    /**
      * @var string Change from 'Close' to 'Remove'
      */
     static closeText = "Remove";
@@ -62,77 +51,61 @@ class ImageEditorNodeView extends NodeView {
      * @see view/nodes/base
      */
     static nodeButtons = {
-        options: {
-            icon: "fa-solid fa-sliders",
-            tooltip: "Show/Hide Options",
-            shortcut: "o",
-            callback: function() {
-                this.toggleOptions();
+        "nodeToCanvas": {
+            "icon": "fa-solid fa-maximize",
+            "tooltip": "Scale to Canvas Size",
+            "shortcut": "z",
+            "callback": function() {
+                this.scaleToCanvasSize();
+            }
+        },
+        "canvasToNode": {
+            "icon": "fa-solid fa-minimize",
+            "tooltip": "Scale Canvas to Image Size",
+            "shortcut": "g",
+            "callback": function() {
+                this.scaleCanvasToSize();
             }
         }
     };
 
     /**
-     * @var class The form to use. Each node should have their own.
+     * Gets the size to scale to, can be overridden
      */
-    static optionsFormView = ImageEditorNodeOptionsFormView;
-
-    /**
-     * Can be overridden in the node classes; this is called when their options are changed.
-     */
-    async updateOptions(values) {
-        this.prompt = values.prompt;
-        this.negativePrompt = values.negativePrompt;
-        this.guidanceScale = values.guidanceScale;
-        this.inferenceSteps = values.inferenceSteps;
-        this.scaleToModelSize = values.scaleToModelSize;
-        this.removeBackground = values.removeBackground;
+    async getCanvasScaleSize() {
+        return [
+            this.width - this.constructor.padding*2,
+            this.height - this.constructor.padding*2
+        ];
     }
 
     /**
-     * Shows the options view.
+     * Scales the image up to the size of the canvas
      */
-    async toggleOptions() {
-        if (isEmpty(this.optionsForm)) {
-            this.optionsForm = new this.constructor.optionsFormView(this.config);
-            this.optionsForm.onSubmit((values) => this.updateOptions(values));
-            let optionsNode = await this.optionsForm.getNode();
-            this.optionsForm.setValues(this.getState(), false);
-            this.node.find("enfugue-node-contents").append(optionsNode);
-        } else if (this.optionsForm.hidden) {
-            this.optionsForm.show();
-        } else {
-            this.optionsForm.hide();
-        }
+    async scaleToCanvasSize() {
+        this.setDimension(
+            -this.constructor.padding,
+            -this.constructor.padding,
+            this.editor.width+this.constructor.padding*2,
+            this.editor.height+this.constructor.padding*2,
+            true
+        );
     }
 
     /**
-     * When state is set, send to form
+     * Scales the canvas size to this size
      */
-    async setState(newState) {
-        await super.setState(newState);
-        this.updateOptions(newState);
-        
-        if (!isEmpty(this.optionsForm)) {
-            this.optionsForm.setValues(newState);
-        }
-    }
-
-    /**
-     * Gets the base state and appends form values.
-     */
-    getState(includeImages = true) {
-        let state = super.getState();
-        state.prompt = this.prompt || null;
-        state.negativePrompt = this.negativePrompt || null;
-        state.guidanceScale = this.guidanceScale || null;
-        state.inferenceSteps = this.inferenceSteps || null;
-        state.removeBackground = this.removeBackground || false;
-        state.scaleToModelSize = this.scaleToModelSize || false;
-        return state;
+    async scaleCanvasToSize() {
+        let [scaleWidth, scaleHeight] = await this.getCanvasScaleSize();
+        this.editor.setDimension(scaleWidth, scaleHeight, true, true);
+        this.setDimension(
+            -this.constructor.padding,
+            -this.constructor.padding,
+            scaleWidth+this.constructor.padding*2,
+            scaleHeight+this.constructor.padding*2,
+            true
+        );
     }
 };
 
-export {
-    ImageEditorNodeView
-};
+export { ImageEditorNodeView };

@@ -29,7 +29,7 @@ install_requires = [
     "colored>=1.4,<1.5",
     "diffusers>=0.18", # Minimum, works with 0.20.dev
     "albumentations>=0.4.3,<0.5",
-    "opencv-python>=4.7.0.72,<4.8",
+    "opencv-python>=4.6.0.66,<5.0",
     "pudb==2019.2",
     "invisible-watermark>=0.2,<0.3",
     "imageio>=2.31.1,<3.0",
@@ -56,9 +56,7 @@ install_requires = [
     "torchsde>=0.2.5,<0.3",
     "timm>=0.9.2,<1.0",
     "opensimplex>=0.4.5,<0.5",
-    "taming-transformers",
-    "clip",
-    "latent-diffusion",
+    "tensorflow", # Any version
 ]
 
 extras_require = {
@@ -69,6 +67,12 @@ extras_require = {
         "onnxruntime-gpu==1.12.1",
         "onnx-graphsurgeon==0.3.26",
         "tensorrt>=8.6.0,<8.7",
+    ],
+    "source": [ 
+        # These packages should be installed from source, but we'll put them herer too
+        "taming-transformers",
+        "clip",
+        "latent-diffusion",
     ],
     "build": [
         "mypy==1.2.0",

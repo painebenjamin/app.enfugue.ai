@@ -47,6 +47,101 @@ class ModelManagerController extends Controller {
     static managerWindowHeight = 600;
 
     /**
+     * Creates a window to edit a configuration
+     */
+    async showEditModel(model) {
+        let modelValues = model.getAttributes();
+
+        modelValues.checkpoint = modelValues.model;
+        modelValues.lora = isEmpty(model.lora) ? [] : model.lora.map((lora) => lora.getAttributes());
+        modelValues.lycoris = isEmpty(model.lycoris) ? [] : model.lycoris.map((lycoris) => lycoris.getAttributes());
+        modelValues.inversion = isEmpty(model.inversion) ? [] : model.inversion.map((inversion) => inversion.model);
+        modelValues.vae = isEmpty(model.vae) ? null : model.vae[0].name;
+        modelValues.motion_module = isEmpty(model.motion_module) ? null : model.motion_module[0].name;
+
+        if (!isEmpty(model.refiner)) {
+            modelValues.refiner = model.refiner[0].model;
+        }
+        
+        if (!isEmpty(model.inpainter)) {
+            modelValues.inpainter = model.inpainter[0].model;
+        }
+
+        if (!isEmpty(model.config)) {
+            let defaultConfig = {};
+            for (let configItem of model.config) {
+                defaultConfig[configItem.configuration_key] = configItem.configuration_value;
+            }
+
+            modelValues = {...modelValues, ...defaultConfig};
+
+            if (!isEmpty(defaultConfig.prompt_2)) {
+                modelValues.prompt = [modelValues.prompt, defaultConfig.prompt_2];
+            }
+            if (!isEmpty(defaultConfig.negative_prompt_2)) {
+                modelValues.negative_prompt = [defaultConfig.negative_prompt, defaultConfig.negative_prompt_2];
+            }
+        }
+
+        if (!isEmpty(model.scheduler)) {
+            modelValues.scheduler = model.scheduler[0].name;
+        }
+
+        let modelForm = new ModelFormView(this.config, deepClone(modelValues)),
+            modelWindow;
+        
+        modelForm.onChange(async (updatedValues) => {
+            if (!isEmpty(modelForm.values.refiner)) {
+                modelForm.addClass("show-refiner");
+            } else {
+                modelForm.removeClass("show-refiner");
+            }
+            if (!isEmpty(modelForm.values.inpainter)) {
+                modelForm.addClass("show-inpainter");
+            } else {
+                modelForm.removeClass("show-inpainter");
+            }
+        });
+
+        modelForm.onSubmit(async (updatedValues) => {
+            if (Array.isArray(updatedValues.prompt)) {
+                updatedValues.prompt_2 = updatedValues.prompt[1];
+                updatedValues.prompt = updatedValues.prompt[0];
+            }
+            if (Array.isArray(updatedValues.negative_prompt)) {
+                updatedValues.negative_prompt_2 = updatedValues.negative_prompt[1];
+                updatedValues.negative_prompt = updatedValues.negative_prompt[0];
+            }
+
+            try {
+                await this.model.patch(`/models/${model.name}`, null, null, updatedValues);
+                if (!isEmpty(modelWindow)) {
+                    modelWindow.remove();
+                }
+                if (!isEmpty(this.tableView)) {
+                    this.tableView.requery();
+                }
+            } catch(e) {
+                let errorMessage = isEmpty(e)
+                    ? "Couldn't communicate with server."
+                    : isEmpty(e.detail)
+                        ? `${e}`
+                        : e.detail;
+
+                this.notify("error", "Couldn't update model", errorMessage);
+                modelForm.enable();
+            }
+        });
+        modelForm.onCancel(() => modelWindow.remove());
+        modelWindow = await this.spawnWindow(
+            `Edit ${model.name}`,
+            modelForm,
+            this.constructor.modelWindowWidth,
+            this.constructor.modelWindowHeight
+        );
+    }
+
+    /**
      * Creates the manager table.
      */
     async createManager() {
@@ -57,7 +152,6 @@ class ModelManagerController extends Controller {
         this.tableView.setColumns({
             "name": "Name",
             "model": "Model",
-            "size": "Size",
             "prompt": "Prompt",
             "negative_prompt": "Negative Prompt"
         });
@@ -65,139 +159,8 @@ class ModelManagerController extends Controller {
         this.tableView.setFormatter("size", (datum) => `${datum}px`);
         
         // Add the 'Edit' button
-        this.tableView.addButton("Edit", "fa-solid fa-edit", async (row) => {
-            let modelValues = row.getAttributes();
+        this.tableView.addButton("Edit", "fa-solid fa-edit", (row) => this.showEditModel(row));
 
-            modelValues.checkpoint = modelValues.model;
-            modelValues.lora = isEmpty(row.lora) ? [] : row.lora.map((lora) => lora.getAttributes());
-            modelValues.lycoris = isEmpty(row.lycoris) ? [] : row.lycoris.map((lycoris) => lycoris.getAttributes());
-            modelValues.inversion = isEmpty(row.inversion) ? [] : row.inversion.map((inversion) => inversion.model);
-            modelValues.vae = isEmpty(row.vae) ? null : row.vae[0].name;
-
-            if (!isEmpty(row.refiner)) {
-                modelValues.refiner = row.refiner[0].model;
-                modelValues.refiner_size = row.refiner[0].size;
-            }
-            
-            if (!isEmpty(row.inpainter)) {
-                modelValues.inpainter = row.inpainter[0].model;
-                modelValues.inpainter_size = row.inpainter[0].size;
-            }
-
-            if (!isEmpty(row.config)) {
-                let defaultConfig = {};
-                for (let configItem of row.config) {
-                    defaultConfig[configItem.configuration_key] = configItem.configuration_value;
-                }
-
-                modelValues = {...modelValues, ...defaultConfig};
-
-                if (!isEmpty(defaultConfig.prompt_2)) {
-                    modelValues.prompt = [modelValues.prompt, defaultConfig.prompt_2];
-                }
-                if (!isEmpty(defaultConfig.negative_prompt_2)) {
-                    modelValues.negative_prompt = [defaultConfig.negative_prompt, defaultConfig.negative_prompt_2];
-                }
-                if (!isEmpty(defaultConfig.upscale_diffusion_prompt_2)) {
-                    modelValues.upscale_diffusion_prompt = defaultConfig.upscale_diffusion_prompt.map(
-                        (prompt, index) => [prompt, defaultConfig.upscale_diffusion_prompt_2[index]],
-                    );
-                }
-                if (!isEmpty(defaultConfig.upscale_diffusion_negative_prompt_2)) {
-                    modelValues.upscale_diffusion_negative_prompt = defaultConfig.upscale_diffusion_negative_prompt.map(
-                        (prompt, index) => [prompt, defaultConfig.upscale_diffusion_negative_prompt_2[index]],
-                    );
-                }
-            }
-
-            if (!isEmpty(row.scheduler)) {
-                modelValues.scheduler = row.scheduler[0].name;
-            }
-
-            let modelForm = new ModelFormView(this.config, deepClone(modelValues)),
-                modelWindow;
-            
-            modelForm.onChange(async (updatedValues) => {
-                if (!isEmpty(modelForm.values.refiner)) {
-                    modelForm.addClass("show-refiner");
-                } else {
-                    modelForm.removeClass("show-refiner");
-                }
-                if (!isEmpty(modelForm.values.inpainter)) {
-                    modelForm.addClass("show-inpainter");
-                } else {
-                    modelForm.removeClass("show-inpainter");
-                }
-            });
-
-            modelForm.onSubmit(async (updatedValues) => {
-                if (Array.isArray(updatedValues.prompt)) {
-                    updatedValues.prompt_2 = updatedValues.prompt[1];
-                    updatedValues.prompt = updatedValues.prompt[0];
-                }
-                if (Array.isArray(updatedValues.negative_prompt)) {
-                    updatedValues.negative_prompt_2 = updatedValues.negative_prompt[1];
-                    updatedValues.negative_prompt = updatedValues.negative_prompt[0];
-                }
-                let upscalePrompt = [],
-                    upscalePrompt2 = [],
-                    upscaleNegativePrompt = [],
-                    upscaleNegativePrompt2 = [];
-                
-                if (!isEmpty(updatedValues.upscale_diffusion_prompt)) {
-                    for (let promptPart of updatedValues.upscale_diffusion_prompt) {
-                        if (Array.isArray(promptPart)) {
-                            upscalePrompt.push(promptPart[0]);
-                            upscalePrompt2.push(promptPart[1]);
-                        } else {
-                            upscalePrompt.push(promptPart);
-                            upscalePrompt2.push(null);
-                        }
-                    }
-                }
-                if (!isEmpty(updatedValues.upscale_diffusion_negative_prompt)) {
-                    for (let promptPart of updatedValues.upscale_diffusion_negative_prompt) {
-                        if (Array.isArray(promptPart)) {
-                            upscaleNegativePrompt.push(promptPart[0]);
-                            upscaleNegativePrompt2.push(promptPart[1]);
-                        } else {
-                            upscaleNegativePrompt.push(promptPart);
-                            upscaleNegativePrompt2.push(null);
-                        }
-                    }
-                }
-
-                updatedValues.upscale_diffusion_prompt = upscalePrompt;
-                updatedValues.upscale_diffusion_prompt_2 = upscalePrompt2;
-                updatedValues.upscale_diffusion_negative_prompt = upscaleNegativePrompt;
-                updatedValues.upscale_diffusion_negative_prompt_2 = upscaleNegativePrompt2;
-
-                try {
-                    await this.model.patch(`/models/${row.name}`, null, null, updatedValues);
-                    if (!isEmpty(modelWindow)) {
-                        modelWindow.remove();
-                    }
-                    this.tableView.requery();
-                } catch(e) {
-                    let errorMessage = isEmpty(e)
-                        ? "Couldn't communicate with server."
-                        : isEmpty(e.detail)
-                            ? `${e}`
-                            : e.detail;
-
-                    this.notify("error", "Couldn't update model", errorMessage);
-                    modelForm.enable();
-                }
-            });
-            modelForm.onCancel(() => modelWindow.remove());
-            modelWindow = await this.spawnWindow(
-                `Edit ${row.name}`,
-                modelForm,
-                this.constructor.modelWindowWidth,
-                this.constructor.modelWindowHeight
-            );
-        });
-        
         // Add the 'Delete' button
         this.tableView.addButton("Delete", "fa-solid fa-trash", async (row) => {
             try{
@@ -239,38 +202,6 @@ class ModelManagerController extends Controller {
                 values.negative_prompt_2 = values.negative_prompt[1];
                 values.negative_prompt = values.negative_prompt[0];
             }
-            let upscalePrompt = [],
-                upscalePrompt2 = [],
-                upscaleNegativePrompt = [],
-                upscaleNegativePrompt2 = [];
-            
-            if (!isEmpty(values.upscale_diffusion_prompt)) {
-                for (let promptPart of values.upscale_diffusion_prompt) {
-                    if (Array.isArray(promptPart)) {
-                        upscalePrompt.push(promptPart[0]);
-                        upscalePrompt2.push(promptPart[1]);
-                    } else {
-                        upscalePrompt.push(promptPart);
-                        upscalePrompt2.push(null);
-                    }
-                }
-            }
-            if (!isEmpty(values.upscale_diffusion_negative_prompt)) {
-                for (let promptPart of values.upscale_diffusion_negative_prompt) {
-                    if (Array.isArray(promptPart)) {
-                        upscaleNegativePrompt.push(promptPart[0]);
-                        upscaleNegativePrompt2.push(promptPart[1]);
-                    } else {
-                        upscaleNegativePrompt.push(promptPart);
-                        upscaleNegativePrompt2.push(null);
-                    }
-                }
-            }
-
-            values.upscale_diffusion_prompt = upscalePrompt;
-            values.upscale_diffusion_prompt_2 = upscalePrompt2;
-            values.upscale_diffusion_negative_prompt = upscaleNegativePrompt;
-            values.upscale_diffusion_negative_prompt_2 = upscaleNegativePrompt2;
 
             try {
                 let response = await this.model.post("/models", null, null, values);

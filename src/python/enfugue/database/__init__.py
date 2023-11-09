@@ -13,9 +13,10 @@ from enfugue.database.models import (
     DiffusionModelLycoris,
     DiffusionModelInversion,
     DiffusionModelDefaultConfiguration,
+    DiffusionModelMotionModule,
 )
 
-EnfugueObjectBase, DiffusionModel, DiffusionModelRefiner, DiffusionModelInpainter, DiffusionModelVAE, DiffusionModelScheduler, DiffusionModelLora, DiffusionModelLycoris, DiffusionModelInversion, DiffusionInvocation, DiffusionModelDefaultConfiguration, ConfigurationItem, DiffusionModelRefinerVAE, DiffusionModelInpainterVAE # Silence importchecker
+EnfugueObjectBase, DiffusionModel, DiffusionModelRefiner, DiffusionModelInpainter, DiffusionModelVAE, DiffusionModelScheduler, DiffusionModelLora, DiffusionModelLycoris, DiffusionModelInversion, DiffusionInvocation, DiffusionModelDefaultConfiguration, ConfigurationItem, DiffusionModelRefinerVAE, DiffusionModelInpainterVAE, DiffusionModelMotionModule # Silence importchecker
 
 __all__ = [
     "EnfugueObjectBase",
@@ -32,4 +33,5 @@ __all__ = [
     "DiffusionModelLycoris",
     "DiffusionModelInversion",
     "DiffusionModelDefaultConfiguration",
+    "DiffusionModelMotionModule",
 ]
