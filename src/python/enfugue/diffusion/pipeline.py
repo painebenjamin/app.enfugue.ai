@@ -3329,7 +3329,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
         self.scheduler.set_timesteps(num_inference_steps, device=device) # type: ignore[attr-defined]
 
-        if image is not None and mask is None and (strength is not None or denoising_start is not None):
+        if image is not None and (strength is not None or denoising_start is not None):
             # Scale timesteps by strength
             timesteps, num_inference_steps = self.get_timesteps(
                 num_inference_steps,
@@ -3520,19 +3520,13 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             if image is not None and mask is not None:
                 prepared_image = torch.Tensor()
                 prepared_mask = torch.Tensor()
+                init_image = torch.Tensor()
 
-                if self.is_inpainting_unet:
-                    for m, i in zip(mask, image):
-                        p_m, p_i = self.prepare_mask_and_image(m, i, False) # type: ignore
-                        prepared_mask = torch.cat([prepared_mask, p_m.unsqueeze(0)])
-                        prepared_image = torch.cat([prepared_image, p_i.unsqueeze(0)])
-                else:
-                    init_image = torch.Tensor()
-                    for m, i in zip(mask, image):
-                        p_m, p_i, i_i = self.prepare_mask_and_image(m, i, True) # type: ignore
-                        prepared_mask = torch.cat([prepared_mask, p_m.unsqueeze(0)])
-                        prepared_image = torch.cat([prepared_image, p_i.unsqueeze(0)])
-                        init_image = torch.cat([init_image, i_i.unsqueeze(0)])
+                for m, i in zip(mask, image):
+                    p_m, p_i, i_i = self.prepare_mask_and_image(m, i, True) # type: ignore
+                    prepared_mask = torch.cat([prepared_mask, p_m.unsqueeze(0)])
+                    prepared_image = torch.cat([prepared_image, p_i.unsqueeze(0)])
+                    init_image = torch.cat([init_image, i_i.unsqueeze(0)])
 
             elif image is not None and mask is None:
                 if isinstance(image, torch.Tensor):
@@ -3559,16 +3553,31 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     if latents:
                         prepared_latents = latents.to(device) * self.schedule.init_noise_sigma # type: ignore[attr-defined]
                     else:
-                        prepared_latents = self.create_latents(
-                            batch_size,
-                            num_channels_latents,
-                            height,
-                            width,
-                            encoded_prompts.dtype,
-                            device,
-                            generator,
-                            animation_frames=animation_frames
-                        )
+                        if strength is not None and strength < 1.0:
+                            prepared_latents = self.prepare_image_latents(
+                                image=init_image.to(device=device), # type: ignore[union-attr]
+                                timestep=timesteps[:1].repeat(batch_size),
+                                batch_size=batch_size,
+                                dtype=encoded_prompts.dtype,
+                                device=device,
+                                chunker=chunker,
+                                weight_builder=weight_builder,
+                                generator=generator,
+                                progress_callback=step_complete,
+                                add_noise=denoising_start is None,
+                                animation_frames=animation_frames
+                            )
+                        else:
+                            prepared_latents = self.create_latents(
+                                batch_size,
+                                num_channels_latents,
+                                height,
+                                width,
+                                encoded_prompts.dtype,
+                                device,
+                                generator,
+                                animation_frames=animation_frames
+                            )
 
                     prepared_mask, prepared_image_latents = self.prepare_mask_latents(
                         mask=prepared_mask.to(device=device),
