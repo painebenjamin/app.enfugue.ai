@@ -7,7 +7,7 @@ RUN apt-get update
 RUN apt-get install software-properties-common wget git -y
 RUN add-apt-repository ppa:deadsnakes/ppa
 RUN apt-get update
-RUN apt-get install python3.10 python3.10-distutils ffmpeg libsm6 libxext6 -y
+RUN apt-get install python3.10 python3.10-distutils ffmpeg libsm6 libxext6 libopencv-dev -y
 RUN wget https://bootstrap.pypa.io/get-pip.py
 RUN python3.10 get-pip.py
 
@@ -18,5 +18,5 @@ RUN useradd --uid 1000 --gid 1000 -m {{ docker_username }}
 USER {{ docker_username }}
 COPY {{ sdist }} .
 RUN python3.10 -m pip install nvidia-pyindex
-RUN python3.10 -m pip install {{ sdist }} git+https://github.com/CompVis/taming-transformers.git@master#egg=taming-transformers git+https://github.com/openai/CLIP.git@main#egg=clip git+https://github.com/CompVis/stable-diffusion.git@main#egg=latent-diffusion git+https://github.com/huggingface/diffusers@main#egg=diffusers torch==2.2.0.dev20230910+cu121 torchvision==0.17.0.dev20230910+cu121 --extra-index-url https://download.pytorch.org/whl/nightly --extra-index-url https://download.pytorch.org/whl/nightly/cu121
+RUN python3.10 -m pip install {{ sdist }} git+https://github.com/CompVis/taming-transformers.git@master#egg=taming-transformers git+https://github.com/openai/CLIP.git@main#egg=clip git+https://github.com/CompVis/stable-diffusion.git@main#egg=latent-diffusion git+https://github.com/huggingface/diffusers@main#egg=diffusers torch==2.1.0+cu118 torchvision==0.16.0+cu118 --extra-index-url https://download.pytorch.org/whl/cu118
 ENTRYPOINT [ "python3.10", "-m", "enfugue" ]
