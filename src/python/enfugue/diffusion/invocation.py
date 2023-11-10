@@ -992,6 +992,9 @@ class LayeredInvocation:
                 elif not self.outpaint and not mask:
                     # Disabled outpainting
                     invocation_mask = None
+                elif self.outpaint and not mask:
+                    # Outpaint, set strength to 1
+                    self.strength = 1.0
 
         # Evaluate prompts
         prompts = self.prompts

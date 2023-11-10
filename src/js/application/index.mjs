@@ -168,7 +168,7 @@ class Application {
             config = merge(config, window.enfugue.config);
         }
         this.config = config;
-        this.publisher = new Publisher();
+        this.publisher = new Publisher(this.config.debug);
     }
 
     /**

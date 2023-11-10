@@ -43,7 +43,9 @@ class DenoisingController extends Controller {
         this.denoisingForm.onSubmit(async (values) => {
             this.engine.strength = values.strength;
         });
+
         this.application.sidebar.addChild(this.denoisingForm);
+
         let showForDenoising = false,
             showForInpainting = false,
             checkShow = () => {
@@ -53,10 +55,12 @@ class DenoisingController extends Controller {
                     this.denoisingForm.hide();
                 }
             };
+
         this.subscribe("layersChanged", (layers) => {
             showForDenoising = layers.reduce((carry, item) => carry || item.denoise, false);
             checkShow();
         });
+
         this.subscribe("inpaintEnabled", () => { showForInpainting = true; checkShow(); });
         this.subscribe("inpaintDisabled", () => { showForInpainting = false; checkShow(); });
     }

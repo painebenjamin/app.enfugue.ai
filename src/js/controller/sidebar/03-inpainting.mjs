@@ -52,6 +52,11 @@ class InpaintingController extends Controller {
                 }
                 image.src = newState.inpainting.mask;
             }
+            if (!isEmpty(newState.inpainting.options) && newState.inpainting.options.inpaint) {
+                this.engine.mask = this.scribbleView.src;
+            } else {
+                this.engine.mask = null;
+            }
         }
     }
 
@@ -113,10 +118,10 @@ class InpaintingController extends Controller {
     /**
      * Resizes the mask to the engine width
      */
-    resize() {
+    resize(width = null, height = null) {
         this.scribbleView.resizeCanvas(
-            this.images.width,
-            this.images.height
+            width || this.engine.width,
+            height || this.engine.height
         );
     }
 
@@ -134,7 +139,9 @@ class InpaintingController extends Controller {
         this.scribbleView.onDraw(() => {
             clearTimeout(setMaskTimer);
             setMaskTimer = setTimeout(() => {
-                this.engine.mask = this.scribbleView.src;
+                if (this.inpaintForm.values.inpaint !== false) {
+                    this.engine.mask = this.scribbleView.src;
+                }
             }, 100);
         });
         this.scribbleToolbar = new ToolbarView(this.config);
@@ -164,8 +171,8 @@ class InpaintingController extends Controller {
             this.engine.inpaintFeather = values.inpaintFeather;
         });
 
-        this.subscribe("engineWidthChange", () => this.resize());
-        this.subscribe("engineHeightChange", () => this.resize());
+        this.subscribe("engineWidthChange", (newWidth) => this.resize(newWidth));
+        this.subscribe("engineHeightChange", (newHeight) => this.resize(null, newHeight));
         this.subscribe("layersChanged", (layers) => {
             if (isEmpty(layers)) {
                 this.inpaintForm.hide();

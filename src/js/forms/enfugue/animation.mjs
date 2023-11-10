@@ -1,4 +1,5 @@
 /** @module forms/enfugue/animation */
+import { isEmpty } from "../../base/helpers.mjs";
 import { FormView } from "../base.mjs";
 import {
     NumberInputView,
@@ -172,6 +173,20 @@ class AnimationFormView extends FormView {
         } else {
             this.addClass("no-animation-slicing");
         }
+    }
+
+    /**
+     * On first build, add CSS for hiding defaults
+     */
+    async build() {
+        let node = await super.build();
+        if (isEmpty(this.values) || this.values.animationEnabled !== true) {
+            node.addClass("no-animation");
+        }
+        if (isEmpty(this.values) || this.values.animationPositionEncodingSliceEnabled !== true) {
+            node.addClass("no-position-slicing");
+        }
+        return node;
     }
 }
 

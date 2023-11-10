@@ -3897,6 +3897,7 @@ class DiffusionPipelineManager:
         """
         if controlnet is None:
             return None
+
         from diffusers.models import ControlNetModel
 
         if self.is_loadable_model_file(controlnet) or "/" not in controlnet:
@@ -3907,6 +3908,7 @@ class DiffusionPipelineManager:
             else:
                 raise ValueError(f"ControlNet path {controlnet} is not a file that can be accessed, a URL that can be downloaded or a repository that can be cloned.")
             try:
+                self.task_callback(f"Loading ControlNet from file {expected_controlnet_location}")
                 return ControlNetModel.from_single_file(
                     expected_controlnet_location,
                     cache_dir=self.engine_cache_dir,
@@ -3915,6 +3917,7 @@ class DiffusionPipelineManager:
                 logger.debug(f"Received KeyError on '{ex}' when instantiating controlnet from single file, trying to use XL ControlNet loader fix.")
                 return self.get_xl_controlnet(expected_controlnet_location)
         else:
+            self.task_callback(f"Loading ControlNet from cache {controlnet}")
             result = ControlNetModel.from_pretrained(
                 controlnet,
                 torch_dtype=torch.half,
@@ -4076,7 +4079,7 @@ class DiffusionPipelineManager:
 
             for controlnet_name in self.inpainter_controlnet_names:
                 self._inpainter_controlnets[controlnet_name] = self.get_controlnet(
-                    self.get_controlnet_path_by_name(controlnet_name, self.is_sdxl)
+                    self.get_controlnet_path_by_name(controlnet_name, self.inpainter_is_sdxl)
                 )
         return self._inpainter_controlnets # type: ignore[return-value]
 
@@ -4129,7 +4132,7 @@ class DiffusionPipelineManager:
                         self._inpainter_controlnets.pop(controlnet_name, None)
                     elif controlnet_name not in self._inpainter_controlnets:
                         self._inpainter_controlnets[controlnet_name] = self.get_controlnet(
-                            self.get_controlnet_path_by_name(controlnet_name, self.is_sdxl)
+                            self.get_controlnet_path_by_name(controlnet_name, self.inpainter_is_sdxl)
                         )
             if getattr(self, "_inpainter_pipeline", None) is not None:
                 self._inpainter_pipeline.controlnets = self.inpainter_controlnets
@@ -4197,7 +4200,7 @@ class DiffusionPipelineManager:
                         self._animator_controlnets.pop(controlnet_name, None)
                     elif controlnet_name not in self._animator_controlnets:
                         self._animator_controlnets[controlnet_name] = self.get_controlnet(
-                            self.get_controlnet_path_by_name(controlnet_name, self.is_sdxl)
+                            self.get_controlnet_path_by_name(controlnet_name, self.animator_is_sdxl)
                         )
             if getattr(self, "_animator_pipeline", None) is not None:
                 self._animator_pipeline.controlnets = self.animator_controlnets
@@ -4212,7 +4215,7 @@ class DiffusionPipelineManager:
 
             for controlnet_name in self.refiner_controlnet_names:
                 self._refiner_controlnets[controlnet_name] = self.get_controlnet(
-                    self.get_controlnet_path_by_name(controlnet_name, self.is_sdxl)
+                    self.get_controlnet_path_by_name(controlnet_name, self.refiner_is_sdxl)
                 )
         return self._refiner_controlnets # type: ignore[return-value]
 
@@ -4265,7 +4268,7 @@ class DiffusionPipelineManager:
                         self._refiner_controlnets.pop(controlnet_name, None)
                     elif controlnet_name not in self._refiner_controlnets:
                         self._refiner_controlnets[controlnet_name] = self.get_controlnet(
-                            self.get_controlnet_path_by_name(controlnet_name, self.is_sdxl)
+                            self.get_controlnet_path_by_name(controlnet_name, self.refiner_is_sdxl)
                         )
             if getattr(self, "_refiner_pipeline", None) is not None:
                 self._refiner_pipeline.controlnets = self.refiner_controlnets

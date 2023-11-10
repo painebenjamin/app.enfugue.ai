@@ -740,8 +740,8 @@ class LayersController extends Controller {
             if (values.denoise) {
                 videoRoles.push("Video to Video");
             }
-            if (values.videoPrompt) {
-                videoRoles.push("Prompt");
+            if (values.imagePrompt) {
+                videoRoles.push("IP Adapter");
             }
             if (values.control && !isEmpty(values.controlnetUnits)) {
                 let controlNets = values.controlnetUnits.map((unit) => isEmpty(unit.controlnet) ? "canny" : unit.controlnet),
@@ -779,7 +779,7 @@ class LayersController extends Controller {
                 imageRoles.push("Image to Image");
             }
             if (values.imagePrompt) {
-                imageRoles.push("Prompt");
+                imageRoles.push("IP Adapter");
             }
             if (values.control && !isEmpty(values.controlnetUnits)) {
                 let controlNets = values.controlnetUnits.map((unit) => isEmpty(unit.controlnet) ? "canny" : unit.controlnet),

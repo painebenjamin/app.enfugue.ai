@@ -2256,7 +2256,9 @@ enfugue-prompt-travel-view div.prompts-track .prompt-view .weight {
 }
 
 enfugue-prompt-travel-view div.prompts-track .prompt-view .weight::before {
-    content: "×";
+    content: "\f5cd";
+    font-family: "Font Awesome 6 Free" !important;
+    font-weight: 900;
     margin-right: 2px;
 }
 

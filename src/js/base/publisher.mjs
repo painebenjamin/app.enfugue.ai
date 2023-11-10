@@ -5,7 +5,8 @@ class Publisher {
     /**
      * The constructor initializes an empty object for storing subscriptions.
      */
-    constructor() {
+    constructor(debug = false) {
+        this.debug = debug;
         this.subscriptions = {};
     }
 
@@ -54,6 +55,9 @@ class Publisher {
     async publish(eventName, payload = null) {
         if (isEmpty(this.subscriptions[eventName])) {
             return;
+        }
+        if (this.debug) {
+            console.log("Publishing event", eventName, "with payload", payload);
         }
         for (let callback of this.subscriptions[eventName]) {
             await callback(payload);

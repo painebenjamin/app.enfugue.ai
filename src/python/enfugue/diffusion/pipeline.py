@@ -264,7 +264,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         """
         for key in kwargs:
             value = kwargs[key]
-            if isinstance(value, list):
+            if isinstance(value, list) or isinstance(value, tuple): # type: ignore[unreachable]
                 for i, v in enumerate(value):
                     cls.debug_tensors(**{f"{key}_{i}": v})
             elif isinstance(value, dict):
@@ -2021,14 +2021,24 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         is_animation = len(latents.shape) == 5
         if is_animation:
             batch, channels, frames, height, width = latents.shape
-            # Compress frames to batch
+            # Compress frames to batch. First the latent input...
             latent_input = rearrange(latents, "b c f h w -> (b f) c h w")
+            # Then hidden states...
             hidden_state_input = encoder_hidden_states.repeat_interleave(frames, dim=0)
+            # Then additional conditioning arguments, if passed (XL)
+            if added_cond_kwargs:
+                added_cond_input = dict([
+                    (key, tensor.repeat_interleave(frames, dim=0))
+                    for key, tensor in added_cond_kwargs.items()
+                ])
+            else:
+                added_cond_input = None
         else:
             batch, channels, height, width = latents.shape
             frames = None
             latent_input = latents
             hidden_state_input = encoder_hidden_states
+            added_cond_input = added_cond_kwargs
 
         down_blocks, mid_block = None, None
         for name in controlnet_conds:
@@ -2037,15 +2047,17 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             for controlnet_cond, conditioning_scale in controlnet_conds[name]:
                 if is_animation:
                     controlnet_cond = rearrange(controlnet_cond, "b c f h w -> (b f) c h w")
+
                 down_samples, mid_sample = self.controlnets[name](
                     latent_input,
                     timestep,
                     encoder_hidden_states=hidden_state_input,
                     controlnet_cond=controlnet_cond,
                     conditioning_scale=conditioning_scale,
-                    added_cond_kwargs=added_cond_kwargs,
+                    added_cond_kwargs=added_cond_input,
                     return_dict=False,
                 )
+
                 if down_blocks is None or mid_block is None: # type: ignore[unreachable]
                     down_blocks, mid_block = down_samples, mid_sample
                 else:

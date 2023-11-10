@@ -334,7 +334,7 @@ class InvocationController extends Controller {
     }
 
     /**
-     * @param float denoising strength
+     * @param image optional mask
      */
     set mask(newMask) {
         this.publish("engineMaskChange", newMask);
