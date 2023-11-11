@@ -303,6 +303,7 @@ enfugue-node enfugue-node-compound-contents ul.list-input-view > li:last-child {
 enfugue-windows-toolbar-item {
     height: 30px;
     cursor: pointer;
+    pointer-events: all;
 }
 
 enfugue-node-header:hover,
@@ -340,10 +341,10 @@ enfugue-windows-toolbar {
     flex-flow: row wrap;
     pointer-events: all;
     min-height: 30px;
-    background-color: var(--dark-color);
     border-top: 1px solid rgba(255,255,255,0.1);
     border-bottom: 1px solid rgba(0,0,0,0.2);
     gap: 1px;
+    pointer-events: none;
 }
 
 enfugue-node-contents {
@@ -633,7 +634,7 @@ enfugue-sample-chooser {
     position: fixed;
     left: 250px;
     right: 250px;
-    bottom: 60px;
+    bottom: 30px;
     height: 50px;
     background-color: var(--dark-color);
     border-top: 1px solid rgba(255,255,255,0.1);

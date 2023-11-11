@@ -226,7 +226,7 @@ enfugue-log-glance-view .logs {
 enfugue-sidebar input.invoke {
     position: fixed;
     left: 0;
-    bottom: 60px;
+    bottom: 30px;
     width: 250px;
     height: 50px;
     margin: 0;
@@ -1808,7 +1808,7 @@ input.download-input-view {
 
 .controls-helper-view {
     position: fixed;
-    bottom: 135px;
+    bottom: 105px;
     left: 249px;
     color: var(--theme-color-primary);
     font-weight: bold;
@@ -1828,7 +1828,7 @@ enfugue-layer-options-view {
     right: 0px;
     background-color: var(--dark-color);
     top: 60px;
-    bottom: 360px;
+    bottom: 330px;
     border-left: 1px solid rgba(255,255,255,0.1);
     border-top: 1px solid rgba(255,255,255,0.1);
     border-right: 1px solid rgba(0,0,0,0.2);
@@ -1845,7 +1845,7 @@ enfugue-layers-view {
     width: 250px;
     right: 0px;
     background-color: var(--dark-color);
-    bottom: 60px;
+    bottom: 30px;
     height: 300px;
     padding: 28px 10px 0 10px;
     gap: 10px;
@@ -2083,7 +2083,7 @@ enfugue-invocation-loading {
     position: fixed;
     left: 400px;
     right: 400px;
-    bottom: 111px;
+    bottom: 82px;
     border-radius: 10px;
     border: 1px solid var(--dark-color);
     transition: all 0.25s ease-in-out;
