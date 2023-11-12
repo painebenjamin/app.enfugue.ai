@@ -61,7 +61,7 @@ class SystemManagerThread(Thread):
                 logger.info("Manager exited, stopping manager thread.")
                 return
             self.manager.do_periodic_tasks()
-            time.sleep(0.5)
+            time.sleep(0.125)
 
 
 class SystemManagerDownloadStatusDict(TypedDict):

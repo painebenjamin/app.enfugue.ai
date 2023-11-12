@@ -312,6 +312,15 @@ class Application {
     }
 
     /**
+     * Sets the theme
+     */
+    async setTheme(newTheme) {
+        for (let themeProperty in newTheme) {
+            window.document.documentElement.style.setProperty(`--${snakeCase(themeProperty)}`, newTheme[themeProperty]);
+        }
+    }
+
+    /**
      * Sets getters for dynamic inputs
      */
     async registerDynamicInputs() {

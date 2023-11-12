@@ -994,6 +994,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             self.text_encoder = self.text_encoder.to(device, dtype=torch.float16)
         if self.text_encoder_2:
             self.text_encoder_2 = self.text_encoder_2.to(device, dtype=torch.float16)
+
         tokenizers = [self.tokenizer, self.tokenizer_2]
         text_encoders = [self.text_encoder, self.text_encoder_2]
 
@@ -1125,9 +1126,12 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             pooled_prompt_embeds = pooled_prompt_embeds.repeat(1, num_results_per_prompt).view(
                 bs_embed * num_results_per_prompt, -1
             )
-            negative_pooled_prompt_embeds = negative_pooled_prompt_embeds.repeat(1, num_results_per_prompt).view(
-                bs_embed * num_results_per_prompt, -1
-            )
+            if do_classifier_free_guidance:
+                negative_pooled_prompt_embeds = negative_pooled_prompt_embeds.repeat(1, num_results_per_prompt).view(
+                    bs_embed * num_results_per_prompt, -1
+                )
+            else:
+                negative_pooled_prompt_embeds = None
             return prompt_embeds, negative_prompt_embeds, pooled_prompt_embeds, negative_pooled_prompt_embeds  # type: ignore
         return prompt_embeds  # type: ignore
 
@@ -1903,6 +1907,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         latents: torch.Tensor,
         timestep: torch.Tensor,
         embeddings: torch.Tensor,
+        timestep_cond: Optional[torch.Tensor] = None,
         cross_attention_kwargs: Optional[Dict[str, Any]] = None,
         added_cond_kwargs: Optional[Dict[str, Any]] = None,
         down_block_additional_residuals: Optional[List[torch.Tensor]] = None,
@@ -1919,6 +1924,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             latents,
             timestep,
             encoder_hidden_states=embeddings,
+            timestep_cond=timestep_cond,
             cross_attention_kwargs=cross_attention_kwargs,
             down_block_additional_residuals=down_block_additional_residuals,
             mid_block_additional_residual=mid_block_additional_residual,
@@ -2087,6 +2093,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         weight_builder: MaskWeightBuilder,
         guidance_scale: float,
         do_classifier_free_guidance: bool = False,
+        timestep_cond: Optional[torch.Tensor] = None,
         mask: Optional[torch.Tensor] = None,
         mask_image: Optional[torch.Tensor] = None,
         image: Optional[torch.Tensor] = None,
@@ -2195,6 +2202,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 latents=latent_model_input,
                 timestep=t,
                 embeddings=embeds,
+                timestep_cond=timestep_cond,
                 cross_attention_kwargs=cross_attention_kwargs,
                 added_cond_kwargs=added_cond_kwargs,
                 down_block_additional_residuals=down_block,
@@ -2212,7 +2220,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 t,
                 latents,
                 **extra_step_kwargs,
-            ).prev_sample
+            ).prev_sample.to(dtype=embeds.dtype)
 
             # If using mask and not using fine-tuned inpainting, then we calculate
             # the same denoising on the image without unet and cross with the
@@ -2294,6 +2302,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         weight_builder: MaskWeightBuilder,
         guidance_scale: float,
         do_classifier_free_guidance: bool = False,
+        timestep_cond: Optional[torch.Tensor] = None,
         mask: Optional[torch.Tensor] = None,
         mask_image: Optional[torch.Tensor] = None,
         image: Optional[torch.Tensor] = None,
@@ -2333,6 +2342,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 weight_builder=weight_builder,
                 guidance_scale=guidance_scale,
                 do_classifier_free_guidance=do_classifier_free_guidance,
+                timestep_cond=timestep_cond,
                 mask=mask,
                 mask_image=mask_image,
                 image=image,
@@ -2577,6 +2587,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                         latents=latent_model_input,
                         timestep=t,
                         embeddings=embeds,
+                        timestep_cond=timestep_cond,
                         cross_attention_kwargs=cross_attention_kwargs,
                         added_cond_kwargs=added_cond_kwargs,
                         down_block_additional_residuals=down_block,
@@ -2972,6 +2983,28 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         if accepts_generator:
             extra_step_kwargs["generator"] = generator
         return extra_step_kwargs
+
+    def get_guidance_scale_embedding(
+        self,
+        timesteps: torch.Tensor,
+        embedding_dim: int=512,
+        dtype: torch.dtype=torch.float32
+    ) -> torch.Tensor:
+        """
+        Gets the embeddings of guidance scale for LCM
+        """
+        assert len(timesteps.shape) == 1
+        timesteps = timesteps * 1000.0
+
+        half_dim = embedding_dim // 2
+        emb = torch.log(torch.tensor(10000.0)) / (half_dim - 1)
+        emb = torch.exp(torch.arange(half_dim, dtype=dtype) * -emb)
+        emb = timesteps.to(dtype)[:, None] * emb[None, :]
+        emb = torch.cat([torch.sin(emb), torch.cos(emb)], dim=1)
+        if embedding_dim % 2 == 1:  # zero pad
+            emb = torch.nn.functional.pad(emb, (0, 1))
+        assert emb.shape == (timesteps.shape[0], embedding_dim)
+        return emb
 
     def get_step_complete_callback(
         self,
@@ -3775,6 +3808,16 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                         add_time_ids = torch.cat([add_time_ids, add_time_ids], dim=0)
                     add_time_ids = add_time_ids.to(device).repeat(batch_size, 1)
                     added_cond_kwargs["time_ids"] = add_time_ids
+            
+                # Set guidance scale embedding (LCM)
+                timestep_cond: Optional[torch.Tensor] = None
+                if self.unet.config.time_cond_proj_dim is not None: # type: ignore[attr-defined]
+                    guidance_scale_tensor = torch.tensor(guidance_scale - 1).repeat(batch_size * num_images_per_prompt)
+                    timestep_cond = self.get_guidance_scale_embedding(
+                        guidance_scale_tensor,
+                        embedding_dim=self.unet.config.time_cond_proj_dim,
+                        dtype=encoded_prompts.dtype
+                    ).to(device=device)
 
                 # Make sure controlnet on device
                 if self.controlnets is not None:
@@ -3834,6 +3877,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     latents=prepared_latents,
                     encoded_prompts=encoded_prompts,
                     guidance_scale=guidance_scale,
+                    timestep_cond=timestep_cond,
                     do_classifier_free_guidance=do_classifier_free_guidance,
                     mask=prepared_mask,
                     mask_image=prepared_image_latents,

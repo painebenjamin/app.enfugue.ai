@@ -47,6 +47,20 @@ class MenuView extends ParentView {
     static tagName = "enfugue-menu";
 
     /**
+     * Gets the active category
+     */
+    get activeCategory() {
+        return this.children.filter((child) => child instanceof MenuCategoryView && child.hasClass("active")).shift();
+    }
+
+    /**
+     * Returns true if there is an active category
+     */
+    get isActive() {
+        return !isEmpty(this.activeCategory);
+    }
+
+    /**
      * Turns off all categories
      */
     hideCategories() {
@@ -120,6 +134,23 @@ class MenuView extends ParentView {
             console.warn("No category named", name);
         }
         return newValue;
+    }
+
+    /**
+     * Enables a specific category, disabling all others
+     *
+     * @param string $name The name of the category to hide
+     */
+    setCategory(name) {
+        for (let child of this.children) {
+            if (child instanceof MenuCategoryView) {
+                if (child.name === name) {
+                    child.addClass("active");
+                } else {
+                    child.removeClass("active");
+                }
+            }
+        }
     }
 
     /**
@@ -278,7 +309,8 @@ class MenuCategoryView extends ParentView {
         node.prepend(header)
             .on("click", () => this.parent.toggleCategory(this.name))
             .on("mouseleave", () => this.parent.startHideTimer())
-            .on("mouseenter,mousemove", () => this.parent.stopHideTimer());
+            .on("mouseenter", () => { if (this.parent.isActive) { this.parent.setCategory(this.name); } this.parent.stopHideTimer(); })
+            .on("mousemove", () => this.parent.stopHideTimer());
 
         return node;
     }
