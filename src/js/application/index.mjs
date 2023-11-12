@@ -944,6 +944,12 @@ class Application {
                     this.layers.addImageLayer(imageView);
                     break;
                 case "video/mp4":
+                case "video/webm": // web movie
+                case "video/m4v": // mpeg variant
+                case "video/mkv": // matroska
+                case "video/x-msvideo": // avi
+                case "video/x-ms-wmv": // wmv
+                case "video/quicktime": // mov
                     this.samples.showCanvas();
                     this.layers.addVideoLayer(reader.result);
                     break;
