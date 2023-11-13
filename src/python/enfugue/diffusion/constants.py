@@ -38,6 +38,7 @@ __all__ = [
     "VAE_XL",
     "VAE_XL16",
     "VAE_LITERAL",
+    "VAE_CONSISTENCY",
     "CONTROLNET_CANNY",
     "CONTROLNET_CANNY_XL",
     "CONTROLNET_MLSD",
@@ -67,6 +68,8 @@ __all__ = [
     "MOTION_LORA_TILT_UP",
     "MOTION_LORA_TILT_DOWN",
     "MOTION_LORA_LITERAL",
+    "LCM_LORA_DEFAULT",
+    "LCM_LORA_XL",
     "SCHEDULER_LITERAL",
     "DEVICE_LITERAL",
     "PIPELINE_SWITCH_MODE_LITERAL",
@@ -158,7 +161,7 @@ UPSCALE_PROMPT_STEP_WEIGHT = 0.1
 MAX_IMAGE_SCALE = 3.0
 
 CACHE_MODE_LITERAL = ["always", "xl", "tensorrt"]
-VAE_LITERAL = Literal["ema", "mse", "xl", "xl16"]
+VAE_LITERAL = Literal["ema", "mse", "xl", "xl16", "consistency"]
 DEVICE_LITERAL = Literal["cpu", "cuda", "dml", "mps"]
 PIPELINE_SWITCH_MODE_LITERAL = Literal["offload", "unload"]
 SCHEDULER_LITERAL = Literal[
@@ -236,6 +239,13 @@ VAE_XL16 = (
     "sdxl_vae_fp16_fix",
     "sdxl_vae_fp16"
 )
+VAE_CONSISTENCY = (
+    "openai/consistency-decoder",
+    "consistency-decoder-vae",
+    "consistency_vae",
+    "dalle_3_vae"
+)
+
 # ControlNet repos/files
 CONTROLNET_CANNY = (
     "lllyasviel/control_v11p_sd15_canny",
@@ -341,6 +351,8 @@ MOTION_LORA_TILT_UP = "https://huggingface.co/guoyww/animatediff/resolve/main/v2
 MOTION_LORA_TILT_DOWN = "https://huggingface.co/guoyww/animatediff/resolve/main/v2_lora_TiltDown.ckpt"
 MOTION_LORA_ZOOM_IN = "https://huggingface.co/guoyww/animatediff/resolve/main/v2_lora_ZoomIn.ckpt"
 MOTION_LORA_ZOOM_OUT = "https://huggingface.co/guoyww/animatediff/resolve/main/v2_lora_ZoomOut.ckpt"
+LCM_LORA_DEFAULT = "https://huggingface.co/latent-consistency/lcm-lora-sdv1-5/resolve/main/pytorch_lora_weights.safetensors?filename=lcm-lora-sdv1-5.safetensors"
+LCM_LORA_XL = "https://huggingface.co/latent-consistency/lcm-lora-sdxl/resolve/main/pytorch_lora_weights.safetensors?filename=lcm-lora-sdxl.safetensors"
 
 MultiModelType = Union[str, List[str]]
 WeightedMultiModelType = Union[

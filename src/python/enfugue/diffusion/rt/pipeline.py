@@ -40,7 +40,7 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
 
     def __init__(
         self,
-        vae: AutoencoderKL,
+        vae: Union[AutoencoderKL, ConsistencyDecoderVAE],
         vae_preview: AutoencoderTiny,
         text_encoder: Optional[CLIPTextModel],
         text_encoder_2: Optional[CLIPTextModelWithProjection],

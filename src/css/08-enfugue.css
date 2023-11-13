@@ -118,7 +118,7 @@ enfugue-sidebar {
     position: absolute;
     left: 0;
     top: 35px;
-    bottom: 270px;
+    bottom: 300px;
     display: flex;
     flex-flow: column nowrap;
     align-items: stretch;
@@ -179,6 +179,7 @@ enfugue-log-glance-view {
     height: 190px;
     border-top: 1px solid rgba(255,255,255,0.1);
     background-color: var(--dark-color);
+    z-index: 2;
 }
 
 enfugue-log-glance-view::before {

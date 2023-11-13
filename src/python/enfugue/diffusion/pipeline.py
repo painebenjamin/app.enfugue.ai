@@ -55,6 +55,7 @@ from diffusers.models.modeling_utils import ModelMixin
 from diffusers.models import (
     AutoencoderKL,
     AutoencoderTiny,
+    ConsistencyDecoderVAE,
     UNet2DConditionModel,
     ControlNetModel,
 )
@@ -179,7 +180,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
     def __init__(
         self,
-        vae: AutoencoderKL,
+        vae: Unioin[AutoencoderKL, ConsistencyDecoderVAE],
         vae_preview: AutoencoderTiny,
         text_encoder: Optional[CLIPTextModel],
         text_encoder_2: Optional[CLIPTextModelWithProjection],
@@ -1314,7 +1315,11 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 multiplier=multiplier,
                 dtype=dtype
             )
-
+        return super(EnfugueStableDiffusionPipeline, self).load_lora_weights(
+            state_dict,
+            multiplier=multiplier,
+            dtype=dtype
+        )
         updates: Mapping[str, Any] = defaultdict(dict)
         for key, value in state_dict.items():
             # it is suggested to print out the key, it usually will be something like below

@@ -5,7 +5,24 @@ from typing import Optional, Callable
 
 from enfugue.util.log import logger
 
-__all__ = ["check_download", "check_download_to_dir"]
+__all__ = [
+    "check_download",
+    "check_download_to_dir",
+    "get_file_name_from_url"
+]
+
+def get_file_name_from_url(url: str) -> str:
+    """
+    Gets a filename from a URL.
+    Used to help with default models that don't have the same filename as their URL
+    """
+    from urllib.parse import urlparse, parse_qs
+    parsed_url = urlparse(url)
+    parsed_qs = parse_qs(parsed_url.query)
+    if "filename" in parsed_qs:
+        return parsed_qs["filename"][0]
+    else:
+        return os.path.basename(url)
 
 def check_download(
     remote_url: str,
@@ -56,8 +73,10 @@ def check_download_to_dir(
     If it doesn't, or the size doesn't match, download it.
     """
     if file_name is None:
-        file_name = os.path.basename(remote_url)
+        file_name = get_file_name_from_url(remote_url)
+
     local_path = os.path.join(local_dir, file_name)
+
     check_download(
         remote_url,
         local_path,

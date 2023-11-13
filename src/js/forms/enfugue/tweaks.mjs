@@ -40,7 +40,7 @@ class TweaksFormView extends FormView {
                     "min": 0.0,
                     "max": 100.0,
                     "value": defaultGuidanceScale,
-                    "step": 0.1,
+                    "step": 0.01,
                     "tooltip": "How closely to follow the text prompt; high values result in high-contrast images closely adhering to your text, low values result in low-contrast images with more randomness."
                 }
             },
@@ -48,7 +48,7 @@ class TweaksFormView extends FormView {
                 "label": "Inference Steps",
                 "class": NumberInputView,
                 "config": {
-                    "min": 5,
+                    "min": 2,
                     "max": 250,
                     "value": defaultInferenceSteps,
                     "tooltip": "How many steps to take during primary inference, larger values take longer to process but can produce better results."
@@ -106,9 +106,9 @@ class TweaksFormView extends FormView {
                 "config": {
                     "min": 1.0,
                     "max": 2.0,
-                    "value": 1.2,
+                    "value": 1.5,
                     "step": 0.01,
-                    "tooltip": "Adjusts the weight of primary backbone features. The recommended starting value for this field is <strong>1.2</strong>."
+                    "tooltip": "Adjusts the weight of primary backbone features. The recommended starting value for this field is <strong>1.5</strong> for Stable Diffusion 1 or <strong>1.3</strong> for Stable Diffusion XL."
                 }
             },
             "freeUBackbone2": {
@@ -117,9 +117,9 @@ class TweaksFormView extends FormView {
                 "config": {
                     "min": 1.0,
                     "max": 2.0,
-                    "value": 1.4,
+                    "value": 1.6,
                     "step": 0.01,
-                    "tooltip": "Adjusts the weight of secondary backbone features. The recommended starting value for this field is <strong>1.4</strong>."
+                    "tooltip": "Adjusts the weight of secondary backbone features. The recommended starting value for this field is <strong>1.6</strong> for Stable Diffusion 1 or <strong>1.4</strong> for Stable Diffusion XL."
 
                 }
             },

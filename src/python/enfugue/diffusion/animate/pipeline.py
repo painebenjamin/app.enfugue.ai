@@ -60,7 +60,7 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
 
     def __init__(
         self,
-        vae: AutoencoderKL,
+        vae: Union[AutoencoderKL, ConsistencyDecoderVAE],
         vae_preview: AutoencoderTiny,
         text_encoder: Optional[CLIPTextModel],
         text_encoder_2: Optional[CLIPTextModelWithProjection],
@@ -197,6 +197,7 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         motion_module: Optional[str] = unet_additional_kwargs.pop("motion_module", None)
         position_encoding_truncate_length: Optional[int] = unet_additional_kwargs.pop("position_encoding_truncate_length", None)
         position_encoding_scale_length: Optional[int] = unet_additional_kwargs.pop("position_encoding_scale_length", None)
+
         if config.get("sample_size", 64) == 128:
             # SDXL, instantiate Hotshot XL UNet
             return cls.create_hotshot_unet(

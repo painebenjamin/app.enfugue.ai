@@ -14,34 +14,26 @@ from pibble.ext.user.server.base import (
     UserExtensionHandlerRegistry,
     UserExtensionTemplateServer,
 )
+
 from pibble.ext.session.server.base import SessionExtensionServerBase
 from pibble.ext.rest.server.user import UserRESTExtensionServerBase
 from pibble.api.middleware.database.orm import ORMMiddlewareBase
 from pibble.api.exceptions import NotFoundError, BadRequestError
 
+from enfugue.api.controller.base import EnfugueAPIControllerBase
+
 from enfugue.diffusion.invocation import LayeredInvocation
 from enfugue.diffusion.constants import *
-from enfugue.util import find_file_in_directory
-from enfugue.api.controller.base import EnfugueAPIControllerBase
+
+from enfugue.util import (
+    find_file_in_directory,
+    get_file_name_from_url
+)
 
 if TYPE_CHECKING:
     import cv2
 
 __all__ = ["EnfugueAPIInvocationController"]
-
-DEFAULT_MODEL_CKPT = os.path.basename(DEFAULT_MODEL)
-DEFAULT_INPAINTING_MODEL_CKPT = os.path.basename(DEFAULT_INPAINTING_MODEL)
-DEFAULT_SDXL_MODEL_CKPT = os.path.basename(DEFAULT_SDXL_MODEL)
-DEFAULT_SDXL_REFINER_CKPT = os.path.basename(DEFAULT_SDXL_REFINER)
-DEFAULT_SDXL_INPAINTING_CKPT = os.path.basename(DEFAULT_SDXL_INPAINTING_MODEL)
-MOTION_LORA_ZOOM_OUT_CKPT = os.path.basename(MOTION_LORA_ZOOM_OUT)
-MOTION_LORA_ZOOM_IN_CKPT = os.path.basename(MOTION_LORA_ZOOM_IN)
-MOTION_LORA_PAN_LEFT_CKPT = os.path.basename(MOTION_LORA_PAN_LEFT)
-MOTION_LORA_PAN_RIGHT_CKPT = os.path.basename(MOTION_LORA_PAN_RIGHT)
-MOTION_LORA_TILT_UP_CKPT = os.path.basename(MOTION_LORA_TILT_UP)
-MOTION_LORA_TILT_DOWN_CKPT = os.path.basename(MOTION_LORA_TILT_DOWN)
-MOTION_LORA_ROLL_CLOCKWISE_CKPT = os.path.basename(MOTION_LORA_ROLL_CLOCKWISE)
-MOTION_LORA_ROLL_ANTI_CLOCKWISE_CKPT = os.path.basename(MOTION_LORA_ROLL_ANTI_CLOCKWISE)
 
 class EnfugueAPIInvocationController(EnfugueAPIControllerBase):
     handlers = UserExtensionHandlerRegistry()
@@ -57,33 +49,11 @@ class EnfugueAPIInvocationController(EnfugueAPIControllerBase):
         """
         Gets a default model link by model name, if one exists
         """
-        base_model_name = os.path.basename(model)
-        if base_model_name == DEFAULT_MODEL_CKPT:
-            return DEFAULT_MODEL
-        if base_model_name == DEFAULT_INPAINTING_MODEL_CKPT:
-            return DEFAULT_INPAINTING_MODEL
-        if base_model_name == DEFAULT_SDXL_MODEL_CKPT:
-            return DEFAULT_SDXL_MODEL
-        if base_model_name == DEFAULT_SDXL_REFINER_CKPT:
-            return DEFAULT_SDXL_REFINER
-        if base_model_name == DEFAULT_SDXL_INPAINTING_CKPT:
-            return DEFAULT_SDXL_INPAINTING_MODEL
-        if base_model_name == MOTION_LORA_ZOOM_OUT_CKPT:
-            return MOTION_LORA_ZOOM_OUT
-        if base_model_name == MOTION_LORA_ZOOM_IN_CKPT:
-            return MOTION_LORA_ZOOM_IN
-        if base_model_name == MOTION_LORA_PAN_LEFT_CKPT:
-            return MOTION_LORA_PAN_LEFT
-        if base_model_name == MOTION_LORA_PAN_RIGHT_CKPT:
-            return MOTION_LORA_PAN_RIGHT
-        if base_model_name == MOTION_LORA_TILT_UP_CKPT:
-            return MOTION_LORA_TILT_UP
-        if base_model_name == MOTION_LORA_TILT_DOWN_CKPT:
-            return MOTION_LORA_TILT_DOWN
-        if base_model_name == MOTION_LORA_ROLL_CLOCKWISE_CKPT:
-            return MOTION_LORA_ROLL_CLOCKWISE
-        if base_model_name == MOTION_LORA_ROLL_ANTI_CLOCKWISE_CKPT:
-            return MOTION_LORA_ROLL_ANTI_CLOCKWISE
+        base_model_name = get_file_name_from_url(model)
+        if base_model_name in self.default_checkpoints:
+            return self.default_checkpoints[base_model_name]
+        if base_model_name in self.default_lora:
+            return self.default_lora[base_model_name]
         return None
 
     def get_default_size_for_model(self, model: Optional[str]) -> int:

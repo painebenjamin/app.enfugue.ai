@@ -14,6 +14,8 @@ __all__ = ["EnfugueAPIControllerBase"]
 
 
 class EnfugueAPIControllerBase(JSONWebServiceAPIServer):
+    default_checkpoints: Dict[str, str]
+    default_lora: Dict[str, str]
     invoke: Callable[..., Invocation]
     download: Callable[[int, str, str], Download]
     manager: SystemManager

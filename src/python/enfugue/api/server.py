@@ -22,8 +22,10 @@ from pibble.util.helpers import OutputCatcher
 from enfugue.diffusion.invocation import LayeredInvocation
 
 from enfugue.database import *
-from enfugue.api.controller import *
+from enfugue.diffusion.constants import *
 from enfugue.interface.helpers import *
+
+from enfugue.api.controller import *
 
 from enfugue.api.manager import SystemManager
 from enfugue.api.invocations import Invocation
@@ -36,6 +38,7 @@ from enfugue.util import (
     get_pending_versions,
     get_gpu_status,
     get_local_static_directory,
+    get_file_name_from_url,
     find_file_in_directory,
     logger,
 )
@@ -71,6 +74,43 @@ class EnfugueAPIServerBase(
     UserRESTExtensionServerBase,
 ):
     handlers = UserExtensionHandlerRegistry()
+
+    @property
+    def default_checkpoints(self) -> Dict[str, str]:
+        """
+        Gets the list of default checkpoints
+        """
+        return dict([
+            (get_file_name_from_url(url), url)
+            for url in [
+                DEFAULT_MODEL,
+                DEFAULT_INPAINTING_MODEL,
+                DEFAULT_SDXL_MODEL,
+                DEFAULT_SDXL_REFINER,
+                DEFAULT_SDXL_INPAINTING_MODEL
+            ]
+        ])
+
+    @property
+    def default_lora(self) -> Dict[str, str]:
+        """
+        Gets the list of default LoRA
+        """
+        return dict([
+            (get_file_name_from_url(url), url)
+            for url in [
+                MOTION_LORA_ZOOM_OUT,
+                MOTION_LORA_ZOOM_IN,
+                MOTION_LORA_PAN_LEFT,
+                MOTION_LORA_PAN_RIGHT,
+                MOTION_LORA_TILT_UP,
+                MOTION_LORA_TILT_DOWN,
+                MOTION_LORA_ROLL_CLOCKWISE,
+                MOTION_LORA_ROLL_ANTI_CLOCKWISE,
+                LCM_LORA_DEFAULT,
+                LCM_LORA_XL
+            ]
+        ])
 
     @property
     def engine_root(self) -> str:

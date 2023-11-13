@@ -18,9 +18,15 @@ from pibble.api.exceptions import ConfigurationError
 from pibble.util.files import dump_json, load_json
 from pibble.util.numeric import human_size
 
-from enfugue.util import logger, check_download, check_make_directory, find_file_in_directory
 from enfugue.diffusion.constants import *
 from enfugue.diffusion.util import get_vram_info
+from enfugue.util import (
+    logger,
+    check_download,
+    check_make_directory,
+    find_file_in_directory,
+    get_file_name_from_url,
+)
 
 __all__ = ["DiffusionPipelineManager"]
 
@@ -32,11 +38,21 @@ DEFAULT_SDXL_REFINER_FILE = os.path.basename(DEFAULT_SDXL_REFINER)
 
 if TYPE_CHECKING:
     from diffusers.pipelines.stable_diffusion import StableDiffusionPipelineOutput
-    from diffusers.models import ControlNetModel, AutoencoderKL, AutoencoderTiny
+    from diffusers.models import (
+        ControlNetModel,
+        AutoencoderKL,
+        AutoencoderTiny,
+        ConsistencyDecoderVAE
+    )
     from diffusers.schedulers.scheduling_utils import KarrasDiffusionSchedulers
     from enfugue.diffusion.pipeline import EnfugueStableDiffusionPipeline
-    from enfugue.diffusion.support import ControlImageProcessor, Upscaler, IPAdapter, BackgroundRemover
     from enfugue.diffusion.animate.pipeline import EnfugueAnimateStableDiffusionPipeline
+    from enfugue.diffusion.support import (
+        ControlImageProcessor,
+        Upscaler,
+        IPAdapter,
+        BackgroundRemover
+    )
 
 def noop(*args: Any) -> None:
     """
@@ -137,7 +153,7 @@ class DiffusionPipelineManager:
             self.configuration = configuration
         if optimize:
             self.optimize_configuration()
-        self.hijack_downloads()
+        self.apply_patches()
 
     def optimize_configuration(self) -> None:
         """
@@ -160,7 +176,23 @@ class DiffusionPipelineManager:
         else:
             logger.debug(message)
 
-    def hijack_downloads(self) -> None:
+    def apply_patches(self) -> None:
+        """
+        Injects various modifications of global packages.
+        """
+        self.patch_freeu()
+        self.patch_downloads()
+
+    def patch_freeu(self) -> None:
+        """
+        Steals `apply_freeu`
+        """
+        from enfugue.diffusion.util.torch_util.inference_util import apply_freeu
+        import diffusers.utils.torch_utils
+
+        diffusers.utils.torch_utils.apply_freeu = apply_freeu
+
+    def patch_downloads(self) -> None:
         """
         Steals huggingface hub HTTP GET to report back to the UI.
         """
@@ -184,13 +216,15 @@ class DiffusionPipelineManager:
         """
         Downloads a model directly to the model folder if enabled.
         """
-        output_file = os.path.basename(remote_url)
+        output_file = get_file_name_from_url(remote_url)
         output_path = os.path.join(local_dir, output_file)
         found_path = find_file_in_directory(local_dir, output_file)
+
         if found_path:
             return found_path
         if self.offline:
             raise ValueError(f"File {output_file} does not exist in {local_dir} and offline mode is enabled, refusing to download from {remote_url}")
+
         self.task_callback(f"Downloading {remote_url}")
 
         def progress_callback(written_bytes: int, total_bytes: int) -> None:
@@ -555,6 +589,8 @@ class DiffusionPipelineManager:
             return VAE_XL
         elif vae == "xl16":
             return VAE_XL16
+        elif vae == "consistency":
+            return VAE_CONSISTENCY
         return vae
 
     def find_vae_path(self, vae: str) -> str:
@@ -598,7 +634,7 @@ class DiffusionPipelineManager:
     def get_vae(
         self,
         vae: Optional[Union[str, Tuple[str, ...]]] = None
-    ) -> Optional[AutoencoderKL]:
+    ) -> Optional[Union[AutoencoderKL, ConsistencyDecoderVAE]]:
         """
         Loads the VAE
         """
@@ -620,11 +656,16 @@ class DiffusionPipelineManager:
         if vae.startswith("http"):
             vae = self.check_download_model(self.engine_cache_dir, vae)
 
-        from diffusers.models import AutoencoderKL
+        if "consisten" in vae.lower():
+            from diffusers.models import ConsistencyDecoderVAE
+            vae_model = ConsistencyDecoderVAE
+        else:
+            from diffusers.models import AutoencoderKL
+            vae_model = AutoencoderKL
 
         if os.path.exists(vae):
             try:
-                result = AutoencoderKL.from_single_file(
+                result = vae_model.from_single_file(
                     vae,
                     torch_dtype=self.dtype,
                     cache_dir=self.engine_cache_dir,
@@ -634,7 +675,7 @@ class DiffusionPipelineManager:
                 logger.debug(f"Received KeyError on '{ex}' when instantiating VAE from single file, trying to use XL VAE loader fix.")
                 result = self.get_xl_vae(vae)
         else:
-            result = AutoencoderKL.from_pretrained(
+            result = vae_model.from_pretrained(
                 vae,
                 torch_dtype=self.dtype,
                 cache_dir=self.engine_cache_dir,
@@ -656,7 +697,7 @@ class DiffusionPipelineManager:
         )
 
     @property
-    def vae(self) -> Optional[AutoencoderKL]:
+    def vae(self) -> Optional[Union[AutoencoderKL, ConsistencyDecoderVAE]]:
         """
         Gets the configured VAE (or None.)
         """
@@ -707,7 +748,7 @@ class DiffusionPipelineManager:
         return self._vae_name
     
     @property
-    def refiner_vae(self) -> Optional[AutoencoderKL]:
+    def refiner_vae(self) -> Optional[Union[AutoencoderKL, ConsistencyDecoderVAE]]:
         """
         Gets the configured refiner VAE (or None.)
         """
@@ -758,7 +799,7 @@ class DiffusionPipelineManager:
         return self._refiner_vae_name
     
     @property
-    def inpainter_vae(self) -> Optional[AutoencoderKL]:
+    def inpainter_vae(self) -> Optional[Union[AutoencoderKL, ConsistencyDecoderVAE]]:
         """
         Gets the configured inpainter VAE (or None.)
         """
@@ -809,7 +850,7 @@ class DiffusionPipelineManager:
         return self._inpainter_vae_name
 
     @property
-    def animator_vae(self) -> Optional[AutoencoderKL]:
+    def animator_vae(self) -> Optional[Union[AutoencoderKL, ConsistencyDecoderVAE]]:
         """
         Gets the configured animator VAE (or None.)
         """

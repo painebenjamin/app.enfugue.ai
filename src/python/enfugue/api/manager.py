@@ -28,7 +28,6 @@ from enfugue.diffusion.constants import (
 
 __all__ = ["SystemManagerThread", "SystemManager"]
 
-
 class SystemManagerThread(Thread):
     """
     This thread simply executes periodic tasks on the manager.

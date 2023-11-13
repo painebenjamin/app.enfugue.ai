@@ -14,7 +14,12 @@ from pibble.api.exceptions import BadRequestError, NotFoundError
 from pibble.util.files import load_json
 from pibble.ext.user.server.base import UserExtensionHandlerRegistry
 
-from enfugue.util import find_files_in_directory, find_file_in_directory, logger
+from enfugue.util import (
+    logger,
+    get_file_name_from_url,
+    find_files_in_directory,
+    find_file_in_directory,
+)
 from enfugue.api.controller.base import EnfugueAPIControllerBase
 from enfugue.database.models import DiffusionModel
 from enfugue.diffusion.manager import DiffusionPipelineManager
@@ -22,7 +27,6 @@ from enfugue.diffusion.invocation import LayeredInvocation
 from enfugue.diffusion.constants import *
 
 __all__ = ["EnfugueAPIModelsController"]
-
 
 class EnfugueAPIModelsController(EnfugueAPIControllerBase):
     XL_BASE_KEY =    "conditioner.embedders.1.model.transformer.resblocks.9.mlp.c_proj.bias"
@@ -44,25 +48,6 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         "refiner_negative_prompt_2",
         "prompt_2",
         "negative_prompt_2"
-    ]
-
-    DEFAULT_CHECKPOINTS = [
-        os.path.basename(DEFAULT_MODEL),
-        os.path.basename(DEFAULT_INPAINTING_MODEL),
-        os.path.basename(DEFAULT_SDXL_MODEL),
-        os.path.basename(DEFAULT_SDXL_REFINER),
-        os.path.basename(DEFAULT_SDXL_INPAINTING_MODEL),
-    ]
-
-    DEFAULT_LORA = [
-        os.path.basename(MOTION_LORA_PAN_LEFT),
-        os.path.basename(MOTION_LORA_PAN_RIGHT),
-        os.path.basename(MOTION_LORA_ROLL_CLOCKWISE),
-        os.path.basename(MOTION_LORA_ROLL_ANTI_CLOCKWISE),
-        os.path.basename(MOTION_LORA_TILT_UP),
-        os.path.basename(MOTION_LORA_TILT_DOWN),
-        os.path.basename(MOTION_LORA_ZOOM_IN),
-        os.path.basename(MOTION_LORA_ZOOM_OUT),
     ]
 
     handlers = UserExtensionHandlerRegistry()
@@ -167,7 +152,7 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
             }
             for filename in self.get_models_in_directory(checkpoints_dir)
         ]
-        for checkpoint in self.DEFAULT_CHECKPOINTS:
+        for checkpoint in self.default_checkpoints.keys():
             if checkpoint not in [cp["name"] for cp in checkpoints]:
                 checkpoints.append({"name": checkpoint, "directory": "available for download"})
         return checkpoints
@@ -188,7 +173,7 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
             }
             for filename in self.get_models_in_directory(lora_dir)
         ]
-        for default_lora in self.DEFAULT_LORA:
+        for default_lora in self.default_lora.keys():
             if default_lora not in [l["name"] for l in lora]:
                 lora.append({"name": default_lora, "directory": "available for download"})
 
@@ -258,6 +243,7 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         """
         engines = []
         tensorrt_dir = self.get_configured_directory("tensorrt")
+
         for engine in glob.glob(f"{tensorrt_dir}/**/engine.plan", recursive=True):
             engine_dir = os.path.abspath(os.path.dirname(engine))
             engine_type = os.path.basename(os.path.dirname(engine_dir))
@@ -811,7 +797,7 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
             }
             for filename in checkpoint_paths
         ]
-        for checkpoint in self.DEFAULT_CHECKPOINTS:
+        for checkpoint in self.default_checkpoints.keys():
             if checkpoint not in [cp["name"] for cp in checkpoints]:
                 checkpoints.append({
                     "name": checkpoint,
