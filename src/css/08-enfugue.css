@@ -241,10 +241,15 @@ enfugue-sidebar input.invoke.disabled {
 
 enfugue-sidebar .invoke-loader {
     position: fixed;
-    left: 0;
-    bottom: 111px;
-    width: 250px;
+    left: -10px;
+    bottom: 80px;
+    width: 270px;
     pointer-events: none;
+    border-radius: 0 !important;
+}
+
+enfugue-sidebar .invoke-loader::after {
+    border-radius: 0 !important;
 }
 
 .no-animations enfugue-sidebar .invoke-loader::after {

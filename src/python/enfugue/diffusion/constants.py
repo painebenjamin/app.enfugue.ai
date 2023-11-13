@@ -168,7 +168,7 @@ SCHEDULER_LITERAL = Literal[
     "dpmd", "dpmdk", "adpmd",
     "adpmdk", "dpmsde", "unipc",
     "lmsd", "lmsdk", "pndm",
-    "eds", "eads"
+    "eds", "eads", "lcm"
 ]
 UPSCALE_LITERAL = Literal[
     "esrgan", "esrganime", "gfpgan",

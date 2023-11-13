@@ -122,6 +122,7 @@ class SchedulerInputView extends SelectInputView {
         "pndm": "PNDM: Pseudo Numerical Methods for Diffusion Models",
         "eds": "Euler Discrete Scheduler",
         "eads": "Euler Ancestral Discrete Scheduler",
+        "lcm": "LCM Scheduler"
     };
 
     /**

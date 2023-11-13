@@ -477,6 +477,9 @@ class DiffusionPipelineManager:
         elif scheduler == "eads":
             from diffusers.schedulers import EulerAncestralDiscreteScheduler
             return EulerAncestralDiscreteScheduler
+        elif scheduler == "lcm":
+            from diffusers.schedulers import LCMScheduler
+            return LCMScheduler
         raise ValueError(f"Unknown scheduler {scheduler}")
 
     @property
