@@ -133,6 +133,7 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
                 dirname
                 for dirname in os.listdir(diffusers_dir)
                 if os.path.exists(os.path.join(diffusers_dir, dirname, "model_index.json"))
+                and not dirname.endswith("-animator")
             ]
         return diffusers_models
 

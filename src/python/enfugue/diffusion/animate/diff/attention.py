@@ -9,10 +9,13 @@ from diffusers.utils.torch_utils import maybe_allow_in_graph
 from diffusers.models.attention_processor import Attention
 from diffusers.models.attention import FeedForward, AdaLayerNorm, AdaLayerNormZero
 from einops import rearrange, repeat
+
 from diffusers.configuration_utils import ConfigMixin, register_to_config
 from diffusers.models.modeling_utils import ModelMixin
+from diffusers.models.lora import LoRACompatibleConv, LoRACompatibleLinear
 from diffusers.utils import BaseOutput
 from diffusers.utils.import_utils import is_xformers_available
+
 from dataclasses import dataclass
 
 
@@ -61,9 +64,9 @@ class Transformer3DModel(ModelMixin, ConfigMixin):
 
         self.norm = torch.nn.GroupNorm(num_groups=norm_num_groups, num_channels=in_channels, eps=1e-6, affine=True)
         if use_linear_projection:
-            self.proj_in = nn.Linear(in_channels, inner_dim)
+            self.proj_in = LoRACompatibleLinear(in_channels, inner_dim)
         else:
-            self.proj_in = nn.Conv2d(in_channels, inner_dim, kernel_size=1, stride=1, padding=0)
+            self.proj_in = LoRACompatibleConv(in_channels, inner_dim, kernel_size=1, stride=1, padding=0)
 
         # Define transformers blocks
         self.transformer_blocks = nn.ModuleList(
@@ -89,9 +92,9 @@ class Transformer3DModel(ModelMixin, ConfigMixin):
 
         # 4. Define output layers
         if use_linear_projection:
-            self.proj_out = nn.Linear(in_channels, inner_dim)
+            self.proj_out = LoRACompatibleLinear(in_channels, inner_dim)
         else:
-            self.proj_out = nn.Conv2d(inner_dim, in_channels, kernel_size=1, stride=1, padding=0)
+            self.proj_out = LoRACompatibleConv(inner_dim, in_channels, kernel_size=1, stride=1, padding=0)
 
     def forward(self, 
                 hidden_states, 
@@ -171,7 +174,7 @@ class GatedSelfAttentionDense(nn.Module):
         super().__init__()
 
         # we need a linear projection since we need cat visual feature and obj feature
-        self.linear = nn.Linear(context_dim, query_dim)
+        self.linear = LoRACompatibleLinear(context_dim, query_dim)
 
         self.attn = Attention(query_dim=query_dim, heads=n_heads, dim_head=d_head)
         self.ff = FeedForward(query_dim, activation_fn="geglu")

@@ -14,7 +14,13 @@ def make_layers(block, no_relu_layers):
             layer = nn.MaxPool2d(kernel_size=v[0], stride=v[1], padding=v[2])
             layers.append((layer_name, layer))
         else:
-            conv2d = nn.Conv2d(in_channels=v[0], out_channels=v[1], kernel_size=v[2], stride=v[3], padding=v[4])
+            conv2d = nn.Conv2d(
+                in_channels=v[0],
+                out_channels=v[1],
+                kernel_size=v[2],
+                stride=v[3],
+                padding=v[4],
+            )
             layers.append((layer_name, conv2d))
             if layer_name not in no_relu_layers:
                 layers.append(("relu_" + layer_name, nn.ReLU(inplace=True)))
@@ -196,7 +202,9 @@ class handpose_model(nn.Module):
             ]
         )
 
-        block1_1 = OrderedDict([("conv6_1_CPM", [128, 512, 1, 1, 0]), ("conv6_2_CPM", [512, 22, 1, 1, 0])])
+        block1_1 = OrderedDict(
+            [("conv6_1_CPM", [128, 512, 1, 1, 0]), ("conv6_2_CPM", [512, 22, 1, 1, 0])]
+        )
 
         blocks = {}
         blocks["block1_0"] = block1_0

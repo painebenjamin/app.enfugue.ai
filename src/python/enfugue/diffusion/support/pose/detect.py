@@ -12,13 +12,25 @@ from enfugue.diffusion.support.model import SupportModel, SupportModelImageProce
 
 __all__ = ["PoseDetector"]
 
-class OpenPoseImageProcessor(SupportModelImageProcessor):
+class PoseImageProcessor(SupportModelImageProcessor):
     """
-    Uses OpenPose to detect human poses, hands, and faces
+    Uses a pose detector to detect human poses, hands, and faces
     """
-    def __init__(self, detector: Callable, **kwargs: Any) -> None:
-        super(OpenPoseImageProcessor, self).__init__(**kwargs)
+    def __init__(self, detector: Callable[[Image], Image], **kwargs: Any) -> None:
+        super(PoseImageProcessor, self).__init__(**kwargs)
         self.detector = detector
+
+    def detail_mask(self, image: Image) -> Image:
+        """
+        Calls the detector and draws the detail mask (hands and face)
+        """
+        return self.detector(
+            image,
+            include_body=False,
+            include_hand=True,
+            include_face=True,
+            draw_type="mask",
+        ).resize(image.size)
 
     def __call__(self, image: Image) -> Image:
         """
@@ -30,20 +42,6 @@ class OpenPoseImageProcessor(SupportModelImageProcessor):
             include_hand=True,
             include_face=True
         ).resize(image.size)
-
-class DWPoseImageProcessor(SupportModelImageProcessor):
-    """
-    Uses OpenPose to detect human poses, hands, and faces
-    """
-    def __init__(self, detector: Callable[[Image], Image], **kwargs: Any) -> None:
-        super(DWPoseImageProcessor, self).__init__(**kwargs)
-        self.detector = detector
-
-    def __call__(self, image: Image) -> Image:
-        """
-        Calls the detector
-        """
-        return self.detector(image).resize(image.size)
 
 class PoseDetector(SupportModel):
     """
@@ -72,7 +70,7 @@ class PoseDetector(SupportModel):
                 pose_ckpt=pose_model_path
             )
             detector.to(self.device)
-            processor = DWPoseImageProcessor(detector)
+            processor = PoseImageProcessor(detector)
             yield processor
             del processor
             del detector
@@ -94,7 +92,7 @@ class PoseDetector(SupportModel):
                 face_model_path
             )
             detector.to(self.device)
-            processor = OpenPoseImageProcessor(detector)
+            processor = PoseImageProcessor(detector)
             yield processor
             del processor
             del detector

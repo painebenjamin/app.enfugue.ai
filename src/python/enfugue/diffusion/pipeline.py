@@ -3116,14 +3116,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 img = [img]
 
             if animation_frames:
-                image_len = len(img)
-                if image_len < animation_frames:
-                    img += [
-                        img[image_len-1]
-                        for i in range(animation_frames - image_len)
-                    ]
-                else:
-                    img = img[:animation_frames]
+                img = img[:animation_frames]
             else:
                 img = img[:1]
 
@@ -3772,6 +3765,19 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                                 uncond_embeds.unsqueeze(0)
                             ], dim=0)
 
+                        # Repeat last image embed as needed to match frames
+                        if animation_frames:
+                            embed_frames = image_prompt_embeds.shape[0]
+                            if embed_frames < animation_frames:
+                                image_prompt_embeds = torch.cat([
+                                    image_prompt_embeds,
+                                    image_prompt_embeds[-1].unsqueeze(0).repeat(animation_frames - embed_frames, 1, 1, 1)
+                                ], dim=0)
+                                image_uncond_prompt_embeds = torch.cat([
+                                    image_uncond_prompt_embeds,
+                                    image_uncond_prompt_embeds[-1].unsqueeze(0).repeat(animation_frames - embed_frames, 1, 1, 1)
+                                ], dim=0)
+
                         image_prompt_embeds *= scale / ip_adapter_scale # type: ignore[operator]
                         image_uncond_prompt_embeds *= scale / ip_adapter_scale # type: ignore[operator]
 
@@ -3816,7 +3822,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             
                 # Set guidance scale embedding (LCM)
                 timestep_cond: Optional[torch.Tensor] = None
-                if self.unet.config.time_cond_proj_dim is not None: # type: ignore[attr-defined]
+                if "time_cond_proj_dim" in self.unet.config and self.unet.config.time_cond_proj_dim is not None: # type: ignore[attr-defined]
                     guidance_scale_tensor = torch.tensor(guidance_scale - 1).repeat(batch_size * num_images_per_prompt)
                     timestep_cond = self.get_guidance_scale_embedding(
                         guidance_scale_tensor,

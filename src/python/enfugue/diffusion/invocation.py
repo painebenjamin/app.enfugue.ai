@@ -31,11 +31,11 @@ from pibble.util.strings import Serializer
 
 from enfugue.util import (
     logger,
-    feather_mask,
     fit_image,
     get_frames_or_image,
     get_frames_or_image_from_file,
     save_frames_or_image,
+    dilate_erode,
     redact_images_from_metadata,
     merge_tokens,
 )
@@ -248,6 +248,13 @@ class LayeredInvocation:
 
         image.paste(foreground, position, mask=mask)
         return image
+
+    @property
+    def dilate_amount(self) -> int:
+        """
+        Tweakable; the amount to dilate masks when combining
+        """
+        return 2
 
     @property
     def upscale_steps(self) -> Iterator[UpscaleStepDict]:
@@ -936,7 +943,7 @@ class LayeredInvocation:
                             mask[i].paste(
                                 white,
                                 mask=Image.eval(
-                                    feather_mask(invocation_mask[i]),
+                                    dilate_erode(invocation_mask[i], self.dilate_amount),
                                     lambda a: 0 if a < 128 else 255
                                 )
                             )
@@ -949,7 +956,7 @@ class LayeredInvocation:
                         mask.paste( # type: ignore[union-attr]
                             white,
                             mask=Image.eval(
-                                feather_mask(invocation_mask),
+                                dilate_erode(invocation_mask, self.dilate_amount),
                                 lambda a: 0 if a < 128 else 255
                             )
                         )
@@ -957,11 +964,11 @@ class LayeredInvocation:
                 else:
                     if isinstance(invocation_mask, list):
                         invocation_mask = [
-                            feather_mask(img).convert("L") # type: ignore[union-attr]
+                            dilate_erode(img, self.dilate_amount).convert("L") # type: ignore[union-attr]
                             for img in invocation_mask
                         ]
                     else:
-                        invocation_mask = feather_mask(invocation_mask).convert("L") # type: ignore[union-attr]
+                        invocation_mask = dilate_erode(invocation_mask, self.dilate_amount).convert("L") # type: ignore[union-attr]
 
                 # Evaluate mask
                 mask_max, mask_min = None, None

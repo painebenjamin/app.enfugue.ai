@@ -58,8 +58,16 @@ class Body(object):
         for m in range(len(multiplier)):
             scale = multiplier[m]
             imageToTest = util.smart_resize_k(oriImg, fx=scale, fy=scale)
-            imageToTest_padded, pad = util.padRightDownCorner(imageToTest, stride, padValue)
-            im = np.transpose(np.float32(imageToTest_padded[:, :, :, np.newaxis]), (3, 2, 0, 1)) / 256 - 0.5
+            imageToTest_padded, pad = util.padRightDownCorner(
+                imageToTest, stride, padValue
+            )
+            im = (
+                np.transpose(
+                    np.float32(imageToTest_padded[:, :, :, np.newaxis]), (3, 2, 0, 1)
+                )
+                / 256
+                - 0.5
+            )
             im = np.ascontiguousarray(im)
 
             data = torch.from_numpy(im).float()
@@ -72,15 +80,27 @@ class Body(object):
 
             # extract outputs, resize, and remove padding
             # heatmap = np.transpose(np.squeeze(net.blobs[output_blobs.keys()[1]].data), (1, 2, 0))  # output 1 is heatmaps
-            heatmap = np.transpose(np.squeeze(Mconv7_stage6_L2), (1, 2, 0))  # output 1 is heatmaps
+            heatmap = np.transpose(
+                np.squeeze(Mconv7_stage6_L2), (1, 2, 0)
+            )  # output 1 is heatmaps
             heatmap = util.smart_resize_k(heatmap, fx=stride, fy=stride)
-            heatmap = heatmap[: imageToTest_padded.shape[0] - pad[2], : imageToTest_padded.shape[1] - pad[3], :]
+            heatmap = heatmap[
+                : imageToTest_padded.shape[0] - pad[2],
+                : imageToTest_padded.shape[1] - pad[3],
+                :,
+            ]
             heatmap = util.smart_resize(heatmap, (oriImg.shape[0], oriImg.shape[1]))
 
             # paf = np.transpose(np.squeeze(net.blobs[output_blobs.keys()[0]].data), (1, 2, 0))  # output 0 is PAFs
-            paf = np.transpose(np.squeeze(Mconv7_stage6_L1), (1, 2, 0))  # output 0 is PAFs
+            paf = np.transpose(
+                np.squeeze(Mconv7_stage6_L1), (1, 2, 0)
+            )  # output 0 is PAFs
             paf = util.smart_resize_k(paf, fx=stride, fy=stride)
-            paf = paf[: imageToTest_padded.shape[0] - pad[2], : imageToTest_padded.shape[1] - pad[3], :]
+            paf = paf[
+                : imageToTest_padded.shape[0] - pad[2],
+                : imageToTest_padded.shape[1] - pad[3],
+                :,
+            ]
             paf = util.smart_resize(paf, (oriImg.shape[0], oriImg.shape[1]))
 
             heatmap_avg += heatmap_avg + heatmap / len(multiplier)
@@ -111,10 +131,14 @@ class Body(object):
                     one_heatmap > thre1,
                 )
             )
-            peaks = list(zip(np.nonzero(peaks_binary)[1], np.nonzero(peaks_binary)[0]))  # note reverse
+            peaks = list(
+                zip(np.nonzero(peaks_binary)[1], np.nonzero(peaks_binary)[0])
+            )  # note reverse
             peaks_with_score = [x + (map_ori[x[1], x[0]],) for x in peaks]
             peak_id = range(peak_counter, peak_counter + len(peaks))
-            peaks_with_score_and_id = [peaks_with_score[i] + (peak_id[i],) for i in range(len(peak_id))]
+            peaks_with_score_and_id = [
+                peaks_with_score[i] + (peak_id[i],) for i in range(len(peak_id))
+            ]
 
             all_peaks.append(peaks_with_score_and_id)
             peak_counter += len(peaks)
@@ -193,34 +217,55 @@ class Body(object):
 
                         vec_x = np.array(
                             [
-                                score_mid[int(round(startend[I][1])), int(round(startend[I][0])), 0]
+                                score_mid[
+                                    int(round(startend[I][1])),
+                                    int(round(startend[I][0])),
+                                    0,
+                                ]
                                 for I in range(len(startend))
                             ]
                         )
                         vec_y = np.array(
                             [
-                                score_mid[int(round(startend[I][1])), int(round(startend[I][0])), 1]
+                                score_mid[
+                                    int(round(startend[I][1])),
+                                    int(round(startend[I][0])),
+                                    1,
+                                ]
                                 for I in range(len(startend))
                             ]
                         )
 
-                        score_midpts = np.multiply(vec_x, vec[0]) + np.multiply(vec_y, vec[1])
-                        score_with_dist_prior = sum(score_midpts) / len(score_midpts) + min(
-                            0.5 * oriImg.shape[0] / norm - 1, 0
+                        score_midpts = np.multiply(vec_x, vec[0]) + np.multiply(
+                            vec_y, vec[1]
                         )
-                        criterion1 = len(np.nonzero(score_midpts > thre2)[0]) > 0.8 * len(score_midpts)
+                        score_with_dist_prior = sum(score_midpts) / len(
+                            score_midpts
+                        ) + min(0.5 * oriImg.shape[0] / norm - 1, 0)
+                        criterion1 = len(
+                            np.nonzero(score_midpts > thre2)[0]
+                        ) > 0.8 * len(score_midpts)
                         criterion2 = score_with_dist_prior > 0
                         if criterion1 and criterion2:
                             connection_candidate.append(
-                                [i, j, score_with_dist_prior, score_with_dist_prior + candA[i][2] + candB[j][2]]
+                                [
+                                    i,
+                                    j,
+                                    score_with_dist_prior,
+                                    score_with_dist_prior + candA[i][2] + candB[j][2],
+                                ]
                             )
 
-                connection_candidate = sorted(connection_candidate, key=lambda x: x[2], reverse=True)
+                connection_candidate = sorted(
+                    connection_candidate, key=lambda x: x[2], reverse=True
+                )
                 connection = np.zeros((0, 5))
                 for c in range(len(connection_candidate)):
                     i, j, s = connection_candidate[c][0:3]
                     if i not in connection[:, 3] and j not in connection[:, 4]:
-                        connection = np.vstack([connection, [candA[i][3], candB[j][3], s, i, j]])
+                        connection = np.vstack(
+                            [connection, [candA[i][3], candB[j][3], s, i, j]]
+                        )
                         if len(connection) >= min(nA, nB):
                             break
 
@@ -244,7 +289,10 @@ class Body(object):
                     found = 0
                     subset_idx = [-1, -1]
                     for j in range(len(subset)):  # 1:size(subset,1):
-                        if subset[j][indexA] == partAs[i] or subset[j][indexB] == partBs[i]:
+                        if (
+                            subset[j][indexA] == partAs[i]
+                            or subset[j][indexB] == partBs[i]
+                        ):
                             subset_idx[found] = j
                             found += 1
 
@@ -253,10 +301,16 @@ class Body(object):
                         if subset[j][indexB] != partBs[i]:
                             subset[j][indexB] = partBs[i]
                             subset[j][-1] += 1
-                            subset[j][-2] += candidate[partBs[i].astype(int), 2] + connection_all[k][i][2]
+                            subset[j][-2] += (
+                                candidate[partBs[i].astype(int), 2]
+                                + connection_all[k][i][2]
+                            )
                     elif found == 2:  # if found 2 and disjoint, merge them
                         j1, j2 = subset_idx
-                        membership = ((subset[j1] >= 0).astype(int) + (subset[j2] >= 0).astype(int))[:-2]
+                        membership = (
+                            (subset[j1] >= 0).astype(int)
+                            + (subset[j2] >= 0).astype(int)
+                        )[:-2]
                         if len(np.nonzero(membership == 2)[0]) == 0:  # merge
                             subset[j1][:-2] += subset[j2][:-2] + 1
                             subset[j1][-2:] += subset[j2][-2:]
@@ -265,7 +319,10 @@ class Body(object):
                         else:  # as like found == 1
                             subset[j1][indexB] = partBs[i]
                             subset[j1][-1] += 1
-                            subset[j1][-2] += candidate[partBs[i].astype(int), 2] + connection_all[k][i][2]
+                            subset[j1][-2] += (
+                                candidate[partBs[i].astype(int), 2]
+                                + connection_all[k][i][2]
+                            )
 
                     # if find no partA in the subset, create a new subset
                     elif not found and k < 17:
@@ -273,7 +330,10 @@ class Body(object):
                         row[indexA] = partAs[i]
                         row[indexB] = partBs[i]
                         row[-1] = 2
-                        row[-2] = sum(candidate[connection_all[k][i, :2].astype(int), 2]) + connection_all[k][i][2]
+                        row[-2] = (
+                            sum(candidate[connection_all[k][i, :2].astype(int), 2])
+                            + connection_all[k][i][2]
+                        )
                         subset = np.vstack([subset, row])
         # delete some rows of subset which has few parts occur
         deleteIdx = []
@@ -287,7 +347,9 @@ class Body(object):
         return candidate, subset
 
     @staticmethod
-    def format_body_result(candidate: np.ndarray, subset: np.ndarray) -> List[BodyResult]:
+    def format_body_result(
+        candidate: np.ndarray, subset: np.ndarray
+    ) -> List[BodyResult]:
         """
         Format the body results from the candidate and subset arrays into a list of BodyResult objects.
 

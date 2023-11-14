@@ -35,6 +35,7 @@ def main() -> None:
                 openpose(image).save(os.path.join(save_dir, f"detect-openpose-{i}.png"))
                 openpose_time = (datetime.now() - start_openpose).total_seconds()
                 logger.info(f"Openpose took {openpose_time:0.03f}")
+                openpose.detail_mask(image).save(os.path.join(save_dir, f"detect-openpose-detail-{i}.png"))
         try:
             with manager.control_image_processor.pose_detector.dwpose() as dwpose:
                 for i, image in enumerate(images):
@@ -42,6 +43,7 @@ def main() -> None:
                     dwpose(image).save(os.path.join(save_dir, f"detect-dwpose-{i}.png"))
                     dwpose_time = (datetime.now() - start_dwpose).total_seconds()
                     logger.info(f"dwpose took {dwpose_time:0.03f}")
+                    dwpose.detail_mask(image).save(os.path.join(save_dir, f"detect-dwpose-detail-{i}.png"))
         except Exception as ex:
             logger.warning(f"Received exception using DWPose: {type(ex).__name__}({ex})")
 

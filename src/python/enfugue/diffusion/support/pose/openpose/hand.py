@@ -43,8 +43,16 @@ class Hand(object):
             scale = multiplier[m]
             imageToTest = util.smart_resize(oriImg, (scale, scale))
 
-            imageToTest_padded, pad = util.padRightDownCorner(imageToTest, stride, padValue)
-            im = np.transpose(np.float32(imageToTest_padded[:, :, :, np.newaxis]), (3, 2, 0, 1)) / 256 - 0.5
+            imageToTest_padded, pad = util.padRightDownCorner(
+                imageToTest, stride, padValue
+            )
+            im = (
+                np.transpose(
+                    np.float32(imageToTest_padded[:, :, :, np.newaxis]), (3, 2, 0, 1)
+                )
+                / 256
+                - 0.5
+            )
             im = np.ascontiguousarray(im)
 
             data = torch.from_numpy(im).float()
@@ -54,9 +62,15 @@ class Hand(object):
                 output = self.model(data).cpu().numpy()
 
             # extract outputs, resize, and remove padding
-            heatmap = np.transpose(np.squeeze(output), (1, 2, 0))  # output 1 is heatmaps
+            heatmap = np.transpose(
+                np.squeeze(output), (1, 2, 0)
+            )  # output 1 is heatmaps
             heatmap = util.smart_resize_k(heatmap, fx=stride, fy=stride)
-            heatmap = heatmap[: imageToTest_padded.shape[0] - pad[2], : imageToTest_padded.shape[1] - pad[3], :]
+            heatmap = heatmap[
+                : imageToTest_padded.shape[0] - pad[2],
+                : imageToTest_padded.shape[1] - pad[3],
+                :,
+            ]
             heatmap = util.smart_resize(heatmap, (wsize, wsize))
 
             heatmap_avg += heatmap / len(multiplier)
@@ -70,8 +84,18 @@ class Hand(object):
             if np.sum(binary) == 0:
                 all_peaks.append([0, 0])
                 continue
-            label_img, label_numbers = label(binary, return_num=True, connectivity=binary.ndim)
-            max_index = np.argmax([np.sum(map_ori[label_img == i]) for i in range(1, label_numbers + 1)]) + 1
+            label_img, label_numbers = label(
+                binary, return_num=True, connectivity=binary.ndim
+            )
+            max_index = (
+                np.argmax(
+                    [
+                        np.sum(map_ori[label_img == i])
+                        for i in range(1, label_numbers + 1)
+                    ]
+                )
+                + 1
+            )
             label_img[label_img != max_index] = 0
             map_ori[label_img == 0] = 0
 

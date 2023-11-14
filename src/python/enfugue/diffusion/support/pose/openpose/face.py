@@ -16,70 +16,174 @@ class FaceNet(Module):
         # cnn to make feature map
         self.relu = ReLU()
         self.max_pooling_2d = MaxPool2d(kernel_size=2, stride=2)
-        self.conv1_1 = Conv2d(in_channels=3, out_channels=64, kernel_size=3, stride=1, padding=1)
-        self.conv1_2 = Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding=1)
-        self.conv2_1 = Conv2d(in_channels=64, out_channels=128, kernel_size=3, stride=1, padding=1)
-        self.conv2_2 = Conv2d(in_channels=128, out_channels=128, kernel_size=3, stride=1, padding=1)
-        self.conv3_1 = Conv2d(in_channels=128, out_channels=256, kernel_size=3, stride=1, padding=1)
-        self.conv3_2 = Conv2d(in_channels=256, out_channels=256, kernel_size=3, stride=1, padding=1)
-        self.conv3_3 = Conv2d(in_channels=256, out_channels=256, kernel_size=3, stride=1, padding=1)
-        self.conv3_4 = Conv2d(in_channels=256, out_channels=256, kernel_size=3, stride=1, padding=1)
-        self.conv4_1 = Conv2d(in_channels=256, out_channels=512, kernel_size=3, stride=1, padding=1)
-        self.conv4_2 = Conv2d(in_channels=512, out_channels=512, kernel_size=3, stride=1, padding=1)
-        self.conv4_3 = Conv2d(in_channels=512, out_channels=512, kernel_size=3, stride=1, padding=1)
-        self.conv4_4 = Conv2d(in_channels=512, out_channels=512, kernel_size=3, stride=1, padding=1)
-        self.conv5_1 = Conv2d(in_channels=512, out_channels=512, kernel_size=3, stride=1, padding=1)
-        self.conv5_2 = Conv2d(in_channels=512, out_channels=512, kernel_size=3, stride=1, padding=1)
-        self.conv5_3_CPM = Conv2d(in_channels=512, out_channels=128, kernel_size=3, stride=1, padding=1)
+        self.conv1_1 = Conv2d(
+            in_channels=3, out_channels=64, kernel_size=3, stride=1, padding=1
+        )
+        self.conv1_2 = Conv2d(
+            in_channels=64, out_channels=64, kernel_size=3, stride=1, padding=1
+        )
+        self.conv2_1 = Conv2d(
+            in_channels=64, out_channels=128, kernel_size=3, stride=1, padding=1
+        )
+        self.conv2_2 = Conv2d(
+            in_channels=128, out_channels=128, kernel_size=3, stride=1, padding=1
+        )
+        self.conv3_1 = Conv2d(
+            in_channels=128, out_channels=256, kernel_size=3, stride=1, padding=1
+        )
+        self.conv3_2 = Conv2d(
+            in_channels=256, out_channels=256, kernel_size=3, stride=1, padding=1
+        )
+        self.conv3_3 = Conv2d(
+            in_channels=256, out_channels=256, kernel_size=3, stride=1, padding=1
+        )
+        self.conv3_4 = Conv2d(
+            in_channels=256, out_channels=256, kernel_size=3, stride=1, padding=1
+        )
+        self.conv4_1 = Conv2d(
+            in_channels=256, out_channels=512, kernel_size=3, stride=1, padding=1
+        )
+        self.conv4_2 = Conv2d(
+            in_channels=512, out_channels=512, kernel_size=3, stride=1, padding=1
+        )
+        self.conv4_3 = Conv2d(
+            in_channels=512, out_channels=512, kernel_size=3, stride=1, padding=1
+        )
+        self.conv4_4 = Conv2d(
+            in_channels=512, out_channels=512, kernel_size=3, stride=1, padding=1
+        )
+        self.conv5_1 = Conv2d(
+            in_channels=512, out_channels=512, kernel_size=3, stride=1, padding=1
+        )
+        self.conv5_2 = Conv2d(
+            in_channels=512, out_channels=512, kernel_size=3, stride=1, padding=1
+        )
+        self.conv5_3_CPM = Conv2d(
+            in_channels=512, out_channels=128, kernel_size=3, stride=1, padding=1
+        )
 
         # stage1
-        self.conv6_1_CPM = Conv2d(in_channels=128, out_channels=512, kernel_size=1, stride=1, padding=0)
-        self.conv6_2_CPM = Conv2d(in_channels=512, out_channels=71, kernel_size=1, stride=1, padding=0)
+        self.conv6_1_CPM = Conv2d(
+            in_channels=128, out_channels=512, kernel_size=1, stride=1, padding=0
+        )
+        self.conv6_2_CPM = Conv2d(
+            in_channels=512, out_channels=71, kernel_size=1, stride=1, padding=0
+        )
 
         # stage2
-        self.Mconv1_stage2 = Conv2d(in_channels=199, out_channels=128, kernel_size=7, stride=1, padding=3)
-        self.Mconv2_stage2 = Conv2d(in_channels=128, out_channels=128, kernel_size=7, stride=1, padding=3)
-        self.Mconv3_stage2 = Conv2d(in_channels=128, out_channels=128, kernel_size=7, stride=1, padding=3)
-        self.Mconv4_stage2 = Conv2d(in_channels=128, out_channels=128, kernel_size=7, stride=1, padding=3)
-        self.Mconv5_stage2 = Conv2d(in_channels=128, out_channels=128, kernel_size=7, stride=1, padding=3)
-        self.Mconv6_stage2 = Conv2d(in_channels=128, out_channels=128, kernel_size=1, stride=1, padding=0)
-        self.Mconv7_stage2 = Conv2d(in_channels=128, out_channels=71, kernel_size=1, stride=1, padding=0)
+        self.Mconv1_stage2 = Conv2d(
+            in_channels=199, out_channels=128, kernel_size=7, stride=1, padding=3
+        )
+        self.Mconv2_stage2 = Conv2d(
+            in_channels=128, out_channels=128, kernel_size=7, stride=1, padding=3
+        )
+        self.Mconv3_stage2 = Conv2d(
+            in_channels=128, out_channels=128, kernel_size=7, stride=1, padding=3
+        )
+        self.Mconv4_stage2 = Conv2d(
+            in_channels=128, out_channels=128, kernel_size=7, stride=1, padding=3
+        )
+        self.Mconv5_stage2 = Conv2d(
+            in_channels=128, out_channels=128, kernel_size=7, stride=1, padding=3
+        )
+        self.Mconv6_stage2 = Conv2d(
+            in_channels=128, out_channels=128, kernel_size=1, stride=1, padding=0
+        )
+        self.Mconv7_stage2 = Conv2d(
+            in_channels=128, out_channels=71, kernel_size=1, stride=1, padding=0
+        )
 
         # stage3
-        self.Mconv1_stage3 = Conv2d(in_channels=199, out_channels=128, kernel_size=7, stride=1, padding=3)
-        self.Mconv2_stage3 = Conv2d(in_channels=128, out_channels=128, kernel_size=7, stride=1, padding=3)
-        self.Mconv3_stage3 = Conv2d(in_channels=128, out_channels=128, kernel_size=7, stride=1, padding=3)
-        self.Mconv4_stage3 = Conv2d(in_channels=128, out_channels=128, kernel_size=7, stride=1, padding=3)
-        self.Mconv5_stage3 = Conv2d(in_channels=128, out_channels=128, kernel_size=7, stride=1, padding=3)
-        self.Mconv6_stage3 = Conv2d(in_channels=128, out_channels=128, kernel_size=1, stride=1, padding=0)
-        self.Mconv7_stage3 = Conv2d(in_channels=128, out_channels=71, kernel_size=1, stride=1, padding=0)
+        self.Mconv1_stage3 = Conv2d(
+            in_channels=199, out_channels=128, kernel_size=7, stride=1, padding=3
+        )
+        self.Mconv2_stage3 = Conv2d(
+            in_channels=128, out_channels=128, kernel_size=7, stride=1, padding=3
+        )
+        self.Mconv3_stage3 = Conv2d(
+            in_channels=128, out_channels=128, kernel_size=7, stride=1, padding=3
+        )
+        self.Mconv4_stage3 = Conv2d(
+            in_channels=128, out_channels=128, kernel_size=7, stride=1, padding=3
+        )
+        self.Mconv5_stage3 = Conv2d(
+            in_channels=128, out_channels=128, kernel_size=7, stride=1, padding=3
+        )
+        self.Mconv6_stage3 = Conv2d(
+            in_channels=128, out_channels=128, kernel_size=1, stride=1, padding=0
+        )
+        self.Mconv7_stage3 = Conv2d(
+            in_channels=128, out_channels=71, kernel_size=1, stride=1, padding=0
+        )
 
         # stage4
-        self.Mconv1_stage4 = Conv2d(in_channels=199, out_channels=128, kernel_size=7, stride=1, padding=3)
-        self.Mconv2_stage4 = Conv2d(in_channels=128, out_channels=128, kernel_size=7, stride=1, padding=3)
-        self.Mconv3_stage4 = Conv2d(in_channels=128, out_channels=128, kernel_size=7, stride=1, padding=3)
-        self.Mconv4_stage4 = Conv2d(in_channels=128, out_channels=128, kernel_size=7, stride=1, padding=3)
-        self.Mconv5_stage4 = Conv2d(in_channels=128, out_channels=128, kernel_size=7, stride=1, padding=3)
-        self.Mconv6_stage4 = Conv2d(in_channels=128, out_channels=128, kernel_size=1, stride=1, padding=0)
-        self.Mconv7_stage4 = Conv2d(in_channels=128, out_channels=71, kernel_size=1, stride=1, padding=0)
+        self.Mconv1_stage4 = Conv2d(
+            in_channels=199, out_channels=128, kernel_size=7, stride=1, padding=3
+        )
+        self.Mconv2_stage4 = Conv2d(
+            in_channels=128, out_channels=128, kernel_size=7, stride=1, padding=3
+        )
+        self.Mconv3_stage4 = Conv2d(
+            in_channels=128, out_channels=128, kernel_size=7, stride=1, padding=3
+        )
+        self.Mconv4_stage4 = Conv2d(
+            in_channels=128, out_channels=128, kernel_size=7, stride=1, padding=3
+        )
+        self.Mconv5_stage4 = Conv2d(
+            in_channels=128, out_channels=128, kernel_size=7, stride=1, padding=3
+        )
+        self.Mconv6_stage4 = Conv2d(
+            in_channels=128, out_channels=128, kernel_size=1, stride=1, padding=0
+        )
+        self.Mconv7_stage4 = Conv2d(
+            in_channels=128, out_channels=71, kernel_size=1, stride=1, padding=0
+        )
 
         # stage5
-        self.Mconv1_stage5 = Conv2d(in_channels=199, out_channels=128, kernel_size=7, stride=1, padding=3)
-        self.Mconv2_stage5 = Conv2d(in_channels=128, out_channels=128, kernel_size=7, stride=1, padding=3)
-        self.Mconv3_stage5 = Conv2d(in_channels=128, out_channels=128, kernel_size=7, stride=1, padding=3)
-        self.Mconv4_stage5 = Conv2d(in_channels=128, out_channels=128, kernel_size=7, stride=1, padding=3)
-        self.Mconv5_stage5 = Conv2d(in_channels=128, out_channels=128, kernel_size=7, stride=1, padding=3)
-        self.Mconv6_stage5 = Conv2d(in_channels=128, out_channels=128, kernel_size=1, stride=1, padding=0)
-        self.Mconv7_stage5 = Conv2d(in_channels=128, out_channels=71, kernel_size=1, stride=1, padding=0)
+        self.Mconv1_stage5 = Conv2d(
+            in_channels=199, out_channels=128, kernel_size=7, stride=1, padding=3
+        )
+        self.Mconv2_stage5 = Conv2d(
+            in_channels=128, out_channels=128, kernel_size=7, stride=1, padding=3
+        )
+        self.Mconv3_stage5 = Conv2d(
+            in_channels=128, out_channels=128, kernel_size=7, stride=1, padding=3
+        )
+        self.Mconv4_stage5 = Conv2d(
+            in_channels=128, out_channels=128, kernel_size=7, stride=1, padding=3
+        )
+        self.Mconv5_stage5 = Conv2d(
+            in_channels=128, out_channels=128, kernel_size=7, stride=1, padding=3
+        )
+        self.Mconv6_stage5 = Conv2d(
+            in_channels=128, out_channels=128, kernel_size=1, stride=1, padding=0
+        )
+        self.Mconv7_stage5 = Conv2d(
+            in_channels=128, out_channels=71, kernel_size=1, stride=1, padding=0
+        )
 
         # stage6
-        self.Mconv1_stage6 = Conv2d(in_channels=199, out_channels=128, kernel_size=7, stride=1, padding=3)
-        self.Mconv2_stage6 = Conv2d(in_channels=128, out_channels=128, kernel_size=7, stride=1, padding=3)
-        self.Mconv3_stage6 = Conv2d(in_channels=128, out_channels=128, kernel_size=7, stride=1, padding=3)
-        self.Mconv4_stage6 = Conv2d(in_channels=128, out_channels=128, kernel_size=7, stride=1, padding=3)
-        self.Mconv5_stage6 = Conv2d(in_channels=128, out_channels=128, kernel_size=7, stride=1, padding=3)
-        self.Mconv6_stage6 = Conv2d(in_channels=128, out_channels=128, kernel_size=1, stride=1, padding=0)
-        self.Mconv7_stage6 = Conv2d(in_channels=128, out_channels=71, kernel_size=1, stride=1, padding=0)
+        self.Mconv1_stage6 = Conv2d(
+            in_channels=199, out_channels=128, kernel_size=7, stride=1, padding=3
+        )
+        self.Mconv2_stage6 = Conv2d(
+            in_channels=128, out_channels=128, kernel_size=7, stride=1, padding=3
+        )
+        self.Mconv3_stage6 = Conv2d(
+            in_channels=128, out_channels=128, kernel_size=7, stride=1, padding=3
+        )
+        self.Mconv4_stage6 = Conv2d(
+            in_channels=128, out_channels=128, kernel_size=7, stride=1, padding=3
+        )
+        self.Mconv5_stage6 = Conv2d(
+            in_channels=128, out_channels=128, kernel_size=7, stride=1, padding=3
+        )
+        self.Mconv6_stage6 = Conv2d(
+            in_channels=128, out_channels=128, kernel_size=1, stride=1, padding=0
+        )
+        self.Mconv7_stage6 = Conv2d(
+            in_channels=128, out_channels=71, kernel_size=1, stride=1, padding=0
+        )
 
         for m in self.modules():
             if isinstance(m, Conv2d):
@@ -261,7 +365,13 @@ class Face(object):
 
     """
 
-    def __init__(self, face_model_path, inference_size=None, gaussian_sigma=None, heatmap_peak_thresh=None):
+    def __init__(
+        self,
+        face_model_path,
+        inference_size=None,
+        gaussian_sigma=None,
+        heatmap_peak_thresh=None,
+    ):
         self.inference_size = inference_size or params["inference_img_size"]
         self.sigma = gaussian_sigma or params["gaussian_sigma"]
         self.threshold = heatmap_peak_thresh or params["heatmap_peak_thresh"]
@@ -278,13 +388,23 @@ class Face(object):
         H, W, C = face_img.shape
 
         w_size = 384
-        x_data = torch.from_numpy(util.smart_resize(face_img, (w_size, w_size))).permute([2, 0, 1]) / 256.0 - 0.5
+        x_data = (
+            torch.from_numpy(util.smart_resize(face_img, (w_size, w_size))).permute(
+                [2, 0, 1]
+            )
+            / 256.0
+            - 0.5
+        )
 
         x_data = x_data.to(device)
 
         with torch.no_grad():
             hs = self.model(x_data[None, ...])
-            heatmaps = F.interpolate(hs[-1], (H, W), mode="bilinear", align_corners=True).cpu().numpy()[0]
+            heatmaps = (
+                F.interpolate(hs[-1], (H, W), mode="bilinear", align_corners=True)
+                .cpu()
+                .numpy()[0]
+            )
         return heatmaps
 
     def compute_peaks_from_heatmaps(self, heatmaps):

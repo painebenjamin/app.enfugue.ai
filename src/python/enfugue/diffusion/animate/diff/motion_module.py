@@ -8,6 +8,7 @@ from torch import nn
 from diffusers.utils import BaseOutput
 from diffusers.utils.import_utils import is_xformers_available
 from diffusers.models.attention import Attention, FeedForward
+from diffusers.models.lora import LoRACompatibleLinear
 
 from einops import rearrange, repeat
 import math
@@ -113,7 +114,7 @@ class TemporalTransformer3DModel(nn.Module):
         inner_dim = num_attention_heads * attention_head_dim
 
         self.norm = torch.nn.GroupNorm(num_groups=norm_num_groups, num_channels=in_channels, eps=1e-6, affine=True)
-        self.proj_in = nn.Linear(in_channels, inner_dim)
+        self.proj_in = LoRACompatibleLinear(in_channels, inner_dim)
 
         self.transformer_blocks = nn.ModuleList(
             [
@@ -136,7 +137,7 @@ class TemporalTransformer3DModel(nn.Module):
                 for d in range(num_layers)
             ]
         )
-        self.proj_out = nn.Linear(inner_dim, in_channels)
+        self.proj_out = LoRACompatibleLinear(inner_dim, in_channels)
 
     def set_attention_scale_multiplier(self, attention_scale: float = 1.0) -> None:
         for block in self.transformer_blocks:

@@ -1,12 +1,14 @@
 # type: ignore
 # Adapted from https://github.com/patrickvonplaten/controlnet_aux/blob/master/src/controlnet_aux/open_pose/util.py
 from __future__ import annotations
+
 import math
 import numpy as np
 import matplotlib
 import cv2
 
 eps = 0.01
+
 
 def smart_resize(x, s):
     Ht, Wt = s
@@ -17,7 +19,11 @@ def smart_resize(x, s):
         Ho, Wo, Co = x.shape
     if Co == 3 or Co == 1:
         k = float(Ht + Wt) / float(Ho + Wo)
-        return cv2.resize(x, (int(Wt), int(Ht)), interpolation=cv2.INTER_AREA if k < 1 else cv2.INTER_LANCZOS4)
+        return cv2.resize(
+            x,
+            (int(Wt), int(Ht)),
+            interpolation=cv2.INTER_AREA if k < 1 else cv2.INTER_LANCZOS4,
+        )
     else:
         return np.stack([smart_resize(x[:, :, i], s) for i in range(Co)], axis=2)
 
@@ -31,7 +37,11 @@ def smart_resize_k(x, fx, fy):
     Ht, Wt = Ho * fy, Wo * fx
     if Co == 3 or Co == 1:
         k = float(Ht + Wt) / float(Ho + Wo)
-        return cv2.resize(x, (int(Wt), int(Ht)), interpolation=cv2.INTER_AREA if k < 1 else cv2.INTER_LANCZOS4)
+        return cv2.resize(
+            x,
+            (int(Wt), int(Ht)),
+            interpolation=cv2.INTER_AREA if k < 1 else cv2.INTER_LANCZOS4,
+        )
     else:
         return np.stack([smart_resize_k(x[:, :, i], fx, fy) for i in range(Co)], axis=2)
 
@@ -62,7 +72,9 @@ def padRightDownCorner(img, stride, padValue):
 def transfer(model, model_weights):
     transfered_model_weights = {}
     for weights_name in model.state_dict().keys():
-        transfered_model_weights[weights_name] = model_weights[".".join(weights_name.split(".")[1:])]
+        transfered_model_weights[weights_name] = model_weights[
+            ".".join(weights_name.split(".")[1:])
+        ]
     return transfered_model_weights
 
 
@@ -137,7 +149,9 @@ def draw_bodypose(canvas: np.ndarray, keypoints: List[Keypoint]) -> np.ndarray:
         mY = np.mean(Y)
         length = ((X[0] - X[1]) ** 2 + (Y[0] - Y[1]) ** 2) ** 0.5
         angle = math.degrees(math.atan2(X[0] - X[1], Y[0] - Y[1]))
-        polygon = cv2.ellipse2Poly((int(mY), int(mX)), (int(length / 2), stickwidth), int(angle), 0, 360, 1)
+        polygon = cv2.ellipse2Poly(
+            (int(mY), int(mX)), (int(length / 2), stickwidth), int(angle), 0, 360, 1
+        )
         cv2.fillConvexPoly(canvas, polygon, [int(float(c) * 0.6) for c in color])
 
     for keypoint, color in zip(keypoints, colors):
@@ -152,7 +166,11 @@ def draw_bodypose(canvas: np.ndarray, keypoints: List[Keypoint]) -> np.ndarray:
     return canvas
 
 
-def draw_handpose(canvas: np.ndarray, keypoints: Union[List[Keypoint], None]) -> np.ndarray:
+def draw_handpose(
+    canvas: np.ndarray,
+    keypoints: Union[List[Keypoint], None],
+    draw_type: Literal["pose", "mask"] = "pose",
+) -> np.ndarray:
     """
     Draw keypoints and connections representing hand pose on a given canvas.
 
@@ -172,58 +190,77 @@ def draw_handpose(canvas: np.ndarray, keypoints: Union[List[Keypoint], None]) ->
 
     H, W, C = canvas.shape
 
-    edges = [
-        [0, 1],
-        [1, 2],
-        [2, 3],
-        [3, 4],
-        [0, 5],
-        [5, 6],
-        [6, 7],
-        [7, 8],
-        [0, 9],
-        [9, 10],
-        [10, 11],
-        [11, 12],
-        [0, 13],
-        [13, 14],
-        [14, 15],
-        [15, 16],
-        [0, 17],
-        [17, 18],
-        [18, 19],
-        [19, 20],
-    ]
+    if draw_type == "pose":
+        edges = [
+            [0, 1],
+            [1, 2],
+            [2, 3],
+            [3, 4],
+            [0, 5],
+            [5, 6],
+            [6, 7],
+            [7, 8],
+            [0, 9],
+            [9, 10],
+            [10, 11],
+            [11, 12],
+            [0, 13],
+            [13, 14],
+            [14, 15],
+            [15, 16],
+            [0, 17],
+            [17, 18],
+            [18, 19],
+            [19, 20],
+        ]
 
-    for ie, (e1, e2) in enumerate(edges):
-        k1 = keypoints[e1]
-        k2 = keypoints[e2]
-        if k1 is None or k2 is None:
-            continue
+        for ie, (e1, e2) in enumerate(edges):
+            k1 = keypoints[e1]
+            k2 = keypoints[e2]
+            if k1 is None or k2 is None:
+                continue
 
-        x1 = int(k1.x * W)
-        y1 = int(k1.y * H)
-        x2 = int(k2.x * W)
-        y2 = int(k2.y * H)
-        if x1 > eps and y1 > eps and x2 > eps and y2 > eps:
-            cv2.line(
-                canvas,
-                (x1, y1),
-                (x2, y2),
-                matplotlib.colors.hsv_to_rgb([ie / float(len(edges)), 1.0, 1.0]) * 255,
-                thickness=2,
-            )
+            x1 = int(k1.x * W)
+            y1 = int(k1.y * H)
+            x2 = int(k2.x * W)
+            y2 = int(k2.y * H)
+            if x1 > eps and y1 > eps and x2 > eps and y2 > eps:
+                cv2.line(
+                    canvas,
+                    (x1, y1),
+                    (x2, y2),
+                    matplotlib.colors.hsv_to_rgb([ie / float(len(edges)), 1.0, 1.0]) * 255,
+                    thickness=2,
+                )
 
-    for keypoint in keypoints:
-        x, y = keypoint.x, keypoint.y
-        x = int(x * W)
-        y = int(y * H)
-        if x > eps and y > eps:
-            cv2.circle(canvas, (x, y), 4, (0, 0, 255), thickness=-1)
+        for keypoint in keypoints:
+            x, y = keypoint.x, keypoint.y
+            x = int(x * W)
+            y = int(y * H)
+            if x > eps and y > eps:
+                cv2.circle(canvas, (x, y), 4, (0, 0, 255), thickness=-1)
+
+    elif draw_type == "mask":
+        scaled_keypoints = [
+            [int(keypoint.x * W), int(keypoint.y * H)]
+            for keypoint in keypoints
+        ]
+        scaled_keypoints = [
+            [x, y]
+            for [x, y] in scaled_keypoints
+            if x > eps and y > eps
+        ]
+        if scaled_keypoints:
+            cv2.fillPoly(canvas, pts=[cv2.convexHull(np.array(scaled_keypoints))], color=(255,255,255))
+
     return canvas
 
 
-def draw_facepose(canvas: np.ndarray, keypoints: Union[List[Keypoint], None]) -> np.ndarray:
+def draw_facepose(
+    canvas: np.ndarray,
+    keypoints: Union[List[Keypoint], None],
+    draw_type: Literal["pose", "mask"] = "pose",
+) -> np.ndarray:
     """
     Draw keypoints representing face pose on a given canvas.
 
@@ -242,12 +279,24 @@ def draw_facepose(canvas: np.ndarray, keypoints: Union[List[Keypoint], None]) ->
         return canvas
 
     H, W, C = canvas.shape
-    for keypoint in keypoints:
-        x, y = keypoint.x, keypoint.y
-        x = int(x * W)
-        y = int(y * H)
-        if x > eps and y > eps:
-            cv2.circle(canvas, (x, y), 3, (255, 255, 255), thickness=-1)
+
+    scaled_keypoints = [
+        [int(keypoint.x * W), int(keypoint.y * H)]
+        for keypoint in keypoints
+    ]
+    scaled_keypoints = [
+        [x, y]
+        for [x, y] in scaled_keypoints
+        if x > eps and y > eps
+    ]
+    if draw_type == "pose":
+        for x, y in scaled_keypoints:
+            cv2.circle(canvas, (x, y), 3, (255,255,255), thickness=-1)
+    elif draw_type == "mask":
+        if scaled_keypoints:
+            cv2.fillPoly(canvas, pts=[cv2.convexHull(np.array(scaled_keypoints))], color=(255,255,255))
+    else:
+        raise ValueError(f"Bad draw type {draw_type}")
     return canvas
 
 
@@ -286,19 +335,41 @@ def handDetect(body: BodyResult, oriImg) -> List[Tuple[int, int, int, bool]]:
     right_wrist = keypoints[4]
 
     # if any of three not detected
-    has_left = all(keypoint is not None for keypoint in (left_shoulder, left_elbow, left_wrist))
-    has_right = all(keypoint is not None for keypoint in (right_shoulder, right_elbow, right_wrist))
+    has_left = all(
+        keypoint is not None for keypoint in (left_shoulder, left_elbow, left_wrist)
+    )
+    has_right = all(
+        keypoint is not None for keypoint in (right_shoulder, right_elbow, right_wrist)
+    )
     if not (has_left or has_right):
         return []
 
     hands = []
     # left hand
     if has_left:
-        hands.append([left_shoulder.x, left_shoulder.y, left_elbow.x, left_elbow.y, left_wrist.x, left_wrist.y, True])
+        hands.append(
+            [
+                left_shoulder.x,
+                left_shoulder.y,
+                left_elbow.x,
+                left_elbow.y,
+                left_wrist.x,
+                left_wrist.y,
+                True,
+            ]
+        )
     # right hand
     if has_right:
         hands.append(
-            [right_shoulder.x, right_shoulder.y, right_elbow.x, right_elbow.y, right_wrist.x, right_wrist.y, False]
+            [
+                right_shoulder.x,
+                right_shoulder.y,
+                right_elbow.x,
+                right_elbow.y,
+                right_wrist.x,
+                right_wrist.y,
+                False,
+            ]
         )
 
     for x1, y1, x2, y2, x3, y3, is_left in hands:
@@ -370,7 +441,9 @@ def faceDetect(body: BodyResult, oriImg) -> Union[Tuple[int, int, int], None]:
     left_ear = keypoints[16]
     right_ear = keypoints[17]
 
-    if head is None or all(keypoint is None for keypoint in (left_eye, right_eye, left_ear, right_ear)):
+    if head is None or all(
+        keypoint is None for keypoint in (left_eye, right_eye, left_ear, right_ear)
+    ):
         return None
 
     width = 0.0

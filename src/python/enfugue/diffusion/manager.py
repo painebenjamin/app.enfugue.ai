@@ -2691,6 +2691,8 @@ class DiffusionPipelineManager:
 
         if getattr(self, "_lora", []) != lora:
             self.unload_pipeline("LoRA changing")
+            self.unload_inpainter("LoRA changing")
+            self.unload_animator("LoRA changing")
             self._lora = lora
 
     @property
@@ -2743,6 +2745,8 @@ class DiffusionPipelineManager:
 
         if getattr(self, "_lycoris", []) != lycoris:
             self.unload_pipeline("LyCORIS changing")
+            self.unload_inpainter("LyCORIS changing")
+            self.unload_animator("LyCORIS changing")
             self._lycoris = lycoris
 
     @property
@@ -2782,6 +2786,8 @@ class DiffusionPipelineManager:
             new_inversion[i] = model
         if getattr(self, "_inversion", []) != new_inversion:
             self.unload_pipeline("Textual Inversions changing")
+            self.unload_inpainter("Textual Inversions changing")
+            self.unload_animator("Textual Inversions changing")
             self._inversion = new_inversion
 
     @property

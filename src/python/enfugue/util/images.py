@@ -14,7 +14,6 @@ from pibble.util.strings import get_uuid
 
 __all__ = [
     "fit_image",
-    "feather_mask",
     "tile_image",
     "image_from_uri",
     "images_are_equal",
@@ -25,6 +24,7 @@ __all__ = [
     "scale_image",
     "get_image_metadata",
     "redact_images_from_metadata",
+    "dilate_erode",
     "IMAGE_FIT_LITERAL",
     "IMAGE_ANCHOR_LITERAL",
 ]
@@ -194,39 +194,34 @@ def fit_image(
     else:
         raise ValueError(f"Unknown fit {fit}")
 
-def feather_mask(
-    image: Union[Image, List[Image]]
+def dilate_erode(
+    image: Union[Image, List[Image]],
+    value: int
 ) -> Union[Image, List[Image]]:
     """
-    Given an image, create a feathered binarized mask by 'growing' the black/white pixel sections.
+    Given an image, dilate or erode it.
+    Values of >0 dilate, <0 erode. 0 Does nothing.
+    :see: http://docs.opencv.org/3.4/db/df6/tutorial_erosion_dilatation.html
     """
-    if not isinstance(image, list):
-        if getattr(image, "n_frames", 1) > 1:
-            frames = []
-            for i in range(image.n_frames):
-                image.seek(i)
-                frames.append(image.copy().convert("RGBA"))
-            image = frames
+    if value == 0:
+        return image
     if isinstance(image, list):
         return [
-            feather_mask(img)
+            dilate_erode(img, value)
             for img in image
         ]
 
-    width, height = image.size
+    from PIL import Image
+    import cv2
+    import numpy as np
+    from pibble.util.log import logger
 
-    mask = image.convert("L")
-    feathered = mask.copy()
-
-    for x in range(width):
-        for y in range(height):
-            if mask.getpixel((x, y)) == (0):
-                for dx, dy in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
-                    nx, ny = x + dx, y + dy
-                    if 0 <= nx < width and 0 <= ny < height and mask.getpixel((nx, ny)) == 255:
-                        feathered.putpixel((x, y), (255))
-                        break
-    return feathered
+    arr = np.array(image.convert("L"))
+    transform = cv2.dilate if value > 0 else cv2.erode
+    value = abs(value)
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (value, value))
+    arr = transform(arr, kernel, iterations=1)
+    return Image.fromarray(arr)
 
 def tile_image(image: Image, tiles: Union[int, Tuple[int, int]]) -> Image:
     """

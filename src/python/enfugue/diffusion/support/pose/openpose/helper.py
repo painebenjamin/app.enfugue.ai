@@ -39,7 +39,15 @@ class PoseResult(NamedTuple):
     face: Union[FaceResult, None]
 
 
-def draw_poses(poses: List[PoseResult], H, W, draw_body=True, draw_hand=True, draw_face=True):
+def draw_poses(
+    poses: List[PoseResult],
+    H,
+    W,
+    draw_body=True,
+    draw_hand=True,
+    draw_face=True,
+    draw_type="pose"
+):
     """
     Draw the detected poses on an empty canvas.
 
@@ -61,11 +69,11 @@ def draw_poses(poses: List[PoseResult], H, W, draw_body=True, draw_hand=True, dr
             canvas = util.draw_bodypose(canvas, pose.body.keypoints)
 
         if draw_hand:
-            canvas = util.draw_handpose(canvas, pose.left_hand)
-            canvas = util.draw_handpose(canvas, pose.right_hand)
+            canvas = util.draw_handpose(canvas, pose.left_hand, draw_type=draw_type)
+            canvas = util.draw_handpose(canvas, pose.right_hand, draw_type=draw_type)
 
         if draw_face:
-            canvas = util.draw_facepose(canvas, pose.face)
+            canvas = util.draw_facepose(canvas, pose.face, draw_type=draw_type)
 
     return canvas
 
@@ -101,15 +109,23 @@ class OpenposeDetector:
         self.face_estimation.to(device)
         return self
 
-    def detect_hands(self, body: BodyResult, oriImg) -> Tuple[Union[HandResult, None], Union[HandResult, None]]:
+    def detect_hands(
+        self, body: BodyResult, oriImg
+    ) -> Tuple[Union[HandResult, None], Union[HandResult, None]]:
         left_hand = None
         right_hand = None
         H, W, _ = oriImg.shape
         for x, y, w, is_left in util.handDetect(body, oriImg):
-            peaks = self.hand_estimation(oriImg[y : y + w, x : x + w, :]).astype(np.float32)
+            peaks = self.hand_estimation(oriImg[y : y + w, x : x + w, :]).astype(
+                np.float32
+            )
             if peaks.ndim == 2 and peaks.shape[1] == 2:
-                peaks[:, 0] = np.where(peaks[:, 0] < 1e-6, -1, peaks[:, 0] + x) / float(W)
-                peaks[:, 1] = np.where(peaks[:, 1] < 1e-6, -1, peaks[:, 1] + y) / float(H)
+                peaks[:, 0] = np.where(peaks[:, 0] < 1e-6, -1, peaks[:, 0] + x) / float(
+                    W
+                )
+                peaks[:, 1] = np.where(peaks[:, 1] < 1e-6, -1, peaks[:, 1] + y) / float(
+                    H
+                )
 
                 hand_result = [Keypoint(x=peak[0], y=peak[1]) for peak in peaks]
 
@@ -128,7 +144,9 @@ class OpenposeDetector:
         x, y, w = face
         H, W, _ = oriImg.shape
         heatmaps = self.face_estimation(oriImg[y : y + w, x : x + w, :])
-        peaks = self.face_estimation.compute_peaks_from_heatmaps(heatmaps).astype(np.float32)
+        peaks = self.face_estimation.compute_peaks_from_heatmaps(heatmaps).astype(
+            np.float32
+        )
         if peaks.ndim == 2 and peaks.shape[1] == 2:
             peaks[:, 0] = np.where(peaks[:, 0] < 1e-6, -1, peaks[:, 0] + x) / float(W)
             peaks[:, 1] = np.where(peaks[:, 1] < 1e-6, -1, peaks[:, 1] + y) / float(H)
@@ -136,7 +154,9 @@ class OpenposeDetector:
 
         return None
 
-    def detect_poses(self, oriImg, include_hand=False, include_face=False) -> List[PoseResult]:
+    def detect_poses(
+        self, oriImg, include_hand=False, include_face=False
+    ) -> List[PoseResult]:
         """
         Detect poses in the given image.
             Args:
@@ -165,7 +185,9 @@ class OpenposeDetector:
                     PoseResult(
                         BodyResult(
                             keypoints=[
-                                Keypoint(x=keypoint.x / float(W), y=keypoint.y / float(H))
+                                Keypoint(
+                                    x=keypoint.x / float(W), y=keypoint.y / float(H)
+                                )
                                 if keypoint is not None
                                 else None
                                 for keypoint in body.keypoints
@@ -190,24 +212,9 @@ class OpenposeDetector:
         include_hand=False,
         include_face=False,
         hand_and_face=None,
-        output_type="pil",
+        draw_type="pose",
         **kwargs
     ):
-        if hand_and_face is not None:
-            warnings.warn("hand_and_face is deprecated. Use include_hand and include_face instead.", DeprecationWarning)
-            include_hand = hand_and_face
-            include_face = hand_and_face
-
-        if "return_pil" in kwargs:
-            warnings.warn("return_pil is deprecated. Use output_type instead.", DeprecationWarning)
-            output_type = "pil" if kwargs["return_pil"] else "np"
-        if type(output_type) is bool:
-            warnings.warn(
-                "Passing `True` or `False` to `output_type` is deprecated and will raise an error in future versions"
-            )
-            if output_type:
-                output_type = "pil"
-
         if not isinstance(input_image, np.ndarray):
             input_image = np.array(input_image, dtype=np.uint8)
 
@@ -216,7 +223,16 @@ class OpenposeDetector:
         H, W, C = input_image.shape
 
         poses = self.detect_poses(input_image, include_hand, include_face)
-        canvas = draw_poses(poses, H, W, draw_body=include_body, draw_hand=include_hand, draw_face=include_face)
+
+        canvas = draw_poses(
+            poses,
+            H,
+            W,
+            draw_body=include_body,
+            draw_hand=include_hand,
+            draw_face=include_face,
+            draw_type=draw_type,
+        )
 
         detected_map = canvas
         detected_map = HWC3(detected_map)
@@ -225,8 +241,6 @@ class OpenposeDetector:
         H, W, C = img.shape
 
         detected_map = cv2.resize(detected_map, (W, H), interpolation=cv2.INTER_LINEAR)
-
-        if output_type == "pil":
-            detected_map = Image.fromarray(detected_map)
+        detected_map = Image.fromarray(detected_map)
 
         return detected_map
