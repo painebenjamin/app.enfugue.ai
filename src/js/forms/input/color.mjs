@@ -4,6 +4,7 @@ import { ElementBuilder } from "../../base/builder.mjs";
 import { InputView } from "./base.mjs";
 import { StringInputView } from "./string.mjs";
 import {
+    strip,
     isEmpty,
     hslToHex,
     hslToRgb,
@@ -252,7 +253,10 @@ class ColorInputHelperView extends View {
         lightnessInputContainer.css("background-image", this.lightnessBackground);
 
         preview
-            .css("background-color", this.hex)
+            .css({
+                "background-color": this.hex,
+                "padding": "5px"
+            })
             .content(
                 E.div().css("color", "white").content("Preview"),
                 E.div().css("color", "black").content("Preview")

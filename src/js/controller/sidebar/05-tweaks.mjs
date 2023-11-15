@@ -34,8 +34,8 @@ class TweaksController extends Controller {
                 "scheduler": null,
                 "clipSkip": 0,
                 "enableFreeU": false,
-                "freeUBackbone1": 1.2,
-                "freeUBackbone2": 1.4,
+                "freeUBackbone1": 1.5,
+                "freeUBackbone2": 1.6,
                 "freeUSkip1": 0.9,
                 "freeUSkip2": 0.2,
                 "noiseOffset": 0.0,
@@ -80,8 +80,8 @@ class TweaksController extends Controller {
                 if (!isEmpty(defaultConfig.guidance_scale)) {
                     tweaksConfig.guidanceScale = defaultConfig.guidance_scale;
                 }
-                if (!isEmpty(defaultConfig.inference_steps)) {
-                    tweaksConfig.inferenceSteps = defaultConfig.inference_steps;
+                if (!isEmpty(defaultConfig.num_inference_steps)) {
+                    tweaksConfig.inferenceSteps = defaultConfig.num_inference_steps;
                 }
                 if (!isEmpty(defaultConfig.clip_skip)) {
                     tweaksConfig.clipSkip = defaultConfig.clip_skip;
@@ -89,10 +89,14 @@ class TweaksController extends Controller {
                 if (!isEmpty(defaultConfig.noise_offset)) {
                     tweaksConfig.noiseOffset = defaultConfig.noise_offset;
                 }
-                if (!isEmpty(defaultConfig.noise_method)) {
+                if (isEmpty(defaultConfig.noise_method)) {
+                    tweaksConfig.noiseMethod = this.tweaksForm.values.noiseMethod;
+                } else {
                     tweaksConfig.noiseMethod = defaultConfig.noise_method;
                 }
-                if (!isEmpty(defaultConfig.noise_blend_method)) {
+                if (isEmpty(defaultConfig.noise_blend_method)) {
+                    tweaksConfig.noiseBlendMethod = this.tweaksForm.values.noiseBlendMethod;
+                } else {
                     tweaksConfig.noiseBlendMethod = defaultConfig.noise_blend_method;
                 }
                 if (!isEmpty(defaultConfig.freeu_factors)) {
@@ -101,8 +105,12 @@ class TweaksController extends Controller {
                     tweaksConfig.freeUBackbone2 = defaultConfig.freeu_factors[1];
                     tweaksConfig.freeUSkip1 = defaultConfig.freeu_factors[2];
                     tweaksConfig.freeUSkip2 = defaultConfig.freeu_factors[3];
+                } else {
+                    tweaksConfig.enableFreeU = false;
                 }
-                if (!isEmpty(newModel.scheduler)) {
+                if (isEmpty(newModel.scheduler)) {
+                    tweaksConfig.scheduler = this.tweaksForm.values.scheduler;
+                } else {
                     tweaksConfig.scheduler = newModel.scheduler[0].name;
                 }
 

@@ -46,10 +46,7 @@ class ModelManagerController extends Controller {
      */
     static managerWindowHeight = 600;
 
-    /**
-     * Creates a window to edit a configuration
-     */
-    async showEditModel(model) {
+    getPayloadFromModel(model, usePromptArrays = true) {
         let modelValues = model.getAttributes();
 
         modelValues.checkpoint = modelValues.model;
@@ -75,11 +72,11 @@ class ModelManagerController extends Controller {
 
             modelValues = {...modelValues, ...defaultConfig};
 
-            if (!isEmpty(defaultConfig.prompt_2)) {
+            if (!isEmpty(defaultConfig.prompt_2) && usePromptArrays) {
                 modelValues.prompt = [modelValues.prompt, defaultConfig.prompt_2];
             }
-            if (!isEmpty(defaultConfig.negative_prompt_2)) {
-                modelValues.negative_prompt = [defaultConfig.negative_prompt, defaultConfig.negative_prompt_2];
+            if (!isEmpty(defaultConfig.negative_prompt_2) && usePromptArrays) {
+                modelValues.negative_prompt = [modelValues.negative_prompt, defaultConfig.negative_prompt_2];
             }
         }
 
@@ -87,9 +84,17 @@ class ModelManagerController extends Controller {
             modelValues.scheduler = model.scheduler[0].name;
         }
 
-        let modelForm = new ModelFormView(this.config, deepClone(modelValues)),
+        return deepClone(modelValues);
+    }
+
+    /**
+     * Creates a window to edit a configuration
+     */
+    async showEditModel(model) {
+        let modelValues = this.getPayloadFromModel(model),
+            modelForm = new ModelFormView(this.config, modelValues),
             modelWindow;
-        
+
         modelForm.onChange(async (updatedValues) => {
             if (!isEmpty(modelForm.values.refiner)) {
                 modelForm.addClass("show-refiner");
@@ -107,10 +112,14 @@ class ModelManagerController extends Controller {
             if (Array.isArray(updatedValues.prompt)) {
                 updatedValues.prompt_2 = updatedValues.prompt[1];
                 updatedValues.prompt = updatedValues.prompt[0];
+            } else {
+                updatedValues.prompt_2 = null;
             }
             if (Array.isArray(updatedValues.negative_prompt)) {
                 updatedValues.negative_prompt_2 = updatedValues.negative_prompt[1];
                 updatedValues.negative_prompt = updatedValues.negative_prompt[0];
+            } else {
+                updatedValues.negative_prompt_2 = null;
             }
 
             try {
@@ -160,10 +169,28 @@ class ModelManagerController extends Controller {
         
         // Add the 'Edit' button
         this.tableView.addButton("Edit", "fa-solid fa-edit", (row) => this.showEditModel(row));
+        
+        // Add the 'Copy' button
+        this.tableView.addButton("Copy", "fa-solid fa-copy", async (row) => {
+            try {
+                let payload = this.getPayloadFromModel(row, false);
+                payload.name = `${payload.name} (Copy)`;
+                let response = await this.model.post("/models", null, null, payload);
+                await this.tableView.requery();
+            } catch(e) {
+                let errorMessage = isEmpty(e)
+                    ? "Couldn't communicate with server."
+                    : isEmpty(e.detail)
+                        ? `${e}`
+                        : e.detail;
+
+                this.notify("error", "Couldn't delete model", errorMessage);
+            }
+        });
 
         // Add the 'Delete' button
         this.tableView.addButton("Delete", "fa-solid fa-trash", async (row) => {
-            try{
+            try {
                 await this.model.delete(`/models/${row.name}`);
                 this.tableView.requery();
             } catch(e) {
@@ -174,7 +201,6 @@ class ModelManagerController extends Controller {
                         : e.detail;
 
                 this.notify("error", "Couldn't delete model", errorMessage);
-                modelForm.enable();
             }
         });
 

@@ -553,7 +553,7 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         if refiner:
             self.database.add(
                 self.orm.DiffusionModelRefiner(
-                    diffusion_model_name=model_name, model=refiner, size=request.parsed.get("refiner_size", None)
+                    diffusion_model_name=model.name, model=refiner, size=request.parsed.get("refiner_size", None)
                 )
             )
 
@@ -561,7 +561,7 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         if inpainter:
             self.database.add(
                 self.orm.DiffusionModelInpainter(
-                    diffusion_model_name=model_name, model=inpainter, size=request.parsed.get("inpainter_size", None)
+                    diffusion_model_name=model.name, model=inpainter, size=request.parsed.get("inpainter_size", None)
                 )
             )
 
@@ -569,7 +569,7 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         if scheduler:
             self.database.add(
                 self.orm.DiffusionModelScheduler(
-                    diffusion_model_name=model_name,
+                    diffusion_model_name=model.name,
                     name=scheduler,
                 )
             )
@@ -578,7 +578,7 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         if vae:
             self.database.add(
                 self.orm.DiffusionModelVAE(
-                    diffusion_model_name=model_name,
+                    diffusion_model_name=model.name,
                     name=vae,
                 )
             )
@@ -587,7 +587,7 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         if refiner_vae:
             self.database.add(
                 self.orm.DiffusionModelRefinerVAE(
-                    diffusion_model_name=model_name,
+                    diffusion_model_name=model.name,
                     name=refiner_vae,
                 )
             )
@@ -596,7 +596,7 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         if inpainter_vae:
             self.database.add(
                 self.orm.DiffusionModelInpainterVAE(
-                    diffusion_model_name=model_name,
+                    diffusion_model_name=model.name,
                     name=inpainter_vae,
                 )
             )
@@ -605,7 +605,7 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         if motion_module:
             self.database.add(
                 self.orm.DiffusionModelMotionModule(
-                    diffusion_model_name=model_name,
+                    diffusion_model_name=model.name,
                     name=motion_module,
                 )
             )

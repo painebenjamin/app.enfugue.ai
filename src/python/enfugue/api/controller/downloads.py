@@ -37,14 +37,20 @@ class EnfugueAPIDownloadsController(EnfugueAPIControllerBase):
         try:
             download_type = str(request.parsed["type"])
             target_dir = self.get_configured_directory(download_type)
-            target_file = os.path.join(target_dir, request.parsed["filename"])
-
+            file_name = request.parsed.get("filename", None)
+            if not file_name:
+                file_name = os.path.basename(request.parsed["url"])
+            target_file = os.path.join(target_dir, file_name)
             if os.path.exists(target_file) and not request.parsed.get("overwrite", False):
-                raise StateConflictError(f"File exists: {request.parsed['filename']}")
+                raise StateConflictError(f"File exists: {file_name}")
 
             check_make_directory(target_dir)
 
-            return self.manager.download(request.token.user.id, request.parsed["url"], target_file).format()
+            return self.manager.download(
+                request.token.user.id,
+                request.parsed["url"],
+                target_file
+            ).format()
         except KeyError as ex:
             raise BadRequestError(f"Missing required argument {ex}")
     

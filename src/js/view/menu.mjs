@@ -54,6 +54,13 @@ class MenuView extends ParentView {
     }
 
     /**
+     * Gets a category by name
+     */
+    getCategory(name) {
+        return this.children.filter((child) => child instanceof MenuCategoryView && child.name === name).shift();
+    }
+
+    /**
      * Returns true if there is an active category
      */
     get isActive() {

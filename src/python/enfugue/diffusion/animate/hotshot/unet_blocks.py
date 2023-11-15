@@ -24,6 +24,8 @@ from enfugue.diffusion.animate.hotshot.transformer_3d import Transformer3DModel
 from enfugue.diffusion.animate.hotshot.resnet import Downsample3D, ResnetBlock3D, Upsample3D
 from enfugue.diffusion.animate.hotshot.transformer_temporal import TransformerTemporal
 
+from enfugue.diffusion.util.torch_util.inference_util import apply_freeu
+
 
 def get_down_block(
         down_block_type,
@@ -644,8 +646,7 @@ class CrossAttnUpBlock3D(nn.Module):
             and getattr(self, "b1", None)
             and getattr(self, "b2", None)
         )
-        for resnet, attn, temporal_attention \
-                in zip(self.resnets, self.attentions, self.temporal_attentions):
+        for resnet, attn, temporal_attention in zip(self.resnets, self.attentions, self.temporal_attentions):
             # pop res hidden states
             res_hidden_states = res_hidden_states_tuple[-1]
             res_hidden_states_tuple = res_hidden_states_tuple[:-1]

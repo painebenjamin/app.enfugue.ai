@@ -180,7 +180,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
     def __init__(
         self,
-        vae: Unioin[AutoencoderKL, ConsistencyDecoderVAE],
+        vae: Union[AutoencoderKL, ConsistencyDecoderVAE],
         vae_preview: AutoencoderTiny,
         text_encoder: Optional[CLIPTextModel],
         text_encoder_2: Optional[CLIPTextModelWithProjection],
@@ -1065,6 +1065,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
         # get unconditional embeddings for classifier free guidance
         zero_out_negative_prompt = negative_prompt is None and self.config.force_zeros_for_empty_prompt # type: ignore[attr-defined]
+        negative_pooled_prompt_embeds: Optional[torch.Tensor] = None
         if self.is_sdxl and do_classifier_free_guidance and negative_prompt_embeds is None and zero_out_negative_prompt:
             negative_prompt_embeds = torch.zeros_like(prompt_embeds)  # type: ignore
             negative_pooled_prompt_embeds = torch.zeros_like(pooled_prompt_embeds)
@@ -1127,12 +1128,10 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             pooled_prompt_embeds = pooled_prompt_embeds.repeat(1, num_results_per_prompt).view(
                 bs_embed * num_results_per_prompt, -1
             )
-            if do_classifier_free_guidance:
+            if do_classifier_free_guidance and negative_pooled_prompt_embeds is not None:
                 negative_pooled_prompt_embeds = negative_pooled_prompt_embeds.repeat(1, num_results_per_prompt).view(
                     bs_embed * num_results_per_prompt, -1
                 )
-            else:
-                negative_pooled_prompt_embeds = None
             return prompt_embeds, negative_prompt_embeds, pooled_prompt_embeds, negative_pooled_prompt_embeds  # type: ignore
         return prompt_embeds  # type: ignore
 
@@ -1315,12 +1314,13 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 multiplier=multiplier,
                 dtype=dtype
             )
-        return super(EnfugueStableDiffusionPipeline, self).load_lora_weights(
+        return super(EnfugueStableDiffusionPipeline, self).load_lora_weights( # type: ignore[misc]
             state_dict,
             multiplier=multiplier,
             dtype=dtype
         )
-        updates: Mapping[str, Any] = defaultdict(dict)
+        # TODO: See if the below can be removed
+        updates: Mapping[str, Any] = defaultdict(dict) # type: ignore[unreachable]
         for key, value in state_dict.items():
             # it is suggested to print out the key, it usually will be something like below
             # "lora_te_text_model_encoder_layers_0_self_attn_k_proj.lora_down.weight"
@@ -3823,7 +3823,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 # Set guidance scale embedding (LCM)
                 timestep_cond: Optional[torch.Tensor] = None
                 if "time_cond_proj_dim" in self.unet.config and self.unet.config.time_cond_proj_dim is not None: # type: ignore[attr-defined]
-                    guidance_scale_tensor = torch.tensor(guidance_scale - 1).repeat(batch_size * num_images_per_prompt)
+                    guidance_scale_tensor = torch.tensor(guidance_scale - 1).repeat(batch_size)
                     timestep_cond = self.get_guidance_scale_embedding(
                         guidance_scale_tensor,
                         embedding_dim=self.unet.config.time_cond_proj_dim,

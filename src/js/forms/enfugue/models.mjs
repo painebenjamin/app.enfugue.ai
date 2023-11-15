@@ -20,6 +20,7 @@ import {
     FloatInputView,
     MaskTypeInputView,
     MotionModuleInputView,
+    ModelTypeInputView,
 } from "../input.mjs";
 
 /**
@@ -382,8 +383,43 @@ class MergeModelsFormView extends FormView {
     };
 };
 
+/**
+ * Allows downloading an arbitrary URL to a model directory
+ */
+class DownloadModelsFormView extends FormView {
+    /**
+     * @var object Model type and URL inputs
+     */
+    static fieldSets = {
+        "Remote": {
+            "url": {
+                "class": StringInputView,
+                "label": "URL",
+                "config": {
+                    "required": true,
+                    "pattern": "^http.*$",
+                }
+            }
+        },
+        "Local": {
+            "type": {
+                "class": ModelTypeInputView,
+                "label": "Model Type"
+            },
+            "filename": {
+                "class": StringInputView,
+                "label": "Filename (optional)",
+                "config": {
+                    "tooltip": "Defaults to the same name as the remote resource."
+                }
+            }
+        }
+    };
+};
+
 export { 
     ModelFormView,
     AbridgedModelFormView,
-    MergeModelsFormView
+    MergeModelsFormView,
+    DownloadModelsFormView
 };

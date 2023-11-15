@@ -172,7 +172,7 @@ class UpscaleDiffusionGuidanceScaleInputView extends FloatInputView {
     /**
      * @var float the minimum value
      */
-    static min = 0.0;
+    static min = 1.0;
 
     /**
      * @var float The max value
@@ -182,7 +182,7 @@ class UpscaleDiffusionGuidanceScaleInputView extends FloatInputView {
     /**
      * @var float The step value
      */
-    static step = 0.1;
+    static step = 0.01;
 
     /**
      * @var float The default value

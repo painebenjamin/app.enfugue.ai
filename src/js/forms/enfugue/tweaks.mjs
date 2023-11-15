@@ -37,7 +37,7 @@ class TweaksFormView extends FormView {
                 "label": "Guidance Scale",
                 "class": FloatInputView,
                 "config": {
-                    "min": 0.0,
+                    "min": 1.0,
                     "max": 100.0,
                     "value": defaultGuidanceScale,
                     "step": 0.01,

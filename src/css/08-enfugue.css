@@ -114,6 +114,22 @@ enfugue-menu-item i {
     font-size: 18px;
 }
 
+enfugue-menu-item .color-previews {
+    display: flex;
+    flex-flow: row nowrap;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+}
+
+enfugue-menu-item .color-previews span {
+    height: 12px;
+    width: 12px;
+    border-radius: 12px;
+    display: block;
+    border: 1px solid var(--darker-color);
+}
+
 enfugue-sidebar {
     position: absolute;
     left: 0;

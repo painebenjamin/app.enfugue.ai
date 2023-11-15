@@ -50,6 +50,7 @@ import {
     ModelPickerInputView,
     ModelMergeModeInputView,
     MotionModuleInputView,
+    ModelTypeInputView,
 } from "./input/enfugue/models.mjs";
 import {
     EngineSizeInputView,
@@ -92,6 +93,9 @@ import {
     AnimationLoopInputView,
     AnimationInterpolationStepsInputView,
 } from "./input/enfugue/animation.mjs";
+import {
+    FontInputView
+} from "./input/enfugue/fonts.mjs";
 export {
     InputView,
     HiddenInputView,
@@ -164,4 +168,6 @@ export {
     AnimationLoopInputView,
     AnimationInterpolationStepsInputView,
     MotionModuleInputView,
+    FontInputView,
+    ModelTypeInputView,
 };

@@ -29,7 +29,6 @@ LOG_REGEX = re.compile(
     r"^(?P<timestamp>\d{4}-\d{2}-\d{2}\ \d{2}:\d{2}:\d{2},\d+)\ \[(?P<logger>[a-zA-Z0-9_\.]+)\]\ (?P<level>[A-Z]+)\ \((?P<file>[^:]+):(?P<line>[\d]+)\)\ (?P<content>.*)$"
 )
 
-
 class LogDict(TypedDict):
     timestamp: datetime.datetime
     logger: str
@@ -316,7 +315,7 @@ class EnfugueAPISystemController(EnfugueAPIControllerBase):
         Gets a summary of files and filesize in the installation
         """
         sizes = {}
-        for dirname in ["cache", "diffusers", "checkpoint", "lora", "lycoris", "inversion", "tensorrt", "other", "images", "intermediate"]:
+        for dirname in ["cache", "diffusers", "checkpoint", "lora", "lycoris", "inversion", "motion", "tensorrt", "other", "images", "intermediate"]:
             directory = self.get_configured_directory(dirname)
             items, files, size = get_directory_size(directory)
             sizes[dirname] = {"items": items, "files": files, "bytes": size, "path": directory}

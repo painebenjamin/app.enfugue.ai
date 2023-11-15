@@ -238,6 +238,7 @@ class UNet3DConditionModel(ModelMixin, ConfigMixin, UNet2DConditionLoadersMixin)
                 use_motion_module=use_motion_module and (res in motion_module_resolutions),
                 motion_module_type=motion_module_type,
                 motion_module_kwargs=motion_module_kwargs,
+                resolution_idx=i
             )
             self.up_blocks.append(up_block)
             prev_output_channel = output_channel

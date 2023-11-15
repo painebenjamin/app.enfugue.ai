@@ -235,7 +235,7 @@ class InstallationController extends MenuController {
     /**
      * @var int The height of the summary window
      */
-    static summaryWindowHeight = 600;
+    static summaryWindowHeight = 620;
     
     /**
      * @var int The width of the manager window
@@ -270,7 +270,7 @@ class InstallationController extends MenuController {
     /**
      * @var array The directories that can be uploaded to
      */
-    static uploadableDirectories = ["lora", "checkpoint", "inversion", "lycoris"];
+    static uploadableDirectories = ["lora", "checkpoint", "inversion", "lycoris", "motion"];
 
     /**
      * On initialize, add local object to maintain window state

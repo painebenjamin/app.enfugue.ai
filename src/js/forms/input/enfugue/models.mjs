@@ -407,6 +407,22 @@ class ModelMergeModeInputView extends SelectInputView {
     };
 };
 
+/**
+ * When download models, this will select the destination
+ */
+class ModelTypeInputView extends SelectInputView {
+    /**
+     * @var object names and labels
+     */
+    static defaultOptions = {
+        "checkpoint": "Checkpoint",
+        "lora": "LoRA",
+        "lycoris": "LyCORIS",
+        "inversion": "Textual Inversion",
+        "motion": "Motion Module",
+    };
+};
+
 export {
     CheckpointInputView,
     LoraInputView,
@@ -422,4 +438,5 @@ export {
     ModelPickerInputView,
     ModelMergeModeInputView,
     MotionModuleInputView,
+    ModelTypeInputView,
 };
