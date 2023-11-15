@@ -879,7 +879,7 @@ class LayeredInvocation:
                                     for img in image_paste_mask
                                 ]
                                 image_paste_mask = [
-                                    Image.eval(img, lambda a: max(a, int(opacity * 255)))
+                                    Image.eval(img, lambda a: min(a, int(opacity * 255)))
                                     for img in image_paste_mask
                                 ]
                             else:
