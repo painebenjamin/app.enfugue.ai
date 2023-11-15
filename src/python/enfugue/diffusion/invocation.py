@@ -817,6 +817,7 @@ class LayeredInvocation:
                     layer_image = layer.get("image", None)
                     fit = layer.get("fit", None)
                     anchor = layer.get("anchor", None)
+                    opacity = layer.get("opacity", None)
                     remove_background = layer.get("remove_background", None)
                     skip_frames = layer.get("skip_frames", None)
                     divide_frames = layer.get("divide_frames", None)
@@ -869,12 +870,27 @@ class LayeredInvocation:
 
                     if denoise or is_passthrough:
                         has_invocation_image = True
+                        image_paste_mask = fit_layer_mask
+
+                        if opacity is not None:
+                            if isinstance(image_paste_mask, list):
+                                image_paste_mask = [
+                                    img.convert("L")
+                                    for img in image_paste_mask
+                                ]
+                                image_paste_mask = [
+                                    Image.eval(img, lambda a: max(a, int(opacity * 255)))
+                                    for img in image_paste_mask
+                                ]
+                            else:
+                                image_paste_mask = image_paste_mask.convert("L")
+                                image_paste_mask = Image.eval(image_paste_mask, lambda a: min(a, int(opacity * 255)))
 
                         if isinstance(fit_layer_image, list):
                             for i in range(len(invocation_image)): # type: ignore[arg-type]
                                 invocation_image[i].paste( # type: ignore[index]
                                     fit_layer_image[i] if i < len(fit_layer_image) else fit_layer_image[-1],
-                                    mask=fit_layer_mask[i] if i < len(fit_layer_mask) else fit_layer_mask[-1]
+                                    mask=image_paste_mask[i] if i < len(image_paste_mask) else image_paste_mask[-1]
                                 )
                                 if is_passthrough:
                                     invocation_mask[i].paste( # type: ignore[index]
@@ -883,11 +899,11 @@ class LayeredInvocation:
                                     )
                         elif isinstance(invocation_image, list):
                             for i in range(len(invocation_image)):
-                                invocation_image[i].paste(fit_layer_image, mask=fit_layer_mask)
+                                invocation_image[i].paste(fit_layer_image, mask=image_paste_mask)
                                 if is_passthrough:
                                     invocation_mask[i].paste(black, mask=fit_layer_mask) # type: ignore[index]
                         else:
-                            invocation_image.paste(fit_layer_image, mask=fit_layer_mask) # type: ignore[attr-defined]
+                            invocation_image.paste(fit_layer_image, mask=image_paste_mask) # type: ignore[attr-defined]
                             if is_passthrough:
                                 invocation_mask.paste(black, mask=fit_layer_mask) # type: ignore[union-attr]
 

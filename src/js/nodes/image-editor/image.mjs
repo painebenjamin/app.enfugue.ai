@@ -94,6 +94,7 @@ class ImageEditorImageNodeView extends ImageEditorNodeView {
         // Reflected in DOM
         this.updateFit(newOptions.fit);
         this.updateAnchor(newOptions.anchor);
+        this.updateOpacity(newOptions.opacity);
     };
 
     /**
@@ -125,6 +126,14 @@ class ImageEditorImageNodeView extends ImageEditorNodeView {
     }
 
     /**
+     * Updates the opacity
+     */
+    async updateOpacity(newOpacity) {
+        this.opacity = newOpacity;
+        (await this.content.getNode()).css("opacity", newOpacity);
+    }
+
+    /**
      * Prompts for a new image
      */
     async replaceImage() {
@@ -141,6 +150,7 @@ class ImageEditorImageNodeView extends ImageEditorNodeView {
                 await this.setContent(imageView);
                 this.updateFit(this.fit);
                 this.updateAnchor(this.anchor);
+                this.updateOpacity(this.opacity);
             });
             reader.readAsDataURL(imageToLoad);
         }
@@ -182,6 +192,7 @@ class ImageEditorImageNodeView extends ImageEditorNodeView {
         state.src = includeImages ? this.content.src : null;
         state.anchor = this.anchor || null;
         state.fit = this.fit || null;
+        state.opacity = this.opacity || null;
         return state;
     }
 
@@ -197,6 +208,7 @@ class ImageEditorImageNodeView extends ImageEditorNodeView {
         }
         await this.updateAnchor(newState.anchor);
         await this.updateFit(newState.fit);
+        await this.updateOpacity(newState.opacity);
     }
 
     /**

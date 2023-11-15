@@ -1,6 +1,5 @@
 __all__ = ["zero_rank_print"]
 
-
 def zero_rank_print(s):
     if not isinstance(s, str):
         s = repr(s)

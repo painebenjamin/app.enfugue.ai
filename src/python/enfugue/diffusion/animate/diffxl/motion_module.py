@@ -15,7 +15,7 @@ from diffusers.utils.import_utils import is_xformers_available
 from diffusers.models.attention_processor import Attention
 from diffusers.models.attention import FeedForward
 
-from enfugue.diffusion.animate.diff.util import zero_rank_print
+from enfugue.diffusion.animate.diffxl.util import zero_rank_print
 
 from einops import rearrange, repeat
 

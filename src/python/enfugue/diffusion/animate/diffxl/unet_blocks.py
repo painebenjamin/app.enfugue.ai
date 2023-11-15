@@ -27,7 +27,7 @@ from diffusers.models.resnet import (
 )
 from diffusers.models.transformer_2d import Transformer2DModel
 
-from enfugue.diffusion.animate.diff.motion_module import get_motion_module
+from enfugue.diffusion.animate.diffxl.motion_module import get_motion_module
 
 logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
 

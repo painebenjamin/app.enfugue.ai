@@ -67,6 +67,7 @@ class InvokeButtonController extends Controller {
                 case "ImageEditorVideoNodeView":
                     formattedState["fit"] = datum.fit;
                     formattedState["anchor"] = datum.anchor;
+                    formattedState["opacity"] = datum.opacity;
                     formattedState["denoise"] = !!datum.denoise;
                     if (datum.imagePrompt) {
                         formattedState["ip_adapter_scale"] = datum.imagePromptScale;

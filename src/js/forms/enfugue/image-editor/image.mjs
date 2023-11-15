@@ -39,6 +39,17 @@ class ImageEditorImageNodeOptionsFormView extends FormView {
                 "config": {
                     "tooltip": "Before processing, run this image through an AI background removal process. If you are additionally inpainting, inferencing or using this image for ControlNet, that background will then be filled in within this frame. If you are not, that background will be filled when the overall canvas image is finally painted in."
                 }
+            },
+            "opacity": {
+                "label": "Opacity",
+                "class": SliderPreciseInputView,
+                "config": {
+                    "min": 0.0,
+                    "max": 1.0,
+                    "value": 1.0,
+                    "step": 0.01,
+                    "tooltip": "The opacity of the image. This only has an effect on the final image if this image is visible; i.e., this image is denoised or passed through. Opacity has no effect on ControlNet or Image Prompt inputs."
+                }
             }
          },
          "Image Roles": {

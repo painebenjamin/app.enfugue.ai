@@ -46,12 +46,12 @@ from diffusers.models.embeddings import (
 )
 from diffusers.models.modeling_utils import ModelMixin
 
-from enfugue.diffusion.animate.diff.unet_blocks import (
+from enfugue.diffusion.animate.diffxl.unet_blocks import (
     UNetMidBlock3DCrossAttn,
     get_down_block,
     get_up_block,
 )
-from enfugue.diffusion.animate.diff.util import zero_rank_print
+from enfugue.diffusion.animate.diffxl.util import zero_rank_print
 
 logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
 
@@ -1006,9 +1006,9 @@ class UNet3DConditionModel(ModelMixin, ConfigMixin, UNet2DConditionLoadersMixin)
 
         # convert the time, size, and text embedding into (b f) c h w
         video_length = sample.shape[2]
-        timestep = repeat(timestep.unsqueeze(0), "b -> (b f)", f=video_length)
+        timestep = repeat(timestep, "b -> (b f)", f=video_length)
         encoder_hidden_states = repeat(
-            encoder_hidden_states, "b c d-> (b f) c d", f=video_length
+            encoder_hidden_states, "b c d -> (b f) c d", f=video_length
         )
         added_cond_kwargs["time_ids"] = repeat(
             added_cond_kwargs["time_ids"], "b c -> (b f) c", f=video_length
@@ -1153,6 +1153,11 @@ class UNet3DConditionModel(ModelMixin, ConfigMixin, UNet2DConditionLoadersMixin)
             hint = added_cond_kwargs.get("hint")
             aug_emb, hint = self.add_embedding(image_embs, hint)
             sample = torch.cat([sample, hint], dim=1)
+
+        from enfugue.util import logger
+        logger.info(f"{self.config} {encoder_hidden_states.shape}")
+        logger.info(f"{emb.shape}")
+        logger.error(f"{aug_emb.shape}")
 
         emb = emb + aug_emb if aug_emb is not None else emb
 

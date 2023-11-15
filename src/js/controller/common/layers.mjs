@@ -786,9 +786,11 @@ class LayersController extends Controller {
                     uniqueControlNets = controlNets.filter((v, i) => controlNets.indexOf(v) === i);
                 imageRoles.push(`ControlNet (${uniqueControlNets.join(", ")})`);
             }
+
             let subtitle = isEmpty(imageRoles)
                 ? "Passthrough"
                 : imageRoles.join(", ");
+
             imageNode.updateOptions(values);
             imageLayer.setSubtitle(subtitle);
         });

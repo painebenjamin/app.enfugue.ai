@@ -62,6 +62,7 @@ class ImageEditorVideoNodeView extends ImageEditorNodeView {
         // Reflected in DOM
         this.updateFit(newOptions.fit);
         this.updateAnchor(newOptions.anchor);
+        this.updateOpacity(newOptions.opacity);
     };
 
     /**
@@ -93,6 +94,14 @@ class ImageEditorVideoNodeView extends ImageEditorNodeView {
     }
 
     /**
+     * Updates the opacity
+     */
+    async updateOpacity(newOpacity) {
+        this.opacity = newOpacity;
+        (await this.content.getNode()).css("opacity", newOpacity);
+    }
+
+    /**
      * Prompts for a new video
      */
     async replaceVideo() {
@@ -109,6 +118,7 @@ class ImageEditorVideoNodeView extends ImageEditorNodeView {
                 await this.setContent(videoView);
                 this.updateFit(this.fit);
                 this.updateAnchor(this.anchor);
+                this.updateOpacity(this.opacity);
             });
             reader.readAsDataURL(videoToLoad);
         }
@@ -122,6 +132,7 @@ class ImageEditorVideoNodeView extends ImageEditorNodeView {
         state.src = includeImages ? this.content.src : null;
         state.anchor = this.anchor || null;
         state.fit = this.fit || null;
+        state.opacity = this.opacity || 1.0;
         return state;
     }
 
@@ -137,6 +148,7 @@ class ImageEditorVideoNodeView extends ImageEditorNodeView {
         }
         await this.updateAnchor(newState.anchor);
         await this.updateFit(newState.fit);
+        await this.updateOpacity(newState.opacity);
     }
 
     /**

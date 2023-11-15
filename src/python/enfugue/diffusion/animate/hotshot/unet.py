@@ -875,8 +875,8 @@ class UNet3DConditionModel(ModelMixin, ConfigMixin, UNet2DConditionLoadersMixin)
                 )
             image_embeds = added_cond_kwargs.get("image_embeds")
             encoder_hidden_states = self.encoder_hid_proj(image_embeds)
-        # 2. pre-process
 
+        # 2. pre-process
         sample = self.conv_in(sample)
 
         # 3. down

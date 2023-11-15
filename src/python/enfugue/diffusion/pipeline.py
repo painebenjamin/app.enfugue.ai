@@ -2202,10 +2202,15 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     dim=1,
                 )
 
+            # Get timestep tensor
+            ts = torch.tensor([t], dtype=latent_model_input.dtype, device=latent_model_input.device)
+            if do_classifier_free_guidance:
+                ts = ts.repeat(2)
+
             # predict the noise residual
             noise_pred = self.predict_noise_residual(
                 latents=latent_model_input,
-                timestep=t,
+                timestep=ts,
                 embeddings=embeds,
                 timestep_cond=timestep_cond,
                 cross_attention_kwargs=cross_attention_kwargs,
