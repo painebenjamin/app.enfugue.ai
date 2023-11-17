@@ -1449,6 +1449,7 @@ fieldset.field-set-image-roles .field-container,
 fieldset.field-set-inpainting .field-container,
 fieldset.field-set-image-prompt .field-container,
 fieldset.field-set-filters .field-container.string-input-view-search,
+fieldset.field-set-dimensions .field-container.canvas-size-input-view,
 fieldset.field-set-dimensions .field-container.checkbox-input-view-use-tiling,
 fieldset.field-set-animation .field-container.checkbox-input-view,
 enfugue-layer-options-view .field-container.slider-precise-input-view,
@@ -1467,6 +1468,16 @@ enfugue-sidebar .field-container.checkbox-input-view-inpaint {
 
 enfugue-sidebar fieldset.field-set-prompts {
     margin-bottom: 0.5em;
+}
+
+fieldset.field-set-dimensions .field-container.number-input-view-width,
+fieldset.field-set-dimensions .field-container.number-input-view-height {
+    display: none;
+}
+
+form.custom-size fieldset.field-set-dimensions .field-container.number-input-view-width,
+form.custom-size fieldset.field-set-dimensions .field-container.number-input-view-height {
+    display: flex;
 }
 
 fieldset.field-set-engine .refiner-engine-size-input-view,
@@ -2388,16 +2399,4 @@ enfugue-invocation-output .buttons button {
 
 enfugue-invocation-output .buttons button i {
     font-size: 10px;
-}
-
-/**
- * Temporary color highlights for new features
- */
-fieldset.field-set-animation legend {
-    -webkit-text-fill-color: transparent;
-    background-image: linear-gradient(to right, var(--theme-color-primary), var(--theme-color-secondary), var(--theme-color-tertiary), var(--theme-color-primary));
-    background-size: 70px 100%;
-    background-repeat: repeat-x;
-    -webkit-background-clip: text;
-    background-clip: text;
 }

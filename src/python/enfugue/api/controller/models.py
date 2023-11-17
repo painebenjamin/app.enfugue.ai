@@ -29,11 +29,9 @@ from enfugue.diffusion.constants import *
 __all__ = ["EnfugueAPIModelsController"]
 
 class EnfugueAPIModelsController(EnfugueAPIControllerBase):
-    XL_BASE_KEY =    "conditioner.embedders.1.model.transformer.resblocks.9.mlp.c_proj.bias"
-    XL_REFINER_KEY = "conditioner.embedders.0.model.transformer.resblocks.9.mlp.c_proj.bias"
-
-    INPUT_BLOCK_KEY = "model.diffusion_model.input_blocks.0.0.weight"
-
+    """
+    Controller for finding/downloading/configuring models
+    """
     MODEL_DEFAULT_FIELDS = [
         "num_inference_steps",
         "guidance_scale",
@@ -51,91 +49,6 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
     ]
 
     handlers = UserExtensionHandlerRegistry()
-
-    @staticmethod
-    def get_models_in_directory(directory: str) -> List[str]:
-        """
-        Gets stored AI model networks in a directory (.safetensors, .ckpt, etc.)
-        """
-        return list(
-            find_files_in_directory(
-                directory,
-                pattern = r"^.+\.(safetensors|pt|pth|bin|ckpt)$"
-            )
-        )
-
-    def check_name(self, name: str) -> None:
-        """
-        Raises an exception if a name contains invalid characters
-        """
-        if re.match(r".*[./\\].*", name):
-            raise BadRequestError("Name cannot contain the following characters: ./\\")
-
-    def get_model_metadata(self, model: str) -> Optional[Dict[str, Any]]:
-        """
-        Gets metadata for a checkpoint if it exists
-        ONLY reads safetensors files
-        """
-        directory = self.get_configured_directory("checkpoint")
-        model_path = find_file_in_directory(directory, model)
-        if model_path is None:
-            return None
-
-        # Start with dumb name checks, we'll do better checks in a moment
-        model_name, model_ext = os.path.splitext(model)
-        model_metadata = {
-            "xl": "xl" in model_name.lower(),
-            "refiner": "refiner" in model_name.lower(),
-            "inpainter": "inpaint" in model_name.lower()
-        }
-
-        if model_name in self.get_diffusers_models():
-            # Read diffusers cache
-            diffusers_cache_dir = os.path.join(self.get_configured_directory("diffusers"), model_name)
-            model_metadata["xl"] = os.path.exists(os.path.join(diffusers_cache_dir, "text_encoder_2"))
-            model_metadata["refiner"] = (
-                model_metadata["xl"] and not
-                os.path.exists(os.path.join(diffusers_cache_dir, "text_encoder"))
-            )
-            unet_config_file = os.path.join(diffusers_cache_dir, "unet", "config.json")
-            if os.path.exists(unet_config_file):
-                unet_config = load_json(unet_config_file)
-                model_metadata["inpainter"] = unet_config.get("in_channels", 4) == 9
-            else:
-                logger.warning(f"Diffusers model {model_name} with no UNet is unexpected, errors may occur.")
-                model_metadata["inpainter"] = False
-        elif model_ext == ".safetensors":
-            # Reads safetensors metadata
-            import safetensors
-            with safetensors.safe_open(model_path, framework="pt", device="cpu") as f:
-                keys = list(f.keys())
-                xl_base = self.XL_BASE_KEY in keys
-                xl_refiner = self.XL_REFINER_KEY in keys
-                model_metadata["xl"] = xl_base or xl_refiner
-                model_metadata["refiner"] = xl_refiner
-                if self.INPUT_BLOCK_KEY in keys:
-                    input_weights = f.get_tensor(self.INPUT_BLOCK_KEY)
-                    model_metadata["inpainter"] = input_weights.shape[1] == 9 # type: ignore[union-attr]
-                else:
-                    logger.warning(f"Checkpoint file {model_path} with no input block shape is unexpected, errors may occur.")
-                    model_metadata["inpainter"] = False
-
-        return model_metadata
-
-    def get_diffusers_models(self) -> List[str]:
-        """
-        Gets diffusers models in the configured directory.
-        """
-        diffusers_dir = self.get_configured_directory("diffusers")
-        diffusers_models = []
-        if os.path.exists(diffusers_dir):
-            diffusers_models = [
-                dirname
-                for dirname in os.listdir(diffusers_dir)
-                if os.path.exists(os.path.join(diffusers_dir, dirname, "model_index.json"))
-                and not dirname.endswith("-animator")
-            ]
-        return diffusers_models
 
     @handlers.path("^/api/checkpoints$")
     @handlers.methods("GET")
@@ -157,6 +70,16 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
             if checkpoint not in [cp["name"] for cp in checkpoints]:
                 checkpoints.append({"name": checkpoint, "directory": "available for download"})
         return checkpoints
+
+    @handlers.path("^/api/checkpoints/(?P<model_file>[a-zA-Z0-9_\-\.]+)$")
+    @handlers.methods("GET")
+    @handlers.format()
+    @handlers.secured()
+    def get_checkpoint_metadata(self, request: Request, response: Response, model_file: str) -> List[Dict[str, Any]]:
+        """
+        Gets metadata from CivitAI for a checkpoint.
+        """
+        return self.get_civitai_metadata(self.check_find_model("checkpoint", model_file))
 
     @handlers.path("^/api/lora$")
     @handlers.methods("GET")
@@ -180,6 +103,16 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
 
         return lora
 
+    @handlers.path("^/api/lora/(?P<model_file>[a-zA-Z0-9_\-\.]+)$")
+    @handlers.methods("GET")
+    @handlers.format()
+    @handlers.secured()
+    def get_lora_metadata(self, request: Request, response: Response, model_file: str) -> List[Dict[str, Any]]:
+        """
+        Gets metadata from CivitAI for a lora.
+        """
+        return self.get_civitai_metadata(self.check_find_model("lora", model_file))
+
     @handlers.path("^/api/lycoris$")
     @handlers.methods("GET")
     @handlers.format()
@@ -197,6 +130,16 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
             for filename in self.get_models_in_directory(lycoris_dir)
         ]
         return lycoris
+
+    @handlers.path("^/api/lycoris/(?P<model_file>[a-zA-Z0-9_\-\.]+)$")
+    @handlers.methods("GET")
+    @handlers.format()
+    @handlers.secured()
+    def get_lycoris_metadata(self, request: Request, response: Response, model_file: str) -> List[Dict[str, Any]]:
+        """
+        Gets metadata from CivitAI for a lycoris.
+        """
+        return self.get_civitai_metadata(self.check_find_model("lycoris", model_file))
 
     @handlers.path("^/api/inversions$")
     @handlers.methods("GET")
@@ -216,6 +159,16 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         ]
         return inversions
 
+    @handlers.path("^/api/inversion/(?P<model_file>[a-zA-Z0-9_\-\.]+)$")
+    @handlers.methods("GET")
+    @handlers.format()
+    @handlers.secured()
+    def get_inversion_metadata(self, request: Request, response: Response, model_file: str) -> List[Dict[str, Any]]:
+        """
+        Gets metadata from CivitAI for an inversion.
+        """
+        return self.get_civitai_metadata(self.check_find_model("inversion", model_file))
+
     @handlers.path("^/api/motion$")
     @handlers.methods("GET")
     @handlers.format()
@@ -233,6 +186,16 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
             for filename in self.get_models_in_directory(motion_dir)
         ]
         return motion
+
+    @handlers.path("^/api/motion/(?P<model_file>[a-zA-Z0-9_\-\.]+)$")
+    @handlers.methods("GET")
+    @handlers.format()
+    @handlers.secured()
+    def get_motion_metadata(self, request: Request, response: Response, model_file: str) -> List[Dict[str, Any]]:
+        """
+        Gets metadata from CivitAI for a motion module.
+        """
+        return self.get_civitai_metadata(self.check_find_model("motion", model_file))
 
     @handlers.path("^/api/tensorrt$")
     @handlers.methods("GET")

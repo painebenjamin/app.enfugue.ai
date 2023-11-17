@@ -240,7 +240,7 @@ class InterpolatorEngineProcess(EngineProcess):
             return image
 
         if interpolate_frames:
-            logger.debug(f"Beginning interpolation - will interpolate {image_count} frames with interpolation amount(s) [{interpolate_frames}] (a total of {interpolated_count} frames")
+            logger.debug(f"Beginning interpolation - will interpolate {image_count} frames with interpolation amount(s) [{interpolate_frames}] (a total of {interpolated_count} frames)")
             images = [
                 trigger_callback(img) for img in
                 self.interpolate_recursive(

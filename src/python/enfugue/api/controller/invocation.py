@@ -38,95 +38,6 @@ __all__ = ["EnfugueAPIInvocationController"]
 class EnfugueAPIInvocationController(EnfugueAPIControllerBase):
     handlers = UserExtensionHandlerRegistry()
 
-    @property
-    def thumbnail_height(self) -> int:
-        """
-        Gets the height of thumbnails.
-        """
-        return self.configuration.get("enfugue.thumbnail", 100)
-
-    def get_default_model(self, model: str) -> Optional[str]:
-        """
-        Gets a default model link by model name, if one exists
-        """
-        base_model_name = get_file_name_from_url(model)
-        if base_model_name in self.default_checkpoints:
-            return self.default_checkpoints[base_model_name]
-        if base_model_name in self.default_lora:
-            return self.default_lora[base_model_name]
-        return None
-
-    def get_default_size_for_model(self, model: Optional[str]) -> int:
-        """
-        Gets the default size for the model.
-        """
-        if model is None:
-            model = self.configuration.get("enfugue.model", DEFAULT_MODEL)
-        model_name = os.path.splitext(os.path.basename(model))[0]
-        diffusers_path = os.path.join(
-            self.configuration.get("enfugue.engine.diffusers", "~/.cache/enfugue/diffusers"),
-            model_name
-        )
-        if diffusers_path.startswith("~"):
-            diffusers_path = os.path.expanduser(diffusers_path)
-        if os.path.exists(diffusers_path) and os.path.exists(os.path.join(diffusers_path, "text_encoder_2")):
-            return 1024
-        return 1024 if "xl" in model_name.lower() else 512
-
-    def check_find_model(self, model_type: str, model: str) -> str:
-        """
-        Tries to find a model in a configured directory, if the
-        passed model is not an absolute path.
-        """
-        if os.path.exists(model):
-            return model
-        model_basename = os.path.splitext(os.path.basename(model))[0]
-        model_dir = self.get_configured_directory(model_type)
-        existing_model = find_file_in_directory(
-            model_dir,
-            model_basename,
-            extensions = [".ckpt", ".bin", ".pt", ".pth", ".safetensors"]
-        )
-        if existing_model:
-            return existing_model
-        check_default_model = self.get_default_model(model)
-        if check_default_model:
-            return check_default_model
-        raise BadRequestError(f"Cannot find or access {model} (looked recursively for AI model checkpoint formats named {model_basename} in {model_dir})")
-
-    def check_find_adaptations(
-        self,
-        model_type: str,
-        is_weighted: bool,
-        model: Optional[Union[str, Dict[str, Any], List[Union[str, Dict[str, Any]]]]] = None,
-    ) -> List[Union[str, Tuple[str, float]]]:
-        """
-        Tries to find a model or list of models in a configured directory,
-        with or without weights.
-        """
-        if model is None:
-            return []
-        elif isinstance(model, str):
-            if is_weighted:
-                return [(self.check_find_model(model_type, model), 1.0)]
-            return [self.check_find_model(model_type, model)]
-        elif isinstance(model, dict):
-            model_name = model.get("model", None)
-            model_weight = model.get("weight", 1.0)
-            if not model_name:
-                return []
-            if is_weighted:
-                return [(self.check_find_model(model_type, model_name), model_weight)]
-            return [self.check_find_model(model_type, model_name)]
-        elif isinstance(model, list):
-            models = []
-            for item in model:
-                models.extend(
-                    self.check_find_adaptations(model_type, is_weighted, item)
-                )
-            return models
-        raise BadRequestError(f"Bad format for {model_type} - must be either a single string, a dictionary with the key `model` and optionally `weight`, or a list of the same (got {model})")
-
     def convert_animation(
         self,
         source_path: str,
@@ -317,7 +228,11 @@ class EnfugueAPIInvocationController(EnfugueAPIControllerBase):
         """
         Gets all invocations since engine start for a user.
         """
-        return [invocation.format() for invocation in self.manager.get_invocations(request.token.user.id)]
+        return [
+            invocation.format()
+            for invocation
+            in self.manager.get_invocations(request.token.user.id)
+        ]
 
     @handlers.path("^/api/invocation/intermediates/(?P<file_path>.+)$")
     @handlers.download()
@@ -511,8 +426,18 @@ class EnfugueAPIInvocationController(EnfugueAPIControllerBase):
                 database_invocation = (
                     self.database.query(self.orm.DiffusionInvocation)
                     .filter(self.orm.DiffusionInvocation.id == uuid)
-                    .one()
+                    .one_or_none()
                 )
+                if database_invocation is None:
+                    # Didn't get saved in the database, try again
+                    database_invocation = self.orm.DiffusionInvocation(
+                        id=invocation.uuid,
+                        user_id=request.token.user.id,
+                        plan=self.format_plan(invocation.plan)
+                    )
+                    self.database.add(database_invocation)
+                    self.database.commit()
+                    logger.debug("Invocation was present in memory but not present in database; this issue has been corrected.")
                 formatted_images = formatted.get("images", [])
                 if isinstance(formatted_images, list):
                     database_invocation.outputs = len(formatted_images)
@@ -542,6 +467,7 @@ class EnfugueAPIInvocationController(EnfugueAPIControllerBase):
         for dirname in [self.manager.engine_image_dir, self.manager.engine_intermediate_dir]:
             for invocation_image in glob.glob(f"{uuid}*.*", root_dir=dirname):
                 os.remove(os.path.join(dirname, invocation_image))
+
         self.database.delete(database_invocation)
         self.database.commit()
 

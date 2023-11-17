@@ -402,9 +402,10 @@ class UpscaleStepDict(TypedDict):
     prompt_2: NotRequired[str]
     negative_prompt: NotRequired[str]
     negative_prompt_2: NotRequired[str]
-    chunking_size: NotRequired[Optional[int]]
-    chunking_frames: NotRequired[Optional[int]]
-    chunking_mask: NotRequired[MASK_TYPE_LITERAL]
+    tiling_stride: NotRequired[Optional[int]]
+    tiling_mask: NotRequired[MASK_TYPE_LITERAL]
+    frame_window_size: NotRequired[Optional[int]]
+    frame_window_stride: NotRequired[Optional[int]]
 
 class PromptDict(TypedDict):
     """

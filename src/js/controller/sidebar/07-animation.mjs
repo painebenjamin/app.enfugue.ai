@@ -57,9 +57,9 @@ class AnimationController extends Controller {
                 if (values.animationMotionScaleEnabled) {
                     this.engine.animationMotionScale = values.animationMotionScale;
                 } else {
-
                     this.engine.animationMotionScale = null;
                 }
+
                 if (values.animationPositionEncodingSliceEnabled) {
                     this.engine.animationPositionEncodingTruncateLength = values.animationPositionEncodingTruncateLength;
                     this.engine.animationPositionEncodingScaleLength = values.animationPositionEncodingScaleLength;
@@ -72,8 +72,8 @@ class AnimationController extends Controller {
                     this.engine.animationSize = values.animationSize;
                     this.engine.animationStride = values.animationStride;
                 } else {
-                    this.engine.animationSize = null;
-                    this.engine.animationStride = null;
+                    this.engine.animationSize = values.animationFrames;
+                    this.engine.animationStride = 0;
                 }
 
                 this.engine.animationInterpolation = values.animationInterpolation;

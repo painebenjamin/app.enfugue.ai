@@ -84,23 +84,36 @@ class EnfugueInterfaceServer(
         cms_context_config = cms_config.get("context", {}).get("base", {})
         cms_script_config = cms_context_config.get("scripts", [])
         cms_stylesheet_config = cms_context_config.get("links", {}).get("stylesheet", [])
-        
-        server_secure = os.getenv("SERVER_SECURE", server.get("secure", False))
+
+        env_prefix = configuration.get("environment_prefix", "ENFUGUE").upper()
+
+        def maybe_environment_override(key: str, default: Any) -> Any:
+            """
+            Gets either an environment override value or a default one
+            """
+            return os.getenv(f"{env_prefix}_{key.upper()}", os.getenv(key.upper(), default))
+
+        server_domain = maybe_environment_override("server_domain", server.get("domain", "127.0.0.1"))
+        server_port = maybe_environment_override("server_port", server.get("port", 45554))
+        server_secure = maybe_environment_override("server_secure", server.get("secure", False))
+
         if isinstance(server_secure, str):
             server_secure = server_secure[0].lower() in ["1", "t", "y"]
 
-        env_prefix = configuration.get("environment_prefix", "ENFUGUE").upper()
-        server_domain = os.getenv(f"{env_prefix}_SERVER_DOMAIN", server.get("domain", "127.0.0.1"))
-        server_port = os.getenv(f"{env_prefix}_SERVER_PORT", server.get("port", 45554))
-        
         server_protocol = "https" if server_secure else "http"
 
-        if "root" not in cms_path_config:
-            cms_path_config["root"] = f"{server_protocol}://{server_domain}:{server_port}/"
-        if "static" not in cms_path_config:
-            cms_path_config["static"] = f"{cms_path_config['root']}static/"
-        if "api" not in cms_path_config:
-            cms_path_config["api"] = f"{cms_path_config['root']}api/"
+        cms_path_config["root"] = maybe_environment_override(
+            "server_cms_path_root",
+            cms_path_config.get("root", f"{server_protocol}://{server_domain}:{server_port}/")
+        )
+        cms_path_config["static"] = maybe_environment_override(
+            "server_cms_path_static",
+            cms_path_config.get("static", f"{cms_path_config['root']}static/")
+        )
+        cms_path_config["api"] = maybe_environment_override(
+            "server_cms_path_api",
+            cms_path_config.get("api", f"{cms_path_config['root']}api/")
+        )
 
         cms_config["path"] = cms_path_config
 

@@ -81,6 +81,28 @@ class UpscaleFormView extends FormView {
                     "tooltip": "The number of pixels to move the frame by during diffusion. Smaller values produce better results, but take longer. Set to 0 to disable."
                 }
             },
+            "animationSize": {
+                "label": "Frame Window Size",
+                "class": NumberInputView,
+                "config": {
+                    "min": 8,
+                    "max": 64,
+                    "step": 1,
+                    "value": null,
+                    "tooltip": "The number of frames to render at once when using sliced animation diffusion. This value only has an effect if you are upcscaling an animation. Leave blank to remain unchanged."
+                }
+            },
+            "animationStride": {
+                "label": "Frame Window Stride",
+                "class": NumberInputView,
+                "config": {
+                    "min": 1,
+                    "max": 64,
+                    "step": 1,
+                    "value": null,
+                    "tooltip": "The number of frames to move the frame window by when using sliced animation diffusion. This value only has an effect if you are upcscaling an animation. Leave blank to remain unchanged. Set to 0 to disable sliced animation diffusion."
+                }
+            },
             "tilingMaskType": {
                 "label": "Tiling Mask",
                 "class": MaskTypeInputView,

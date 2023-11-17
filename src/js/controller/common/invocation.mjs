@@ -449,6 +449,12 @@ class InvocationController extends Controller {
             if (!isEmpty(step.tilingMaskType)) {
                 formattedStep.tiling_mask_type = step.tilingMaskType;
             }
+            if (!isEmpty(step.animationSize)) {
+                formattedStep.frame_window_size = step.animationSize;
+            }
+            if (!isEmpty(step.animationStride)) {
+                formattedStep.frame_window_stride = step.animationStride;
+            }
             if (!isEmpty(step.controlnet)) {
                 formattedStep.controlnets = [step.controlnet];
             }
@@ -776,6 +782,57 @@ class InvocationController extends Controller {
             this.publish("engineSchedulerChange", newScheduler);
         }
         this.kwargs.scheduler = newScheduler;
+    }
+
+    /**
+     * @return float The beta start, if set
+     */
+    get betaStart() {
+        return this.kwargs.scheduler_beta_start || null;
+    }
+
+    /**
+     * @param float The beta start, if set
+     */
+    set betaStart(betaStart) {
+        if (this.betaStart !== betaStart) {
+            this.publish("engineSchedulerBetaStartChange", betaStart);
+        }
+        this.kwargs.scheduler_beta_start = betaStart;
+    }
+
+    /**
+     * @return float The beta end, if set
+     */
+    get betaEnd() {
+        return this.kwargs.scheduler_beta_end || null;
+    }
+
+    /**
+     * @param float The beta end, if set
+     */
+    set betaEnd(betaEnd) {
+        if (this.betaEnd !== betaEnd) {
+            this.publish("engineSchedulerBetaEndChange", betaEnd);
+        }
+        this.kwargs.scheduler_beta_end = betaEnd;
+    }
+
+    /**
+     * @return float The beta schedule, if set
+     */
+    get betaSchedule() {
+        return this.kwargs.scheduler_beta_schedule || null;
+    }
+
+    /**
+     * @param float The beta schedule, if set
+     */
+    set betaSchedule(betaSchedule) {
+        if (this.betaSchedule !== betaSchedule) {
+            this.publish("engineSchedulerBetaScheduleChange", betaSchedule);
+        }
+        this.kwargs.scheduler_beta_schedule = betaSchedule;
     }
 
     /**

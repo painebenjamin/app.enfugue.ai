@@ -1,6 +1,7 @@
 /** @module forms/enfugue/tweaks */
 import { FormView } from "../base.mjs";
 import { 
+    SelectInputView,
     NumberInputView, 
     FloatInputView,
     SchedulerInputView,
@@ -9,6 +10,7 @@ import {
     NoiseOffsetInputView,
     NoiseMethodInputView,
     BlendMethodInputView,
+    BetaScheduleInputView,
 } from "../input.mjs";
 
 let defaultGuidanceScale = 6.5,
@@ -173,4 +175,54 @@ class TweaksFormView extends FormView {
     }
 };
 
-export { TweaksFormView };
+/**
+ * Some advanced options for schedulers
+ */
+class SchedulerConfigurationFormView extends FormView {
+    /**
+     * @var bool Disable submit button
+     */
+    static autoSubmit = true;
+
+    /**
+     * @var object scheduler kwargs
+     */
+    static fieldSets = {
+        "Beta": {
+            "betaStart": {
+                "class": FloatInputView,
+                "label": "Beta Start",
+                "config": {
+                    "step": 0.00001,
+                    "min": 0.0,
+                    "max": 1.0,
+                    "placeholder": "0.00085",
+                    "tooltip": "The beginning of the beta noising schedule, roughly correlating to the final amount of noise to leave in the image when used for denoising."
+                }
+            },
+            "betaEnd": {
+                "class": FloatInputView,
+                "label": "Beta End",
+                "config": {
+                    "tooltip": "The ending of the beta noising schedule, roughly correlating to the initial amount of noise to inject in the image when used for denoising.",
+                    "placeholder": "0.012",
+                    "step": 0.00001,
+                    "min": 0.0,
+                    "max": 1.0
+                }
+            },
+            "betaSchedule": {
+                "class": BetaScheduleInputView,
+                "label": "Beta Schedule",
+                "config": {
+                    "tooltip": "How beta goes from beginning to end over time."
+                }
+            }
+        }
+    };
+};
+
+export { 
+    TweaksFormView,
+    SchedulerConfigurationFormView,
+};

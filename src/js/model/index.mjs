@@ -499,8 +499,8 @@ class Model {
     constructor(configuration) {
         let url = configuration.url.api;
         if(!url.startsWith("http")){
-            url = configuration.url.base;
-            if(url.endswith("/")){
+            url = configuration.url.root;
+            if (url.endsWith("/")) {
                 if(configuration.url.api.startswith("/")){
                     url = url.substring(0, url.length-1);
                 }

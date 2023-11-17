@@ -1,7 +1,89 @@
 /** @module controller/sidebar/05-tweaks */
 import { isEmpty } from "../../base/helpers.mjs";
+import { ElementBuilder } from "../../base/builder.mjs";
 import { Controller } from "../base.mjs";
-import { TweaksFormView } from "../../forms/enfugue/tweaks.mjs";
+import {
+    TweaksFormView,
+    SchedulerConfigurationFormView
+} from "../../forms/enfugue/tweaks.mjs";
+
+const E = new ElementBuilder();
+
+/**
+ * Adds an advanced scheduler button
+ */
+class AdvancedTweaksFormView extends TweaksFormView {
+    /**
+     * @var int Width of the scheduler window
+     */
+    static schedulerWindowWidth = 400;
+
+    /**
+     * @var int Height of the scheduler window
+     */
+    static schedulerWindowHeight = 140;
+
+    /**
+     * Gets the scheduler form
+     */
+    getSchedulerForm() {
+        if (isEmpty(this.schedulerForm)) {
+            this.schedulerForm = new SchedulerConfigurationFormView(this.config, this.values);
+            this.schedulerForm.onSubmit((values) => {
+                this.values = {...this.values,...values};
+                this.submit();
+            });
+        }
+        return this.schedulerForm; 
+    }
+
+    /**
+     * Sets values
+     */
+    async setValues(newValues, trigger) {
+        this.getSchedulerForm().setValues(newValues, false);
+        return await super.setValues(newValues, trigger);
+    }
+
+    /**
+     * Shows the more scheduler configuration form
+     */
+    async showSchedulerConfiguration() {
+        if (!isEmpty(this.schedulerWindow)) {
+            this.schedulerWindow.focus();
+        } else {
+            this.schedulerWindow = await this.spawnWindow(
+                "More Scheduler Configuration",
+                this.getSchedulerForm(),
+                this.constructor.schedulerWindowWidth,
+                this.constructor.schedulerWindowHeight
+            );
+            this.schedulerWindow.onClose(() => {
+                delete this.schedulerWindow;
+            });
+        }
+    }
+
+    /**
+     * On build, append button
+     */
+    async build() {
+        let node = await super.build(),
+            moreSchedulerConfig = E.i().class("fa-solid fa-gear").css({
+                "position": "absolute",
+                "cursor": "pointer",
+                "top": 0,
+                "right": 0,
+            })
+            .data("tooltip", "More Scheduler Configuration")
+            .on("click", (e) => {
+                this.showSchedulerConfiguration();
+            });
+
+        node.find(".scheduler-input-view").append(moreSchedulerConfig);
+        return node;
+    }
+}
 
 /**
  * Extend the menu controll to bind init
@@ -40,7 +122,10 @@ class TweaksController extends Controller {
                 "freeUSkip2": 0.2,
                 "noiseOffset": 0.0,
                 "noiseMethod": "simplex",
-                "noiseBlendMethod": "inject"
+                "noiseBlendMethod": "inject",
+                "betaStart": null,
+                "betaEnd": null,
+                "betaSchedule": null
             }
         }
     }
@@ -50,7 +135,10 @@ class TweaksController extends Controller {
      */
     async initialize() {
         // Builds form
-        this.tweaksForm = new TweaksFormView(this.config);
+        this.tweaksForm = new AdvancedTweaksFormView(this.config);
+        this.tweaksForm.spawnWindow = (name, content, w, h, x, y) => {
+            return this.spawnWindow(name, content, w, h, x, y);
+        }
         this.tweaksForm.onSubmit(async (values) => {
             this.engine.guidanceScale = values.guidanceScale;
             this.engine.inferenceSteps = values.inferenceSteps;
@@ -59,6 +147,9 @@ class TweaksController extends Controller {
             this.engine.noiseOffset = values.noiseOffset;
             this.engine.noiseMethod = values.noiseMethod;
             this.engine.noiseBlendMethod = values.noiseBlendMethod;
+            this.engine.betaStart = values.betaStart;
+            this.engine.betaEnd = values.betaEnd;
+            this.engine.betaSchedule = values.betaSchedule;
             if (values.enableFreeU) {
                 this.engine.freeUFactors = [
                     values.freeUBackbone1,

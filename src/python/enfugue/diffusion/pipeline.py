@@ -214,7 +214,6 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             feature_extractor,
             requires_safety_checker,
         )
-
         # Save scheduler config for hotswapping
         self.scheduler_class = type(scheduler)
         self.scheduler_config = {**dict(scheduler.config)} # type: ignore[attr-defined]
@@ -2202,15 +2201,10 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     dim=1,
                 )
 
-            # Get timestep tensor
-            ts = torch.tensor([t], dtype=latent_model_input.dtype, device=latent_model_input.device)
-            if do_classifier_free_guidance:
-                ts = ts.repeat(2)
-
             # predict the noise residual
             noise_pred = self.predict_noise_residual(
                 latents=latent_model_input,
-                timestep=ts,
+                timestep=t,
                 embeddings=embeds,
                 timestep_cond=timestep_cond,
                 cross_attention_kwargs=cross_attention_kwargs,
@@ -2399,6 +2393,11 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             count.zero_()
             value.zero_()
 
+            # Check if we should store generator state
+            generator_state: Optional[torch.Tensor] = None
+            if "generator" in extra_step_kwargs:
+                generator_state = extra_step_kwargs["generator"].get_state()
+
             # iterate over chunks
             for j, ((top, bottom), (left, right), (start, end)) in enumerate(chunker):
                 # Memoize wrap for later
@@ -2515,6 +2514,10 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
                     # Re-match chunk scheduler status
                     self.scheduler.__dict__.update(chunk_scheduler_status[j])
+
+                    # Re-match generator state
+                    if "generator" in extra_step_kwargs and generator_state is not None:
+                        extra_step_kwargs["generator"].set_state(generator_state)
 
                     # Scale model input
                     latent_model_input = self.scheduler.scale_model_input(latent_model_input, t) # type: ignore[attr-defined]

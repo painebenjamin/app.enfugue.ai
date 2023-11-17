@@ -61,6 +61,7 @@ import {
     ControlNetInputView,
     ControlNetUnitsInputView,
     ImageColorSpaceInputView,
+    BetaScheduleInputView,
 } from "./input/enfugue/engine.mjs";
 import {
     PipelineInpaintingModeInputView,
@@ -170,4 +171,5 @@ export {
     MotionModuleInputView,
     FontInputView,
     ModelTypeInputView,
+    BetaScheduleInputView,
 };

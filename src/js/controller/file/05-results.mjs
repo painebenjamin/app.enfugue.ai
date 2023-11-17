@@ -144,9 +144,12 @@ class InvocationTableView extends ModelTableView {
                                     E.div().class("buttons").content(
                                         E.button()
                                         .content(E.i().class("fa-solid fa-edit"))
-                                        .on("click", (e) => {
+                                        .on("click", async (e) => {
                                             e.stopPropagation();
-                                            InvocationTableView.initializeStateFromImage(imageSource);
+                                            InvocationTableView.initializeStateFromImage(
+                                                await downloadAsDataURL(imageSource),
+                                                false
+                                            );
                                         })
                                         .data("tooltip", "Click to Edit")
                                     )

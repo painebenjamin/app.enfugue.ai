@@ -11,7 +11,7 @@ import {
 
 let defaultWidth = 512,
     defaultHeight = 512,
-    defaultTilingStride = 64;
+    defaultTilingStride = 128;
 
 if (
     !isEmpty(window.enfugue) &&
@@ -29,6 +29,37 @@ if (
     if (!isEmpty(invocationConfig.tilingSize)) {
         defaultTilingStride = invocationConfig.tilingSize;
     }
+}
+
+/**
+ * Canvas size options
+ */
+class CanvasSizeInputView extends SelectInputView {
+    /**
+     * @var object Dimension options
+     */
+    static defaultOptions = {
+        "512_512": "512×512",
+        "512_768": "512×768",
+        "768_512": "768×512",
+        "768_768": "768×768",
+        "768_1024": "768×1024",
+        "768_1344": "768×1344",
+        "896_1152": "896×1152",
+        "1024_768": "1024×768",
+        "1024_1024": "1024×1024",
+        "1152_896": "1152×896",
+        "1216_832": "1216×832",
+        "1280_720": "1280×720",
+        "1344_768": "1344×768",
+        "1440_1080": "1440×1080",
+        "1536_640": "1536×640",
+        "1920_1080": "1920×1080",
+        "2048_1080": "2048×1080",
+        "3840_2160": "3840×2160",
+        "4096_2160": "4096×2160",
+        "custom": "Custom"
+    };
 }
 
 /**
@@ -50,6 +81,13 @@ class CanvasFormView extends FormView {
      */
     static fieldSets = {
         "Dimensions": {
+            "size": {
+                "label": "Size",
+                "class": CanvasSizeInputView,
+                "config": {
+                    "value": "512_512"
+                }
+            },
             "width": {
                 "label": "Width",
                 "class": NumberInputView,
@@ -121,11 +159,36 @@ class CanvasFormView extends FormView {
     };
 
     /**
+     * Intercept inputChanged to see if it was size
+     */
+    async inputChanged(fieldName, fieldInput) {
+        if (fieldName === "size") {
+            let value = fieldInput.getValue();
+            if (value !== "custom") {
+                let [width, height] = value.split("_"),
+                    widthInputView = await this.getInputView("width"),
+                    heightInputView = await this.getInputView("height");
+                width = parseInt(width);
+                height = parseInt(height);
+                widthInputView.setValue(width, false);
+                heightInputView.setValue(height, false);
+                this.values.width = width;
+                this.values.height = height;
+            }
+        }
+        return await super.inputChanged(fieldName, fieldInput);
+    }
+
+    /**
      * On submit, add/remove CSS class for hiding/showing
      */
     async submit() {
         await super.submit();
-        let chunkInput = (await this.getInputView("useTiling"));
+
+        let chunkInput = await this.getInputView("useTiling"),
+            widthInput = await this.getInputView("width"),
+            heightInput = await this.getInputView("height");
+
         if (this.values.tileHorizontal || this.values.tileVertical) {
             this.removeClass("no-tiling");
             chunkInput.setValue(true, false);
@@ -138,6 +201,59 @@ class CanvasFormView extends FormView {
                 this.addClass("no-tiling");
             }
         }
+
+        if (
+            isEmpty(this.values.size) &&
+            !isEmpty(this.values.width) &&
+            !isEmpty(this.values.height)
+        ) {
+            let sizeInput = await this.getInputView("size"),
+                size = `${this.values.width}_${this.values.height}`;
+            if (isEmpty(CanvasSizeInputView.defaultOptions[size])) {
+                sizeInput.setValue("custom", false);
+                this.values.size = "custom";
+                this.addClass("custom-size");
+            } else {
+                sizeInput.setValue(size, false);
+                this.values.size = size;
+                this.removeClass("custom-size");
+            }
+        } else if (this.values.size === "custom") {
+            this.addClass("custom-size");
+        } else if (!isEmpty(this.values.size)) {
+            this.removeClass("custom-size");
+            let [width, height] = this.values.size.split("_");
+            widthInput.setValue(parseInt(width), false);
+            heightInput.setValue(parseInt(height), false);
+            this.values.width = width;
+            this.values.height = height;
+        }
+    }
+
+    /**
+     * On set value, add/remove css classes and check preconfigured size
+     */
+    async setValues(values) {
+        if (!isEmpty(values.width) && !isEmpty(values.height)) {
+            let size = `${values.width}_${values.height}`;
+            if (isEmpty(CanvasSizeInputView.defaultOptions[size])) {
+                values.size = "custom";
+                this.addClass("custom-size");
+            } else {
+                values.size = size;
+                this.removeClass("custom-size");
+            }
+        } else if(!isEmpty(values.size)) {
+            if (values.size !== "custom") {
+                let [width, height] = values.size.split("_");
+                values.width = parseInt(width);
+                values.height = parseInt(height);
+                this.removeClass("custom-size");
+            } else {
+                this.addClass("custom-size");
+            }
+        }
+        return await super.setValues(values);
     }
 };
 

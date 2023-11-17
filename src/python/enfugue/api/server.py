@@ -16,8 +16,10 @@ from pibble.api.server.webservice.jsonapi import JSONWebServiceAPIServer
 from pibble.ext.user.server.base import UserExtensionHandlerRegistry
 from pibble.ext.rest.server.user import UserRESTExtensionServerBase
 from pibble.ext.user.database import AuthenticationToken, User
+
 from pibble.util.encryption import Password
 from pibble.util.helpers import OutputCatcher
+from pibble.util.files import load_json, dump_json
 
 from enfugue.diffusion.invocation import LayeredInvocation
 
@@ -32,6 +34,8 @@ from enfugue.api.invocations import Invocation
 from enfugue.api.downloads import Download
 from enfugue.api.config import EnfugueConfiguration
 
+from enfugue.partner.civitai import CivitAI
+
 from enfugue.util import (
     check_make_directory,
     get_version,
@@ -40,6 +44,7 @@ from enfugue.util import (
     get_local_static_directory,
     get_file_name_from_url,
     find_file_in_directory,
+    find_files_in_directory,
     logger,
 )
 
@@ -64,15 +69,17 @@ EnfugueAPIRESTConfiguration = {
 
 # Don't confuse people, we can't do OAuth
 AuthenticationToken.Hide(["refresh_token", "id"])
+# Don't confuse people, hashes aren't passwords
 User.Hide(["password", "superuser", "password_expires", "verified"])
 
 __all__ = ["EnfugueAPIServerBase", "EnfugueAPIServer"]
 
 
-class EnfugueAPIServerBase(
-    JSONWebServiceAPIServer,
-    UserRESTExtensionServerBase,
-):
+class EnfugueAPIServerBase(JSONWebServiceAPIServer, UserRESTExtensionServerBase):
+    XL_BASE_KEY =    "conditioner.embedders.1.model.transformer.resblocks.9.mlp.c_proj.bias"
+    XL_REFINER_KEY = "conditioner.embedders.0.model.transformer.resblocks.9.mlp.c_proj.bias"
+    INPUT_BLOCK_KEY = "model.diffusion_model.input_blocks.0.0.weight"
+
     handlers = UserExtensionHandlerRegistry()
 
     @property
@@ -113,6 +120,13 @@ class EnfugueAPIServerBase(
         ])
 
     @property
+    def thumbnail_height(self) -> int:
+        """
+        Gets the height of thumbnails.
+        """
+        return self.configuration.get("enfugue.thumbnail", 100)
+
+    @property
     def engine_root(self) -> str:
         """
         Returns the engine root location.
@@ -123,6 +137,161 @@ class EnfugueAPIServerBase(
         root = os.path.realpath(root)
         check_make_directory(root)
         return root
+
+    @property
+    def safe(self) -> bool:
+        """
+        Returns if safety filtering is enabled
+        """
+        return self.configuration.get("enfugue.safe", True)
+
+    @property
+    def civitai(self) -> CivitAI:
+        """
+        Gets the client. Instantiates if necessary.
+        """
+        if not hasattr(self, "_civitai"):
+            self._civitai = CivitAI()
+            self._civitai.configure()
+        return self._civitai
+
+    @classmethod
+    def write_checksum(cls, file: str, checksum_file: str) -> None:
+        """
+        Gets a SHA256 checksum of a file and writes it to another file.
+        """
+        import hashlib
+        sha1 = hashlib.sha256()
+        with open(file, "rb") as fh:
+            while True:
+                data = fh.read(65536)
+                if not data:
+                    break
+                sha1.update(data)
+        with open(checksum_file, "w") as fh:
+            fh.write(sha1.hexdigest())
+
+    @classmethod
+    def get_checksum(cls, file: str) -> str:
+        """
+        Gets the checksum of a file
+        """
+        file = os.path.abspath(os.path.realpath(file))
+        file_directory = os.path.dirname(file)
+        file_name, ext = os.path.splitext(os.path.basename(file))
+        file_sum = os.path.join(file_directory, f"{file_name}.sha256")
+        if not os.path.exists(file_sum):
+            cls.write_checksum(file, file_sum)
+        return open(file_sum, "r").read()
+
+    @classmethod
+    def check_name(cls, name: str) -> None:
+        """
+        Raises an exception if a name contains invalid characters
+        """
+        if re.match(r".*[./\\].*", name):
+            raise BadRequestError("Name cannot contain the following characters: ./\\")
+
+    @classmethod
+    def get_models_in_directory(cls, directory: str) -> List[str]:
+        """
+        Gets stored AI model networks in a directory (.safetensors, .ckpt, etc.)
+        """
+        return list(
+            find_files_in_directory(
+                directory,
+                pattern = r"^.+\.(safetensors|pt|pth|bin|ckpt)$"
+            )
+        )
+
+    def write_civitai_metadata(self, file: str, metadata_file: str) -> None:
+        """
+        Gets CivitAI metadata by checksum then writes to file
+        """
+        checksum = self.get_checksum(file)
+        try:
+            metadata = self.civitai.by_hash(checksum)
+        except NotFoundError:
+            metadata = {}
+        dump_json(metadata_file, metadata)
+
+    def get_civitai_metadata(self, model: str) -> List[Dict[str, Any]]:
+        """
+        Gets CivitAI metadata for a model
+        """
+        model = os.path.abspath(os.path.realpath(model))
+        model_directory = os.path.dirname(model)
+        model_name, ext = os.path.splitext(os.path.basename(model))
+        model_metadata = os.path.join(model_directory, f"{model_name}.civitai.json")
+        if not os.path.exists(model_metadata):
+            self.write_civitai_metadata(model, model_metadata)
+        return load_json(model_metadata)
+
+    def get_model_metadata(self, model: str) -> Optional[Dict[str, Any]]:
+        """
+        Gets metadata for a checkpoint if it exists
+        ONLY reads safetensors files
+        """
+        directory = self.get_configured_directory("checkpoint")
+        model_path = find_file_in_directory(directory, model)
+        if model_path is None:
+            return None
+
+        # Start with dumb name checks, we'll do better checks in a moment
+        model_name, model_ext = os.path.splitext(model)
+        model_metadata = {
+            "xl": "xl" in model_name.lower(),
+            "refiner": "refiner" in model_name.lower(),
+            "inpainter": "inpaint" in model_name.lower()
+        }
+
+        if model_name in self.get_diffusers_models():
+            # Read diffusers cache
+            diffusers_cache_dir = os.path.join(self.get_configured_directory("diffusers"), model_name)
+            model_metadata["xl"] = os.path.exists(os.path.join(diffusers_cache_dir, "text_encoder_2"))
+            model_metadata["refiner"] = (
+                model_metadata["xl"] and not
+                os.path.exists(os.path.join(diffusers_cache_dir, "text_encoder"))
+            )
+            unet_config_file = os.path.join(diffusers_cache_dir, "unet", "config.json")
+            if os.path.exists(unet_config_file):
+                unet_config = load_json(unet_config_file)
+                model_metadata["inpainter"] = unet_config.get("in_channels", 4) == 9
+            else:
+                logger.warning(f"Diffusers model {model_name} with no UNet is unexpected, errors may occur.")
+                model_metadata["inpainter"] = False
+        elif model_ext == ".safetensors":
+            # Reads safetensors metadata
+            import safetensors
+            with safetensors.safe_open(model_path, framework="pt", device="cpu") as f:
+                keys = list(f.keys())
+                xl_base = self.XL_BASE_KEY in keys
+                xl_refiner = self.XL_REFINER_KEY in keys
+                model_metadata["xl"] = xl_base or xl_refiner
+                model_metadata["refiner"] = xl_refiner
+                if self.INPUT_BLOCK_KEY in keys:
+                    input_weights = f.get_tensor(self.INPUT_BLOCK_KEY)
+                    model_metadata["inpainter"] = input_weights.shape[1] == 9 # type: ignore[union-attr]
+                else:
+                    logger.warning(f"Checkpoint file {model_path} with no input block shape is unexpected, errors may occur.")
+                    model_metadata["inpainter"] = False
+
+        return model_metadata
+
+    def get_diffusers_models(self) -> List[str]:
+        """
+        Gets diffusers models in the configured directory.
+        """
+        diffusers_dir = self.get_configured_directory("diffusers")
+        diffusers_models = []
+        if os.path.exists(diffusers_dir):
+            diffusers_models = [
+                dirname
+                for dirname in os.listdir(diffusers_dir)
+                if os.path.exists(os.path.join(diffusers_dir, dirname, "model_index.json"))
+                and not dirname.endswith("-animator")
+            ]
+        return diffusers_models
 
     def get_configured_directory(self, model_type: str) -> str:
         """
@@ -135,6 +304,88 @@ class EnfugueAPIServerBase(
         if dirname.startswith("~"):
             dirname = os.path.expanduser(dirname)
         return os.path.realpath(dirname)
+
+    def get_default_model(self, model: str) -> Optional[str]:
+        """
+        Gets a default model link by model name, if one exists
+        """
+        base_model_name = get_file_name_from_url(model)
+        if base_model_name in self.default_checkpoints:
+            return self.default_checkpoints[base_model_name]
+        if base_model_name in self.default_lora:
+            return self.default_lora[base_model_name]
+        return None
+
+    def get_default_size_for_model(self, model: Optional[str]) -> int:
+        """
+        Gets the default size for the model.
+        """
+        if model is None:
+            model = self.configuration.get("enfugue.model", DEFAULT_MODEL)
+        model_name = os.path.splitext(os.path.basename(model))[0]
+        diffusers_path = os.path.join(
+            self.configuration.get("enfugue.engine.diffusers", "~/.cache/enfugue/diffusers"),
+            model_name
+        )
+        if diffusers_path.startswith("~"):
+            diffusers_path = os.path.expanduser(diffusers_path)
+        if os.path.exists(diffusers_path) and os.path.exists(os.path.join(diffusers_path, "text_encoder_2")):
+            return 1024
+        return 1024 if "xl" in model_name.lower() else 512
+
+    def check_find_model(self, model_type: str, model: str) -> str:
+        """
+        Tries to find a model in a configured directory, if the
+        passed model is not an absolute path.
+        """
+        if os.path.exists(model):
+            return model
+        model_basename = os.path.splitext(os.path.basename(model))[0]
+        model_dir = self.get_configured_directory(model_type)
+        existing_model = find_file_in_directory(
+            model_dir,
+            model_basename,
+            extensions = [".ckpt", ".bin", ".pt", ".pth", ".safetensors"]
+        )
+        if existing_model:
+            return existing_model
+        check_default_model = self.get_default_model(model)
+        if check_default_model:
+            return check_default_model
+        raise BadRequestError(f"Cannot find or access {model} (looked recursively for AI model checkpoint formats named {model_basename} in {model_dir})")
+
+    def check_find_adaptations(
+        self,
+        model_type: str,
+        is_weighted: bool,
+        model: Optional[Union[str, Dict[str, Any], List[Union[str, Dict[str, Any]]]]] = None,
+    ) -> List[Union[str, Tuple[str, float]]]:
+        """
+        Tries to find a model or list of models in a configured directory,
+        with or without weights.
+        """
+        if model is None:
+            return []
+        elif isinstance(model, str):
+            if is_weighted:
+                return [(self.check_find_model(model_type, model), 1.0)]
+            return [self.check_find_model(model_type, model)]
+        elif isinstance(model, dict):
+            model_name = model.get("model", None)
+            model_weight = model.get("weight", 1.0)
+            if not model_name:
+                return []
+            if is_weighted:
+                return [(self.check_find_model(model_type, model_name), model_weight)]
+            return [self.check_find_model(model_type, model_name)]
+        elif isinstance(model, list):
+            models = []
+            for item in model:
+                models.extend(
+                    self.check_find_adaptations(model_type, is_weighted, item)
+                )
+            return models
+        raise BadRequestError(f"Bad format for {model_type} - must be either a single string, a dictionary with the key `model` and optionally `weight`, or a list of the same (got {model})")
 
     def on_configure(self) -> None:
         """

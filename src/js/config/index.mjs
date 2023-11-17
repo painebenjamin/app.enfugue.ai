@@ -94,7 +94,21 @@ Configuration.themes = {
         "bodyFont": "Poppins",
         "monospaceFont": "Inconsolata"
     },
-    "Lithograph": {
+    "Plum": {
+        "themeColorPrimary": "#673b80",
+        "themeColorSecondary": "#c59eda",
+        "themeColorTertiary": "#f6d8ee",
+        "lightColor": "#f0d0f1",
+        "lighterColor": "#f0e0f3",
+        "lightestColor": "#f6effa",
+        "darkColor": "#35243a",
+        "darkerColor": "#1c1224",
+        "darkestColor": "#0a070d",
+        "headerFont": "Open Sans",
+        "bodyFont": "Open Sans",
+        "monospaceFont": "Open Sans"
+    },
+    "Greyscale": {
         "themeColorPrimary": "#7c7c7c",
         "themeColorSecondary": "#d7d7d7",
         "themeColorTertiary": "#f1f1f1",
@@ -107,7 +121,21 @@ Configuration.themes = {
         "headerFont": "Quicksand",
         "bodyFont": "Open Sans",
         "monospaceFont": "Ubuntu Mono"
-    }
+    },
+    "Deep Dark": {
+        "themeColorPrimary": "#303030",
+        "themeColorSecondary": "#999999",
+        "themeColorTertiary": "#999999",
+        "lightColor": "#e1e1e1",
+        "lighterColor": "#eaeaea",
+        "lightestColor": "#f4f4f4",
+        "darkColor": "#0b0b0b",
+        "darkerColor": "#060606",
+        "darkestColor": "#020202",
+        "headerFont": "Roboto",
+        "bodyFont": "Noto Sans",
+        "monospaceFont": "Ubuntu Mono"
+    },
 };
 
 Configuration.model = {
@@ -131,13 +159,13 @@ Configuration.model = {
         width: 512,
         height: 512,
         tilingSize: null,
-        tilingStride: 64,
+        tilingStride: 128,
         tilingMaskType: "bilinear",
         guidanceScale: 6.5,
         inferenceSteps: 20,
-        interval: 1000,
+        interval: 500,
         errors: {
-            consecutive: 2
+            consecutive: 3
         }
     }
 };

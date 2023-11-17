@@ -523,6 +523,27 @@ class DiffusionPipelineManager:
         """
         return getattr(self, "_scheduler_config", {})
 
+    @scheduler_config.setter
+    def scheduler_config(self, scheduler_config: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Gets the kwargs for the scheduler class.
+        """
+        self._scheduler_config = scheduler_config
+
+    @property
+    def static_scheduler_config(self) -> Dict[str, Any]:
+        """
+        Gets the static kwargs for the scheduler class.
+        """
+        return getattr(self, "_static_scheduler_config", {})
+
+    @static_scheduler_config.setter
+    def static_scheduler_config(self, scheduler_config: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Gets the kwargs for the scheduler class.
+        """
+        self._static_scheduler_config = scheduler_config
+
     @property
     def scheduler(self) -> Optional[KarrasDiffusionSchedulers]:
         """
@@ -554,28 +575,45 @@ class DiffusionPipelineManager:
                     logger.debug("Reverting animator pipeline scheduler to default.")
                     self._animator_pipeline.revert_scheduler()
             return
+
         scheduler_class = self.get_scheduler_class(new_scheduler)
         scheduler_config: Dict[str, Any] = {}
+
         if isinstance(scheduler_class, tuple):
             scheduler_class, scheduler_config = scheduler_class
-        if not hasattr(self, "_scheduler") or self._scheduler is not scheduler_class or self.scheduler_config != scheduler_config:
-            logger.debug(f"Changing to scheduler {scheduler_class.__name__} ({new_scheduler})") # type: ignore[union-attr]
-            self._scheduler = scheduler_class # type: ignore[assignment]
-            self._scheduler_config = scheduler_config
-        else:
-            return
+
+        logger.debug(f"Changing to scheduler {scheduler_class.__name__} ({new_scheduler})") # type: ignore[union-attr]
+        self._scheduler = scheduler_class # type: ignore[assignment]
+        self._static_scheduler_config = scheduler_config
+
         if hasattr(self, "_pipeline"):
             logger.debug(f"Hot-swapping pipeline scheduler.")
-            self._pipeline.scheduler = self.scheduler.from_config({**self._pipeline.scheduler_config, **self.scheduler_config})  # type: ignore
+            self._pipeline.scheduler = self.scheduler.from_config({ # type: ignore
+                **self._pipeline.scheduler_config,
+                **self.scheduler_config,
+                **self.static_scheduler_config
+            })
         if hasattr(self, "_inpainter_pipeline"):
             logger.debug(f"Hot-swapping inpainter pipeline scheduler.")
-            self._inpainter_pipeline.scheduler = self.scheduler.from_config({**self._inpainter_pipeline.scheduler_config, **self.scheduler_config})  # type: ignore
+            self._inpainter_pipeline.scheduler = self.scheduler.from_config({ # type: ignore
+                **self._inpainter_pipeline.scheduler_config,
+                **self.scheduler_config,
+                **self.static_scheduler_config
+            })
         if hasattr(self, "_refiner_pipeline"):
             logger.debug(f"Hot-swapping refiner pipeline scheduler.")
-            self._refiner_pipeline.scheduler = self.scheduler.from_config({**self._refiner_pipeline.scheduler_config, **self.scheduler_config})  # type: ignore
+            self._refiner_pipeline.scheduler = self.scheduler.from_config({ # type: ignore
+                **self._refiner_pipeline.scheduler_config,
+                **self.scheduler_config,
+                **self.static_scheduler_config
+            })
         if hasattr(self, "_animator_pipeline"):
             logger.debug(f"Hot-swapping animator pipeline scheduler.")
-            self._animator_pipeline.scheduler = self.scheduler.from_config({**self._animator_pipeline.scheduler_config, **self.scheduler_config})  # type: ignore
+            self._animator_pipeline.scheduler = self.scheduler.from_config({ # type: ignore
+                **self._animator_pipeline.scheduler_config,
+                **self.scheduler_config,
+                **self.static_scheduler_config
+            })
 
     def get_vae_path(self, vae: Optional[str] = None) -> Optional[Union[str, Tuple[str, ...]]]:
         """

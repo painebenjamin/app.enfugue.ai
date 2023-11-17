@@ -56,6 +56,7 @@ class VideoView extends View {
         this.video.autoplay = true;
         this.video.loop = true;
         this.video.muted = true;
+        this.video.controls = true;
         this.video.src = src;
     }
 

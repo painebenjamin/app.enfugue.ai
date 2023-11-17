@@ -68,8 +68,11 @@ class LayeredInvocation:
     lora: Optional[Union[str, List[str], Tuple[str, float], List[Union[str, Tuple[str, float]]]]]=None
     lycoris: Optional[Union[str, List[str], Tuple[str, float], List[Union[str, Tuple[str, float]]]]]=None
     inversion: Optional[Union[str, List[str]]]=None
-    scheduler: Optional[SCHEDULER_LITERAL]=None
     ip_adapter_model: Optional[IP_ADAPTER_LITERAL]=None
+    scheduler: Optional[SCHEDULER_LITERAL]=None
+    scheduler_beta_start: Optional[float]=None
+    scheduler_beta_end: Optional[float]=None
+    scheduler_beta_schedule: Optional[str]=None
     # Custom model args
     model_prompt: Optional[str]=None
     model_prompt_2: Optional[str]=None
@@ -245,8 +248,8 @@ class LayeredInvocation:
                 pixels.extend([(j, foreground_height - i - 1) for j in range(foreground_width)])
             for x, y in pixels:
                 mask.putpixel((x, y), int(mask.getpixel((x, y)) * multiplier))
-
-        image.paste(foreground, position, mask=mask)
+        logger.critical(f"{mask.size}, {foreground.size}, {position}")
+        image.paste(foreground, position[:2], mask=mask)
         return image
 
     @property
@@ -1306,6 +1309,21 @@ class LayeredInvocation:
         pipeline.lora = self.lora
         pipeline.lycoris = self.lycoris
         pipeline.inversion = self.inversion
+        
+        if (
+            self.scheduler_beta_start is not None or
+            self.scheduler_beta_end is not None or
+            self.scheduler_beta_schedule is not None
+        ):
+            scheduler_config = {}
+            if self.scheduler_beta_start is not None:
+                scheduler_config["beta_start"] = self.scheduler_beta_start
+            if self.scheduler_beta_end is not None:
+                scheduler_config["beta_end"] = self.scheduler_beta_end
+            if self.scheduler_beta_schedule is not None:
+                scheduler_config["beta_schedule"] = self.scheduler_beta_schedule
+            pipeline.scheduler_config = scheduler_config
+
         pipeline.scheduler = self.scheduler
 
         if self.build_tensorrt:
@@ -1450,6 +1468,8 @@ class LayeredInvocation:
             tiling_size = upscale_step.get("tiling_size", DEFAULT_UPSCALE_TILING_SIZE)
             tiling_mask_type = upscale_step.get("tiling_mask_type", None)
             tiling_mask_kwargs = upscale_step.get("tiling_mask_kwargs", None)
+            frame_window_size = upscale_step.get("frame_window_size", self.frame_window_size)
+            frame_window_stride = upscale_step.get("frame_window_stride", self.frame_window_stride)
             noise_offset = upscale_step.get("noise_offset", None)
             noise_method = upscale_step.get("noise_method", None)
             noise_blend_method = upscale_step.get("noise_blend_method", None)
@@ -1519,8 +1539,9 @@ class LayeredInvocation:
                             yield upscale
                 elif method in PIL_INTERPOLATION:
                     def pil_resize(image: Image) -> Image:
+                        image_width, image_height = image.size
                         return image.resize(
-                            (int(width * amount), int(height * amount)),
+                            (int(image_width * amount), int(image_height * amount)),
                             resample=PIL_INTERPOLATION[method]
                         )
                     yield pil_resize
@@ -1615,9 +1636,11 @@ class LayeredInvocation:
                         "noise_method": noise_method,
                         "noise_blend_method": noise_blend_method,
                         "animation_frames": animation_frames,
+                        "frame_window_size": frame_window_size,
+                        "frame_window_stride": frame_window_stride,
                         "motion_scale": invocation_kwargs.get("motion_scale", None),
                         "tile": invocation_kwargs.get("tile", None),
-                        "loop": invocation_kwargs.get("loop", False)
+                        "loop": invocation_kwargs.get("loop", False),
                     }
 
                     if controlnets is not None:

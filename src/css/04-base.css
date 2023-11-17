@@ -213,6 +213,7 @@ fieldset legend {
 }
 
 fieldset .field-container {
+    position: relative;
     display: flex;
     flex-flow: column-reverse nowrap;
     align-items: stretch;

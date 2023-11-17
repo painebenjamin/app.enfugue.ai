@@ -13,7 +13,6 @@ class CivitAIModel:
     """
     This represents an individual result from CivitAI
     """
-
     parser: HTML2Text
 
     @property
@@ -69,7 +68,6 @@ class CivitAI(JSONWebServiceAPIClient):
         """
         Gets all results from an endpoint, paginating if necessary
         """
-
         parameters = dict([(key, value) for key, value in parameters.items() if value is not None and value != ""])
 
         if limit is not None:
@@ -90,6 +88,12 @@ class CivitAI(JSONWebServiceAPIClient):
                 page = self.get(page["metadata"]["nextPage"]).json()
             else:
                 page = None
+
+    def by_hash(self, hashed: str) -> Dict:
+        """
+        Gets model versions by hash
+        """
+        return self.get(f"/model-versions/by-hash/{hashed}").json()
 
     def get_models(
         self,

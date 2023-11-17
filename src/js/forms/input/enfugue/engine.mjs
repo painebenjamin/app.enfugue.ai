@@ -334,6 +334,30 @@ class ControlNetUnitsInputView extends RepeatableInputView {
     static addItemLabel = "Add ControlNet Unit";
 }
 
+/**
+ * The beta schedule options
+ */
+class BetaScheduleInputView extends SelectInputView {
+    /**
+     * @var bool Allow empty result
+     */
+    static allowEmpty = true;
+
+    /**
+     * @var string Placeholder
+     */
+    static placeholder = "Default";
+
+    /**
+     * @var object Options
+     */
+    static defaultOptions = {
+        "linear": "Linear",
+        "scaled_linear": "Scaled Linear",
+        "squaredcos_cap_v2": "Squared Cosine"
+    };
+};
+
 export {
     EngineSizeInputView,
     RefinerEngineSizeInputView,
@@ -343,4 +367,5 @@ export {
     ControlNetInputView,
     ControlNetUnitsInputView,
     ImageColorSpaceInputView,
+    BetaScheduleInputView,
 };

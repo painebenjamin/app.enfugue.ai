@@ -12,12 +12,62 @@ if TYPE_CHECKING:
     from enfugue.diffusion.constants import IP_ADAPTER_LITERAL
     from enfugue.diffusion.support.ip.projection import ImageProjectionModel
     from enfugue.diffusion.support.ip.resampler import Resampler # type: ignore
-    from diffusers.models import UNet2DConditionModel, ControlNetModel
+    from diffusers.models import UNet2DConditionModel, ControlNetModel, ModelMixin
+    from diffusers.attention import AttentionProcessor
     from transformers import (
         CLIPVisionModelWithProjection,
         CLIPImageProcessor,
         PretrainedConfig
     )
+
+def get_attn_processors(model: ModelMixin, return_deprecated_lora=True) -> Dict[str, AttentionProcessor]:
+    """
+    Returns:
+        `dict` of attention processors: A dictionary containing all attention processors used in the model with
+        indexed by its weight name.
+    """
+    # set recursively
+    processors = {}
+
+    def fn_recursive_add_processors(name: str, module: torch.nn.Module, processors: Dict[str, AttentionProcessor]):
+        if hasattr(module, "get_processor"):
+            processors[f"{name}.processor"] = module.get_processor(return_deprecated_lora=return_deprecated_lora)
+
+        for sub_name, child in module.named_children():
+            fn_recursive_add_processors(f"{name}.{sub_name}", child, processors)
+
+        return processors
+
+    for name, module in model.named_children():
+        fn_recursive_add_processors(name, module, processors)
+
+    return processors
+
+def set_attn_processors(model: ModelMixin, processors: Dict[str, AttentionProcessor]):
+    """
+    Sets the attention processor to use to compute attention.
+
+    Parameters:
+        processor (`dict` of `AttentionProcessor` or only `AttentionProcessor`):
+            The instantiated processor class or a dictionary of processor classes that will be set as the processor
+            for **all** `Attention` layers.
+
+            If `processor` is a dict, the key needs to define the path to the corresponding cross attention
+            processor. This is strongly recommended when setting trainable attention processors.
+
+    """
+    def fn_recursive_attn_processor(name: str, module: torch.nn.Module, processor):
+        if hasattr(module, "set_processor"):
+            if not isinstance(processor, dict):
+                module.set_processor(processor, _remove_lora=_remove_lora)
+            else:
+                module.set_processor(processor.pop(f"{name}.processor"), _remove_lora=_remove_lora)
+
+        for sub_name, child in module.named_children():
+            fn_recursive_attn_processor(f"{name}.{sub_name}", child, processor)
+
+    for name, module in model.named_children():
+        fn_recursive_attn_processor(name, module, processor)
 
 class IPAdapter(SupportModel):
     """
@@ -89,9 +139,10 @@ class IPAdapter(SupportModel):
         self._default_controlnet_attention_processors: Dict[str, Dict[str, Any]] = {}
 
         new_attention_processors: Dict[str, Any] = {}
+        attn_processors = get_attn_processors(unet)
 
-        for name in unet.attn_processors.keys():
-            current_processor = unet.attn_processors[name]
+        for name in attn_processors.keys():
+            current_processor = attn_processors[name]
             cross_attention_dim = None if name.endswith("attn1.processor") else self.cross_attention_dim
             if name.startswith("mid_block"):
                 hidden_size = unet.config.block_out_channels[-1] # type: ignore[attr-defined]
@@ -109,12 +160,14 @@ class IPAdapter(SupportModel):
                     attn_class = AttentionProcessor2_0
                 else:
                     attn_class = AttentionProcessor
+
                 new_attention_processors[name] = attn_class()
             else:
                 if type(current_processor) in [AttnProcessor2_0, LoRAAttnProcessor2_0]:
                     ip_attn_class = IPAttentionProcessor2_0
                 else:
                     ip_attn_class = IPAttentionProcessor
+
                 new_attention_processors[name] = ip_attn_class(
                     hidden_size=hidden_size,
                     cross_attention_dim=cross_attention_dim,
@@ -123,13 +176,13 @@ class IPAdapter(SupportModel):
                 ).to(self.device, dtype=self.dtype)
 
         keepalive_callback()
-        unet.set_attn_processor(new_attention_processors)
-        layers = torch.nn.ModuleList(unet.attn_processors.values()) # type: ignore[arg-type]
+        set_attn_processors(unet, new_attention_processors)
+        layers = torch.nn.ModuleList(attn_processors.values()) # type: ignore[arg-type]
 
         state_dict = self.xl_state_dict if is_sdxl else self.default_state_dict
 
         keepalive_callback()
-        layers.load_state_dict(state_dict["ip_adapter"])
+        layers.load_state_dict(state_dict["ip_adapter"], strict=False)
 
         keepalive_callback()
         self.projector.load_state_dict(state_dict["image_proj"])
@@ -138,7 +191,7 @@ class IPAdapter(SupportModel):
             keepalive_callback()
             for controlnet in controlnets:
                 new_processors = {}
-                current_processors = controlnets[controlnet].attn_processors
+                current_processors = get_attn_processors(controlnets[controlnet])
                 self._default_controlnet_attention_processors[controlnet] = {}
                 for key in current_processors:
                     self._default_controlnet_attention_processors[controlnet][key] = current_processors[key]
@@ -146,7 +199,7 @@ class IPAdapter(SupportModel):
                         new_processors[key] = CNAttentionProcessor2_0()
                     else:
                         new_processors[key] = CNAttentionProcessor()
-                controlnets[controlnet].set_attn_processor(new_processors)
+                set_attn_processors(controlnets[controlnet], new_processors)
 
     @property
     def use_fine_grained(self) -> bool:
@@ -223,8 +276,9 @@ class IPAdapter(SupportModel):
             IPAttentionProcessor2_0,
         )
         processors_altered = 0
-        for name in unet.attn_processors.keys():
-            processor = unet.attn_processors[name]
+        attn_processors = get_attn_processors(unet, False)
+        for name in attn_processors.keys():
+            processor = attn_processors[name]
             if isinstance(processor, IPAttentionProcessor) or isinstance(processor, IPAttentionProcessor2_0):
                 processor.scale = scale
                 processors_altered += 1
@@ -237,7 +291,7 @@ class IPAdapter(SupportModel):
         if not hasattr(self, "_default_unet_attention_processors"):
             raise RuntimeError("IP adapter was not loaded, cannot unload")
 
-        unet.set_attn_processor({**self._default_unet_attention_processors})
+        set_attn_processors(unet, {**self._default_unet_attention_processors})
 
         if controlnets is not None:
             for controlnet in controlnets:

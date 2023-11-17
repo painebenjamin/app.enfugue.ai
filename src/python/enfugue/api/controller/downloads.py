@@ -7,24 +7,12 @@ from pibble.api.exceptions import BadRequestError, StateConflictError
 from pibble.ext.user.server.base import UserExtensionHandlerRegistry
 
 from enfugue.util import check_make_directory
-from enfugue.partner.civitai import CivitAI
 from enfugue.api.controller.base import EnfugueAPIControllerBase
 
 __all__ = ["EnfugueAPIDownloadsController"]
 
-
 class EnfugueAPIDownloadsController(EnfugueAPIControllerBase):
     handlers = UserExtensionHandlerRegistry()
-
-    @property
-    def civitai(self) -> CivitAI:
-        """
-        Gets the client. Instantiates if necessary.
-        """
-        if not hasattr(self, "_civitai"):
-            self._civitai = CivitAI()
-            self._civitai.configure()
-        return self._civitai
 
     @handlers.path("^/api/download$")
     @handlers.methods("POST")
