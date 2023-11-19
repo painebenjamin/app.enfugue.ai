@@ -1,14 +1,123 @@
 #!/usr/bin/env bash
 #
-# This shell script serves as a one-and-done download, update and run
-# command for enfugue. It's able to download enfuge via conda or in
-# portable form.
+# This shell script serves as a one-and-done download, update, configure and run command for enfugue.
+# It's able to download enfuge via conda or in portable form.
+#
+# Below is the configuration for enfugue. Most values are self-explanatory, but some others need some explanation.
+# See below the configuration for explanation on these values.
+#
+# AN IMPORTANT NOTE ABOUT NETWORKING
+# 
+# By default enfugue uses a domain-based networking scheme with the domain `app.enfugue.ai`.
+# This is a registered domain name that resolves to `127.0.0.1`, the loopback domain.
+# If you're running enfugue on a local machine with internet access, this should be fine, and you shouldn't need to change any configuration.
+# If you're running enfugue on a remote machine, you will want to change the following:
+# - `server.domain` should be changed to the domain you want to access the interface through _unless_ you're using a proxy. This can be an IP address.
+# - `server.secure` should be set to false _unless_ you also configure an SSL certificate. See the commented-out (#) lines in the configuration below.
+# If you're additionally using a proxy like ngrok, you should configure `server.cms.path.root` to be the proxied URL. See the commented-out (#) lines below.
 
-# We first declare default options, these will be populated later.
+cat << EOF > $PWD/config.yml
+---
+sandboxed: false                                # true = disable system management in UI
+server:
+    host: 0.0.0.0                               # listens on any connection
+    port: 45554                                 # ports < 1024 require sudo
+    domain: app.enfugue.ai                      # this is a loopback domain
+    secure: true                                # enables SSL
+    # If you change the domain, you must provide your own certificates or disable SSL
+    # key: /path/to/key.pem
+    # cert: /path/to/cert.pem
+    # chain: /path/to/chain.pem
+    logging:
+        file: ~/.cache/enfugue.log              # server logs (NOT diffusion logs)
+        level: error                            # server only logs errors
+    cms:
+        path:                                   # only configure when different from top-level domain
+            # root: http(s)://my-proxy-host.ngrok-or-other/
+enfugue:
+    noauth: true                                # authentication default
+    queue: 4                                    # queue size default
+    safe: true                                  # safety checker default
+    model: v1-5-pruned.ckpt                     # default model (repo or file)
+    inpainter: null                             # default inpainter (repo or file), null = sd15 base inpainter
+    refiner: null                               # default refiner (repo or file), null = none
+    refiner_start: 0.85                         # default start for refining when refiner set and no args (0.0-1.0)
+    dtype: null                                 # set to float32 to disable half-precision, you probably dont want to
+    engine:
+        logging:
+            file: ~/.cache/enfugue-engine.log   # diffusion logs (shown in UI)
+            level: debug                        # logs everything, helpful for debugging
+        root: ~/.cache/enfugue                  # root engine directory, images save in /images
+        cache: ~/.cache/enfugue/cache           # diffusers cache, controlnets, VAE
+        checkpoint: ~/.cache/enfugue/checkpoint # checkpoints only
+        lora: ~/.cache/enfugue/lora             # lora only
+        lycoris: ~/.cache/enfugue/lycoris       # lycoris only
+        inversion: ~/.cache/enfugue/inversion   # textual inversion only
+        motion: ~/.cache/enfugue/motion         # motion modules only
+        other: ~/.cache/enfugue/other           # other AI models (upscalers, preprocessors, etc.)
+    pipeline:
+        switch: "offload"                   # See comment above
+        inpainter: true                     # See comment above
+        cache: null                         # See comment above
+        sequential: false                   # See comment above
+EOF
+trap "rm $PWD/config.yml" EXIT
+# -----------------------
+# enfugue.pipeline.switch
+# -----------------------
+# 'switch' determines how to swap between pipelines when required, like going from inpainting to non-inpainting or loading a refiner.
+# The default behavior, 'offload,' sends unneeded pipelines to the CPU and promotes active pipelines to the GPU when requested.
+# This usually provides the best balance of speed and memory usage, but can result in heavy overhead on some systems.
+#
+# If this proves too much, or you wish to minimize memory usage, set this to 'unload,'which will always completely unload a pipeline 
+# and free memory before a different pipeline is used.
+#
+# If you set this to 'null,' _all models will remain in memory_. This is by far thefastest but consumes the most memory, this is only
+# suitable for enterprise GPUs.
+#
+# --------------------------
+# enfugue.pipeline.inpainter
+# --------------------------
+# 'inpainter' determines how to inpaint when no inpainter is specified.
+#
+# When the value is 'true', and the user is using a stable diffusion 1.5 model for their base model, enfugue will look for another
+# checkpoint with the same name but the suffix `-inpainting`, and when one is not found, it will create one using the model merger.
+# Fine-tuned inpainting checkpoints perform significantly better at the task, however they are roughly equivalent in size to the
+# main model, effectively doubling storage required.
+#
+# When the value is 'null' or 'false', Enfugue will still search for a fine-tuned inpainting model, but will not create one if it does not exist.
+# Instead, enfugue will use 4-dim inpainting, which in 1.5 is less effective.
+# SDXL does not have a fine-tuned inpainting model (yet,) so this procedure does not apply, and 4-dim inpainting is always used.
+#
+# ----------------------
+# enfugue.pipeline.cache
+# ----------------------
+# 'cache' determines when to create diffusers caches. A diffusers cache will always load faster than a checkpoint, but is once again
+# approximately the same size as the checkpoint, so this will also effectively double storage size.
+#
+# When the value is 'null' or 'false', diffusers caches will _only_ be made for TensorRT pipelines, as it is required. This is the default value.
+#
+# When the value is 'xl', enfugue will cache XL checkpoints. These load _significantly_ faster than when loading from file, between
+# 2 and 3 times as quickly. You may wish to consider using this setting to speed up changing between XL checkpoints.
+#
+# When the value is 'true', diffusers caches will be created for all pipelines. This is not recommended as it only provides marginal
+# speed advantages for 1.5 models.
+#
+# ---------------------------
+# enfugue.pipeline.sequential
+# ---------------------------
+# 'sequential' enables sequential onloading and offloading of AI models.
+#
+# When the value is 'true', AI models will only ever be loaded to the GPU when they are needed.
+# At all other times, they will be in normal memory, waiting for the next time they are requested, at which time they will be loaded
+# to the GPU, and afterward unloaded.
+#
+# These operations take time, so this is only recommended to enable if you are experiencing issues with out-of-memory errors.
+#
+# -- end of configuration --
+
 NO_UPDATE=false
-NO_BROWSER=false
 UPDATE=false
-CONFIG=""
 
 # This function prints out the help message.
 usage() {
@@ -26,11 +135,15 @@ usage() {
 compare_prompt_update() {
     COMPARE=$($PYTHON -c "from semantic_version import compare; print(compare('$1', '$2'))")
     if [ "$COMPARE" == "-1" ]; then
-        # A new version of enfugue is available
-        read -p "Version $2 of enfugue is available, you have version $1 installed. Download update? [Yes]: " DOWNLOAD_LATEST
-        DOWNLOAD_LATEST=${DOWNLOAD_LATEST:-Yes}
-        DOWNLOAD_LATEST=${DOWNLOAD_LATEST:0:1}
-        echo "${DOWNLOAD_LATEST,,}"
+        if [ "$UPDATE" == "true" ]; then
+            echo "y"
+        else
+            # A new version of enfugue is available
+            read -p "Version $2 of enfugue is available, you have version $1 installed. Download update? [Yes]: " DOWNLOAD_LATEST
+            DOWNLOAD_LATEST=${DOWNLOAD_LATEST:-Yes}
+            DOWNLOAD_LATEST=${DOWNLOAD_LATEST:0:1}
+            echo "${DOWNLOAD_LATEST,,}"
+        fi
     fi
 }
 
@@ -65,10 +178,6 @@ while [ $# -gt 0 ]; do
         --no-update)
             NO_UPDATE=true
             ;;
-        --no-browser)
-            NO_BROWSER=true
-            export ENFUGUE_OPEN="false"
-            ;;
         --update)
             UPDATE=true
             ;;
@@ -84,7 +193,7 @@ done
 # Second gather some variables from the current environment.
 ENFUGUE=$(which enfugue)
 ENFUGUE_SERVER=$(which enfugue-server)
-CONDA=$(which conda)
+CONDA=$CONDA_EXE
 
 # These will be populated later if relevant.
 ENFUGUE_INSTALLED_PIP_VERSION=""
@@ -179,11 +288,11 @@ if [[ "$ENFUGUE" == "" && "$ENFUGUE_SERVER" == "" ]]; then
         fi
         echo "Creating enfugue environment. This can take up to 15 minutes depending on download speeds, please be patient."
         # Download the latest environment file from the github
-        curl https://raw.githubusercontent.com/painebenjamin/app.enfugue.ai/main/environments/linux-cuda.yml -o ./enfugue-environment.yml --silent
+        curl https://raw.githubusercontent.com/painebenjamin/app.enfugue.ai/main/environments/linux-cuda.yml -o $PWD/enfugue-environment.yml --silent
         # Use conda to create the environment
-        $CONDA env create -f ./enfugue-environment.yml
+        $CONDA env create -f $PWD/enfugue-environment.yml
         # Remove the environment file
-        rm ./enfugue-environment.yml
+        rm $PWD/enfugue-environment.yml
         # Activate the environment
         source $(dirname $CONDA)/activate enfugue
         ENFUGUE=$(which enfugue)
@@ -197,17 +306,19 @@ if [[ "$ENFUGUE" == "" && "$ENFUGUE_SERVER" == "" ]]; then
         ADD_SYMLINK=${ADD_SYMLINK:-Yes}
         ADD_SYMLINK=${ADD_SYMLINK:0:1}
         if [ "${ADD_SYMLINK,,}" == "y" ]; then
-            sudo ln -s /usr/local/bin/enfugue-server $ENFUGUE_SERVER
+            sudo ln -s $ENFUGUE_SERVER /usr/local/bin/enfugue-server
         fi
     fi
 fi
+
+# Now we should have enfugue, run it.
 
 if [ "$ENFUGUE" != "" ]; then
     # Run enfugue via python module script
     $PYTHON -m enfugue run
 elif [ "$ENFUGUE_SERVER" != "" ]; then
     # Run enfugue via portable executable
-    PORTABLE_DIR=$(dirname $(realpath ${ENFUGUE_SERVER}))
+    PORTABLE_DIR=$(dirname $(realpath $ENFUGUE_SERVER))
     # Check if this is the first launch (it will take longer)
     LAUNCH_FILE=${PORTABLE_DIR}/.launched
     if [ ! -f $LAUNCH_FILE ]; then
@@ -233,7 +344,7 @@ elif [ "$ENFUGUE_SERVER" != "" ]; then
     ulimit -n unlimited 2>/dev/null > /dev/null || true
     # Echo and go
     echo "Starting Enfugue server. Press Ctrl+C to exit."
-    $PORTABLE_DIR/enfugue-server
+    ENFUGUE_CONFIG=$PWD/config.yml $PORTABLE_DIR/enfugue-server
     echo "Goodbye!"
 else
     echo "Could not find or download enfugue. Exiting."
