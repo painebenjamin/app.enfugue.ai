@@ -159,7 +159,7 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         ]
         return inversions
 
-    @handlers.path("^/api/inversion/(?P<model_file>[a-zA-Z0-9_\-\.]+)$")
+    @handlers.path("^/api/inversions/(?P<model_file>[a-zA-Z0-9_\-\.]+)$")
     @handlers.methods("GET")
     @handlers.format()
     @handlers.secured()
