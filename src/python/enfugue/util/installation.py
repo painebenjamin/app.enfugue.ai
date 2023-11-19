@@ -98,11 +98,11 @@ def get_local_configuration(as_api_configuration: bool = False) -> Union[Dict[st
         configuration = configuration["configuration"]
 
     if user_config is not None:
-        basename, ext = os.path.splitext(os.path.basename(config_file))
+        basename, ext = os.path.splitext(os.path.basename(user_config))
         if ext.lower() in [".yml", ".yaml"]:
-            user_dict = load_yaml(config_file)
+            user_dict = load_yaml(user_config)
         elif ext.lower() == ".json":
-            user_dict = load_json(config_file)
+            user_dict = load_json(user_config)
         else:
             raise IOError(f"Unknown extension {ext}")
         if "configuration" in user_dict:

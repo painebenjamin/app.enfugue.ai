@@ -67,7 +67,7 @@ def apply_freeu(
         else:
             hidden_states[:, :num_half_channels] = hidden_states[:, :num_half_channels] * b
 
-        res_hidden_states = fourier_filter(res_hidden_states, threshold=1, scale=s)
+        res_hidden_states = fourier_filter(res_hidden_states, threshold=1, scale=s) # type: ignore[arg-type]
 
     if F is not None:
         hidden_states = rearrange(hidden_states, "(b f) c h w -> b c f h w", b=B, f=F)
