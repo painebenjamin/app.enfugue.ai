@@ -5,7 +5,7 @@ import glob
 import PIL
 import PIL.Image
 
-from typing import Dict, List, Any, Union, Tuple, Optional, TYPE_CHECKING
+from typing import Dict, List, Any, Optional, TYPE_CHECKING
 
 from webob import Request, Response
 
@@ -18,18 +18,14 @@ from pibble.ext.user.server.base import (
 from pibble.ext.session.server.base import SessionExtensionServerBase
 from pibble.ext.rest.server.user import UserRESTExtensionServerBase
 from pibble.api.middleware.database.orm import ORMMiddlewareBase
-from pibble.api.exceptions import NotFoundError, BadRequestError
+from pibble.api.exceptions import NotFoundError
 
 from enfugue.api.controller.base import EnfugueAPIControllerBase
 
 from enfugue.diffusion.invocation import LayeredInvocation
 from enfugue.diffusion.constants import *
 
-from enfugue.util import (
-    logger,
-    find_file_in_directory,
-    get_file_name_from_url
-)
+from enfugue.util import logger
 
 if TYPE_CHECKING:
     import cv2

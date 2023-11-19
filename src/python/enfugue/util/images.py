@@ -218,7 +218,6 @@ def dilate_erode(
     from PIL import Image
     import cv2
     import numpy as np
-    from pibble.util.log import logger
 
     arr = np.array(image.convert("L"))
     transform = cv2.dilate if value > 0 else cv2.erode

@@ -17,8 +17,6 @@ from einops import rearrange
 from safetensors import safe_open
 from diffusers import AutoencoderKL, DDIMScheduler, StableDiffusionPipeline
 
-from enfugue.diffusion.animate.diffxl.convert_lora_safetensors_to_diffusers import convert_lora
-
 def zero_rank_print(s):
     if not isinstance(s, str): s = repr(s)
     if (not dist.is_initialized()) or (dist.is_initialized() and dist.get_rank() == 0): print("### " + s)

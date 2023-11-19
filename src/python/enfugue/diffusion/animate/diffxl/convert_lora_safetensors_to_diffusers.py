@@ -17,12 +17,7 @@ from __future__ import annotations
 """ Conversion script for the LoRA's safetensors checkpoints. """
 
 import argparse
-
 import torch
-from safetensors.torch import load_file
-
-from diffusers import StableDiffusionPipeline
-import pdb
 
 def convert_lora(pipeline, state_dict, LORA_PREFIX_UNET="lora_unet", LORA_PREFIX_TEXT_ENCODER="lora_te", alpha=0.6):
 	# load base model

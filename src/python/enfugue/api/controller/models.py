@@ -1,25 +1,19 @@
 from __future__ import annotations
 
-import re
 import os
 import glob
 import PIL
 import PIL.Image
 import shutil
 
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Any
 from webob import Request, Response
 
 from pibble.api.exceptions import BadRequestError, NotFoundError
 from pibble.util.files import load_json
 from pibble.ext.user.server.base import UserExtensionHandlerRegistry
 
-from enfugue.util import (
-    logger,
-    get_file_name_from_url,
-    find_files_in_directory,
-    find_file_in_directory,
-)
+from enfugue.util import find_file_in_directory
 from enfugue.api.controller.base import EnfugueAPIControllerBase
 from enfugue.database.models import DiffusionModel
 from enfugue.diffusion.manager import DiffusionPipelineManager

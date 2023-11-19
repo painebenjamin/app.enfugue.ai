@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Tuple, Optional, TYPE_CHECKING
+from typing import Tuple, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from torch import Tensor

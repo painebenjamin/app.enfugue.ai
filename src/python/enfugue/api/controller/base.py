@@ -1,12 +1,9 @@
 from __future__ import annotations
 
-import os
-
 from typing import Iterator, Callable, Optional, Dict, List, Any
 
 from pibble.api.server.webservice.jsonapi import JSONWebServiceAPIServer
 
-from enfugue.util import check_make_directory
 from enfugue.api.invocations import Invocation
 from enfugue.api.downloads import Download
 from enfugue.api.manager import SystemManager

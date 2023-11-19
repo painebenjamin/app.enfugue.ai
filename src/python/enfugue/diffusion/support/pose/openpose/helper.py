@@ -13,7 +13,6 @@ import os
 
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
-import warnings
 from typing import List, NamedTuple, Tuple, Union
 
 import cv2

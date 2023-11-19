@@ -1,32 +1,18 @@
 # type: ignore
 from typing import Any, Dict, Optional, Tuple
 
-import numpy as np
 import torch
-import torch.nn.functional as F
 from einops import rearrange
 from torch import nn
 
 from diffusers.utils.torch_utils import apply_freeu
 from diffusers.utils import is_torch_version, logging
-from diffusers.models.activations import get_activation
-from diffusers.models.normalization import AdaGroupNorm
-from diffusers.models.attention_processor import (
-    Attention,
-    AttnAddedKVProcessor,
-    AttnAddedKVProcessor2_0,
-)
 from diffusers.models.resnet import (
     Downsample2D,
-    FirDownsample2D,
-    FirUpsample2D,
-    KDownsample2D,
-    KUpsample2D,
     ResnetBlock2D,
     Upsample2D,
 )
 from diffusers.models.transformer_2d import Transformer2DModel
-
 from enfugue.diffusion.animate.diffxl.motion_module import get_motion_module
 
 logger = logging.get_logger(__name__)  # pylint: disable=invalid-name

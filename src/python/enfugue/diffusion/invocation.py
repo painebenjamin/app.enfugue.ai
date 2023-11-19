@@ -1,11 +1,9 @@
 from __future__ import annotations
 
-import io
 import inspect
 
 from contextlib import contextmanager, ExitStack
 from datetime import datetime
-from PIL.PngImagePlugin import PngInfo
 
 from dataclasses import (
     dataclass,
@@ -27,7 +25,6 @@ from typing import (
     TYPE_CHECKING,
 )
 from random import randint
-from pibble.util.strings import Serializer
 
 from enfugue.util import (
     logger,
