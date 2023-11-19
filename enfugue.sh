@@ -18,7 +18,6 @@ usage() {
     echo " --update         Automatically download any update when it is available."
     echo " --config         An optional configuration file to use instead of the default."
     echo " --no-update      Do not fetch versions and prompt to update prior to launching. Takes precedence over --update."
-    echo " --no-browser     Do not open a browser once the server becomes responsive."
 }
 
 # This function compares versions and prompts you to download when relevant.
@@ -145,8 +144,12 @@ if [[ "$ENFUGUE" == "" && "$ENFUGUE_SERVER" == "" ]]; then
         echo "How would you like to install it?"
         echo "1) Anaconda/Miniconda (Recommended)"
         echo "2) Portable Installation"
-        read -p "Please make a selection: [1]: " DOWNLOAD_TYPE
-        DOWNLOAD_TYPE=${DOWNLOAD_TYPE::-1}
+        read -p "Please make a selection: [1] " DOWNLOAD_TYPE
+        if [ "$DOWNLOAD_TYPE" == "" ]; then
+            DOWNLOAD_TYPE="1"
+        else
+            DOWNLOAD_TYPE=${DOWNLOAD_TYPE:0:1}
+        fi
         if [[ "$DOWNLOAD_TYPE" != "1" && "$DOWNLOAD_TYPE" != "2" ]]; then
             echo "'$DOWNLOAD_TYPE' is not a valid response."
             DOWNLOAD_TYPE=""
