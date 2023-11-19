@@ -194,6 +194,10 @@ done
 ENFUGUE=$(which enfugue)
 ENFUGUE_SERVER=$(which enfugue-server)
 CONDA=$CONDA_EXE
+# Make sure conda can be executed.
+if [ ! -x $CONDA ]; then
+    CONDA=""
+fi
 
 # These will be populated later if relevant.
 ENFUGUE_INSTALLED_PIP_VERSION=""
