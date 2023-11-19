@@ -106,6 +106,11 @@ class NodeEditorView extends View {
     static zoomOutIcon = 'fa-solid fa-magnifying-glass-minus';
 
     /**
+     * @var bool Default enable reordering on focus
+     */
+    static reorderOnFocus = true;
+
+    /**
      * @param object $config The configuration object.
      * @param ?int windowWidth optional, the expected window width.
      * @param ?int windowHeight optional, the expected window height.
@@ -470,10 +475,16 @@ class NodeEditorView extends View {
      * Triggers callbacks for node focus.
      */
     async focusNode(node) {
+        for (let childNode of this.nodes) {
+            if (childNode === node) {
+                childNode.addClass("focused");
+            } else {
+                childNode.removeClass("focused");
+            }
+        }
         for (let focusCallback of this.nodeFocusCallbacks) {
             await focusCallback(node);
         }
-        return;
     }
 
     /**

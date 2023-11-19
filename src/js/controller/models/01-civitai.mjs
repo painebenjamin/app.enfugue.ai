@@ -74,7 +74,7 @@ class CivitAIItemView extends View {
                     versionImageNodes = versionImages.map(
                         (image) => {
                             let node;
-                            if (this.item.type === "MotionModule") {
+                            if (image.type === "video") {
                                 node = E.video().content(
                                     E.source().src(image.url)
                                 ).autoplay(true).muted(true).loop(true).controls(false);
