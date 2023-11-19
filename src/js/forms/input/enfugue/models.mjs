@@ -1,5 +1,6 @@
 /** @module forms/input/enfugue/models */
 import { isEmpty, deepClone, createElementsFromString } from "../../../base/helpers.mjs";
+import { ElementBuilder } from "../../../base/builder.mjs";
 import { FormView } from "../../base.mjs";
 import { InputView } from "../base.mjs";
 import { StringInputView, TextInputView } from "../string.mjs";
@@ -10,6 +11,8 @@ import {
     SearchListInputView,
     SearchListInputListView
 } from "../enumerable.mjs";
+
+const E = new ElementBuilder();
 
 /**
  * Extend the SearchListInputListView to add additional classes
@@ -193,54 +196,93 @@ class VaeInputView extends InputView {
 };
 
 /**
- * Inversion input - will be populated at init.
+ * A superclass for introspectable models
  */
-class InversionInputView extends SearchListInputView {
+class ModelInputView extends SearchListInputView {
     /**
      * @var class The class of the string input, override so we can override setValue
      */
     static stringInputClass = ModelPickerStringInputView;
-};
+
+    /**
+     * On set value, hide/show
+     */
+     async setValue(newValue) {
+        await super.setValue(newValue);
+        if (this.node !== undefined) {
+            let icon = this.node.find(".show-metadata");
+            if (isEmpty(this.value)) {
+                icon.hide();
+            } else {
+                icon.show();
+            }
+        }
+    }
+
+    /**
+     * Shows metadata in a separate window
+     */
+    async showMetadata() {
+        this.showingMetadata = true;
+        await this.constructor.showModelMetadata(this.value);
+        this.showingMetadata = false;
+    }
+
+    /**
+     * On build, append introspection button
+     */
+    async build() {
+        let node = await super.build(),
+            icon = E.i().class("fa-solid fa-magnifying-glass show-metadata")
+                    .data("tooltip", "View Model Metadata")
+                    .on("click", (e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        if (this.showingMetadata !== true) {
+                            this.showMetadata();
+                        }
+                    });
+
+        node.append(icon);
+
+        this.onChange(() => {
+            if (isEmpty(this.value)) {
+                icon.hide();
+            } else {
+                icon.show();
+            }
+        });
+        if (isEmpty(this.value)) {
+            icon.hide();
+        }
+        return node;
+    }
+}
 
 /**
  * LoRA input - will be populated at init.
  */
-class LoraInputView extends SearchListInputView {
-    /**
-     * @var class The class of the string input, override so we can override setValue
-     */
-    static stringInputClass = ModelPickerStringInputView;
-};
+class LoraInputView extends ModelInputView { };
 
 /**
  * LyCORIS input - will be populated at init.
  */
-class LycorisInputView extends SearchListInputView {
-    /**
-     * @var class The class of the string input, override so we can override setValue
-     */
-    static stringInputClass = ModelPickerStringInputView;
-};
+class LycorisInputView extends ModelInputView { };
+
+/**
+ * Inversion input - will be populated at init.
+ */
+class InversionInputView extends ModelInputView { };
 
 /**
  * Checkpoint input - will be populated at init.
  */
-class CheckpointInputView extends SearchListInputView {
-    /**
-     * @var class The class of the string input, override so we can override setValue
-     */
-    static stringInputClass = ModelPickerStringInputView;
-};
+class CheckpointInputView extends ModelInputView { };
 
 /**
  * Motion module input - will be populated at init.
  */
-class MotionModuleInputView extends SearchListInputView {
-    /**
-     * @var class The class of the string input, override so we can override setValue
-     */
-    static stringInputClass = ModelPickerStringInputView;
-};
+class MotionModuleInputView extends ModelInputView { };
 
 /**
  * Lora input additionally has weight; create the FormView here,

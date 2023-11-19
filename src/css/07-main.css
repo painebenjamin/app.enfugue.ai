@@ -247,7 +247,8 @@ form.login label {
     justify-content: flex-start;
 }
 
-.civit-ai-item div.images > img {
+.civit-ai-item div.images > img,
+.civit-ai-item div.images > video {
     object-fit: cover;
     object-position: center top;
     flex-basis: 100%;

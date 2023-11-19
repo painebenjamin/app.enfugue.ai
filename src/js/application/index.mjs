@@ -21,6 +21,7 @@ import { VideoView, VideoPlayerView } from "../view/video.mjs";
 import { Model } from "../model/enfugue.mjs";
 import { View } from "../view/base.mjs";
 import { ControlsHelperView } from "../view/controls.mjs";
+import { ModelMetadataView } from "../view/models.mjs";
 import { FileNameFormView } from "../forms/enfugue/files.mjs";
 import { StringInputView } from "../forms/input.mjs";
 import { InvocationController } from "../controller/common/invocation.mjs";
@@ -125,6 +126,16 @@ class Application {
      * @var int The height of the filename form
      */
     static filenameFormInputHeight = 250;
+
+    /**
+     * @var int The width of the metadata window
+     */
+    static metadataWindowWidth = 1000;
+
+    /**
+     * @var int The height of the metadata window
+     */
+    static metadataWindowHeight = 550;
 
     /**
      * @var array<int> The RGB colors (0-255) for the dynamic logo text shadow
@@ -343,6 +354,17 @@ class Application {
                 return carry;
             }, {});
         };
+        CheckpointInputView.showModelMetadata = async (model) => {
+            let metadataView = new ModelMetadataView(this.config, "checkpoint", model),
+                metadataWindow = await this.windows.spawnWindow(
+                    `Metadata for Checkpoint ${model}`,
+                    metadataView,
+                    this.constructor.metadataWindowWidth,
+                    this.constructor.metadataWindowHeight
+                ),
+                metadata = await this.model.get(`/checkpoints/${model}`);
+            metadataView.setMetadata(metadata);
+        };
         LoraInputView.defaultOptions = async () => {
             let models = await this.model.get("/lora");
             return models.reduce((carry, datum) => {
@@ -353,6 +375,17 @@ class Application {
                 }
                 return carry;
             }, {});
+        };
+        LoraInputView.showModelMetadata = async (model) => {
+            let metadataView = new ModelMetadataView(this.config, "lora", model),
+                metadataWindow = await this.windows.spawnWindow(
+                    `Metadata for LoRA ${model}`,
+                    metadataView,
+                    this.constructor.metadataWindowWidth,
+                    this.constructor.metadataWindowHeight
+                ),
+                metadata = await this.model.get(`/lora/${model}`);
+            metadataView.setMetadata(metadata);
         };
         LycorisInputView.defaultOptions = async () => {
             let models = await this.model.get("/lycoris");
@@ -365,6 +398,17 @@ class Application {
                 return carry;
             }, {});
         };
+        LycorisInputView.showModelMetadata = async (model) => {
+            let metadataView = new ModelMetadataView(this.config, "lycoris", model),
+                metadataWindow = await this.windows.spawnWindow(
+                    `Metadata for LyCORIS ${model}`,
+                    metadataView,
+                    this.constructor.metadataWindowWidth,
+                    this.constructor.metadataWindowHeight
+                ),
+                metadata = await this.model.get(`/lycoris/${model}`);
+            metadataView.setMetadata(metadata);
+        };
         InversionInputView.defaultOptions = async () => {
             let models = await this.model.get("/inversions");
             return models.reduce((carry, datum) => {
@@ -376,6 +420,17 @@ class Application {
                 return carry;
             }, {});
         };
+        InversionInputView.showModelMetadata = async (model) => {
+            let metadataView = new ModelMetadataView(this.config, "inversions", model),
+                metadataWindow = await this.windows.spawnWindow(
+                    `Metadata for Textual Inversion ${model}`,
+                    metadataView,
+                    this.constructor.metadataWindowWidth,
+                    this.constructor.metadataWindowHeight
+                ),
+                metadata = await this.model.get(`/inversions/${model}`);
+            metadataView.setMetadata(metadata);
+        };
         MotionModuleInputView.defaultOptions = async () => {
             let models = await this.model.get("/motion");
             return models.reduce((carry, datum) => {
@@ -386,6 +441,17 @@ class Application {
                 }
                 return carry;
             }, {});
+        };
+        MotionModuleInputView.showModelMetadata = async (model) => {
+            let metadataView = new ModelMetadataView(this.config, "motion", model),
+                metadataWindow = await this.windows.spawnWindow(
+                    `Metadata for Motion Module ${model}`,
+                    metadataView,
+                    this.constructor.metadataWindowWidth,
+                    this.constructor.metadataWindowHeight
+                ),
+                metadata = await this.model.get(`/motion/${model}`);
+            metadataView.setMetadata(metadata);
         };
         ModelPickerInputView.defaultOptions = async () => {
             let allModels = await this.model.get("/model-options");
