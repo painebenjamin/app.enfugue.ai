@@ -38,7 +38,7 @@ class EnfugueAPIControllerBase(JSONWebServiceAPIServer):
     get_diffusers_models: Callable[[], List[str]]
     get_configured_directory: Callable[[str], str]
     get_default_model: Callable[[str], Optional[str]]
-    get_plan_kwargs_from_model: Callable[[str, ...], Dict[str, Any]]
+    get_plan_kwargs_from_model: Callable[..., Dict[str, Any]]
     get_default_size_for_model: Callable[[str], int]
 
     @staticmethod

@@ -46,6 +46,7 @@ class GFPGANer:
 
         # initialize model
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu") if device is None else device
+
         # initialize the GFP-GAN
         if arch == "clean":
             self.gfpgan = GFPGANv1Clean(
@@ -108,6 +109,7 @@ class GFPGANer:
             keyname = "params_ema"
         else:
             keyname = "params"
+
         self.gfpgan.load_state_dict(loadnet[keyname], strict=True)
         self.gfpgan.eval()
         self.gfpgan = self.gfpgan.to(self.device)

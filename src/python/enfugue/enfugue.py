@@ -1,5 +1,5 @@
 """
-This is the entry point for the windows .exe
+This is the entry point for the executable
 """
 if __name__ == "__main__":
     import multiprocessing
@@ -23,7 +23,12 @@ if __name__ == "__main__":
     configuration = get_local_configuration()
     open_browser_thread: Optional[OpenBrowserWhenResponsiveThread] = None
     server = None
-    if configuration.get("open", True):
+
+    open_browser: bool = configuration.get("open", os.getenv("ENFUGUE_OPEN", True))
+    if isinstance(open_browser, str): # type: ignore
+        open_browser = open_browser[0].lower() in ["1", "t", "y"]
+
+    if open_browser:
         open_browser_thread = OpenBrowserWhenResponsiveThread(configuration)
     try:
         if open_browser_thread is not None:

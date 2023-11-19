@@ -34,6 +34,7 @@ if TYPE_CHECKING:
         AutoencoderTiny,
         ControlNetModel,
         UNet2DConditionModel,
+        ConsistencyDecoderVAE,
     )
     from diffusers.pipelines.stable_diffusion import (
         StableDiffusionSafetyChecker
@@ -50,8 +51,9 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
     STATIC_SCHEDULER_KWARGS = {
         "num_train_timesteps": 1000,
         "beta_start": 0.00085,
-        "beta_end": 0.01005,
-        "beta_schedule": "linear"
+        "beta_end": 0.012,
+        "beta_schedule": "linear",
+        "clip_sample": True
     }
 
     HOTSHOT_XL_PATH = "hotshotco/Hotshot-XL"
@@ -485,7 +487,7 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
 
         logger.debug(f"Loading AnimateDiff motion module {motion_module} with truncate length '{position_encoding_truncate_length}' and scale length '{position_encoding_scale_length}'")
         from enfugue.diffusion.util.torch_util import load_state_dict
-        state_dict = load_state_dict(motion_module) # type: ignore[assignment]
+        state_dict = load_state_dict(motion_module) # type: ignore[assignment,arg-type]
 
         if position_encoding_truncate_length is not None or position_encoding_scale_length is not None:
             for key in state_dict:

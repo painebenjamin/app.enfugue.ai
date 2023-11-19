@@ -1,4 +1,4 @@
-/** @module controlletr/sidebar/05-refining */
+/** @module controlletr/sidebar/08-refining */
 import { isEmpty } from "../../base/helpers.mjs";
 import { Controller } from "../base.mjs";
 import { RefiningFormView } from "../../forms/enfugue/refining.mjs";

@@ -324,6 +324,7 @@ class FaceRestoreHelper(object):
                 extra_offset = 0.5 * self.upscale_factor
             else:
                 extra_offset = 0
+
             inverse_affine[:, 2] += extra_offset
             inv_restored = cv2.warpAffine(restored_face, inverse_affine, (w_up, h_up))
 
@@ -362,14 +363,15 @@ class FaceRestoreHelper(object):
                 inv_mask = cv2.warpAffine(mask, inverse_affine, (w_up, h_up))
                 # remove the black borders
                 inv_mask_erosion = cv2.erode(
-                    inv_mask, np.ones((int(2 * self.upscale_factor), int(2 * self.upscale_factor)), np.uint8))
+                    inv_mask,
+                    np.ones((int(2 * self.upscale_factor), int(2 * self.upscale_factor)), np.uint8))
                 pasted_face = inv_mask_erosion[:, :, None] * inv_restored
                 total_face_area = np.sum(inv_mask_erosion)  # // 3
                 # compute the fusion edge based on the area of face
                 w_edge = int(total_face_area**0.5) // 20
                 erosion_radius = w_edge * 2
                 inv_mask_center = cv2.erode(inv_mask_erosion, np.ones((erosion_radius, erosion_radius), np.uint8))
-                blur_size = w_edge * 2
+                blur_size = w_edge * 200
                 inv_soft_mask = cv2.GaussianBlur(inv_mask_center, (blur_size + 1, blur_size + 1), 0)
                 if len(upsample_img.shape) == 2:  # upsample_img is gray image
                     upsample_img = upsample_img[:, :, None]

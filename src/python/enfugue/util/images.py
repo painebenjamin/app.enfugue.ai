@@ -25,6 +25,10 @@ __all__ = [
     "get_image_metadata",
     "redact_images_from_metadata",
     "dilate_erode",
+    "image_to_bytes",
+    "bytes_to_image",
+    "serialize_frames_or_image",
+    "deserialize_frames_or_image",
     "IMAGE_FIT_LITERAL",
     "IMAGE_ANCHOR_LITERAL",
 ]
@@ -417,3 +421,41 @@ def redact_images_from_metadata(metadata: Dict[str, Any]) -> None:
     if "layers" in metadata:
         for layer in metadata["layers"]:
             redact_images_from_metadata(layer)
+
+def image_to_bytes(image: Image) -> bytes:
+    """
+    Converts a PIL image to bytes
+    """
+    bytes_io = io.BytesIO()
+    image.save(bytes_io, format="PNG", compress_level=9)
+    return bytes_io.getvalue()
+
+def bytes_to_image(data: bytes) -> Image:
+    """
+    Converts bytes back to a PIL image
+    """
+    from PIL import Image
+    return Image.open(io.BytesIO(data))
+
+def serialize_frames_or_image(image: Union[Image, List[Image]]) -> Union[bytes, List[bytes]]:
+    """
+    Turns images or a list of image into bytes
+    """
+    if isinstance(image, list):
+        return [
+            image_to_bytes(i)
+            for i in image
+        ]
+    return image_to_bytes(image)
+
+def deserialize_frames_or_image(image: Union[bytes, List[bytes]]) -> Union[Image, List[Image]]:
+    """
+    Turns bytes or list of bytes to image or list of images
+    """
+    if isinstance(image, list):
+        return [
+            bytes_to_image(i)
+            for i in image
+        ]
+
+    return bytes_to_image(image)

@@ -6,8 +6,10 @@ import datetime
 from typing import TypedDict, List, Dict, Any, Iterator, Optional, Union, cast
 
 from semantic_version import Version
+
 from pibble.api.configuration import APIConfiguration
 from pibble.util.files import load_yaml, load_json
+from enfugue.util.misc import merge_into
 
 __all__ = [
     "VersionDict",
@@ -85,24 +87,31 @@ def get_local_configuration(as_api_configuration: bool = False) -> Union[Dict[st
     Gets configuration from a file in the environment, or the base config.
     """
     default_config = os.path.join(get_local_config_directory(), "server.yml")
-    config_file = os.getenv("ENFUGUE_CONFIG", default_config)
-    if not os.path.exists(config_file):
-        raise IOError(f"Configuration file {config_file} missing or inaccessible")
+    if not os.path.exists(default_config):
+        raise IOError(f"Couldn't find or access default configuration at {default_config}")
+    user_config = os.getenv("ENFUGUE_CONFIG", None)
+    if user_config is not None and not os.path.exists(user_config):
+        raise IOError(f"Configuration file {user_config} missing or inaccessible")
 
-    basename, ext = os.path.splitext(os.path.basename(config_file))
-    configuration: Dict[str, Any] = {}
-    if ext.lower() in [".yml", ".yaml"]:
-        configuration = load_yaml(config_file)
-    elif ext.lower() == ".json":
-        configuration = load_json(config_file)
-    else:
-        raise IOError(f"Unknown extension {ext}")
+    configuration = load_yaml(default_config)
     if "configuration" in configuration:
         configuration = configuration["configuration"]
+
+    if user_config is not None:
+        basename, ext = os.path.splitext(os.path.basename(config_file))
+        if ext.lower() in [".yml", ".yaml"]:
+            user_dict = load_yaml(config_file)
+        elif ext.lower() == ".json":
+            user_dict = load_json(config_file)
+        else:
+            raise IOError(f"Unknown extension {ext}")
+        if "configuration" in user_dict:
+            user_dict = user_dict["configuration"]
+        merge_into(user_dict, configuration)
+
     if as_api_configuration:
         return APIConfiguration(**configuration)
     return configuration
-
 
 def parse_version(version_string: str) -> Version:
     """

@@ -59,6 +59,27 @@ class GFPGANProcessor(SupportModelImageProcessor):
         multiplier = outscale / 4
         return result.resize((int(width * multiplier), int(height * multiplier)))
 
+class FaceRestoreProcessor(SupportModelImageProcessor):
+    """
+    Holds a reference to the gfpganer and provides a callable
+    """
+    def __init__(self, gfpganer: GFPGANer, **kwargs: Any) -> None:
+        super(FaceRestoreProcessor, self).__init__(**kwargs)
+        self.gfpganer = gfpganer
+
+    def __call__(self, image: Image.Image) -> Image.Image:
+        """
+        Upscales an image
+        """
+        return ComputerVision.revert_image(
+            self.gfpganer.enhance(
+                ComputerVision.convert_image(image),
+                has_aligned=False,
+                only_center_face=False,
+                paste_back=True,
+            )[2]
+        )
+
 class Upscaler(SupportModel):
     """
     The upscaler user ESRGAN or GFGPGAN for up to 4x upscale
@@ -125,6 +146,33 @@ class Upscaler(SupportModel):
             yield processor
             del processor
             del esrganer
+
+    @contextmanager
+    def face_restore(self) -> Iterator[SupportModelImageProcessor]:
+        """
+        Only does face enhancement
+        """
+        with self.context():
+            from enfugue.diffusion.support.upscale.gfpgan import GFPGANer  # type: ignore[attr-defined]
+            model_path = self.get_model_file(self.GFPGAN_PATH)
+            detection_model_path = self.get_model_file(self.GFPGAN_DETECTION_PATH)
+            parse_model_path = self.get_model_file(self.GFPGAN_PARSENET_PATH)
+
+            gfpganer = GFPGANer(
+                model_path=model_path,
+                detection_model_path=detection_model_path,
+                parse_model_path=parse_model_path,
+                upscale=1,
+                arch="clean",
+                channel_multiplier=2,
+                device=self.device,
+                bg_upsampler=None
+            )
+
+            processor = FaceRestoreProcessor(gfpganer)
+            yield processor
+            del processor
+            del gfpganer
 
     @contextmanager
     def gfpgan(

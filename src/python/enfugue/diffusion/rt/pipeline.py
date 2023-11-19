@@ -19,8 +19,9 @@ from diffusers.schedulers import KarrasDiffusionSchedulers, DDIMScheduler
 from diffusers.models import (
     AutoencoderKL,
     AutoencoderTiny,
+    ControlNetModel,
     UNet2DConditionModel,
-    ControlNetModel
+    ConsistencyDecoderVAE,
 )
 from diffusers.pipelines.stable_diffusion import StableDiffusionSafetyChecker
 
@@ -401,6 +402,7 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         latents: torch.Tensor,
         timestep: torch.Tensor,
         embeddings: torch.Tensor,
+        timestep_cond: Optional[torch.Tensor] = None,
         cross_attention_kwargs: Optional[Dict[str, Any]] = None,
         added_cond_kwargs: Optional[Dict[str, Any]] = None,
         down_block_additional_residuals: Optional[List[torch.Tensor]] = None,
@@ -417,6 +419,7 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
                 latents=latents,
                 timestep=timestep,
                 embeddings=embeddings,
+                timestep_cond=timestep_cond,
                 cross_attention_kwargs=cross_attention_kwargs,
                 added_cond_kwargs=added_cond_kwargs,
                 down_block_additional_residuals=down_block_additional_residuals,

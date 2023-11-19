@@ -143,6 +143,7 @@ class Invocation:
                             pnginfo.add_text("EnfugueVersion", f"{get_version()}")
                             if self.ui_state is not None:
                                 pnginfo.add_text("EnfugueUIState", Serializer.serialize(self.ui_state))
+                            pnginfo.add_text("EnfugueGenerationData", Serializer.serialize(self.plan.metadata))
                             image.save(image_path, pnginfo=pnginfo)
                             self.results.append(image_path)
                         else:

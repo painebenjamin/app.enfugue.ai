@@ -20,23 +20,31 @@ class PoseImageProcessor(SupportModelImageProcessor):
         super(PoseImageProcessor, self).__init__(**kwargs)
         self.detector = detector
 
-    def detail_mask(self, image: Image) -> Image:
+    def detail_mask(self, image: Image, include_hands=True, include_face=True) -> Image:
         """
         Calls the detector and draws the detail mask (hands and face)
         """
-        return self.detector(
+        if include_hands and include_face:
+            draw_type = "mask"
+        elif include_hands:
+            draw_type = "handmask"
+        elif include_face:
+            draw_type = "facemask"
+        else:
+            raise IOError("Nothing to do!")
+        return self.detector( # type: ignore[call-arg]
             image,
             include_body=False,
-            include_hand=True,
-            include_face=True,
-            draw_type="mask",
+            include_hand=include_hands,
+            include_face=include_face,
+            draw_type=draw_type,
         ).resize(image.size)
 
     def __call__(self, image: Image) -> Image:
         """
         Calls the detector
         """
-        return self.detector(
+        return self.detector( # type: ignore[call-arg]
             image,
             include_body=True,
             include_hand=True,
@@ -47,7 +55,6 @@ class PoseDetector(SupportModel):
     """
     Uses OpenPose to predict human poses.
     """
-
     BODY_MODEL_PATH = "https://huggingface.co/lllyasviel/Annotators/resolve/main/body_pose_model.pth"
     HAND_MODEL_PATH = "https://huggingface.co/lllyasviel/Annotators/resolve/main/hand_pose_model.pth"
     FACE_MODEL_PATH = "https://huggingface.co/lllyasviel/Annotators/resolve/main/facenet.pth"

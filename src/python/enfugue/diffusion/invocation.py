@@ -120,6 +120,7 @@ class LayeredInvocation:
     crop_inpaint: bool=True
     inpaint_feather: int=32
     outpaint: bool=True
+    outpaint_dilate: int=2
     # Refining
     refiner_start: Optional[float]=None
     refiner_strength: Optional[float]=None
@@ -133,6 +134,18 @@ class LayeredInvocation:
     # Flags
     build_tensorrt: bool=False
     # Post-processing
+    detailer_face_restore: bool=False
+    detailer_face_inpaint: bool=False
+    detailer_hand_inpaint: bool=False
+    detailer_guidance_scale: Optional[float]=None
+    detailer_inference_steps: Optional[int]=None
+    detailer_inpaint_strength: float=0.25
+    detailer_inpaint_dilate: int=32
+    detailer_inpaint_blur: int=16
+    detailer_denoising_strength: Optional[float]=0.0
+    detailer_controlnet: Optional[CONTROLNET_LITERAL]=None
+    detailer_controlnet_scale: float=1.0
+    detailer_switch_pipeline: bool=False
     upscale: Optional[Union[UpscaleStepDict, List[UpscaleStepDict]]]=None
     interpolate_frames: Optional[Union[int, Tuple[int, ...], List[int]]]=None
     reflect: bool=False
@@ -251,13 +264,6 @@ class LayeredInvocation:
         logger.critical(f"{mask.size}, {foreground.size}, {position}")
         image.paste(foreground, position[:2], mask=mask)
         return image
-
-    @property
-    def dilate_amount(self) -> int:
-        """
-        Tweakable; the amount to dilate masks when combining
-        """
-        return 2
 
     @property
     def upscale_steps(self) -> Iterator[UpscaleStepDict]:
@@ -558,7 +564,7 @@ class LayeredInvocation:
                 continue
             if "refiner" in key and not has_refiner:
                 continue
-            if "inpaint" in key and not will_inpaint:
+            if "inpaint" in key and "detailer" not in key and not will_inpaint:
                 continue
             if "ip_adapter" in key and not has_ip_adapter:
                 continue
@@ -962,7 +968,7 @@ class LayeredInvocation:
                             mask[i].paste(
                                 white,
                                 mask=Image.eval(
-                                    dilate_erode(invocation_mask[i], self.dilate_amount),
+                                    dilate_erode(invocation_mask[i], self.outpaint_dilate),
                                     lambda a: 0 if a < 128 else 255
                                 )
                             )
@@ -975,7 +981,7 @@ class LayeredInvocation:
                         mask.paste( # type: ignore[union-attr]
                             white,
                             mask=Image.eval(
-                                dilate_erode(invocation_mask, self.dilate_amount),
+                                dilate_erode(invocation_mask, self.outpaint_dilate),
                                 lambda a: 0 if a < 128 else 255
                             )
                         )
@@ -983,11 +989,11 @@ class LayeredInvocation:
                 else:
                     if isinstance(invocation_mask, list):
                         invocation_mask = [
-                            dilate_erode(img, self.dilate_amount).convert("L") # type: ignore[union-attr]
+                            dilate_erode(img, self.outpaint_dilate).convert("L") # type: ignore[union-attr]
                             for img in invocation_mask
                         ]
                     else:
-                        invocation_mask = dilate_erode(invocation_mask, self.dilate_amount).convert("L") # type: ignore[union-attr]
+                        invocation_mask = dilate_erode(invocation_mask, self.outpaint_dilate).convert("L") # type: ignore[union-attr]
 
                 # Evaluate mask
                 mask_max, mask_min = None, None
@@ -1263,7 +1269,18 @@ class LayeredInvocation:
                     cropped_inpaint_position[:2]
                 )
 
-        # Execte upscale, if requested
+        # Execute detailer, if requested
+        images, nsfw = self.execute_detailer(
+            pipeline,
+            images=images,
+            nsfw=nsfw,
+            task_callback=task_callback,
+            progress_callback=progress_callback,
+            image_callback=image_callback,
+            invocation_kwargs=invocation_kwargs
+        )
+
+        # Execute upscale, if requested
         images, nsfw = self.execute_upscale(
             pipeline,
             images=images,
@@ -1315,7 +1332,7 @@ class LayeredInvocation:
             self.scheduler_beta_end is not None or
             self.scheduler_beta_schedule is not None
         ):
-            scheduler_config = {}
+            scheduler_config: Dict[str, Any] = {}
             if self.scheduler_beta_start is not None:
                 scheduler_config["beta_start"] = self.scheduler_beta_start
             if self.scheduler_beta_end is not None:
@@ -1435,6 +1452,244 @@ class LayeredInvocation:
 
         return images, nsfw_content_detected
 
+    def execute_detailer(
+        self,
+        pipeline: DiffusionPipelineManager,
+        images: List[Image],
+        nsfw: List[bool],
+        task_callback: Optional[Callable[[str], None]] = None,
+        progress_callback: Optional[Callable[[int, int, float], None]] = None,
+        image_callback: Optional[Callable[[List[Image]], None]] = None,
+        image_callback_steps: Optional[int] = None,
+        invocation_kwargs: Dict[str, Any] = {}
+    ) -> Tuple[List[Image], List[bool]]:
+        """
+        Runs the after detailer
+        """
+        if not self.detailer_face_restore and not self.detailer_face_inpaint and not self.detailer_hand_inpaint and not self.detailer_denoising_strength:
+            return images, nsfw
+
+        from PIL import ImageFilter
+
+        prompt = self.merge_prompts( # type: ignore[assignment]
+            (DEFAULT_UPSCALE_PROMPT, 1.0),
+            (self.prompt, GLOBAL_PROMPT_UPSCALE_WEIGHT),
+            (self.model_prompt, MODEL_PROMPT_WEIGHT),
+            (self.refiner_prompt, MODEL_PROMPT_WEIGHT),
+            *[
+                (prompt_dict["positive"], GLOBAL_PROMPT_UPSCALE_WEIGHT)
+                for prompt_dict in (self.prompts if self.prompts is not None else [])
+            ]
+        )
+
+        prompt_2 = self.merge_prompts(
+            (self.prompt_2, GLOBAL_PROMPT_UPSCALE_WEIGHT),
+            (self.model_prompt_2, MODEL_PROMPT_WEIGHT),
+            (self.refiner_prompt_2, MODEL_PROMPT_WEIGHT),
+            *[
+                (prompt_dict.get("positive_2", None), GLOBAL_PROMPT_UPSCALE_WEIGHT)
+                for prompt_dict in (self.prompts if self.prompts is not None else [])
+            ]
+        )
+
+        negative_prompt = self.merge_prompts(
+            (self.negative_prompt, GLOBAL_PROMPT_UPSCALE_WEIGHT),
+            (self.model_negative_prompt, MODEL_PROMPT_WEIGHT),
+            (self.refiner_negative_prompt, MODEL_PROMPT_WEIGHT),
+            *[
+                (prompt_dict.get("negative", None), GLOBAL_PROMPT_UPSCALE_WEIGHT)
+                for prompt_dict in (self.prompts if self.prompts is not None else [])
+            ]
+        )
+
+        negative_prompt_2 = self.merge_prompts(
+            (self.negative_prompt_2, GLOBAL_PROMPT_UPSCALE_WEIGHT),
+            (self.model_negative_prompt_2, MODEL_PROMPT_WEIGHT),
+            (self.refiner_negative_prompt_2, MODEL_PROMPT_WEIGHT),
+            *[
+                (prompt_dict.get("negative_2", None), GLOBAL_PROMPT_UPSCALE_WEIGHT)
+                for prompt_dict in (self.prompts if self.prompts is not None else [])
+            ]
+        )
+
+        guidance_scale = self.guidance_scale if self.detailer_guidance_scale is None else self.detailer_guidance_scale
+        num_inference_steps = self.num_inference_steps if self.detailer_inference_steps is None else self.detailer_inference_steps
+
+        detail_masks = []
+
+        with pipeline.control_image_processor.pose_detector.best() as pose_detector:
+            for i, image in enumerate(images):
+                detail_masks.append(
+                    pose_detector.detail_mask(
+                        image,
+                        include_hands=self.detailer_hand_inpaint,
+                        include_face=self.detailer_face_inpaint or self.detailer_face_restore
+                    ).convert("L")
+                )
+
+        if self.detailer_face_restore:
+            # Face restore pass
+            with pipeline.upscaler.face_restore() as restore:
+                if task_callback is not None:
+                    task_callback("Restoring Faces")
+                if progress_callback is not None:
+                    progress_callback(0, len(images), 0.0)
+
+                for i, image in enumerate(images):
+                    restore_start = datetime.now()
+                    paste_mask = dilate_erode(detail_masks[i], self.detailer_inpaint_dilate)
+                    paste_mask = paste_mask.filter(ImageFilter.BoxBlur(self.detailer_inpaint_blur)) # type: ignore[union-attr]
+                    images[i].paste(restore(image), mask=paste_mask.convert("L"))
+                    if progress_callback is not None:
+                        restore_time = (datetime.now() - restore_start).total_seconds()
+                        progress_callback(i, len(images), 1/restore_time)
+                    if image_callback is not None:
+                        image_callback(images)
+
+        if not ((self.detailer_face_inpaint or self.detailer_hand_inpaint) and self.detailer_inpaint_strength) and not self.detailer_denoising_strength:
+            return images, nsfw
+        
+        use_inpainter = self.detailer_switch_pipeline or invocation_kwargs.get("mask", None)
+
+        if self.animation_frames:
+            if self.detailer_controlnet:
+                pipeline.animator_controlnets = self.detailer_controlnet
+            else:
+                pipeline.animator_controlnets = None
+            detail_pipeline = pipeline.animator_pipeline
+        elif use_inpainter:
+            if self.detailer_controlnet:
+                pipeline.inpainter_controlnets = self.detailer_controlnet
+            else:
+                pipeline.inpainter_controlnets = None
+            detail_pipeline = pipeline.inpainter_pipeline
+        else:
+            if self.detailer_controlnet:
+                pipeline.controlnets = self.detailer_controlnet
+            else:
+                pipeline.controlnets = None
+            detail_pipeline = pipeline.pipeline
+
+        control_images = []
+
+        if self.detailer_controlnet and self.detailer_controlnet_scale:
+            with pipeline.control_image_processor.processor(self.detailer_controlnet) as process:
+                processed_control_images = []
+                for i, image in enumerate(images):
+                    processed_control_images.append(process(image))
+                if self.animation_frames:
+                    control_images = [[
+                        dict([
+                            (self.detailer_controlnet, [(processed_control_images, self.detailer_controlnet_scale)])
+                        ])
+                    ]]
+                else:
+                    control_images = [
+                        dict([ # type: ignore[misc]
+                            (self.detailer_controlnet, [(processed_image, self.detailer_controlnet_scale)])
+                        ])
+                        for processed_image in processed_control_images
+                    ]
+
+        if (self.detailer_face_inpaint or self.detailer_hand_inpaint) and self.detailer_inpaint_strength:
+            # Face and/or hand fix pass
+            for i, image in enumerate([images] if self.animation_frames else images):
+                if task_callback is not None:
+                    task_callback(f"Detailing sample {i+1}")
+
+                mask_max, mask_min = detail_masks[i].getextrema()
+                if mask_max == mask_min == 0:
+                    logger.debug("No detailable areas found, skipping.")
+                    continue
+                if isinstance(image, list):
+                    width, height = image[0].size
+                    mask = [
+                        dilate_erode(detail_mask, self.detailer_inpaint_dilate)
+                        for detail_mask in detail_masks
+                    ]
+                else:
+                    mask = dilate_erode(detail_masks[i], self.detailer_inpaint_dilate)
+                    width, height = image.size
+
+                result = detail_pipeline(
+                    width=width,
+                    height=height,
+                    image=image,
+                    mask=mask,
+                    control_images=None if len(control_images) <= i else control_images[i],
+                    generator=pipeline.generator,
+                    device=pipeline.device,
+                    offload_models=pipeline.pipeline_sequential_onload,
+                    strength=self.detailer_inpaint_strength,
+                    num_results_per_prompt=1,
+                    progress_callback=progress_callback,
+                    guidance_scale=guidance_scale,
+                    num_inference_steps=num_inference_steps,
+                    animation_frames=self.animation_frames,
+                    frame_window_size=self.frame_window_size,
+                    frame_window_stride=self.frame_window_stride,
+                )["images"]
+
+                if self.animation_frames:
+                    images = result
+                else:
+                    images[i] = result[0]
+
+                if image_callback is not None:
+                    image_callback(images)
+
+        if self.detailer_controlnet and self.detailer_controlnet_scale:
+            with pipeline.control_image_processor.processor(self.detailer_controlnet) as process:
+                processed_control_images = []
+                for i, image in enumerate(images):
+                    processed_control_images.append(process(image))
+                if self.animation_frames:
+                    control_images = [[
+                        dict([
+                            (self.detailer_controlnet, [(processed_control_images, self.detailer_controlnet_scale)])
+                        ])
+                    ]]
+                else:
+                    control_images = [
+                        dict([ # type: ignore[misc]
+                            (self.detailer_controlnet, [(processed_image, self.detailer_controlnet_scale)])
+                        ])
+                        for processed_image in processed_control_images
+                    ]
+
+        if self.detailer_denoising_strength:
+            # Final denoise pass
+            for i, image in enumerate([images] if self.animation_frames else images):
+                if task_callback:
+                    task_callback(f"Finishing sample {i+1}")
+
+                if isinstance(image, list):
+                    width, height = image[0].size
+                else:
+                    width, height = image.size
+
+                result = pipeline(
+                    width=width,
+                    height=height,
+                    image=image,
+                    strength=self.detailer_denoising_strength,
+                    control_images=None if len(control_images) <= i else control_images[i],
+                    num_results_per_prompt=1,
+                    progress_callback=progress_callback,
+                    guidance_scale=guidance_scale,
+                    num_inference_steps=num_inference_steps,
+                    animation_frames=self.animation_frames,
+                    frame_window_size=self.frame_window_size,
+                    frame_window_stride=self.frame_window_stride,
+                )["images"]
+
+                if self.animation_frames:
+                    images = result
+                else:
+                    images[i] = result[0]
+
+        return images, nsfw
+
     def execute_upscale(
         self,
         pipeline: DiffusionPipelineManager,
@@ -1462,7 +1717,8 @@ class LayeredInvocation:
             negative_prompt = upscale_step.get("negative_prompt", None)
             negative_prompt_2 = upscale_step.get("negative_prompt_2", None)
             strength = upscale_step.get("strength", None)
-            controlnets = upscale_step.get("controlnets", None)
+            controlnet = upscale_step.get("controlnet", None)
+            controlnet_scale = upscale_step.get("controlnet_scale", 1.0)
             scheduler = upscale_step.get("scheduler", self.scheduler)
             tiling_stride = upscale_step.get("tiling_stride", DEFAULT_UPSCALE_TILING_STRIDE)
             tiling_size = upscale_step.get("tiling_size", DEFAULT_UPSCALE_TILING_SIZE)
@@ -1533,10 +1789,14 @@ class LayeredInvocation:
                         pipeline.unload_refiner("clearing memory for upscaler")
                     if method == "gfpgan":
                         with pipeline.upscaler.gfpgan(tile=512) as upscale:
-                            yield upscale
+                            def execute_upscale(image: Image) -> Image:
+                                return upscale(image, outscale=amount)
+                            yield execute_upscale
                     else:
                         with pipeline.upscaler.esrgan(tile=512, anime=method=="esrganime") as upscale:
-                            yield upscale
+                            def execute_upscale(image: Image) -> Image:
+                                return upscale(image, outscale=amount)
+                            yield execute_upscale
                 elif method in PIL_INTERPOLATION:
                     def pil_resize(image: Image) -> Image:
                         image_width, image_height = image.size
@@ -1643,61 +1903,24 @@ class LayeredInvocation:
                         "loop": invocation_kwargs.get("loop", False),
                     }
 
-                    if controlnets is not None:
-                        if not isinstance(controlnets, list):
-                            controlnets = [controlnets] # type: ignore[unreachable]
-
-                        controlnet_names = []
-                        controlnet_weights = []
-
-                        for controlnet in controlnets:
-                            if isinstance(controlnet, tuple):
-                                controlnet, weight = controlnet
-                            else:
-                                weight = 1.0
-                            if controlnet not in controlnet_names:
-                                controlnet_names.append(controlnet)
-                                controlnet_weights.append(weight)
-
-                        logger.debug(f"Enabling controlnet(s) {controlnet_names} for upscaling")
+                    if controlnet:
+                        logger.debug(f"Enabling controlnet {controlnet} for upscaling")
 
                         if refiner:
-                            pipeline.refiner_controlnets = controlnet_names
+                            pipeline.refiner_controlnets = controlnet
                             upscale_pipline = pipeline.refiner_pipeline
                             is_sdxl = pipeline.refiner_is_sdxl
                         elif animation_frames:
-                            pipeline.animator_controlnets = controlnet_names
+                            pipeline.animator_controlnets = controlnet
                             upscale_pipeline = pipeline.animator_pipeline
                             is_sdxl = pipeline.animator_is_sdxl
                         else:
-                            pipeline.controlnets = controlnet_names
+                            pipeline.controlnets = controlnet
                             upscale_pipeline = pipeline.pipeline
                             is_sdxl = pipeline.is_sdxl
 
-                        controlnet_unique_names = list(set(controlnet_names))
-
-                        with pipeline.control_image_processor.processors(*controlnet_unique_names) as controlnet_processors:
-                            controlnet_processor_dict = dict(zip(controlnet_unique_names, controlnet_processors))
-
-                            def get_processed_image(controlnet: str) -> Union[Image, List[Image]]:
-                                if isinstance(image, list):
-                                    return [
-                                        controlnet_processor_dict[controlnet](img)
-                                        for img in image
-                                    ]
-                                else:
-                                    return controlnet_processor_dict[controlnet](image)
-
-                            kwargs["control_images"] = dict([
-                                (
-                                    controlnet_name,
-                                    [(
-                                        get_processed_image(controlnet_name),
-                                        controlnet_weight
-                                    )]
-                                )
-                                for controlnet_name, controlnet_weight in zip(controlnet_names, controlnet_weights)
-                            ])
+                        with pipeline.control_image_processor.processor(controlnet) as process:
+                            kwargs["control_images"] = dict([(controlnet, [(process(image), controlnet_scale)])])
 
                     elif refiner:
                         pipeline.refiner_controlnets = None
@@ -1742,6 +1965,7 @@ class LayeredInvocation:
 
         return images, nsfw
 
+
     def format_output(
         self,
         images: List[Image],
@@ -1750,21 +1974,18 @@ class LayeredInvocation:
         """
         Adds Enfugue metadata to an image result
         """
-        from PIL import Image
         from diffusers.pipelines.stable_diffusion.pipeline_output import StableDiffusionPipelineOutput
 
-        metadata_dict = self.serialize()
-        redact_images_from_metadata(metadata_dict)
-        formatted_images = []
-
-        for i, image in enumerate(images):
-            byte_io = io.BytesIO()
-            metadata = PngInfo()
-            metadata.add_text("EnfugueGenerationData", Serializer.serialize(metadata_dict))
-            image.save(byte_io, format="PNG", pnginfo=metadata)
-            formatted_images.append(Image.open(byte_io))
-
         return StableDiffusionPipelineOutput(
-            images=formatted_images,
+            images=images,
             nsfw_content_detected=nsfw
         )
+
+    @property
+    def metadata(self) -> Dict[str, Any]:
+        """
+        Gets the plan's metadata
+        """
+        metadata_dict = self.serialize()
+        redact_images_from_metadata(metadata_dict)
+        return metadata_dict

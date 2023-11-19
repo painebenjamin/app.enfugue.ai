@@ -1452,6 +1452,8 @@ fieldset.field-set-filters .field-container.string-input-view-search,
 fieldset.field-set-dimensions .field-container.canvas-size-input-view,
 fieldset.field-set-dimensions .field-container.checkbox-input-view-use-tiling,
 fieldset.field-set-animation .field-container.checkbox-input-view,
+fieldset.field-set-detailer .upscale-diffusion-controlnet-input-view,
+fieldset.field-set-detailer .number-input-view-detail-controlnet-scale,
 enfugue-layer-options-view .field-container.slider-precise-input-view,
 enfugue-sidebar .field-container.slider-precise-input-view,
 enfugue-sidebar .field-container.checkbox-input-view
@@ -1478,6 +1480,12 @@ fieldset.field-set-dimensions .field-container.number-input-view-height {
 form.custom-size fieldset.field-set-dimensions .field-container.number-input-view-width,
 form.custom-size fieldset.field-set-dimensions .field-container.number-input-view-height {
     display: flex;
+}
+
+fieldset.field-set-detailer .checkbox-input-view-face-inpaint,
+fieldset.field-set-detailer .checkbox-input-view-hand-inpaint
+{
+    flex-basis: 40%;
 }
 
 fieldset.field-set-engine .refiner-engine-size-input-view,

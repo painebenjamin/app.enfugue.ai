@@ -188,6 +188,9 @@ def draw_handpose(
     if not keypoints:
         return canvas
 
+    if draw_type == "facemask":
+        return canvas
+
     H, W, C = canvas.shape
 
     if draw_type == "pose":
@@ -240,7 +243,7 @@ def draw_handpose(
             if x > eps and y > eps:
                 cv2.circle(canvas, (x, y), 4, (0, 0, 255), thickness=-1)
 
-    elif draw_type == "mask":
+    elif draw_type in ["mask", "handmask"]:
         scaled_keypoints = [
             [int(keypoint.x * W), int(keypoint.y * H)]
             for keypoint in keypoints
@@ -278,6 +281,9 @@ def draw_facepose(
     if not keypoints:
         return canvas
 
+    if draw_type == "handmask":
+        return canvas
+
     H, W, C = canvas.shape
 
     scaled_keypoints = [
@@ -292,7 +298,7 @@ def draw_facepose(
     if draw_type == "pose":
         for x, y in scaled_keypoints:
             cv2.circle(canvas, (x, y), 3, (255,255,255), thickness=-1)
-    elif draw_type == "mask":
+    elif draw_type in ["mask", "facemask"]:
         if scaled_keypoints:
             cv2.fillPoly(canvas, pts=[cv2.convexHull(np.array(scaled_keypoints))], color=(255,255,255))
     else:

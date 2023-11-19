@@ -28,7 +28,7 @@ class AdvancedTweaksFormView extends TweaksFormView {
      */
     getSchedulerForm() {
         if (isEmpty(this.schedulerForm)) {
-            this.schedulerForm = new SchedulerConfigurationFormView(this.config, this.values);
+            this.schedulerForm = new SchedulerConfigurationFormView(this.config);
             this.schedulerForm.onSubmit((values) => {
                 this.values = {...this.values,...values};
                 this.submit();
@@ -52,9 +52,11 @@ class AdvancedTweaksFormView extends TweaksFormView {
         if (!isEmpty(this.schedulerWindow)) {
             this.schedulerWindow.focus();
         } else {
+            let schedulerForm = this.getSchedulerForm();
+            schedulerForm.setValues(this.values, false);
             this.schedulerWindow = await this.spawnWindow(
                 "More Scheduler Configuration",
-                this.getSchedulerForm(),
+                schedulerForm,
                 this.constructor.schedulerWindowWidth,
                 this.constructor.schedulerWindowHeight
             );
@@ -147,9 +149,11 @@ class TweaksController extends Controller {
             this.engine.noiseOffset = values.noiseOffset;
             this.engine.noiseMethod = values.noiseMethod;
             this.engine.noiseBlendMethod = values.noiseBlendMethod;
+
             this.engine.betaStart = values.betaStart;
             this.engine.betaEnd = values.betaEnd;
             this.engine.betaSchedule = values.betaSchedule;
+
             if (values.enableFreeU) {
                 this.engine.freeUFactors = [
                     values.freeUBackbone1,

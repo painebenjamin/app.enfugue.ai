@@ -20,14 +20,17 @@ if TYPE_CHECKING:
         PretrainedConfig
     )
 
-def get_attn_processors(model: ModelMixin, return_deprecated_lora=True) -> Dict[str, AttentionProcessor]:
+def get_attn_processors(
+    model: ModelMixin,
+    return_deprecated_lora: bool=True
+) -> Dict[str, AttentionProcessor]:
     """
     Returns:
         `dict` of attention processors: A dictionary containing all attention processors used in the model with
         indexed by its weight name.
     """
     # set recursively
-    processors = {}
+    processors: Dict[str, AttentionProcessor] = {}
 
     def fn_recursive_add_processors(name: str, module: torch.nn.Module, processors: Dict[str, AttentionProcessor]):
         if hasattr(module, "get_processor"):
@@ -43,7 +46,11 @@ def get_attn_processors(model: ModelMixin, return_deprecated_lora=True) -> Dict[
 
     return processors
 
-def set_attn_processors(model: ModelMixin, processors: Dict[str, AttentionProcessor]):
+def set_attn_processors(
+    model: ModelMixin,
+    processor: Union[AttentionProcessor, Dict[str, AttentionProcessor]],
+    remove_lora: bool=False
+) -> None:
     """
     Sets the attention processor to use to compute attention.
 
@@ -56,12 +63,16 @@ def set_attn_processors(model: ModelMixin, processors: Dict[str, AttentionProces
             processor. This is strongly recommended when setting trainable attention processors.
 
     """
-    def fn_recursive_attn_processor(name: str, module: torch.nn.Module, processor):
+    def fn_recursive_attn_processor(
+        name: str,
+        module: torch.nn.Module,
+        processor: Union[AttentionProcessor, Dict[str, AttentionProcessor]]
+    ) -> None:
         if hasattr(module, "set_processor"):
             if not isinstance(processor, dict):
-                module.set_processor(processor, _remove_lora=_remove_lora)
+                module.set_processor(processor, _remove_lora=remove_lora)
             else:
-                module.set_processor(processor.pop(f"{name}.processor"), _remove_lora=_remove_lora)
+                module.set_processor(processor.pop(f"{name}.processor"), _remove_lora=remove_lora)
 
         for sub_name, child in module.named_children():
             fn_recursive_attn_processor(f"{name}.{sub_name}", child, processor)
@@ -177,7 +188,10 @@ class IPAdapter(SupportModel):
 
         keepalive_callback()
         set_attn_processors(unet, new_attention_processors)
-        layers = torch.nn.ModuleList(attn_processors.values()) # type: ignore[arg-type]
+        layers = torch.nn.ModuleList([
+            module for module in attn_processors.values()
+            if isinstance(module, torch.nn.Module)
+        ]) # type: ignore[arg-type]
 
         state_dict = self.xl_state_dict if is_sdxl else self.default_state_dict
 
@@ -271,10 +285,12 @@ class IPAdapter(SupportModel):
                 controlnets=controlnets
             )
             return 1
+
         from enfugue.diffusion.support.ip.attention import ( # type: ignore[attr-defined]
             IPAttentionProcessor,
             IPAttentionProcessor2_0,
         )
+
         processors_altered = 0
         attn_processors = get_attn_processors(unet, False)
         for name in attn_processors.keys():
@@ -296,9 +312,9 @@ class IPAdapter(SupportModel):
         if controlnets is not None:
             for controlnet in controlnets:
                 if controlnet in self._default_controlnet_attention_processors:
-                    controlnets[controlnet].set_attn_processor(
-                        {**self._default_controlnet_attention_processors[controlnet]}
-                    )
+                    set_attn_processors(controlnets[controlnet], {
+                        **self._default_controlnet_attention_processors[controlnet]
+                    })
 
         del self._default_unet_attention_processors
         del self._default_controlnet_attention_processors

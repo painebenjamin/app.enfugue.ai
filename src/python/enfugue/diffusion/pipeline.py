@@ -33,6 +33,7 @@ import safetensors.torch
 from contextlib import contextmanager
 from collections import defaultdict
 from omegaconf import OmegaConf
+from math import floor, ceil
 
 from transformers import (
     AutoFeatureExtractor,
@@ -1547,7 +1548,6 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 width // self.vae_scale_factor,
             )
         
-        logger.debug(f"Creating random latents of shape {shape} and type {dtype}")
         random_latents = randn_tensor(
             shape,
             generator=generator,
@@ -1566,7 +1566,6 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         """
         Encodes an image without chunking using the VAE.
         """
-        logger.debug("Encoding image (unchunked).")
         if self.config.force_full_precision_vae: # type: ignore[attr-defined]
             self.vae.to(dtype=torch.float32)
             image = image.float()
@@ -1610,7 +1609,6 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             return result
 
         chunks = chunker.chunks
-        logger.debug(f"Encoding image in {total_steps} steps.")
 
         latent_height = height // self.vae_scale_factor
         latent_width = width // self.vae_scale_factor
@@ -2858,7 +2856,6 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             count = torch.zeros((samples, 3, num_frames, height, width)).to(device=device, dtype=latents.dtype)
 
         value = torch.zeros_like(count)
-        logger.debug(f"Decoding latents in {total_steps} steps")
 
         for j, ((top, bottom), (left, right)) in enumerate(chunker.chunks):
             # Memoize wrap for later
@@ -3378,6 +3375,11 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         num_chunks = chunker.num_chunks 
         num_temporal_chunks = chunker.num_frame_chunks
 
+        if strength is not None and floor(num_inference_steps * strength) == 0:
+            required_steps = ceil(1.0 / strength)
+            logger.warning(f"Strength and steps combination will result in no inference steps, changing `num_inference_steps` to {required_steps}")
+            num_inference_steps = required_steps
+
         self.scheduler.set_timesteps(num_inference_steps, device=device) # type: ignore[attr-defined]
 
         if image is not None and (strength is not None or denoising_start is not None):
@@ -3834,7 +3836,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     guidance_scale_tensor = torch.tensor(guidance_scale - 1).repeat(batch_size)
                     timestep_cond = self.get_guidance_scale_embedding(
                         guidance_scale_tensor,
-                        embedding_dim=self.unet.config.time_cond_proj_dim,
+                        embedding_dim=self.unet.config.time_cond_proj_dim, # type: ignore[attr-defined]
                         dtype=encoded_prompts.dtype
                     ).to(device=device)
 

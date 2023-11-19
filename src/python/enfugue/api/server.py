@@ -1,12 +1,15 @@
 from __future__ import annotations
+
 import os
+import re
 import PIL
+import time
 import signal
 import requests
 import datetime
 import webbrowser
 
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import Any, Dict, List, Optional, Union, Tuple, TYPE_CHECKING
 
 from webob import Request, Response
 
@@ -614,6 +617,7 @@ class EnfugueAPIServerBase(JSONWebServiceAPIServer, UserRESTExtensionServerBase)
         ui_state: Optional[str] = None,
         disable_intermediate_decoding: bool = False,
         video_rate: Optional[float] = None,
+        synchronous: bool = False,
         **kwargs: Any,
     ) -> Invocation:
         """
@@ -638,6 +642,9 @@ class EnfugueAPIServerBase(JSONWebServiceAPIServer, UserRESTExtensionServerBase)
                 )
             )
             self.database.commit()
+        if synchronous:
+            while invocation.format()["status"] not in ["completed", "error"]:
+                time.sleep(0.1)
         return invocation
 
     def download(

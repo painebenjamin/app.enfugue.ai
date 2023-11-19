@@ -26,6 +26,7 @@ from enfugue.diffusion.invocation import LayeredInvocation
 from enfugue.diffusion.constants import *
 
 from enfugue.util import (
+    logger,
     find_file_in_directory,
     get_file_name_from_url
 )
@@ -217,7 +218,8 @@ class EnfugueAPIInvocationController(EnfugueAPIControllerBase):
             plan,
             ui_state=ui_state,
             video_rate=video_rate,
-            disable_intermediate_decoding=disable_decoding
+            disable_intermediate_decoding=disable_decoding,
+            synchronous=request.parsed.get("synchronous", False)
         ).format()
 
     @handlers.path("^/api/invocation$")

@@ -456,7 +456,10 @@ class InvocationController extends Controller {
                 formattedStep.frame_window_stride = step.animationStride;
             }
             if (!isEmpty(step.controlnet)) {
-                formattedStep.controlnets = [step.controlnet];
+                formattedStep.controlnet = step.controlnet;
+            }
+            if (!isEmpty(step.controlnetScale)) {
+                formattedStep.controlnet_scale = step.controlnetScale;
             }
             if (!isEmpty(step.pipeline)) {
                 formattedStep.refiner = step.pipeline !== "base";
@@ -1159,6 +1162,159 @@ class InvocationController extends Controller {
         if (this.outpaint !== newOutpaint) {
             this.publish("engineOutpaintChange", newOutpaint);
         }
+    }
+
+    /**
+     * @return bool Whether or not to use face restore
+     */
+    get detailerFaceRestore() {
+        return this.kwargs.detailer_face_restore === true;
+    }
+
+    /**
+     * @param bool Whether or not to use face restore
+     */
+    set detailerFaceRestore(faceRestore) {
+        if (this.detailerFaceRestore !== faceRestore) {
+            this.publish("engineDetailerFaceRestoreChange");
+        }
+        this.kwargs.detailer_face_restore = faceRestore;
+    }
+
+    /**
+     * @return bool Whether or not to use face inpaint
+     */
+    get detailerFaceInpaint() {
+        return this.kwargs.detailer_face_inpaint === true;
+    }
+
+    /**
+     * @param bool Whether or not to use face inpaint
+     */
+    set detailerFaceInpaint(faceInpaint) {
+        if (this.detailerFaceInpaint !== faceInpaint) {
+            this.publish("engineDetailerFaceInpaintChange");
+        }
+        this.kwargs.detailer_face_inpaint = faceInpaint;
+    }
+
+    /**
+     * @return bool Whether or not to use hand inpaint
+     */
+    get detailerHandInpaint() {
+        return this.kwargs.detailer_hand_inpaint === true;
+    }
+
+    /**
+     * @param bool Whether or not to use hand inpaint
+     */
+    set detailerHandInpaint(handInpaint) {
+        if (this.detailerHandInpaint !== handInpaint) {
+            this.publish("engineDetailerHandInpaintChange");
+        }
+        this.kwargs.detailer_hand_inpaint = handInpaint;
+    }
+
+    /**
+     * @return float Detailer inpainting strength
+     */
+    get detailerInpaintStrength() {
+        return this.kwargs.detailer_inpaint_strength === true;
+    }
+
+    /**
+     * @param float Detailer inpainting strength
+     */
+    set detailerInpaintStrength(inpaintStrength) {
+        if (this.detailerInpaintStrength !== inpaintStrength) {
+            this.publish("engineDetailerInpaintStrengthChange");
+        }
+        this.kwargs.detailer_inpaint_strength = inpaintStrength;
+    }
+
+    /**
+     * @return float Detailer strength
+     */
+    get detailerStrength() {
+        return this.kwargs.detailer_denoising_strength || null;
+    }
+
+    /**
+     * @param float Detailer detailing strength
+     */
+    set detailerStrength(detailStrength) {
+        if (this.detailerStrength !== detailStrength) {
+            this.publish("engineDetailerStrengthChange");
+        }
+        this.kwargs.detailer_denoising_strength = detailStrength;
+    }
+
+    /**
+     * @return float Detailer guidance_scale
+     */
+    get detailerGuidanceScale() {
+        return this.kwargs.detailer_guidance_scale || null;
+    }
+
+    /**
+     * @param float Detailer detailing guidance_scale
+     */
+    set detailerGuidanceScale(detailGuidanceScale) {
+        if (this.detailerGuidanceScale !== detailGuidanceScale) {
+            this.publish("engineDetailerGuidanceScaleChange");
+        }
+        this.kwargs.detailer_guidance_scale = detailGuidanceScale;
+    }
+
+    /**
+     * @return float Detailer inference_steps
+     */
+    get detailerInferenceSteps() {
+        return this.kwargs.detailer_inference_steps || null;
+    }
+
+    /**
+     * @param float Detailer detailing inference_steps
+     */
+    set detailerInferenceSteps(detailInferenceSteps) {
+        if (this.detailerInferenceSteps !== detailInferenceSteps) {
+            this.publish("engineDetailerInferenceStepsChange");
+        }
+        this.kwargs.detailer_inference_steps = detailInferenceSteps;
+    }
+
+    /**
+     * @return string Detailer controlnet
+     */
+    get detailerControlnet() {
+        return this.kwargs.detailer_controlnet || null;
+    }
+
+    /**
+     * @param string Detailer controlnet
+     */
+    set detailerControlnet(detailControlnet) {
+        if (this.detailerControlnet !== detailControlnet) {
+            this.publish("engineDetailerControlnetChange");
+        }
+        this.kwargs.detailer_controlnet = detailControlnet;
+    }
+
+    /**
+     * @return float Detailer controlnet_scale
+     */
+    get detailerControlnetScale() {
+        return this.kwargs.detailer_controlnet_scale || null;
+    }
+
+    /**
+     * @param float Detailer detailing controlnet_scale
+     */
+    set detailerControlnetScale(detailControlnetScale) {
+        if (this.detailerControlnetScale !== detailControlnetScale) {
+            this.publish("engineDetailerControlnetScaleChange");
+        }
+        this.kwargs.detailer_controlnet_scale = detailControlnetScale;
     }
 
     /**

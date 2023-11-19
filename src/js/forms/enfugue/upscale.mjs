@@ -52,6 +52,16 @@ class UpscaleFormView extends FormView {
                 "label": "ControlNet",
                 "class": UpscaleDiffusionControlnetInputView
             },
+            "controlnetScale": {
+                "label": "ControlNet Scale",
+                "class": NumberInputView,
+                "config": {
+                    "value": 1.0,
+                    "min": 0.0,
+                    "step": 0.01,
+                    "tooltip": "This has no effect if no controlnet is selected."
+                }
+            },
             "prompt": {
                 "label": "Detail Prompt",
                 "class": UpscaleDiffusionPromptInputView

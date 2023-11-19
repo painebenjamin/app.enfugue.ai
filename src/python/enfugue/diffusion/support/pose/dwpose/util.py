@@ -156,6 +156,9 @@ def draw_bodypose(canvas, candidate, subset):
 
 
 def draw_handpose(canvas, all_hand_peaks, draw_type="pose"):
+    if draw_type == "facemask":
+        return canvas
+
     import matplotlib
 
     H, W, C = canvas.shape
@@ -182,6 +185,7 @@ def draw_handpose(canvas, all_hand_peaks, draw_type="pose"):
         [18, 19],
         [19, 20],
     ]
+
 
     # (person_number*2, 21, 2)
     for i in range(len(all_hand_peaks)):
@@ -217,12 +221,15 @@ def draw_handpose(canvas, all_hand_peaks, draw_type="pose"):
                     cv2.circle(canvas, (x, y), 4, (0, 0, 255), thickness=-1)
                 else:
                     keypoints.append([x,y])
-        if draw_type == "mask" and keypoints:
+        if draw_type in ["mask", "handmask"] and keypoints:
             cv2.fillPoly(canvas, pts=[cv2.convexHull(np.array(keypoints))], color=(255,255,255))
     return canvas
 
 
 def draw_facepose(canvas, all_lmks, draw_type="pose"):
+    if draw_type == "handmask":
+        return canvas
+
     H, W, C = canvas.shape
     for lmks in all_lmks:
         keypoints = []
@@ -236,7 +243,7 @@ def draw_facepose(canvas, all_lmks, draw_type="pose"):
                     cv2.circle(canvas, (x, y), 3, (255, 255, 255), thickness=-1)
                 else:
                     keypoints.append((x, y))
-        if draw_type == "mask" and keypoints:
+        if draw_type in ["mask", "facemask"] and keypoints:
             cv2.fillPoly(canvas, pts=[cv2.convexHull(np.array(keypoints))], color=(255,255,255))
     return canvas
 

@@ -15,7 +15,6 @@ from pibble.api.configuration import APIConfiguration
 
 from enfugue.util import logger, merge_into, get_local_configuration
 
-
 @click.group(name="enfugue")
 def main() -> None:
     """
@@ -149,9 +148,9 @@ def run(
     server = EnfugueServer()
     server.configure(**configuration)
 
-    secure = configuration["server"].get("secure", False)
-    domain = configuration["server"].get("domain", "127.0.0.1")
-    port = configuration["server"].get("port", 45554)
+    secure = server.configuration["server.secure"]
+    domain = server.configuration["server.domain"]
+    port = server.configuration["server.port"]
 
     scheme = "https" if secure else "http"
     port_echo = "" if port in [80, 443] else f":{port}"

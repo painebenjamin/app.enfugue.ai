@@ -190,7 +190,7 @@ class DiffusionPipelineManager:
         from enfugue.diffusion.util.torch_util.inference_util import apply_freeu
         import diffusers.utils.torch_utils
 
-        diffusers.utils.torch_utils.apply_freeu = apply_freeu
+        diffusers.utils.torch_utils.apply_freeu = apply_freeu # type: ignore[assignment]
 
     def patch_downloads(self) -> None:
         """
@@ -524,7 +524,7 @@ class DiffusionPipelineManager:
         return getattr(self, "_scheduler_config", {})
 
     @scheduler_config.setter
-    def scheduler_config(self, scheduler_config: Dict[str, Any]) -> Dict[str, Any]:
+    def scheduler_config(self, scheduler_config: Dict[str, Any]) -> None:
         """
         Gets the kwargs for the scheduler class.
         """
@@ -538,7 +538,7 @@ class DiffusionPipelineManager:
         return getattr(self, "_static_scheduler_config", {})
 
     @static_scheduler_config.setter
-    def static_scheduler_config(self, scheduler_config: Dict[str, Any]) -> Dict[str, Any]:
+    def static_scheduler_config(self, scheduler_config: Dict[str, Any]) -> None:
         """
         Gets the kwargs for the scheduler class.
         """
@@ -4138,24 +4138,19 @@ class DiffusionPipelineManager:
         logger.debug(f"Setting main pipeline ControlNet(s) to {controlnet_names} from {existing_controlnet_names}")
         self._controlnet_names = controlnet_names
 
-        if (not controlnet_names and existing_controlnet_names):
-            self.unload_pipeline("Disabling ControlNet")
-            del self.controlnets
-        elif (controlnet_names and not existing_controlnet_names):
-            self.unload_pipeline("Enabling ControlNet")
-            del self.controlnets
-        elif controlnet_names and existing_controlnet_names:
-            logger.debug("Altering existing ControlNets")
-            if hasattr(self, "_controlnets"):
-                for controlnet_name in controlnet_names.union(existing_controlnet_names):
-                    if controlnet_name not in controlnet_names:
-                        self._controlnets.pop(controlnet_name, None)
-                    elif controlnet_name not in self._controlnets:
-                        self._controlnets[controlnet_name] = self.get_controlnet(
-                            self.get_controlnet_path_by_name(controlnet_name, self.is_sdxl)
-                        )
-            if getattr(self, "_pipeline", None) is not None:
-                self._pipeline.controlnets = self.controlnets
+        if not hasattr(self, "_controlnets"):
+            self._controlnets = {}
+
+        for controlnet_name in controlnet_names.union(existing_controlnet_names):
+            if controlnet_name not in controlnet_names:
+                self._controlnets.pop(controlnet_name, None)
+            elif controlnet_name not in self._controlnets:
+                self._controlnets[controlnet_name] = self.get_controlnet(
+                    self.get_controlnet_path_by_name(controlnet_name, self.is_sdxl)
+                )
+
+        if getattr(self, "_pipeline", None) is not None:
+            self._pipeline.controlnets = self.controlnets
 
     @property
     def inpainter_controlnets(self) -> Dict[str, ControlNetModel]:
@@ -4412,10 +4407,12 @@ class DiffusionPipelineManager:
         """
         if task_callback is None:
             task_callback = lambda arg: None
+
         self._task_callback = task_callback
         latent_callback = noop
         will_refine = (refiner_strength != 0 or (refiner_start != 0 and refiner_start != 1)) and self.refiner is not None
         callback_images: List[PIL.Image.Image] = []
+
         if kwargs.get("latent_callback", None) is not None and kwargs.get("latent_callback_type", "pil") == "pil":
             latent_callback = kwargs["latent_callback"]
             if will_refine:
