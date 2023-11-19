@@ -4,9 +4,6 @@
 # command for enfugue. It's able to download enfuge via conda or in
 # portable form.
 
-# TODO: REMOVE
-export PATH=$PATH:/home/benjamin/Downloads/enfugue-server
-
 # We first declare default options, these will be populated later.
 NO_UPDATE=false
 NO_BROWSER=false
