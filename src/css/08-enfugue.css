@@ -1893,9 +1893,6 @@ enfugue-layer-options-view {
 }
 
 enfugue-layers-view {
-    display: flex;
-    flex-flow: column-reverse nowrap;
-    justify-content: flex-end;
     position: fixed;
     width: 250px;
     right: 0px;
@@ -1903,13 +1900,19 @@ enfugue-layers-view {
     bottom: 30px;
     height: 300px;
     padding: 28px 10px 0 10px;
-    gap: 10px;
     border-left: 1px solid rgba(255,255,255,0.1);
     border-top: 1px solid rgba(255,255,255,0.1);
     border-right: 1px solid rgba(0,0,0,0.2);
     border-bottom: 1px solid rgba(0,0,0,0.2);
-    overflow-y: auto;
     overflow-x: hidden;
+    overflow-y: auto;
+}
+
+enfugue-layers-view .layers {
+    display: flex;
+    flex-flow: column-reverse nowrap;
+    justify-content: flex-end;
+    gap: 10px;
 }
 
 enfugue-layer-options-view::after,
@@ -1943,7 +1946,6 @@ enfugue-layer-view {
     justify-content: center;
     border-radius: 3px;
     cursor: pointer;
-    gap: 3px;
 }
 
 enfugue-layer-view.active {

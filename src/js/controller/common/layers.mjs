@@ -80,25 +80,24 @@ class LayersView extends View {
      * Empties the layers
      */
     async emptyLayers() {
-        this.node.content(
-            await this.toolbar.getNode(),
-            E.div().class("placeholder").content(this.constructor.placeholderText)
-        );
+        this.node.find(".layers").empty();
+        this.node.find(".placeholder").show();
     }
 
     /**
      * Adds a layer
      */
     async addLayer(newLayer, resetLayers = false) {
+        let layers = this.node.find(".layers"),
+            placeholder = this.node.find(".placeholder");
+
         if (resetLayers) {
-            this.node.content(
-                await this.toolbar.getNode(),
-                await newLayer.getNode()
-            );
-        } else {
-            this.node.append(await newLayer.getNode());
+            layers.empty();
             this.node.render();
         }
+        layers.append(await newLayer.getNode());
+        placeholder.hide();
+        this.node.render();
     }
 
     /**
@@ -108,7 +107,8 @@ class LayersView extends View {
         let node = await super.build();
         node.content(
             await this.toolbar.getNode(),
-            E.div().class("placeholder").content(this.constructor.placeholderText)
+            E.div().class("placeholder").content(this.constructor.placeholderText),
+            E.div().class("layers")
         );
         node.on("drop", (e) => {
             e.preventDefault();
@@ -558,7 +558,7 @@ class LayersController extends Controller {
             this.layersView.emptyLayers();
             this.layerOptions.resetForm();
         } else {
-            this.layersView.node.remove(layerToRemove.node.element);
+            this.layersView.node.find(".layers").remove(layerToRemove.node.element);
         }
         if (layerToRemove.isActive) {
             this.layerOptions.resetForm();
@@ -595,9 +595,10 @@ class LayersController extends Controller {
                 this.layers.splice(targetIndex, 0, this.draggedLayer);
 
                 // Re-order in DOM
-                this.layersView.node.remove(this.draggedLayer.node);
-                this.layersView.node.insert(targetIndex + 1, this.draggedLayer.node);
-                this.layersView.node.render();
+                let layersContainer = this.layersView.node.find(".layers");
+                layersContainer.remove(this.draggedLayer.node);
+                layersContainer.insert(targetIndex, this.draggedLayer.node);
+                layersContainer.render();
 
                 // Trigger callbacks
                 this.layersChanged();
