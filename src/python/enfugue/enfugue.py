@@ -26,7 +26,7 @@ if __name__ == "__main__":
 
     open_browser: bool = configuration.get("open", os.getenv("ENFUGUE_OPEN", True))
     if isinstance(open_browser, str): # type: ignore
-        open_browser = open_browser[0].lower() in ["1", "t", "y"]
+        open_browser = open_browser[0].lower() in ["1", "t", "y"] # type: ignore[unreachable]
 
     if open_browser:
         open_browser_thread = OpenBrowserWhenResponsiveThread(configuration)
