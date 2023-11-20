@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pibble.util.strings import Serializer
 from typing import Any, Dict, List, Tuple, Union, Optional, TYPE_CHECKING
+from datetime import datetime
 
 if TYPE_CHECKING:
     from enfugue.diffusion.manager import DiffusionPipelineManager
@@ -16,6 +17,8 @@ class GridMaker:
     A small class for building grids.
     Usually this is to test how modifying parameters works.
     """
+    FONT_URL = "https://github.com/adobe-fonts/source-code-pro/raw/release/TTF/SourceCodePro-Regular.ttf"
+
     def __init__(
         self,
         seed: int = 12345,
@@ -23,6 +26,7 @@ class GridMaker:
         grid_columns: int = 4,
         caption_height: int = 50,
         use_video: bool = False,
+        font_size: int = 12,
         **base_kwargs: Any
     ) -> None:
         self.seed = seed
@@ -31,6 +35,7 @@ class GridMaker:
         self.caption_height = caption_height
         self.base_kwargs = base_kwargs
         self.use_video = use_video
+        self.font_size = font_size
 
     @property
     def font(self) -> ImageFont:
@@ -39,7 +44,9 @@ class GridMaker:
         """
         if not hasattr(self, "_font"):
             from PIL import ImageFont
-            self._font = ImageFont.load_default()
+            from requests import get
+            from io import BytesIO
+            self._font = ImageFont.truetype(BytesIO(get(self.FONT_URL).content), self.font_size)
         return self._font
 
     @property
@@ -47,7 +54,7 @@ class GridMaker:
         """
         Calculates the maximum length of text
         """
-        return 8 + self.grid_size // 8
+        return (self.font_size - 4) + self.grid_size // (self.font_size - 4)
 
     def split_text(self, text: str) -> str:
         """
@@ -101,7 +108,7 @@ class GridMaker:
 
     def collage(
         self,
-        results: List[Tuple[Dict[str, Any], Optional[str], List[Image]]]
+        results: List[Tuple[Dict[str, Any], Optional[str], List[Image], float]]
     ) -> Union[Image, List[Image]]:
         """
         Builds the results into a collage.
@@ -134,7 +141,7 @@ class GridMaker:
 
         # Multiply if making a video
         if self.use_video:
-            frame_count = max([len(images) for kwargs, label, images in results])
+            frame_count = max([len(images) for kwargs, label, images, duration in results])
             grid = [grid.copy() for i in range(frame_count)]
             draw = [ImageDraw.Draw(image) for image in grid]
         else:
@@ -142,7 +149,7 @@ class GridMaker:
 
         # Iterate through each result image and paste
         row, column = 0, 0
-        for parameter_set, label, images in results:
+        for parameter_set, label, images, duration in results:
             for i, image in enumerate(images):
                 # Fit the image to the grid size
                 width, height = image.size
@@ -162,27 +169,35 @@ class GridMaker:
                 # Put the caption under the image
                 if label is None:
                     if self.use_video:
-                        label = f"{self.format_parameters(parameter_set)}, {width}×{height}"
+                        image_label = f"{self.format_parameters(parameter_set)}, {width}×{height}"
                     else:
-                        label = f"{self.format_parameters(parameter_set)}, sample {i+1}, {width}×{height}"
+                        image_label = f"{self.format_parameters(parameter_set)}, sample {i+1}, {width}×{height}"
+                else:
+                    image_label = label
+
+                image_label = f"{image_label} ({duration:0.2f} sec)"
+
                 target_draw.text(
                     (column * self.grid_size + 5, row * (self.grid_size + self.caption_height) + self.grid_size + 2),
-                    self.split_text(label),
+                    self.split_text(image_label),
                     fill=(0,0,0),
                     font=self.font
                 )
+
                 # Increment as necessary
                 if not self.use_video:
                     column += 1
                     if column >= self.grid_columns:
                         row += 1
                         column = 0
+
             # Increment as necessary
             if self.use_video:
                 column += 1
                 if column >= self.grid_columns:
                     row += 1
                     column = 0
+
         return grid
 
     def execute(
@@ -194,13 +209,27 @@ class GridMaker:
         Executes each parameter set and pastes on the grid.
         """
         results: List[Tuple[Dict[str, Any], Optional[str], List[Image]]] = []
+
         for parameter_set in parameter_sets:
             manager.seed = self.seed
             label = parameter_set.pop("label", None)
+            scheduler_kwargs = dict([
+                (key, parameter_set.pop(key))
+                for key in list(parameter_set.keys())
+                if key.startswith("scheduler")
+            ])
+
+            for scheduler_kwarg in reversed(sorted(list(scheduler_kwargs.keys()))):
+                setattr(manager, scheduler_kwarg, scheduler_kwargs[scheduler_kwarg])
+
+            start = datetime.now()
             result = manager(**{**self.base_kwargs, **parameter_set})
+            duration = (datetime.now() - start).total_seconds()
             results.append((
                 parameter_set,
                 label,
-                result["images"]
+                result["images"],
+                duration
             ))
+
         return self.collage(results)

@@ -221,8 +221,7 @@ class Chunker:
             if end > self.frames:
                 offset = end - self.frames
                 end -= offset
-                if not self.loop:
-                    start -= offset
+
             frames = [start, end]
             if offset is not None and self.loop:
                 frames[-1] = offset
