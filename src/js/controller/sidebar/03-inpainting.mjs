@@ -45,13 +45,17 @@ class InpaintingController extends Controller {
             if (!isEmpty(newState.inpainting.options)) {
                 this.inpaintForm.setValues(newState.inpainting.options).then(() => this.inpaintForm.submit());
             }
-            if (!isEmpty(newState.inpainting.mask)) {
+
+            if (isEmpty(newState.inpainting.mask)) {
+                this.scribbleView.clearMemory();
+            } else {
                 let image = new Image();
                 image.onload = () => {
                     this.scribbleView.setMemory(image);
                 }
                 image.src = newState.inpainting.mask;
             }
+
             if (!isEmpty(newState.inpainting.options) && newState.inpainting.options.inpaint) {
                 this.engine.mask = this.scribbleView.src;
             } else {

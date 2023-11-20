@@ -151,7 +151,7 @@ class LayerView extends View {
         this.previewImage = new ImageView(controller.config, null, false);
         this.editorNode.onResize(() => this.resized());
         this.getLayerImage().then((image) => this.previewImage.setImage(image));
-        this.form.onSubmit(() => { setTimeout(() => { this.drawPreviewImage(); }, 150); });
+        this.form.onSubmit(() => { this.debounceDrawPreviewImage(); });
         this.subtitle = null;
     }
 
@@ -350,7 +350,7 @@ class LayerView extends View {
             nodeState.x !== this.lastNodeX ||
             nodeState.y !== this.lastNodeY
         ) {
-            this.drawPreviewImage();
+            this.debounceDrawPreviewImage();
         }
     }
 
@@ -359,6 +359,16 @@ class LayerView extends View {
      */
     async drawPreviewImage() {
         this.previewImage.setImage(await this.getLayerImage());
+    }
+
+    /**
+     * Re-renders the preview image after a short delay
+     */
+    debounceDrawPreviewImage() {
+        clearTimeout(this.drawPreviewTimeout);
+        this.drawPreviewTimeout = setTimeout(() => {
+            this.drawPreviewImage();
+        }, 500);
     }
 
     /**
@@ -809,15 +819,11 @@ class LayersController extends Controller {
         }
 
         let scribbleForm = new ImageEditorScribbleNodeOptionsFormView(this.config),
-            scribbleLayer = new LayerView(this, scribbleNode, scribbleForm),
-            scribbleDrawTimer;
+            scribbleLayer = new LayerView(this, scribbleNode, scribbleForm);
 
         scribbleNode.content.onDraw(() => { 
             this.activate(scribbleLayer);
-            clearTimeout(scribbleDrawTimer);
-            scribbleDrawTimer = setTimeout(() => {
-                scribbleLayer.drawPreviewImage(); 
-            }, 100);
+            scribbleLayer.debounceDrawPreviewImage();
         });
         await this.addLayer(scribbleLayer, activate);
         

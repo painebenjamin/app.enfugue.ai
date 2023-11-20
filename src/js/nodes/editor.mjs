@@ -4,7 +4,7 @@ import { View } from '../view/base.mjs';
 import { FormView } from '../forms/base.mjs';
 import { InputView } from '../forms/input.mjs';
 import { ElementBuilder } from '../base/builder.mjs';
-
+import { SimpleNotification } from "../common/notify.mjs";
 import {
     NodeEditorDecorationsView,
     NodeConnectionSpline
@@ -330,6 +330,7 @@ class NodeEditorView extends View {
                 }
             }
         }
+        this.checkResetCanvasPosition();
         if (triggerCallbacks) {
             for (let callback of this.setDimensionCallbacks) {
                 callback(newWidth, newHeight);
@@ -531,6 +532,37 @@ class NodeEditorView extends View {
     resetCanvasPosition() {
         if (!isEmpty(this.node)) {
             this.node.find(E.getCustomTag("zoomReset")).trigger("click");
+        }
+    }
+
+    /**
+     * Checks if the canvas is on-screen, then resets the position if not.
+     */
+    checkResetCanvasPosition() {
+        if (!isEmpty(this.node)) {
+            let editorPosition = this.node.element.getBoundingClientRect(),
+                canvasPosition = this.node.find(E.getCustomTag("nodeCanvas")).element.getBoundingClientRect(),
+                intersectLeft = Math.max(editorPosition.x, canvasPosition.x),
+                intersectTop = Math.max(editorPosition.y, canvasPosition.y),
+                intersectRight = Math.min(
+                    (editorPosition.x + editorPosition.width),
+                    (canvasPosition.x + canvasPosition.width)
+                ),
+                intersectBottom = Math.min(
+                    (editorPosition.y + editorPosition.height),
+                    (canvasPosition.y + canvasPosition.height)
+                ),
+                canvasArea = canvasPosition.width * canvasPosition.height,
+                intersectArea = 0.0;
+
+            if (intersectLeft <= intersectRight && intersectTop <= intersectBottom) {
+                intersectArea = (intersectRight - intersectLeft) * (intersectBottom * intersectTop);
+            }
+            let intersectAmount = intersectArea / canvasArea;
+            if (intersectAmount <= 2.0) {
+                SimpleNotification.notify("Resetting canvas position");
+                this.resetCanvasPosition();
+            }
         }
     }
 

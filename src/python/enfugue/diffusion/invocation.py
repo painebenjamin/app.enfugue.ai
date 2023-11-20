@@ -258,7 +258,7 @@ class LayeredInvocation:
                 pixels.extend([(j, foreground_height - i - 1) for j in range(foreground_width)])
             for x, y in pixels:
                 mask.putpixel((x, y), int(mask.getpixel((x, y)) * multiplier))
-        logger.critical(f"{mask.size}, {foreground.size}, {position}")
+
         image.paste(foreground, position[:2], mask=mask)
         return image
 
@@ -1171,10 +1171,12 @@ class LayeredInvocation:
                     size=self.tiling_size if self.tiling_size else 1024 if pipeline.inpainter_is_sdxl else 512,
                     feather=self.inpaint_feather
                 )
+
                 if isinstance(invocation_kwargs["mask"], list):
                     mask_width, mask_height = invocation_kwargs["mask"][0].size
                 else:
                     mask_width, mask_height = invocation_kwargs["mask"].size
+
                 bbox_width = x1 - x0
                 bbox_height = y1 - y0
                 pixel_ratio = (bbox_height * bbox_width) / (mask_width * mask_height)
@@ -1394,6 +1396,7 @@ class LayeredInvocation:
                 Image.new("RGBA", (width, height))
                 for i in range(total_images)
             ]
+
         image_draw = [
             ImageDraw.Draw(image)
             for image in images
@@ -1618,7 +1621,7 @@ class LayeredInvocation:
                     "negative_prompt": negative_prompt,
                     "negative_prompt_2": negative_prompt_2,
                     "prompts": self.prompts if self.prompts and len(self.prompts) > 1 else None,
-                    "control_images": None if len(control_images) < i else control_images[i],
+                    "control_images": None if len(control_images) <= i else control_images[i],
                     "generator": pipeline.generator,
                     "device": pipeline.device,
                     "offload_models": pipeline.pipeline_sequential_onload,

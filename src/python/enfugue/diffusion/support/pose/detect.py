@@ -31,7 +31,9 @@ class PoseImageProcessor(SupportModelImageProcessor):
         elif include_face:
             draw_type = "facemask"
         else:
-            raise IOError("Nothing to do!")
+            # Return black
+            from PIL import Image
+            return Image.new(image.mode, image.size)
         return self.detector( # type: ignore[call-arg]
             image,
             include_body=False,

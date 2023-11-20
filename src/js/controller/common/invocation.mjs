@@ -1165,6 +1165,40 @@ class InvocationController extends Controller {
     }
 
     /**
+     * @return crop inpaint region
+     */
+    get cropInpaint() {
+        return isEmpty(this.kwargs.crop_inpaint) ? true : this.kwargs.crop_inpaint;
+    }
+
+    /**
+     * @param bool crop inpaint region
+     */
+    set cropInpaint(newCropInpaint) {
+        if (this.cropInpaint !== newCropInpaint) {
+            this.publish("engineCropInpaintChange", newCropInpaint);
+        }
+        this.kwargs.crop_inpaint = newCropInpaint;
+    }
+
+    /**
+     * @return cropped inpaint feather
+     */
+    get inpaintFeather() {
+        return this.kwargs.inpaint_feather || 32;
+    }
+
+    /**
+     * @param cropped inpaint feather
+     */
+    set inpaintFeather(newFeather) {
+        if (this.inpaintFeather !== newFeather) {
+            this.publish("engineInpaintFeatherChange", newFeather);
+        }
+        this.kwargs.inpaint_feather = newFeather;
+    }
+
+    /**
      * @return bool Whether or not to use face restore
      */
     get detailerFaceRestore() {

@@ -226,16 +226,22 @@ class DiffusionPipelineManager:
             raise ValueError(f"File {output_file} does not exist in {local_dir} and offline mode is enabled, refusing to download from {remote_url}")
 
         self.task_callback(f"Downloading {remote_url}")
+        last_callback = datetime.datetime.now()
 
         def progress_callback(written_bytes: int, total_bytes: int) -> None:
-            percentage = (written_bytes / total_bytes) * 100.0
-            self.task_callback(f"Downloading {remote_url}: {percentage:0.1f}% ({human_size(written_bytes)}/{human_size(total_bytes)})")
+            nonlocal last_callback
+            this_callback = datetime.datetime.now()
+            if (this_callback - last_callback).total_seconds() > 5:
+                percentage = (written_bytes / total_bytes) * 100.0
+                self.task_callback(f"Downloading {remote_url}: {percentage:0.1f}% ({human_size(written_bytes)}/{human_size(total_bytes)})")
+                last_callback = this_callback
 
         check_download(
             remote_url,
             output_path,
             progress_callback=progress_callback
         )
+
         return output_path
 
     @classmethod
