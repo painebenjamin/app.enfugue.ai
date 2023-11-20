@@ -20,6 +20,106 @@ if TYPE_CHECKING:
         PretrainedConfig
     )
 
+def get_processor(
+    module: torch.nn.Module,
+    return_deprecated_lora: bool = False
+) -> AttentionProcessor:
+    """
+    Get the attention processor in use.
+
+    Args:
+        return_deprecated_lora (`bool`, *optional*, defaults to `False`):
+            Set to `True` to return the deprecated LoRA attention processor.
+
+    Returns:
+        "AttentionProcessor": The attention processor in use.
+    """
+    from importlib import import_module
+    from diffusers.models.attention_processor import (
+        LoRAAttnProcessor,
+        LoRAAttnProcessor2_0,
+        LoRAXFormersAttnProcessor,
+        LoRAAttnAddedKVProcessor
+    )
+    if not return_deprecated_lora:
+        return module.processor
+
+    # TODO(Sayak, Patrick). The rest of the function is needed to ensure backwards compatible
+    # serialization format for LoRA Attention Processors. It should be deleted once the integration
+    # with PEFT is completed.
+    is_lora_activated = {
+        name: module.lora_layer is not None
+        for name, module in module.named_modules()
+        if hasattr(module, "lora_layer")
+    }
+
+    # 1. if no layer has a LoRA activated we can return the processor as usual
+    if not any(is_lora_activated.values()):
+        return module.processor
+
+    # If doesn't apply LoRA do `add_k_proj` or `add_v_proj`
+    is_lora_activated.pop("add_k_proj", None)
+    is_lora_activated.pop("add_v_proj", None)
+    # 2. else it is not posssible that only some layers have LoRA activated
+    if not all(is_lora_activated.values()):
+        raise ValueError(
+            f"Make sure that either all layers or no layers have LoRA activated, but have {is_lora_activated}"
+        )
+
+    # 3. And we need to merge the current LoRA layers into the corresponding LoRA attention processor
+    non_lora_processor_cls_name = module.processor.__class__.__name__
+    lora_processor_cls = getattr(import_module(module.processor.__module__), "LoRA" + non_lora_processor_cls_name)
+
+    hidden_size = module.inner_dim
+
+    # now create a LoRA attention processor from the LoRA layers
+    if lora_processor_cls in [LoRAAttnProcessor, LoRAAttnProcessor2_0, LoRAXFormersAttnProcessor]:
+        kwargs = {
+            "cross_attention_dim": module.cross_attention_dim,
+            "rank": module.to_q.lora_layer.rank,
+            "network_alpha": module.to_q.lora_layer.network_alpha,
+            "q_rank": module.to_q.lora_layer.rank,
+            "q_hidden_size": module.to_q.lora_layer.out_features,
+            "k_rank": module.to_k.lora_layer.rank,
+            "k_hidden_size": module.to_k.lora_layer.out_features,
+            "v_rank": module.to_v.lora_layer.rank,
+            "v_hidden_size": module.to_v.lora_layer.out_features,
+            "out_rank": module.to_out[0].lora_layer.rank,
+            "out_hidden_size": module.to_out[0].lora_layer.out_features,
+        }
+
+        if hasattr(module.processor, "attention_op"):
+            kwargs["attention_op"] = module.processor.attention_op
+
+        lora_processor = lora_processor_cls(hidden_size, **kwargs)
+        lora_processor.to_q_lora.load_state_dict(module.to_q.lora_layer.state_dict())
+        lora_processor.to_k_lora.load_state_dict(module.to_k.lora_layer.state_dict())
+        lora_processor.to_v_lora.load_state_dict(module.to_v.lora_layer.state_dict())
+        lora_processor.to_out_lora.load_state_dict(module.to_out[0].lora_layer.state_dict())
+    elif lora_processor_cls == LoRAAttnAddedKVProcessor:
+        lora_processor = lora_processor_cls(
+            hidden_size,
+            cross_attention_dim=module.add_k_proj.weight.shape[0],
+            rank=module.to_q.lora_layer.rank,
+            network_alpha=module.to_q.lora_layer.network_alpha,
+        )
+        lora_processor.to_q_lora.load_state_dict(module.to_q.lora_layer.state_dict())
+        lora_processor.to_k_lora.load_state_dict(module.to_k.lora_layer.state_dict())
+        lora_processor.to_v_lora.load_state_dict(module.to_v.lora_layer.state_dict())
+        lora_processor.to_out_lora.load_state_dict(module.to_out[0].lora_layer.state_dict())
+
+        # only save if used
+        if module.add_k_proj.lora_layer is not None:
+            lora_processor.add_k_proj_lora.load_state_dict(module.add_k_proj.lora_layer.state_dict())
+            lora_processor.add_v_proj_lora.load_state_dict(module.add_v_proj.lora_layer.state_dict())
+        else:
+            lora_processor.add_k_proj_lora = None
+            lora_processor.add_v_proj_lora = None
+    else:
+        raise ValueError(f"{lora_processor_cls} does not exist.")
+
+    return lora_processor
+
 def get_attn_processors(
     model: ModelMixin,
     return_deprecated_lora: bool=True
@@ -33,8 +133,11 @@ def get_attn_processors(
     processors: Dict[str, AttentionProcessor] = {}
 
     def fn_recursive_add_processors(name: str, module: torch.nn.Module, processors: Dict[str, AttentionProcessor]):
-        if hasattr(module, "get_processor"):
-            processors[f"{name}.processor"] = module.get_processor(return_deprecated_lora=return_deprecated_lora)
+        if hasattr(module, "processor"):
+            processors[f"{name}.processor"] = get_processor(
+                module,
+                return_deprecated_lora=return_deprecated_lora
+            )
 
         for sub_name, child in module.named_children():
             fn_recursive_add_processors(f"{name}.{sub_name}", child, processors)

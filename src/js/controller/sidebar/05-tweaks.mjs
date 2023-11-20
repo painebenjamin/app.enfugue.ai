@@ -137,6 +137,7 @@ class TweaksController extends Controller {
      */
     async initialize() {
         // Builds form
+        let defaultValues = this.getDefaultState().tweaks;
         this.tweaksForm = new AdvancedTweaksFormView(this.config);
         this.tweaksForm.spawnWindow = (name, content, w, h, x, y) => {
             return this.spawnWindow(name, content, w, h, x, y);
@@ -156,10 +157,10 @@ class TweaksController extends Controller {
 
             if (values.enableFreeU) {
                 this.engine.freeUFactors = [
-                    values.freeUBackbone1,
-                    values.freeUBackbone2,
-                    values.freeUSkip1,
-                    values.freeUSkip2
+                    isEmpty(values.freeUBackbone1) ? defaultValues.freeUBackbone1 : values.freeUBackbone1,
+                    isEmpty(values.freeUBackbone2) ? defaultValues.freeUBackbone2 : values.freeUBackbone2,
+                    isEmpty(values.freeUSkip1) ? defaultValues.freeUSkip1 : values.freeUSkip1,
+                    isEmpty(values.freeUSkip2) ? defaultValues.freeUSkip2 : values.freeUSkip2
                 ];
             } else {
                 this.engine.freeUFactors = null;
