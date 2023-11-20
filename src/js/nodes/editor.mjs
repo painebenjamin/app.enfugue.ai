@@ -106,9 +106,9 @@ class NodeEditorView extends View {
     static zoomOutIcon = 'fa-solid fa-magnifying-glass-minus';
 
     /**
-     * @var bool Default enable reordering on focus
+     * @var bool Default enable bringing to front on focus
      */
-    static reorderOnFocus = true;
+    static bringToFrontOnFocus = true;
 
     /**
      * @param object $config The configuration object.
@@ -476,7 +476,7 @@ class NodeEditorView extends View {
      */
     async focusNode(node) {
         for (let childNode of this.nodes) {
-            if (childNode === node) {
+            if (childNode === node && this.constructor.bringToFrontOnFocus) {
                 childNode.addClass("focused");
             } else {
                 childNode.removeClass("focused");
@@ -501,9 +501,9 @@ class NodeEditorView extends View {
         let nodeCanvas = this.node.find(E.getCustomTag("nodeCanvas"));
         nodeCanvas.remove(node.node);
         if (index > currentNodeIndex) {
-            nodeCanvas.insert(index + 3, node.node);
+            nodeCanvas.insert(index + 4, node.node);
         } else {
-            nodeCanvas.insert(index + 2, node.node);
+            nodeCanvas.insert(index + 3, node.node);
         }
     }
 

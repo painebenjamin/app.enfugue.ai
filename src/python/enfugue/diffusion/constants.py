@@ -318,14 +318,8 @@ CONTROLNET_QR = (
     "control_v1p_sd15_qrcode_monster",
 )
 CONTROLNET_QR_XL = (
-    "https://huggingface.co/Nacholmo/controlnet-qr-pattern-sdxl/resolve/main/automatic1111/control_v10e_sdxl_opticalpattern.safetensors",
-    "control_v10e_sdxl_opticalpattern",
-    "control_v04u_sdxl_opticalpattern-half",
-    "control_v03u_sdxl_opticalpattern",
-    "control_v02u_sdxl_qrpattern",
-    "control_v02u_sdxl_opticalpattern",
-    "control_v01u_sdxl_opticalpattern",
-    "control_v01u_sdxl_qrpattern",
+    "https://huggingface.co/monster-labs/control_v1p_sdxl_qrcode_monster/resolve/main/diffusion_pytorch_model.safetensors?filename=control_v1p_sdxl_qrcode_monster.safetensors",
+    "control_v1p_sdxl_qrcode_monster"
 )
 CONTROLNET_CANNY_XL = (
     "diffusers/controlnet-canny-sdxl-1.0",

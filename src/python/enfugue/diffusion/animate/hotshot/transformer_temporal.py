@@ -74,7 +74,7 @@ class TemporalAttention(Attention):
         hidden_states = rearrange(hidden_states, "(b f) s c -> (b s) f c", f=number_of_frames)
         hidden_states = self.pos_encoder(hidden_states, length=number_of_frames)
 
-        if encoder_hidden_states:
+        if encoder_hidden_states is not None:
             encoder_hidden_states = repeat(encoder_hidden_states, "b n c -> (b s) n c", s=sequence_length)
 
         hidden_states = super().forward(hidden_states, encoder_hidden_states, attention_mask=attention_mask)
@@ -208,7 +208,6 @@ class TransformerBlock(nn.Module):
             block.reset_scale_multiplier()
 
     def forward(self, hidden_states, encoder_hidden_states=None, attention_mask=None, number_of_frames=None):
-
         if not self.is_cross:
             encoder_hidden_states = None
 

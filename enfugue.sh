@@ -116,18 +116,56 @@ trap "rm $PWD/config.yml" EXIT
 #
 # -- end of configuration --
 
-NO_UPDATE=false
-UPDATE=false
-
 # This function prints out the help message.
 usage() {
     echo "USAGE: $0 [OPTIONS]"
     echo "Options:"
-    echo " --help           Display this help message."
-    echo " --update         Automatically download any update when it is available."
-    echo " --config         An optional configuration file to use instead of the default."
-    echo " --no-update      Do not fetch versions and prompt to update prior to launching. Takes precedence over --update."
+    echo " -h                   Display this help message."
+    echo " -t <conda|portable>  Automatically set installation type (do not prompt.)"
+    echo " -u <yes|no>          Automatically apply or skip updates (do not prompt.)"
+    echo " -m <yes|no>          Automatically install miniconda if needed (do not prompt.)"
+    echo " -d <directory>       Automatically extract portable installation to this directory (do not prompt.)"
+    echo " -s <yes|no>          Automatically apply or skip symlinking portable binary (do not prompt.)"
 }
+
+# Declare default options, then iterate through command line arguments and set variables.
+INSTALL_TYPE=""
+INSTALL_MINICONDA=""
+INSTALL_UPDATE=""
+INSTALL_DIRECTORY=""
+INSTALL_SYMLINK=""
+
+while getopts ":ht:u:i:d:s:" ARG; do
+    case $ARG in
+        t)
+            INSTALL_TYPE=$OPTARG
+            ;;
+        d)
+            INSTALL_DIRECTORY=$OPTARG
+            ;;
+        u)
+            INSTALL_UPDATE=${OPTARG:0:1}
+            INSTALL_UPDATE=${INSTALL_UPDATE,,}
+            ;;
+        m)
+            INSTALL_MINICONDA=${OPTARG:0:1}
+            INSTALL_MINICONDA=${INSTALL_MINICONDA,,}
+            ;;
+        s)
+            INSTALL_SYMLINK=${OPTARG:0:1}
+            INSTALL_SYMLINK=${INSTALL_SYMLINK,,}
+            ;;
+        h)
+            usage
+            exit 0
+            ;;
+        *)
+            echo "Invalid option: $1" >&2
+            usage
+            exit 1
+            ;;
+    esac
+done
 
 # This function compares versions and prompts you to download when relevant.
 # Pass --no-update when executing this script to never check versions.
@@ -135,7 +173,7 @@ usage() {
 compare_prompt_update() {
     COMPARE=$($PYTHON -c "from semantic_version import compare; print(compare('$1', '$2'))")
     if [ "$COMPARE" == "-1" ]; then
-        if [ "$UPDATE" == "true" ]; then
+        if [ "$INSTALL_UPDATE" == "y" ]; then
             echo "y"
         else
             # A new version of enfugue is available
@@ -168,28 +206,6 @@ download_portable() {
     echo $PORTABLE_DIR
 }
 
-# Iterate through command flags and set variables
-while [ $# -gt 0 ]; do
-    case $1 in
-        --help)
-            usage
-            exit 0
-            ;;
-        --no-update)
-            NO_UPDATE=true
-            ;;
-        --update)
-            UPDATE=true
-            ;;
-        *)
-            echo "Invalid option: $1" >&2
-            usage
-            exit 1
-            ;;
-    esac
-    shift
-done
-
 # Second gather some variables from the current environment.
 ENFUGUE=$(which enfugue)
 ENFUGUE_SERVER=$(which enfugue-server)
@@ -219,7 +235,7 @@ PYTHON=$(which python3)
 
 # Check if either of the above tactics found enfugue. If so, and it's not disabled, check for updates.
 if [ "$ENFUGUE" != "" ]; then
-    if [[ "$PYTHON" != "" && "$NO_UPDATE" == false ]]; then
+    if [[ "$PYTHON" != "" && "$INSTALL_UPDATE" != "n" && "$INSTALL_UPDATE" != "f" ]]; then
         # Get installed version from pip
         ENFUGUE_INSTALLED_PIP_VERSION=$($PYTHON -m pip freeze | grep enfugue | awk -F= '{print $3}' | sed -e 's/\.post/\-/g')
     fi
@@ -228,7 +244,8 @@ if [ "$ENFUGUE" != "" ]; then
         ENFUGUE_AVAILABLE_PIP_VERSION=$($PYTHON -m pip install enfugue== 2>&1 | grep 'from versions' | awk '{n=split($0,v,/, /); print v[n]}')
         ENFUGUE_AVAILABLE_PIP_VERSION=$(echo ${ENFUGUE_AVAILABLE_PIP_VERSION::-1} | sed -e 's/\.post/\-/g')
         # Compare versions and prompt if necessary
-        if [ "$(compare_prompt_update $ENFUGUE_INSTALLED_PIP_VERSION $ENFUGUE_AVAILABLE_PIP_VERSION)" == "y" ]; then
+        DOWNLOAD_UPDATE="$(compare_prompt_update $ENFUGUE_INSTALLED_PIP_VERSION $ENFUGUE_AVAILABLE_PIP_VERSION)"
+        if [[ "$DOWNLOAD_UPDATE" == "y" || "$DOWNLOAD_UPDATE" == "t" ]]; then
             echo "Downloading update."
             pip install --upgrade enfugue
         fi
@@ -236,12 +253,13 @@ if [ "$ENFUGUE" != "" ]; then
 elif [ "$ENFUGUE_SERVER" != "" ]; then
     # Portable found
     ENFUGUE_PORTABLE_DIR=$(dirname $(realpath $ENFUGUE_SERVER))
-    if [ "$NO_UPDATE" == false ]; then
+    if [[ "$INSTALL_UPDATE" != "n" && "$INSTALL_UPDATE" != "f" ]]; then
         # Get versions
         ENFUGUE_AVAILABLE_PORTABLE_VERSION=$(curl -s https://api.github.com/repos/painebenjamin/app.enfugue.ai/releases/latest | grep "tag_name" | cut -d : -f 2,3 | tr -d ' ,\"')
         ENFUGUE_INSTALLED_PORTABLE_VERSION=$(cat $ENFUGUE_PORTABLE_DIR/enfugue/version.txt)
         # Compare versions and prompt if necessary
-        if [ "$(compare_prompt_update $ENFUGUE_INSTALLED_PORTABLE_VERSION $ENFUGUE_AVAILABLE_PORTABLE_VERSION)" == "y" ]; then
+        DOWNLOAD_UPDATE="$(compare_prompt_update $ENFUGUE_INSTALLED_PORTABLE_VERSION $ENFUGUE_AVAILABLE_PORTABLE_VERSION)"
+        if [[ "$DOWNLOAD_UPDATE" == "y" || "$DOWNLOAD_UPDATE" == "t" ]]; then
             echo "Downloading update."
             download_portable $(dirname $ENFUGUE_PORTABLE_DIR)
         fi
@@ -253,6 +271,11 @@ if [[ "$ENFUGUE" == "" && "$ENFUGUE_SERVER" == "" ]]; then
     echo "Enfugue is not currently installed."
     # Prompt how to install enfugue.
     DOWNLOAD_TYPE=""
+    if [ "$INSTALL_TYPE" == "conda" ]; then
+        DOWNLOAD_TYPE="1"
+    elif [ "$INSTALL_TYPE" == "portable" ]; then
+        DOWNLOAD_TYPE="2"
+    fi
     while [ "$DOWNLOAD_TYPE" == "" ]; do
         echo "How would you like to install it?"
         echo "1) Anaconda/Miniconda (Recommended)"
@@ -272,10 +295,12 @@ if [[ "$ENFUGUE" == "" && "$ENFUGUE_SERVER" == "" ]]; then
         # Check if conda is already installed.
         if [ "$CONDA" == "" ]; then
             # Prompt if we should install miniconda
-            read -p "Conda not found. Install miniconda? [Yes]: " INSTALL_MINICONDA
-            INSTALL_MINICONDA=${INSTALL_MINICONDA:-Yes}
-            INSTALL_MINICONDA=${INSTALL_MINICONDA:0:1}
-            if [ "${INSTALL_MINICONDA,,}" != "y" ]; then
+            if [[ "${INSTALL_MINICONDA,,}" != "y" && "${INSTALL_MINICONDA,,}" != "t" ]]; then
+                read -p "Conda not found. Install miniconda? [Yes]: " INSTALL_MINICONDA
+                INSTALL_MINICONDA=${INSTALL_MINICONDA:-Yes}
+                INSTALL_MINICONDA=${INSTALL_MINICONDA:0:1}
+            fi
+            if [[ "${INSTALL_MINICONDA,,}" != "y" && "${INSTALL_MINICONDA,,}" != "t" ]]; then
                 echo "Exiting installer. Install anaconda or miniconda and ensure it is available on your PATH, then try again."
                 exit 1
             fi
@@ -303,20 +328,23 @@ if [[ "$ENFUGUE" == "" && "$ENFUGUE_SERVER" == "" ]]; then
         PYTHON=$(which python)
     elif [ "$DOWNLOAD_TYPE" == "2" ]; then
         # Download and extract the latest portable
-        PORTABLE_DIR=$(download_portable)
+        PORTABLE_DIR=$(download_portable $INSTALL_DIRECTORY)
         ENFUGUE_SERVER="$PORTABLE_DIR/enfugue-server"
         # Prompt if we should add a symlink so this script can find it in the future
-        read -p "Successfully extracted enfugue. Add symlink to /usr/local/bin? [Yes]: " ADD_SYMLINK
-        ADD_SYMLINK=${ADD_SYMLINK:-Yes}
-        ADD_SYMLINK=${ADD_SYMLINK:0:1}
-        if [ "${ADD_SYMLINK,,}" == "y" ]; then
+        if [[ "$INSTALL_SYMLINK" != "n" && "$INSTALL_SYMLINK" != "f" ]]; then
+            if [[ "$INSTALL_SYMLINK" != "y" && "$INSTALL_SYMLINK" != "t" ]]; then
+                read -p "Successfully extracted enfugue. Add symlink to /usr/local/bin? [Yes]: " INSTALL_SYMLINK
+                INSTALL_SYMLINK=${INSTALL_SYMLINK:-Yes}
+                INSTALL_SYMLINK=${INSTALL_SYMLINK:0:1}
+            fi
+        fi
+        if [ "${INSTALL_SYMLINK,,}" == "y" ]; then
             sudo ln -s $ENFUGUE_SERVER /usr/local/bin/enfugue-server
         fi
     fi
 fi
 
 # Now we should have enfugue, run it.
-
 if [ "$ENFUGUE" != "" ]; then
     # Run enfugue via python module script
     $PYTHON -m enfugue run

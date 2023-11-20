@@ -3653,6 +3653,7 @@ class DiffusionPipelineManager:
 
             kwargs = {
                 "cache_dir": self.engine_cache_dir,
+                "motion_dir": self.engine_motion_dir,
                 "engine_size": self.animator_tensorrt_size,
                 "tiling_stride": self.tiling_stride,
                 "frame_window_size": self.frame_window_size,
@@ -4201,24 +4202,19 @@ class DiffusionPipelineManager:
         logger.debug(f"Setting inpainter pipeline ControlNet(s) to {controlnet_names} from {existing_controlnet_names}")
         self._inpainter_controlnet_names = controlnet_names
 
-        if (not controlnet_names and existing_controlnet_names):
-            self.unload_inpainter("Disabling ControlNet")
-            del self.inpainter_controlnets
-        elif (controlnet_names and not existing_controlnet_names):
-            self.unload_inpainter("Enabling ControlNet")
-            del self.inpainter_controlnets
-        elif controlnet_names and existing_controlnet_names:
-            logger.debug("Altering existing inpainter controlnets")
-            if hasattr(self, "_inpainter_controlnets"):
-                for controlnet_name in controlnet_names.union(existing_controlnet_names):
-                    if controlnet_name not in controlnet_names:
-                        self._inpainter_controlnets.pop(controlnet_name, None)
-                    elif controlnet_name not in self._inpainter_controlnets:
-                        self._inpainter_controlnets[controlnet_name] = self.get_controlnet(
-                            self.get_controlnet_path_by_name(controlnet_name, self.inpainter_is_sdxl)
-                        )
-            if getattr(self, "_inpainter_pipeline", None) is not None:
-                self._inpainter_pipeline.controlnets = self.inpainter_controlnets
+        if not hasattr(self, "_inpainter_controlnets"):
+            self._inpainter_controlnets = {}
+
+        for controlnet_name in controlnet_names.union(existing_controlnet_names):
+            if controlnet_name not in controlnet_names:
+                self._inpainter_controlnets.pop(controlnet_name, None)
+            elif controlnet_name not in self._inpainter_controlnets:
+                self._inpainter_controlnets[controlnet_name] = self.get_controlnet(
+                    self.get_controlnet_path_by_name(controlnet_name, self.inpainter_is_sdxl)
+                )
+
+        if getattr(self, "_inpainter_pipeline", None) is not None:
+            self._inpainter_pipeline.controlnets = self.inpainter_controlnets
 
     @property
     def animator_controlnets(self) -> Dict[str, ControlNetModel]:
@@ -4269,24 +4265,19 @@ class DiffusionPipelineManager:
         logger.debug(f"Setting animator pipeline ControlNet(s) to {controlnet_names} from {existing_controlnet_names}")
         self._animator_controlnet_names = controlnet_names
 
-        if (not controlnet_names and existing_controlnet_names):
-            self.unload_animator("Disabling ControlNet")
-            del self.animator_controlnets
-        elif (controlnet_names and not existing_controlnet_names):
-            self.unload_animator("Enabling ControlNet")
-            del self.animator_controlnets
-        elif controlnet_names and existing_controlnet_names:
-            logger.debug("Altering existing animator controlnets")
-            if hasattr(self, "_animator_controlnets"):
-                for controlnet_name in controlnet_names.union(existing_controlnet_names):
-                    if controlnet_name not in controlnet_names:
-                        self._animator_controlnets.pop(controlnet_name, None)
-                    elif controlnet_name not in self._animator_controlnets:
-                        self._animator_controlnets[controlnet_name] = self.get_controlnet(
-                            self.get_controlnet_path_by_name(controlnet_name, self.animator_is_sdxl)
-                        )
-            if getattr(self, "_animator_pipeline", None) is not None:
-                self._animator_pipeline.controlnets = self.animator_controlnets
+        if not hasattr(self, "_animator_controlnets"):
+            self._animator_controlnets = {}
+
+        for controlnet_name in controlnet_names.union(existing_controlnet_names):
+            if controlnet_name not in controlnet_names:
+                self._animator_controlnets.pop(controlnet_name, None)
+            elif controlnet_name not in self._animator_controlnets:
+                self._animator_controlnets[controlnet_name] = self.get_controlnet(
+                    self.get_controlnet_path_by_name(controlnet_name, self.animator_is_sdxl)
+                )
+
+        if getattr(self, "_animator_pipeline", None) is not None:
+            self._animator_pipeline.controlnets = self.animator_controlnets
 
     @property
     def refiner_controlnets(self) -> Dict[str, ControlNetModel]:
@@ -4337,24 +4328,19 @@ class DiffusionPipelineManager:
         logger.debug(f"Setting refiner pipeline ControlNet(s) to {controlnet_names} from {existing_controlnet_names}")
         self._refiner_controlnet_names = controlnet_names
 
-        if (not controlnet_names and existing_controlnet_names):
-            self.unload_refiner("Disabling ControlNet")
-            del self.refiner_controlnets
-        elif (controlnet_names and not existing_controlnet_names):
-            self.unload_refiner("Enabling ControlNet")
-            del self.refiner_controlnets
-        elif controlnet_names and existing_controlnet_names:
-            logger.debug("Altering existing refiner controlnets")
-            if hasattr(self, "_refiner_controlnets"):
-                for controlnet_name in controlnet_names.union(existing_controlnet_names):
-                    if controlnet_name not in controlnet_names:
-                        self._refiner_controlnets.pop(controlnet_name, None)
-                    elif controlnet_name not in self._refiner_controlnets:
-                        self._refiner_controlnets[controlnet_name] = self.get_controlnet(
-                            self.get_controlnet_path_by_name(controlnet_name, self.refiner_is_sdxl)
-                        )
-            if getattr(self, "_refiner_pipeline", None) is not None:
-                self._refiner_pipeline.controlnets = self.refiner_controlnets
+        if not hasattr(self, "_refiner_controlnets"):
+            self._refiner_controlnets = {}
+
+        for controlnet_name in controlnet_names.union(existing_controlnet_names):
+            if controlnet_name not in controlnet_names:
+                self._refiner_controlnets.pop(controlnet_name, None)
+            elif controlnet_name not in self._refiner_controlnets:
+                self._refiner_controlnets[controlnet_name] = self.get_controlnet(
+                    self.get_controlnet_path_by_name(controlnet_name, self.refiner_is_sdxl)
+                )
+
+        if getattr(self, "_refiner_pipeline", None) is not None:
+            self._refiner_pipeline.controlnets = self.refiner_controlnets
 
     @property
     def controlnet_names(self) -> Set[CONTROLNET_LITERAL]:

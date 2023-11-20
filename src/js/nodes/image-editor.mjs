@@ -52,9 +52,9 @@ class ImageEditorView extends NodeEditorView {
     static maximumZoom = 10;
 
     /**
-     * @var bool Disable reordering on focus
+     * @var bool Disable bringing to front on focus
      */
-    static reorderOnFocus = false;
+    static bringToFrontOnFocus = false;
 
     /**
      * @var array<class> The node classes for state set/get

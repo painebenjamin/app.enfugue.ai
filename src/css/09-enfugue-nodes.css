@@ -570,7 +570,7 @@ enfugue-node-editor.image-editor enfugue-node-canvas enfugue-image-editor-overla
 
 enfugue-node-editor.image-editor enfugue-node-canvas enfugue-image-editor-overlay enfugue-scribble-view
 {
-    z-index: 2;
+    z-index: 3;
     mix-blend-mode: hard-light;
     opacity: 0.75;
     pointer-events: all;
@@ -591,7 +591,7 @@ enfugue-node-editor.image-editor enfugue-node-canvas enfugue-image-editor-overla
     top: 0;
     right: 0;
     bottom: 0;
-    z-index: 2;
+    z-index: 3;
 }
 
 enfugue-node-editor.image-editor enfugue-node-canvas enfugue-image-editor-grid {

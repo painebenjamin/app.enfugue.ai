@@ -493,7 +493,6 @@ class DownBlock3D(nn.Module):
 
     def forward(self, hidden_states, temb=None, encoder_hidden_states=None, enable_temporal_attentions: bool = True):
         output_states = ()
-
         for resnet, temporal_attention in zip(self.resnets, self.temporal_attentions):
             if self.training and self.gradient_checkpointing:
                 def create_custom_forward(module):

@@ -51,9 +51,8 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
     STATIC_SCHEDULER_KWARGS = {
         "num_train_timesteps": 1000,
         "beta_start": 0.00085,
-        "beta_end": 0.012,
+        "beta_end": 0.011,
         "beta_schedule": "linear",
-        "clip_sample": True
     }
 
     HOTSHOT_XL_PATH = "hotshotco/Hotshot-XL"
@@ -162,6 +161,7 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         unet = cls.create_unet(
             load_json(unet_config),
             kwargs.get("cache_dir", DIFFUSERS_CACHE),
+            motion_dir=kwargs.get("motion_dir", None),
             is_sdxl=is_sdxl,
             is_inpainter=False,
             motion_module=motion_module,
@@ -200,6 +200,7 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         """
         use_mm_v2: bool = unet_additional_kwargs.pop("use_mm_v2", True)
         use_hotshot: bool = unet_additional_kwargs.pop("use_hotshot", True)
+        motion_dir = unet_additional_kwargs.pop("motion_dir", None)
         motion_module: Optional[str] = unet_additional_kwargs.pop("motion_module", None)
         position_encoding_truncate_length: Optional[int] = unet_additional_kwargs.pop("position_encoding_truncate_length", None)
         position_encoding_scale_length: Optional[int] = unet_additional_kwargs.pop("position_encoding_scale_length", None)
@@ -209,6 +210,7 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
                 return cls.create_hotshot_unet(
                     config=config,
                     cache_dir=cache_dir,
+                    motion_dir=motion_dir,
                     motion_module=motion_module,
                     task_callback=task_callback,
                     position_encoding_truncate_length=position_encoding_truncate_length,
@@ -218,6 +220,7 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
             return cls.create_diff_xl_unet(
                 config=config,
                 cache_dir=cache_dir,
+                motion_dir=motion_dir,
                 motion_module=motion_module,
                 task_callback=task_callback,
                 position_encoding_truncate_length=position_encoding_truncate_length,
@@ -227,6 +230,7 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         return cls.create_diff_unet(
             config=config,
             cache_dir=cache_dir,
+            motion_dir=motion_dir,
             use_mm_v2=use_mm_v2,
             motion_module=motion_module,
             task_callback=task_callback,
@@ -240,6 +244,7 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         cls,
         config: Dict[str, Any],
         cache_dir: str,
+        motion_dir: Optional[str]=None,
         motion_module: Optional[str]=None,
         task_callback: Optional[Callable[[str], None]]=None,
         position_encoding_truncate_length: Optional[int]=None,
@@ -270,6 +275,7 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         cls.load_hotshot_state_dict(
             unet=model,
             cache_dir=cache_dir,
+            motion_dir=motion_dir,
             motion_module=motion_module,
             task_callback=task_callback,
             position_encoding_truncate_length=position_encoding_truncate_length,
@@ -282,6 +288,7 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         cls,
         unet: HotshotUNet,
         cache_dir: str,
+        motion_dir: Optional[str]=None,
         motion_module: Optional[str]=None,
         task_callback: Optional[Callable[[str], None]]=None,
         position_encoding_truncate_length: Optional[int]=None,
@@ -296,10 +303,20 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         if task_callback is not None:
             task_callback(f"Loading HotshotXL repository {cls.HOTSHOT_XL_PATH}")
 
+        hotshot_cache_dir = cache_dir
+        if motion_dir is not None:
+            hotshot_cache_path = os.path.join(
+                cache_dir,
+                "--".join(["models", cls.HOTSHOT_XL_PATH.replace('/', '--')])
+            )
+            # Check if hotshot exists in cache directory before changing
+            if not os.path.exists(hotshot_cache_path):
+                hotshot_cache_dir = motion_dir
+
         hotshot_unet = HotshotUNet.from_pretrained(
             motion_module,
             subfolder="unet",
-            cache_dir=cache_dir,
+            cache_dir=hotshot_cache_dir,
         )
 
         logger.debug(f"Loading HotShot XL motion module {motion_module} with truncate length '{position_encoding_truncate_length}' and scale length '{position_encoding_scale_length}'")
@@ -330,6 +347,7 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         config: Dict[str, Any],
         cache_dir: str,
         use_mm_v2: bool=True,
+        motion_dir: Optional[str]=None,
         motion_module: Optional[str]=None,
         task_callback: Optional[Callable[[str], None]]=None,
         position_encoding_truncate_length: Optional[int]=None,
@@ -405,6 +423,7 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
             unet=model,
             cache_dir=cache_dir,
             use_mm_v2=use_mm_v2,
+            motion_dir=motion_dir,
             motion_module=motion_module,
             task_callback=task_callback,
             position_encoding_truncate_length=position_encoding_truncate_length,
@@ -418,6 +437,7 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         unet: AnimateDiffUNet,
         cache_dir: str,
         use_mm_v2: bool=True,
+        motion_dir: Optional[str]=None,
         motion_module: Optional[Union[str, Dict[str, torch.Tensor]]]=None,
         task_callback: Optional[Callable[[str], None]]=None,
         position_encoding_truncate_length: Optional[int]=None,
@@ -428,12 +448,16 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         """
         if motion_module is None:
             motion_module = cls.MOTION_MODULE_V2 if use_mm_v2 else cls.MOTION_MODULE
+            motion_cache_dir = cache_dir
 
-            if task_callback is not None:
-                if not os.path.exists(os.path.join(cache_dir, os.path.basename(motion_module))):
-                    task_callback(f"Downloading {motion_module}")
+            if not os.path.exists(os.path.join(cache_dir, os.path.basename(motion_module))):
+                if motion_dir is not None:
+                    motion_cache_dir = motion_dir
 
-            motion_module = check_download_to_dir(motion_module, cache_dir)
+            if task_callback is not None and not os.path.exists(os.path.join(motion_cache_dir, os.path.basename(motion_module))):
+                task_callback(f"Downloading {motion_module}")
+
+            motion_module = check_download_to_dir(motion_module, motion_cache_dir)
 
         if isinstance(motion_module, dict):
             logger.debug(f"Loading AnimateDiff motion module with truncate length '{position_encoding_truncate_length}' and scale length '{position_encoding_scale_length}'")
@@ -469,6 +493,7 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         unet: AnimateDiffXLUNet,
         cache_dir: str,
         motion_module: Optional[Union[str, Dict[str, torch.Tensor]]]=None,
+        motion_dir: Optional[str]=None,
         task_callback: Optional[Callable[[str], None]]=None,
         position_encoding_truncate_length: Optional[int]=None,
         position_encoding_scale_length: Optional[int]=None,
@@ -478,12 +503,16 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         """
         if motion_module is None:
             motion_module = cls.MOTION_MODULE_XL
+            motion_cache_dir = cache_dir
 
-            if task_callback is not None:
-                if not os.path.exists(os.path.join(cache_dir, os.path.basename(motion_module))):
-                    task_callback(f"Downloading {motion_module}")
+            if not os.path.exists(os.path.join(cache_dir, os.path.basename(motion_module))):
+                if motion_dir is not None:
+                    motion_cache_dir = motion_dir
 
-            motion_module = check_download_to_dir(motion_module, cache_dir)
+            if task_callback is not None and not os.path.exists(os.path.join(motion_cache_dir, os.path.basename(motion_module))):
+                task_callback(f"Downloading {motion_module}")
+
+            motion_module = check_download_to_dir(motion_module, motion_cache_dir)
 
         logger.debug(f"Loading AnimateDiff motion module {motion_module} with truncate length '{position_encoding_truncate_length}' and scale length '{position_encoding_scale_length}'")
         from enfugue.diffusion.util.torch_util import load_state_dict
@@ -512,6 +541,7 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         config: Dict[str, Any],
         cache_dir: str,
         motion_module: Optional[str]=None,
+        motion_dir: Optional[str]=None,
         task_callback: Optional[Callable[[str], None]]=None,
         position_encoding_truncate_length: Optional[int]=None,
         position_encoding_scale_length: Optional[int]=None,
@@ -558,6 +588,7 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
             unet=model,
             cache_dir=cache_dir,
             motion_module=motion_module,
+            motion_dir=motion_dir,
             task_callback=task_callback,
             position_encoding_truncate_length=position_encoding_truncate_length,
             position_encoding_scale_length=position_encoding_scale_length,
@@ -569,6 +600,7 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         cache_dir: str,
         use_mm_v2: bool=True,
         motion_module: Optional[str]=None,
+        motion_dir: Optional[str]=None,
         task_callback: Optional[Callable[[str], None]]=None,
         position_encoding_truncate_length: Optional[int]=None,
         position_encoding_scale_length: Optional[int]=None,
@@ -580,6 +612,7 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
             self.load_hotshot_state_dict(
                 unet=self.unet,
                 motion_module=motion_module,
+                motion_dir=motion_dir,
                 cache_dir=cache_dir,
                 task_callback=task_callback,
                 position_encoding_truncate_length=position_encoding_truncate_length,
@@ -589,6 +622,7 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
             self.load_diff_state_dict(
                 unet=self.unet,
                 motion_module=motion_module,
+                motion_dir=motion_dir,
                 cache_dir=cache_dir,
                 task_callback=task_callback,
                 use_mm_v2=use_mm_v2,

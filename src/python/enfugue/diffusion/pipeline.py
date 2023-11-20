@@ -318,6 +318,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         torch_dtype: Optional[torch.dtype]=None,
         upcast_attention: Optional[bool]=None,
         extract_ema: Optional[bool]=None,
+        motion_dir: Optional[str]=None,
         motion_module: Optional[str]=None,
         unet_kwargs: Dict[str, Any]={},
         offload_models: bool=False,
@@ -511,6 +512,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         unet = cls.create_unet(
             unet_config,
             cache_dir=cache_dir,
+            motion_dir=motion_dir,
             motion_module=motion_module,
             is_sdxl=isinstance(model_type, str) and model_type.startswith("SDXL"),
             is_inpainter=is_inpainter,
@@ -2074,6 +2076,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                         for previous_block, current_block in zip(down_blocks, down_samples)
                     ]
                     mid_block += mid_sample
+
         if is_animation and down_blocks is not None and mid_block is not None:
             # Expand batch back to frames
             down_blocks = [
@@ -2081,6 +2084,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 for block in down_blocks
             ]
             mid_block = rearrange(mid_block, "(b f) c h w -> b c f h w", b=batch, f=frames)
+
         return down_blocks, mid_block
 
     def denoise_unchunked(

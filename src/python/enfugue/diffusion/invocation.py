@@ -1608,24 +1608,33 @@ class LayeredInvocation:
                     mask = dilate_erode(detail_masks[i], self.detailer_inpaint_dilate)
                     width, height = image.size
 
-                result = detail_pipeline(
-                    width=width,
-                    height=height,
-                    image=image,
-                    mask=mask,
-                    control_images=None if len(control_images) <= i else control_images[i],
-                    generator=pipeline.generator,
-                    device=pipeline.device,
-                    offload_models=pipeline.pipeline_sequential_onload,
-                    strength=self.detailer_inpaint_strength,
-                    num_results_per_prompt=1,
-                    progress_callback=progress_callback,
-                    guidance_scale=guidance_scale,
-                    num_inference_steps=num_inference_steps,
-                    animation_frames=self.animation_frames,
-                    frame_window_size=self.frame_window_size,
-                    frame_window_stride=self.frame_window_stride,
-                )["images"]
+                detail_kwargs = {
+                    "width": width,
+                    "height": height,
+                    "image": image,
+                    "mask": mask,
+                    "prompt": prompt,
+                    "prompt_2": prompt_2,
+                    "negative_prompt": negative_prompt,
+                    "negative_prompt_2": negative_prompt_2,
+                    "prompts": self.prompts if self.prompts and len(self.prompts) > 1 else None,
+                    "control_images": None if len(control_images) < i else control_images[i],
+                    "generator": pipeline.generator,
+                    "device": pipeline.device,
+                    "offload_models": pipeline.pipeline_sequential_onload,
+                    "strength": self.detailer_inpaint_strength,
+                    "num_results_per_prompt": 1,
+                    "progress_callback": progress_callback,
+                    "guidance_scale": guidance_scale,
+                    "num_inference_steps": num_inference_steps,
+                    "animation_frames": self.animation_frames,
+                    "frame_window_size": self.frame_window_size,
+                    "frame_window_stride": self.frame_window_stride
+                }
+
+                logger.debug(f"Detailing sample {i} with arguments {detail_kwargs}")
+
+                result = detail_pipeline(**detail_kwargs)["images"]
 
                 if self.animation_frames:
                     images = result
@@ -1670,6 +1679,11 @@ class LayeredInvocation:
                     height=height,
                     image=image,
                     strength=self.detailer_denoising_strength,
+                    prompt=prompt,
+                    prompt_2=prompt_2,
+                    negative_prompt=negative_prompt,
+                    negative_prompt_2=negative_prompt_2,
+                    prompts=self.prompts if self.prompts and len(self.prompts) > 1 else None,
                     control_images=None if len(control_images) <= i else control_images[i],
                     num_results_per_prompt=1,
                     progress_callback=progress_callback,

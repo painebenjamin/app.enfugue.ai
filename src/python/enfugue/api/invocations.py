@@ -348,40 +348,45 @@ class Invocation:
 
             images = None
             video = None
-
-            if self.results is not None:
-                if self.plan.animation_frames:
-                    if self.interpolate_result:
-                        status = "completed" # type: ignore[unreachable]
-                        video = get_relative_paths([self.interpolate_result])[0]
-                    elif self.plan.interpolate_frames or self.plan.reflect:
-                        status = "interpolating"
-                        self._interpolate_communicate()
-                    else:
-                        # Saving
-                        status = "processing"
-                else:
-                    status = "completed"
-                    if self.plan.animation_frames:
-                        video = get_relative_paths([self.interpolate_result])[0] # type: ignore[list-item]
-                images = get_relative_paths(self.results)
-            else:
-                status = "processing"
-                self._communicate()
+            
+            try:
                 if self.results is not None:
-                    # Finished in previous _communicate() calling
-                    if self.plan.animation_frames: # type: ignore[unreachable]
-                        if self.plan.interpolate_frames or self.plan.reflect:
-                            # Interpolation just started
-                            ...
-                        elif self.interpolate_result:
-                            status = "completed"
+                    if self.plan.animation_frames:
+                        if self.interpolate_result:
+                            status = "completed" # type: ignore[unreachable]
                             video = get_relative_paths([self.interpolate_result])[0]
+                        elif self.plan.interpolate_frames or self.plan.reflect:
+                            status = "interpolating"
+                            self._interpolate_communicate()
+                        else:
+                            # Saving
+                            status = "processing"
                     else:
                         status = "completed"
+                        if self.plan.animation_frames:
+                            video = get_relative_paths([self.interpolate_result])[0] # type: ignore[list-item]
                     images = get_relative_paths(self.results)
-                elif self.last_images is not None:
-                    images = get_relative_paths(self.last_images)
+                else:
+                    status = "processing"
+                    self._communicate()
+                    if self.results is not None:
+                        # Finished in previous _communicate() calling
+                        if self.plan.animation_frames: # type: ignore[unreachable]
+                            if self.plan.interpolate_frames or self.plan.reflect:
+                                # Interpolation just started
+                                ...
+                            elif self.interpolate_result:
+                                status = "completed"
+                                video = get_relative_paths([self.interpolate_result])[0]
+                        else:
+                            status = "completed"
+                        images = get_relative_paths(self.results)
+                    elif self.last_images is not None:
+                        images = get_relative_paths(self.last_images)
+            except Exception as ex:
+                # Set error and recurse
+                self.error = ex
+                return self.format()
 
             if self.end_time is None:
                 duration = (datetime.datetime.now() - self.start_time).total_seconds()
