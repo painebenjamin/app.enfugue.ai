@@ -3712,7 +3712,9 @@ class DiffusionPipelineManager:
                 )
 
                 animator_pipeline = self.animator_pipeline_class.from_pretrained(
-                    self.animator_diffusers_cache_dir, **kwargs
+                    self.animator_diffusers_cache_dir,
+                    vae_preview=self.get_vae_preview(self.animator_is_sdxl),
+                    **kwargs
                 )
             elif self.animator_engine_cache_exists:
                 if not self.safe:
@@ -3732,7 +3734,9 @@ class DiffusionPipelineManager:
                 )
 
                 animator_pipeline = self.animator_pipeline_class.from_pretrained(
-                    self.animator_diffusers_cache_dir, **kwargs
+                    self.animator_diffusers_cache_dir,
+                    vae_preview=self.get_vae_preview(self.animator_is_sdxl),
+                    **kwargs
                 )
             else:
                 if self.animator_vae_name is not None:

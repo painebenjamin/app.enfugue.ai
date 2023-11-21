@@ -1112,6 +1112,7 @@ class LayeredInvocation:
             **refiner_prompts,
             **results_dict
         })
+
         return results_dict
 
     def execute(
@@ -1285,7 +1286,7 @@ class LayeredInvocation:
             image_callback=image_callback,
             invocation_kwargs=invocation_kwargs
         )
-
+        logger.debug("Stopping pipeline keepalive and clearing memory.")
         pipeline.stop_keepalive() # Make sure this is stopped
         pipeline.clear_memory()
         return self.format_output(images, nsfw)

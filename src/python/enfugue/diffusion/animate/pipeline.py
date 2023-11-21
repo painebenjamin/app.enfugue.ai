@@ -132,6 +132,7 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
     def from_pretrained(
         cls,
         pretrained_model_name_or_path: Optional[Union[str, os.PathLike]],
+        vae_preview: AutoencoderTiny,
         motion_module: Optional[str] = None,
         position_encoding_truncate_length: Optional[int]=None,
         position_encoding_scale_length: Optional[int]=None,
@@ -141,7 +142,11 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         """
         Override from_pretrained to reload the unet as a 3D condition model instead.
         """
-        pipe = super(EnfugueAnimateStableDiffusionPipeline, cls).from_pretrained(pretrained_model_name_or_path, **kwargs)
+        pipe = super(EnfugueAnimateStableDiffusionPipeline, cls).from_pretrained(
+            pretrained_model_name_or_path,
+            vae_preview=vae_preview,
+            **kwargs
+        )
         unet_dir = os.path.join(pretrained_model_name_or_path, "unet") # type: ignore[arg-type]
         unet_config = os.path.join(unet_dir, "config.json")
         unet_weights = os.path.join(unet_dir, WEIGHTS_NAME)
@@ -185,15 +190,26 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         pipe.unet = unet
 
         try:
-            scaled_for_pipeline = pipe.vae.config.vae_scaled_for_pipeline
+            vae_scaled_for_pipeline = pipe.vae.config.vae_scaled_for_pipeline
         except:
-            scaled_for_pipeline = False
+            vae_scaled_for_pipeline = False
 
-        if not scaled_for_pipeline:
+        try:
+            vae_preview_scaled_for_pipeline = pipe.vae_preview.config.vae_scaled_for_pipeline
+        except:
+            vae_preview_scaled_for_pipeline = False
+
+        if not vae_scaled_for_pipeline:
             pipe.vae.register_to_config(
-                scaling_factor=cls.get_vae_scale_factor(pipe.vae.config.scaling_factor)
+                scaling_factor=cls.get_vae_scale_factor(pipe.vae.config.scaling_factor),
+                vae_scaled_for_pipeline=True
             )
-            logger.info("Adjusted VAE scaling factor to {pipe.vae.config.scaling_factor}")
+            logger.info(f"Adjusted VAE scaling factor to {pipe.vae.config.scaling_factor}")
+        if not vae_preview_scaled_for_pipeline:
+            pipe.vae_preview.register_to_config(
+                scaling_factor=cls.get_vae_scale_factor(pipe.vae_preview.config.scaling_factor),
+                vae_scaled_for_pipeline=True
+            )
 
         return pipe
 

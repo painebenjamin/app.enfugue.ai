@@ -46,7 +46,6 @@ class InvokeButtonController extends Controller {
      */
     getLayers() {
         let layerState = this.application.layers.getState();
-        console.log(layerState);
         return layerState.layers.map((datum, i) => {
             let formattedState = {
                 "x": datum.x,

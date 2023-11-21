@@ -192,7 +192,18 @@ class InterpolatorEngineProcess(EngineProcess):
             images = get_frames_or_image_from_file(images)
         elif isinstance(images, Image.Image):
             images = get_frames_or_image(images)
-
+        elif isinstance(images, list):
+            standard_images = []
+            for image in images:
+                if isinstance(image, str):
+                    image = get_frames_or_image_from_file(image)
+                elif isinstance(image, Image.Image):
+                    image = get_frames_or_image(image)
+                if isinstance(image, list):
+                    standard_images.extend(image)
+                else:
+                    standard_images.append(image)
+            images = standard_images
         image_count = len(images)
         interpolated_count = image_count
         if isinstance(interpolate_frames, tuple):

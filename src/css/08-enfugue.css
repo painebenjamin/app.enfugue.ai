@@ -2207,7 +2207,7 @@ enfugue-prompt-travel-view {
     position: fixed;
     left: 250px;
     right: 250px;
-    bottom: 110px;
+    bottom: 80px;
     height: 80px;
     background-color: var(--dark-color);
     border-top: 1px solid rgba(255,255,255,0.1);
@@ -2360,7 +2360,7 @@ enfugue-prompt-travel-view button {
 }
 
 enfugue-application.prompt-travel enfugue-invocation-loading {
-    bottom: 191px;
+    bottom: 161px;
 }
 
 enfugue-application.prompt-travel enfugue-node-editor-position,
@@ -2369,7 +2369,7 @@ enfugue-application.prompt-travel enfugue-node-editor-zoom {
 }
 
 enfugue-application.prompt-travel div.controls-helper-view {
-    bottom: 215px;
+    bottom: 185px;
 }
 
 enfugue-video-view {

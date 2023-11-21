@@ -220,9 +220,7 @@ class Invocation:
         self.interpolate_id = self.interpolator.dispatch("plan", {
             "reflect": self.plan.reflect,
             "frames": self.plan.interpolate_frames,
-            "images": [
-                Image.open(path) for path in self.results
-            ],
+            "images": self.results,
             "save_path": f"{self.results_dir}/{self.uuid}.{self.video_format}",
             "video_rate": self.video_rate,
             "video_codec": self.video_codec
@@ -383,6 +381,7 @@ class Invocation:
                         images = get_relative_paths(self.results)
                     elif self.last_images is not None:
                         images = get_relative_paths(self.last_images)
+
             except Exception as ex:
                 # Set error and recurse
                 self.error = ex
