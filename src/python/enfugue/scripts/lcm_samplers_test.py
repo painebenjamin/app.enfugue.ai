@@ -1,3 +1,4 @@
+# type: ignore
 from typing import get_args
 
 from enfugue.diffusion.manager import DiffusionPipelineManager
