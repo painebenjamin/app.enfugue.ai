@@ -38,7 +38,7 @@ class ModelMetadataView extends View {
                 E.h2().content(
                     E.a().content(metadata.name)
                          .target("_blank")
-                         .href(`https://civitait.com/models/${metadata.modelId}`)
+                         .href(`https://civitai.com/models/${metadata.modelId}`)
                 ),
                 E.h4().content(`${metadata.model.name} (${metadata.baseModel} ${metadata.model.type})`),
                 E.p().content(cleanHTML(`${metadata.description}`))
