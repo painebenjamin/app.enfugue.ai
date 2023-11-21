@@ -748,8 +748,10 @@ class LayersController extends Controller {
 
         videoForm.onSubmit((values) => {
             let videoRoles = [];
-            if (values.denoise) {
+            if (values.visibility === "denoised") {
                 videoRoles.push("Video to Video");
+            } else if (values.visibility === "visible") {
+                videoRoles.push("Visible");
             }
             if (values.imagePrompt) {
                 videoRoles.push("IP Adapter");
@@ -759,9 +761,7 @@ class LayersController extends Controller {
                     uniqueControlNets = controlNets.filter((v, i) => controlNets.indexOf(v) === i);
                 videoRoles.push(`ControlNet (${uniqueControlNets.join(", ")})`);
             }
-            let subtitle = isEmpty(videoRoles)
-                ? "Passthrough"
-                : videoRoles.join(", ");
+            let subtitle = videoRoles.join(", ");
             videoNode.updateOptions(values);
             videoLayer.setSubtitle(subtitle);
         });
@@ -786,8 +786,10 @@ class LayersController extends Controller {
 
         imageForm.onSubmit((values) => {
             let imageRoles = [];
-            if (values.denoise) {
+            if (values.visibility === "denoised") {
                 imageRoles.push("Image to Image");
+            } else if (values.visibility === "visible") {
+                imageRoles.push("Visible");
             }
             if (values.imagePrompt) {
                 imageRoles.push("IP Adapter");
@@ -798,9 +800,7 @@ class LayersController extends Controller {
                 imageRoles.push(`ControlNet (${uniqueControlNets.join(", ")})`);
             }
 
-            let subtitle = isEmpty(imageRoles)
-                ? "Passthrough"
-                : imageRoles.join(", ");
+            let subtitle = imageRoles.join(", ");
 
             imageNode.updateOptions(values);
             imageLayer.setSubtitle(subtitle);

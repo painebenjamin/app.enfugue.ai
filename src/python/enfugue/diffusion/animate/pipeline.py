@@ -51,7 +51,7 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
     STATIC_SCHEDULER_KWARGS = {
         "num_train_timesteps": 1000,
         "beta_start": 0.00085,
-        "beta_end": 0.011,
+        "beta_end": 0.012,
         "beta_schedule": "linear",
     }
 
@@ -183,7 +183,19 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
             unet = unet.to(kwargs["torch_dtype"])
 
         pipe.unet = unet
+        if not pipe.vae.config.vae_scaled_for_pipeline:
+            pipe.vae.register_to_config(
+                scaling_factor=cls.get_vae_scale_factor(pipe.vae.config.scaling_factor)
+            )
+            logger.info("Adjusted VAE scaling factor to {pipe.vae.config.scaling_factor}")
         return pipe
+
+    @classmethod
+    def get_vae_scale_factor(cls, vae_scale_factor: float) -> float:
+        """
+        Reduce scaling (increase factor) for animation
+        """
+        return vae_scale_factor / 0.8
 
     @classmethod
     def create_unet(

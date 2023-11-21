@@ -120,7 +120,7 @@ class GridMaker:
         if self.use_video:
             total_images = len(results)
         else:
-            total_images = sum([len(images) for kwargs, label, images in results])
+            total_images = sum([len(images) for kwargs, label, images, duration in results])
 
         if total_images == 0:
             raise RuntimeError("No images passed.")
@@ -208,7 +208,7 @@ class GridMaker:
         """
         Executes each parameter set and pastes on the grid.
         """
-        results: List[Tuple[Dict[str, Any], Optional[str], List[Image]]] = []
+        results: List[Tuple[Dict[str, Any], Optional[str], List[Image], float]] = []
 
         for parameter_set in parameter_sets:
             manager.seed = self.seed

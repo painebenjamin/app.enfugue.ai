@@ -486,13 +486,7 @@ class LayeredInvocation:
             # Check if this image is visible
             if (
                 layer.get("image", None) is not None and
-                (
-                    layer.get("denoise", False) or
-                    (
-                        not layer.get("ip_adapter_scale", None) and
-                        not layer.get("control_units", [])
-                    )
-                )
+                layer.get("visibility", None) in ["visible", "denoised"]
             ):
                 layer_x = layer.get("x", 0)
                 layer_y = layer.get("y", 0)
@@ -829,7 +823,11 @@ class LayeredInvocation:
                     divide_frames = layer.get("divide_frames", None)
 
                     # Capabilities of layer
-                    denoise = layer.get("denoise", False)
+                    visibility = layer.get("visibility", None)
+                    denoise = visibility == "denoised"
+
+                    passthrough = visibility == "visible"
+
                     prompt_scale = layer.get("ip_adapter_scale", False)
                     control_units = layer.get("control_units", [])
 
@@ -872,9 +870,7 @@ class LayeredInvocation:
                     else:
                         inverse_fit_layer_mask = ImageOps.invert(fit_layer_mask)
 
-                    is_passthrough = not denoise and not prompt_scale and not control_units
-
-                    if denoise or is_passthrough:
+                    if denoise or passthrough:
                         has_invocation_image = True
                         image_paste_mask = fit_layer_mask
 
@@ -898,7 +894,7 @@ class LayeredInvocation:
                                     fit_layer_image[i] if i < len(fit_layer_image) else fit_layer_image[-1],
                                     mask=image_paste_mask[i] if i < len(image_paste_mask) else image_paste_mask[-1]
                                 )
-                                if is_passthrough:
+                                if passthrough:
                                     invocation_mask[i].paste( # type: ignore[index]
                                         black,
                                         mask=fit_layer_mask[i] if i < len(fit_layer_mask) else fit_layer_mask[-1]
@@ -906,11 +902,11 @@ class LayeredInvocation:
                         elif isinstance(invocation_image, list):
                             for i in range(len(invocation_image)):
                                 invocation_image[i].paste(fit_layer_image, mask=image_paste_mask)
-                                if is_passthrough:
+                                if passthrough:
                                     invocation_mask[i].paste(black, mask=fit_layer_mask) # type: ignore[index]
                         else:
                             invocation_image.paste(fit_layer_image, mask=image_paste_mask) # type: ignore[attr-defined]
-                            if is_passthrough:
+                            if passthrough:
                                 invocation_mask.paste(black, mask=fit_layer_mask) # type: ignore[union-attr]
 
                     if prompt_scale:
@@ -1543,8 +1539,9 @@ class LayeredInvocation:
                     if progress_callback is not None:
                         restore_time = (datetime.now() - restore_start).total_seconds()
                         progress_callback(i, len(images), 1/restore_time)
-                    if image_callback is not None:
-                        image_callback(images)
+
+            if image_callback is not None:
+                image_callback(images)
 
         if not ((self.detailer_face_inpaint or self.detailer_hand_inpaint) and self.detailer_inpaint_strength) and not self.detailer_denoising_strength:
             return images, nsfw

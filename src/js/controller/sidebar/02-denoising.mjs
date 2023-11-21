@@ -57,7 +57,7 @@ class DenoisingController extends Controller {
             };
 
         this.subscribe("layersChanged", (layers) => {
-            showForDenoising = layers.reduce((carry, item) => carry || item.denoise, false);
+            showForDenoising = layers.reduce((carry, item) => carry || item.visibility === "denoised", false);
             checkShow();
         });
 

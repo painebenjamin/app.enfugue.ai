@@ -286,6 +286,13 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             return [PIL.Image.open(path)]
 
     @classmethod
+    def get_vae_scale_factor(cls, vae_scale_factor: float) -> float:
+        """
+        Pass-through for base pipeline
+        """
+        return vae_scale_factor
+
+    @classmethod
     def create_unet(
         cls,
         config: Dict[str, Any],
@@ -554,16 +561,19 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 else:
                     vae_scale_factor = 0.18215  # default SD scaling factor
 
-                vae_config["scaling_factor"] = vae_scale_factor
+                vae_config["scaling_factor"] = cls.get_vae_scale_factor(vae_scale_factor)
                 vae = AutoencoderKL(**vae_config)
+                vae.register_to_config(vae_scaled_for_pipeline=True)
                 vae_keys = len(list(converted_vae_checkpoint.keys()))
-                logger.debug(f"Loading {vae_keys} keys into Autoencoder state dict (strict). Autoencoder scale is {vae_scale_factor}")
+                logger.debug(f"Loading {vae_keys} keys into Autoencoder state dict (strict). Autoencoder scale is {vae_config['scaling_factor']}")
                 vae.load_state_dict(converted_vae_checkpoint)
             except KeyError as ex:
                 default_path = "stabilityai/sdxl-vae" if model_type in ["SDXL", "SDXL-Refiner"] else "stabilityai/sd-vae-ft-ema"
                 logger.error(f"Malformed VAE state dictionary detected; missing required key '{ex}'. Reverting to default model {default_path}")
                 task_callback(f"Loading VAE {default_path}")
                 vae = AutoencoderKL.from_pretrained(default_path, cache_dir=cache_dir)
+                vae.config.scaling_factor = cls.get_vae_scale_factor(vae.config.scaling_factor)
+                vae.register_to_config(vae_scaled_for_pipeline=True)
         elif os.path.exists(vae_path):
             if model_type in ["SDXL", "SDXL-Refiner"]:
                 vae_config_path = os.path.join(cache_dir, "sdxl-vae-config.json")
@@ -573,9 +583,11 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     check_size=False
                 )
                 task_callback("Loading VAE")
-                vae = AutoencoderKL.from_config(
-                    AutoencoderKL._dict_from_json_file(vae_config_path)
-                )
+                vae_config = AutoencoderKL._dict_from_json_file(vae_config_path)
+                if "scaling_factor" in vae_config:
+                    vae_config["scaling_factor"] = cls.get_vae_scale_factor(vae_config["scaling_factor"])
+                vae = AutoencoderKL.from_config(vae_config)
+                vae.register_to_config(vae_scaled_for_pipeline=True)
                 vae_state_dict = load_state_dict(vae_path)
                 vae_keys = len(list(vae_state_dict.keys()))
                 logger.debug(f"Loading {vae_keys} keys into Autoencoder state dict (non-strict)")
@@ -586,11 +598,19 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 vae = AutoencoderKL.from_single_file(
                     vae_path,
                     cache_dir=cache_dir,
-                    from_safetensors = "safetensors" in vae_path
+                    from_safetensors="safetensors" in vae_path
                 )
+                vae.config.scaling_factor = cls.get_vae_scale_factor(vae.config.scaling_factor)
+                vae.register_to_config(vae_scaled_for_pipeline=True)
+                logger.debug(f"VAE Scaling factor is {vae.config.scaling_factor}")
         else:
             logger.debug(f"Initializing autoencoder from repository {vae_path}")
             vae = AutoencoderKL.from_pretrained(vae_path, cache_dir=cache_dir)
+            vae.register_to_config(
+                scaling_factor=cls.get_vae_scale_factor(vae.config.scaling_factor),
+                vae_scaled_for_pipeline=True
+            )
+            logger.debug(f"VAE Scaling factor is {vae.config.scaling_factor}")
 
         if offload_models:
             logger.debug("Offloading enabled; sending VAE to CPU")
@@ -607,6 +627,10 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         vae_preview = AutoencoderTiny.from_pretrained(
             vae_preview_path,
             cache_dir=cache_dir
+        )
+        vae_preview.register_to_config(
+            scaling_factor=cls.get_vae_scale_factor(vae_preview.config.scaling_factor),
+            vae_scaled_for_pipeline=True
         )
 
         if load_safety_checker:

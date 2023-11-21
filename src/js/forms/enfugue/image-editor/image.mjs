@@ -6,6 +6,7 @@ import {
     ButtonInputView,
     FloatInputView,
     NumberInputView,
+    SelectInputView,
     CheckboxInputView,
     ImageColorSpaceInputView,
     ControlNetInputView,
@@ -40,6 +41,21 @@ class ImageEditorImageNodeOptionsFormView extends FormView {
                     "tooltip": "Before processing, run this image through an AI background removal process. If you are additionally inpainting, inferencing or using this image for ControlNet, that background will then be filled in within this frame. If you are not, that background will be filled when the overall canvas image is finally painted in."
                 }
             },
+        },
+        "Image Visibility": {
+            "visibility": {
+                "label": "Visibility Mode",
+                "class": SelectInputView,
+                "config": {
+                    "options": {
+                        "invisible": "Invisible",
+                        "visible": "Visible (Inpainting/Outpainting)",
+                        "denoised": "Denoised (Image to Image)",
+                    },
+                    "value": "visible",
+                    "tooltip": "Whether or not the image is visible to the diffusion engine, and if so, if it should be denoised. Making the image visible will merge this layer with any other visible layers before sending them to Stable Diffusion. If the image is denoised, it will be visible and it's alpha channel will be added to the diffusion mask."
+                }
+            },
             "opacity": {
                 "label": "Opacity",
                 "class": SliderPreciseInputView,
@@ -51,15 +67,8 @@ class ImageEditorImageNodeOptionsFormView extends FormView {
                     "tooltip": "The opacity of the image. This only has an effect on the final image if this image is visible; i.e., this image is denoised or passed through. Opacity has no effect on ControlNet or Image Prompt inputs."
                 }
             }
-         },
-         "Image Roles": {
-            "denoise": {
-                "label": "Denoising (Image to Image)",
-                "class": CheckboxInputView,
-                "config": {
-                    "tooltip": "When checked, use this image as input for primary diffusion. If unchecked and no other roles are selected, this will be treated as a pass-through image to be displayed in it's position as-is."
-                }
-            },
+        },
+        "Image Roles": {
             "imagePrompt": {
                 "label": "Prompt (IP Adapter)",
                 "class": CheckboxInputView,
