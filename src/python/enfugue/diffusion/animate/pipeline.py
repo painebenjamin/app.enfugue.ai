@@ -183,11 +183,18 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
             unet = unet.to(kwargs["torch_dtype"])
 
         pipe.unet = unet
-        if not pipe.vae.config.vae_scaled_for_pipeline:
+
+        try:
+            scaled_for_pipeline = pipe.vae.config.vae_scaled_for_pipeline
+        except:
+            scaled_for_pipeline = False
+
+        if not scaled_for_pipeline:
             pipe.vae.register_to_config(
                 scaling_factor=cls.get_vae_scale_factor(pipe.vae.config.scaling_factor)
             )
             logger.info("Adjusted VAE scaling factor to {pipe.vae.config.scaling_factor}")
+
         return pipe
 
     @classmethod
