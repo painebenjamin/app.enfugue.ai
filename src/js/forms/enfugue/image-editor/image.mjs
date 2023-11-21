@@ -52,7 +52,7 @@ class ImageEditorImageNodeOptionsFormView extends FormView {
                         "visible": "Visible (Inpainting/Outpainting)",
                         "denoised": "Denoised (Image to Image)",
                     },
-                    "value": "visible",
+                    "value": "denoised",
                     "tooltip": "Whether or not the image is visible to the diffusion engine, and if so, if it should be denoised. Making the image visible will merge this layer with any other visible layers before sending them to Stable Diffusion. If the image is denoised, it will be visible and it's alpha channel will be added to the diffusion mask."
                 }
             },
