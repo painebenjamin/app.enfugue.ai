@@ -360,7 +360,12 @@ class SampleChooserView extends View {
                 .addClass("show-canvas")
                 .addClass(this.constructor.showCanvasIcon)
                 .data("tooltip", this.constructor.showCanvasTooltip)
-                .on("click", () => this.showCanvas()),
+                .on("click", () => {
+                    this.showCanvas();
+                    setTimeout(() => {
+                        this.showCanvas();
+                    },50); // Temporary workaround
+                 }),
             tileHorizontal = E.i()
                 .addClass("tile-horizontal")
                 .addClass(this.constructor.tileHorizontalIcon)

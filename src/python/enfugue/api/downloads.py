@@ -42,19 +42,25 @@ class DownloadProcess(Process):
         try:
             start = datetime.datetime.now()
             elapsed: Callable[[], float] = lambda: (datetime.datetime.now() - start).total_seconds()
-            response = get(self.src, headers=self.headers, params=self.parameters, stream=True)
+            response = get(self.src, headers=self.headers, params=self.parameters, stream=True, allow_redirects=True)
             try:
                 length = int(response.headers["Content-Length"])
+                auto_increment_length = False
             except KeyError:
-                logger.warning(f"No content-length found in download. Exiting. Headers were: {response.headers}")
-                raise IOError(f"URL {self.src} did not respond with a content-length, cannot download.")
+                length = 1
+                auto_increment_length = True
+                logger.warning(f"No content-length found in download. Headers were: {response.headers}, code was {response.status_code}")
             if self.progress is not None:
                 self.progress.put_nowait((elapsed(), 0, length))
             with open(self.dest, "wb") as fh:
                 for i, chunk in enumerate(response.iter_content(chunk_size=self.chunk_size)):
                     fh.write(chunk)
+                    if auto_increment_length:
+                        length += self.chunk_size
                     if self.progress is not None:
                         self.progress.put_nowait((elapsed(), (i + 1) * self.chunk_size, length))
+            if auto_increment_length:
+                length -= 1
             if self.progress is not None:
                 self.progress.put_nowait((elapsed(), length, length))
         except Exception as ex:
