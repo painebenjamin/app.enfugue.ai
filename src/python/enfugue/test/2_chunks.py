@@ -18,7 +18,7 @@ def main() -> None:
             frame_stride=4,
             loop=True,
         )
-        for chunk in chunker.get_chunks(0):
+        for chunk in chunker:
             logger.info(f"{chunk}")
 
 if __name__ == "__main__":

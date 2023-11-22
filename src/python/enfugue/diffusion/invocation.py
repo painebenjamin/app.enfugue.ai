@@ -111,7 +111,7 @@ class LayeredInvocation:
     position_encoding_truncate_length: Optional[int]=None
     position_encoding_scale_length: Optional[int]=None
     # img2img
-    strength: Optional[float]=None
+    strength: Optional[float]=0.99
     # Inpainting
     mask: Optional[Union[str, Image, List[Image]]]=None
     crop_inpaint: bool=True
@@ -532,6 +532,10 @@ class LayeredInvocation:
         Pops unnecessary variables from an invocation dict
         """
         all_keys = list(kwargs.keys())
+        layers = kwargs.get("layers", None)
+        if layers is None:
+            layers = []
+
         minimal_keys = []
 
         has_refiner = bool(kwargs.get("refiner", None))
@@ -542,7 +546,7 @@ class LayeredInvocation:
         has_ip_adapter = bool(kwargs.get("ip_adapter_images", None))
         has_ip_adapter = has_ip_adapter or any([
             bool(layer.get("ip_adapter_scale", None))
-            for layer in kwargs.get("layers", [])
+            for layer in layers
         ])
 
         for key in all_keys:

@@ -628,10 +628,6 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             vae_preview_path,
             cache_dir=cache_dir
         )
-        vae_preview.register_to_config(
-            scaling_factor=cls.get_vae_scale_factor(vae_preview.config.scaling_factor),
-            vae_scaled_for_pipeline=True
-        )
 
         if load_safety_checker:
             safety_checker_path = "CompVis/stable-diffusion-safety-checker"

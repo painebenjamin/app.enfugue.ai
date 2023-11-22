@@ -194,22 +194,12 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         except:
             vae_scaled_for_pipeline = False
 
-        try:
-            vae_preview_scaled_for_pipeline = pipe.vae_preview.config.vae_scaled_for_pipeline
-        except:
-            vae_preview_scaled_for_pipeline = False
-
         if not vae_scaled_for_pipeline:
             pipe.vae.register_to_config(
                 scaling_factor=cls.get_vae_scale_factor(pipe.vae.config.scaling_factor),
                 vae_scaled_for_pipeline=True
             )
             logger.info(f"Adjusted VAE scaling factor to {pipe.vae.config.scaling_factor}")
-        if not vae_preview_scaled_for_pipeline:
-            pipe.vae_preview.register_to_config(
-                scaling_factor=cls.get_vae_scale_factor(pipe.vae_preview.config.scaling_factor),
-                vae_scaled_for_pipeline=True
-            )
 
         return pipe
 

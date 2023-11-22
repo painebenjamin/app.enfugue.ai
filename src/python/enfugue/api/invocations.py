@@ -212,7 +212,6 @@ class Invocation:
         """
         Starts the interpolation (is locked when called)
         """
-        from PIL import Image
         if self.interpolate_id is not None:
             raise IOError("Interpolation already began.")
         assert isinstance(self.results, list), "Must have a list of image results"
