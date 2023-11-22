@@ -83,7 +83,7 @@ def main() -> None:
                 # Two seeds for controlled/non-controlled:
                 # Controlnet doesn't change enough if it uses the same
                 # seed as the prompt the image was generated with
-                kwargs["seed"] = 123456 if "control_images" in kwargs else 654321
+                kwargs["seed"] = 1234567 if "control_images" in kwargs else 7654321
             if "model" not in kwargs:
                 kwargs["model"] = CHECKPOINT
             kwargs["intermediates"] = False
@@ -129,7 +129,7 @@ def main() -> None:
             prompt=prompt,
             layers=[{
                 "image": base,
-                "denoise": True
+                "visibility": "denoised",
             }],
             strength=0.8
         )
@@ -181,7 +181,8 @@ def main() -> None:
                 "image": inpaint_image,
                 "fit": "cover",
                 "remove_background": True
-            }]
+            }],
+            outpaint=True
         )
 
         # IP Adapter
@@ -189,7 +190,8 @@ def main() -> None:
             "ip-adapter",
             layers=[{
                 "image": inpaint_image,
-                "ip_adapter_scale": 0.3
+                "ip_adapter_scale": 0.3,
+                "visibility": "invisible"
             }]
         )
         invoke(
@@ -197,7 +199,8 @@ def main() -> None:
             ip_adapter_model="plus",
             layers=[{
                 "image": inpaint_image,
-                "ip_adapter_scale": 0.3
+                "ip_adapter_scale": 0.3,
+                "visibility": "invisible"
             }]
         )
         invoke(
@@ -205,7 +208,8 @@ def main() -> None:
             ip_adapter_model="plus-face",
             layers=[{
                 "image": inpaint_image,
-                "ip_adapter_scale": 0.3
+                "ip_adapter_scale": 0.3,
+                "visibility": "invisible"
             }]
         )
         
@@ -224,6 +228,7 @@ def main() -> None:
                     "fit": "cover"
                 }
             ],
+            strength=1.0,
             outpaint=True
         )
 
@@ -237,6 +242,7 @@ def main() -> None:
                         "controlnet": controlnet,
                     }],
                     "image": base,
+                    "visibility": "invisible"
                 }]
             )
             
@@ -249,7 +255,7 @@ def main() -> None:
                         "controlnet": controlnet,
                     }],
                     "image": base,
-                    "denoise": True
+                    "visibility": "denoised"
                 }]
             )
             
@@ -261,9 +267,8 @@ def main() -> None:
                     "control_units": [{
                         "controlnet": controlnet,
                     }],
-
                     "image": base,
-                    "denoise": True,
+                    "visibility": "denoised",
                     "ip_adapter_scale": 0.5
                 }]
             )
@@ -382,7 +387,8 @@ def main() -> None:
                             "controlnet": controlnet,
                             "scale": 0.5
                         }],
-                        "image": control
+                        "image": control,
+                        "visibility": "invisible",
                     }],
                     prompt="A bride and groom on their wedding day",
                     guidance_scale=6
@@ -397,7 +403,8 @@ def main() -> None:
                             "controlnet": controlnet,
                             "scale": 0.5
                         }],
-                        "image": control
+                        "image": control,
+                        "visibility": "invisible"
                     }],
                     prompt="A bride and groom on their wedding day",
                     refiner_start=0.85,
@@ -414,7 +421,7 @@ def main() -> None:
                             "scale": 0.5
                         }],
                         "image": control,
-                        "denoise": True
+                        "visibility": "denoised",
                     }],
                     prompt="A bride and groom on their wedding day",
                     guidance_scale=6
@@ -430,7 +437,7 @@ def main() -> None:
                             "scale": 0.5
                         }],
                         "image": control,
-                        "denoise": True
+                        "visibility": "denoised",
                     }],
                     strength=0.8,
                     refiner_start=0.85,
@@ -449,7 +456,7 @@ def main() -> None:
                             "scale": 0.5
                         }],
                         "image": control,
-                        "denoise": True,
+                        "visibility": "denoised",
                         "ip_adapter_scale": 0.5
                     }],
                     prompt="A bride and groom on their wedding day",
@@ -469,7 +476,7 @@ def main() -> None:
                             "scale": 0.5
                         }],
                         "image": control,
-                        "denoise": True,
+                        "visibility": "denoised",
                         "ip_adapter_scale": 0.5
                     }],
                     prompt="A bride and groom on their wedding day",

@@ -45,55 +45,82 @@ class InvokeButtonController extends Controller {
      * Gets the step data from the canvas for invocation.
      */
     getLayers() {
-        let layerState = this.application.layers.getState();
-        return layerState.layers.map((datum, i) => {
-            let formattedState = {
-                "x": datum.x,
-                "y": datum.y,
-                "w": datum.w,
-                "h": datum.h,
-                "remove_background": datum.removeBackground,
-                "image": datum.src
-            };
-            
-            switch (datum.classname) {
-                case "ImageEditorScribbleNodeView":
-                    formattedState["control_units"] = [
-                        {"process": false, "controlnet": "scribble"}
-                    ];
-                    break;
-                case "ImageEditorImageNodeView":
-                case "ImageEditorVideoNodeView":
-                    formattedState["fit"] = datum.fit;
-                    formattedState["anchor"] = datum.anchor;
-                    formattedState["opacity"] = datum.opacity;
-                    formattedState["visibility"] = datum.visibility || "visible";
-                    if (datum.imagePrompt) {
-                        formattedState["ip_adapter_scale"] = datum.imagePromptScale;
-                    }
-                    if (datum.control) {
-                        formattedState["control_units"] = datum.controlnetUnits.map((unit) => {
-                            return {
-                                "process": unit.processControlImage,
-                                "start": unit.conditioningStart,
-                                "end": unit.conditioningEnd,
-                                "scale": unit.conditioningScale,
-                                "controlnet": unit.controlnet
-                            };
-                        });
-                    }
-                    if (!isEmpty(datum.skipFrames)) {
-                        formattedState["skip_frames"] = datum.skipFrames;
-                    }
-                    if (!isEmpty(datum.divideFrames)) {
-                        formattedState["divide_frames"] = datum.divideFrames;
-                    }
-                    break;
-                default:
-                    throw `Unknown classname ${datum.classname}`;
-            }
-            return formattedState;
-        });
+        let layerState = this.application.layers.getState(),
+            unusedLayers = [],
+            mapped = layerState.layers.map((datum, i) => {
+                let formattedState = {
+                    "x": datum.x,
+                    "y": datum.y,
+                    "w": datum.w,
+                    "h": datum.h,
+                    "remove_background": datum.removeBackground,
+                    "image": datum.src
+                };
+                
+                switch (datum.classname) {
+                    case "ImageEditorScribbleNodeView":
+                        formattedState["control_units"] = [
+                            {"process": false, "controlnet": "scribble"}
+                        ];
+                        break;
+                    case "ImageEditorImageNodeView":
+                    case "ImageEditorVideoNodeView":
+                        formattedState["fit"] = datum.fit;
+                        formattedState["anchor"] = datum.anchor;
+                        formattedState["opacity"] = datum.opacity;
+                        formattedState["visibility"] = datum.visibility;
+                        if (datum.imagePrompt) {
+                            formattedState["ip_adapter_scale"] = datum.imagePromptScale;
+                        }
+                        if (datum.control) {
+                            formattedState["control_units"] = datum.controlnetUnits.map((unit) => {
+                                return {
+                                    "process": unit.processControlImage,
+                                    "start": unit.conditioningStart,
+                                    "end": unit.conditioningEnd,
+                                    "scale": unit.conditioningScale,
+                                    "controlnet": unit.controlnet
+                                };
+                            });
+                        }
+                        if (!isEmpty(datum.skipFrames)) {
+                            formattedState["skip_frames"] = datum.skipFrames;
+                        }
+                        if (!isEmpty(datum.divideFrames)) {
+                            formattedState["divide_frames"] = datum.divideFrames;
+                        }
+                        if (
+                            ["visible", "denoised"].indexOf(datum.visibility) === -1 &&
+                            isEmpty(formattedState.ip_adapter_scale) &&
+                            isEmpty(formattedState.control_units)
+                        ) {
+                            unusedLayers.push(i);
+                        }
+                        break;
+                    default:
+                        throw `Unknown classname ${datum.classname}`;
+                }
+                return formattedState;
+            });
+
+        if (!isEmpty(unusedLayers)) {
+            let s = unusedLayers.length === 1 ? "" : "s",
+                s_ve = unusedLayers.length === 1 ? "s" : "ve",
+                this_these = unusedLayers.length === 1 ? "this" : "these",
+                was_were = unusedLayers.length === 1 ? "was" : "were",
+                it_them = unusedLayers.length === 1 ? "it" : "them";
+            this.notify(
+                "warn",
+                `Unused Layer${s}`,
+                `${unusedLayers.length} layer${s} ha${s_ve} no role assigned, ` +
+                `${this_these} layer${s} ${was_were} not sent to the backend. ` +
+                `Add a role to ${this_these} layer${s} to use ${it_them}, like selecting ` +
+                `"Visible" or "Denoised" visibility mode, using it with IP ` +
+                `Adapter, and/or assigning one or more control units.`
+            );
+            return mapped.filter((v, i) => unusedLayers.indexOf(i) === -1);
+        }
+        return mapped;
     }
     
     /**

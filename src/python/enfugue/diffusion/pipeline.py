@@ -41,6 +41,7 @@ from transformers import (
     CLIPTextModel,
     CLIPTextModelWithProjection,
     CLIPTokenizer,
+    CLIPVisionModelWithProjection,
 )
 from diffusers.schedulers import (
     KarrasDiffusionSchedulers,
@@ -190,7 +191,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         unet: UNet2DConditionModel,
         scheduler: KarrasDiffusionSchedulers,
         safety_checker: Optional[StableDiffusionSafetyChecker],
-        feature_extractor: CLIPImageProcessor,
+        feature_extractor: Optional[CLIPImageProcessor],
+        image_encoder: Optional[CLIPVisionModelWithProjection]=None,
         controlnets: Optional[Dict[str, ControlNetModel]]=None,
         requires_safety_checker: bool=True,
         force_zeros_for_empty_prompt: bool=True,
@@ -206,14 +208,15 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         frame_window_stride: Optional[int]=4
     ) -> None:
         super(EnfugueStableDiffusionPipeline, self).__init__(
-            vae,
-            text_encoder,
-            tokenizer,
-            unet,
-            scheduler,
-            safety_checker,
-            feature_extractor,
-            requires_safety_checker,
+            vae=vae,
+            text_encoder=text_encoder,
+            tokenizer=tokenizer,
+            unet=unet,
+            scheduler=scheduler,
+            safety_checker=safety_checker,
+            feature_extractor=feature_extractor,
+            requires_safety_checker=requires_safety_checker,
+            image_encoder=image_encoder,
         )
         # Save scheduler config for hotswapping
         self.scheduler_class = type(scheduler)

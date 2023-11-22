@@ -20,7 +20,7 @@ class DenoisingController extends Controller {
     getDefaultState() {
         return {
             "denoising": {
-                "strength": 0.99
+                "strength": 1.0
             }
         }
     }
@@ -57,7 +57,7 @@ class DenoisingController extends Controller {
             };
 
         this.subscribe("layersChanged", (layers) => {
-            showForDenoising = layers.reduce((carry, item) => carry || item.visibility === "denoised", false);
+            showForDenoising = layers.reduce((carry, item) => carry || item.visibility !== "invisible", false);
             checkShow();
         });
 
