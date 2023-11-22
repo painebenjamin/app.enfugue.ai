@@ -305,7 +305,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         """
         Instantiates the UNet from config
         """
-        if is_sdxl and is_inpainter:
+        if is_sdxl and is_inpainter and config["in_channels"] == 9:
             config_url = "https://huggingface.co/diffusers/stable-diffusion-xl-1.0-inpainting-0.1/raw/main/unet/config.json"
             config_path = check_download_to_dir(config_url, cache_dir, check_size=False)
             config = load_json(config_path)
@@ -420,6 +420,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         elif "network_config" in original_config["model"]["params"]:  # type: ignore
             # SDXL
             original_config["model"]["params"]["network_config"]["params"]["in_channels"] = num_in_channels  # type: ignore
+        else:
+            raise IOError("Cannot determine UNet type from configuration.")
 
         if (
             "parameterization" in original_config["model"]["params"]  # type: ignore

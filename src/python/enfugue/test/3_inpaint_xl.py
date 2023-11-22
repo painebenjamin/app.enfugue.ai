@@ -32,7 +32,7 @@ def main() -> None:
             size = 1024,
             prompt = prompt,
             model = DEFAULT_SDXL_MODEL,
-            num_inference_steps = 50,
+            num_inference_steps = 20,
             image = image,
             mask = mask
         )
@@ -44,7 +44,7 @@ def main() -> None:
             size = 1024,
             prompt = prompt,
             inpainter = DEFAULT_SDXL_MODEL,
-            num_inference_steps = 50,
+            num_inference_steps = 20,
             image = image,
             mask = mask
         )

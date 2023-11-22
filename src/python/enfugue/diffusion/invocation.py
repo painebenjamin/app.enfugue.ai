@@ -486,7 +486,7 @@ class LayeredInvocation:
             # Check if this image is visible
             if (
                 layer.get("image", None) is not None and
-                layer.get("visibility", None) in ["visible", "denoised"]
+                layer.get("visibility", "visible") in ["visible", "denoised"]
             ):
                 layer_x = layer.get("x", 0)
                 layer_y = layer.get("y", 0)
@@ -827,7 +827,7 @@ class LayeredInvocation:
                     divide_frames = layer.get("divide_frames", None)
 
                     # Capabilities of layer
-                    visibility = layer.get("visibility", None)
+                    visibility = layer.get("visibility", "visible")
                     denoise = visibility == "denoised"
 
                     passthrough = visibility == "visible"
