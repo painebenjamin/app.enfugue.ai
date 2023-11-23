@@ -47,8 +47,10 @@ jobs:
       run: |
         . /c/Miniconda/etc/profile.d/conda.sh
         conda activate base
+        mkdir -p build/static
+        ./vendor/get-gpu-js.sh build/static
+        ./vendor/get-font-awesome.sh build/static
         echo "version=$(make version)" >> $GITHUB_OUTPUT
-        make vendor
     - name: Clean unneeded pre-installed code
       if: ${{ contains(inputs.os, 'ubuntu') }}
       run: |
