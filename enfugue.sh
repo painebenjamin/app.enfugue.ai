@@ -203,11 +203,10 @@ download_portable() {
     mkdir -p $PORTABLE_DIR
     while IFS= read -r TARBALL; do
         FILENAME=$(basename $TARBALL)
-        echo "Downloading $FILENAME"
         curl -L $TARBALL -o $FILENAME
     done <<< "$RELEASE_PACKAGES"
     DOWNLOADED=$(echo "$RELEASE_PACKAGES" | sed 's|.*/||')
-    cat $DOWNLOADED | tar -xvz --directory $PORTABLE_DIR
+    cat $DOWNLOADED | tar -xvz --directory $PORTABLE_DIR --strip-components=2 1>&2
     rm $DOWNLOADED
     echo $PORTABLE_DIR
 }
