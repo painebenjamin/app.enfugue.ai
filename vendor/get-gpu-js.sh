@@ -6,6 +6,7 @@ else
     ROOT=$DIR/../src
 fi
 
+ROOT=$(realpath $ROOT)
 JS=$ROOT/js
 JS_TARGET=$JS/vendor/gpu
 JS_FILE=gpu-browser.min.js
@@ -18,4 +19,4 @@ rm -rf $JS_TARGET
 mkdir -p $JS_TARGET
 mv $JS_FILE $JS_TARGET
 
-echo "Successfully retrieved GPU.js"
+echo "Successfully retrieved GPU.js into $ROOT"

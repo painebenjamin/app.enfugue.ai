@@ -6,6 +6,8 @@ if [ $# -eq 1 ]; then
 else 
     ROOT=$DIR/../src
 fi
+
+ROOT=$(realpath $ROOT)
 FA_DIRNAME=fontawesome-free-$VERSION-web
 
 FONTS=$ROOT/fonts
@@ -38,4 +40,4 @@ done
 
 rm -rf $DIR/$FA_DIRNAME.zip $DIR/$FA_DIRNAME
 
-echo "Successfully retrieved FontAwesome Free $VERSION"
+echo "Successfully retrieved FontAwesome Free $VERSION into $ROOT"
