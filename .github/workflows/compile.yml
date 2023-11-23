@@ -38,7 +38,16 @@ jobs:
         echo $CONDA/bin >> $GITHUB_PATH
     - name: Get Version
       id: version
+      if: ${{ !contains(inputs.os, 'windows') }}
       run: echo "version=$(make version)" >> $GITHUB_OUTPUT
+    - name: Get Version (Windows)
+      id: version
+      if: ${{ contains(inputs.os, 'windows') }}
+      run: |
+        . /c/Miniconda/etc/profile.d/conda.sh
+        conda activate base
+        echo "version=$(make version)" >> $GITHUB_OUTPUT
+        make vendor
     - name: Clean unneeded pre-installed code
       if: ${{ contains(inputs.os, 'ubuntu') }}
       run: |
