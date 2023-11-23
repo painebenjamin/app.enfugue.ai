@@ -123,19 +123,21 @@ usage() {
     echo " -h                   Display this help message."
     echo " -t <conda|portable>  Automatically set installation type (do not prompt.)"
     echo " -u <yes|no>          Automatically apply or skip updates (do not prompt.)"
-    echo " -m <yes|no>          Automatically install miniconda if needed (do not prompt.)"
     echo " -d <directory>       Automatically extract portable installation to this directory (do not prompt.)"
     echo " -s <yes|no>          Automatically apply or skip symlinking portable binary (do not prompt.)"
+    echo " -c <yes|no>          Automatically install miniconda if needed. Exit if not installed and [no] passed (do not prompt.)"
+    echo " -m <yes|no>          Automatically install or skip mmpose if needed (do not prompt.)"
 }
 
 # Declare default options, then iterate through command line arguments and set variables.
 INSTALL_TYPE=""
 INSTALL_MINICONDA=""
+INSTALL_MMPOSE=""
 INSTALL_UPDATE=""
 INSTALL_DIRECTORY=""
 INSTALL_SYMLINK=""
 
-while getopts ":ht:u:i:d:s:" ARG; do
+while getopts ":ht:u:i:c:m:d:s:" ARG; do
     case $ARG in
         t)
             INSTALL_TYPE=$OPTARG
@@ -148,6 +150,10 @@ while getopts ":ht:u:i:d:s:" ARG; do
             INSTALL_UPDATE=${INSTALL_UPDATE,,}
             ;;
         m)
+            INSTALL_MMPOSE=${OPTARG:0:1}
+            INSTALL_MMPOSE=${INSTALL_MMPOSE,,}
+            ;;
+        c)
             INSTALL_MINICONDA=${OPTARG:0:1}
             INSTALL_MINICONDA=${INSTALL_MINICONDA,,}
             ;;
@@ -340,6 +346,24 @@ if [[ "$ENFUGUE" == "" && "$ENFUGUE_SERVER" == "" ]]; then
         fi
         if [ "${INSTALL_SYMLINK,,}" == "y" ]; then
             sudo ln -s $ENFUGUE_SERVER /usr/local/bin/enfugue-server
+        fi
+    fi
+fi
+
+# Now enfugue is installed, check if we can install MMPose
+if [[ "$ENFUGUE" != "" && "$PYTHON" != "" ]]; then
+    MMPOSE_INSTALLED=$($PYTHON -m pip freeze | grep mmpose)
+    if [[ "$MMPOSE_INSTALLED" == "" && "${INSTALL_MMPOSE,,}" != 'f' && "${INSTALL_MMPOSE,,}" != 'n' ]]; then
+        if [[ "${INSTALL_MMPOSE,,}" != "y" && "${INSTALL_MMPOSE,,}" != "t" ]]; then
+            read -p "MMPose not installed. Install it? [Yes]: " INSTALL_MMPOSE
+            INSTALL_MMPOSE=${INSTALL_MMPOSE:-Yes}
+            INSTALL_MMPOSE=${INSTALL_MMPOSE:0:1}
+        fi
+        if [[ "${INSTALL_MMPOSE,,}" == "y" || "${INSTALL_MMPOSE,,}" == "t" ]]; then
+            $PYTHON -m mim install mmengine
+            $PYTHON -m mim install "mmcv>=2.0.1"
+            $PYTHON -m mim install "mmdet>=3.1.0"
+            $PYTHON -m mim install "mmpose>=1.1.0"
         fi
     fi
 fi
