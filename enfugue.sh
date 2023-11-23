@@ -31,9 +31,9 @@ server:
     logging:
         file: ~/.cache/enfugue.log              # server logs (NOT diffusion logs)
         level: error                            # server only logs errors
-    cms:
-        path:                                   # only configure when different from top-level domain
-            # root: http(s)://my-proxy-host.ngrok-or-other/
+    # cms:                                      # only configure when using a proxy
+    #     path:
+    #         root: http(s)://my-proxy-host.ngrok-or-other/
 enfugue:
     noauth: true                                # authentication default
     queue: 4                                    # queue size default
@@ -173,11 +173,42 @@ while getopts ":ht:u:i:c:m:d:s:" ARG; do
     esac
 done
 
+# Second gather some variables from the current environment.
+ENFUGUE=$(which enfugue)
+ENFUGUE_SERVER=$(which enfugue-server)
+CONDA=$CONDA_EXE
+
+# Make sure conda can be executed.
+if [ ! -x $CONDA ]; then
+    CONDA=""
+fi
+
+# These will be populated later if relevant.
+ENFUGUE_INSTALLED_PIP_VERSION=""
+ENFUGUE_AVAILABLE_PIP_VERSION=""
+ENFUGUE_INSTALLED_PORTABLE_VERSION=""
+ENFUGUE_AVAILABLE_PORTABLE_VERSION=""
+
+# Check if we can simply activate an existing conda environment.
+if [[ "$ENFUGUE" == "" && "$CONDA" != "" ]]; then
+    if conda env list | grep -q enfugue; then
+        echo "Found enfugue environment, activating."
+        source $(dirname $CONDA)/activate enfugue
+        ENFUGUE=$(which enfugue)
+    fi
+fi
+# Get the current python executable
+PYTHON=$(which python3)
+
 # This function compares versions and prompts you to download when relevant.
 # Pass --no-update when executing this script to never check versions.
 # Pass --update when executing this script to automatically update when available.
 compare_prompt_update() {
-    COMPARE=$($PYTHON -c "from semantic_version import compare; print(compare('$1', '$2'))")
+    SEMANTIC_VERSION_INSTALLED=$($PYTHON -m pip freeze | grep semantic_version 2>/dev/null)
+    if [ "$SEMANTIC_VERSION_INSTALLED" == "" ]; then
+        $PYTHON -m pip install semantic_version 2>/dev/null
+    fi
+    COMPARE=$($PYTHON -c "from semantic_version import compare; print(compare('$1', '$2'))" 2>/dev/null)
     if [ "$COMPARE" == "-1" ]; then
         if [ "$INSTALL_UPDATE" == "y" ]; then
             echo "y"
@@ -210,33 +241,6 @@ download_portable() {
     rm $DOWNLOADED
     echo $PORTABLE_DIR
 }
-
-# Second gather some variables from the current environment.
-ENFUGUE=$(which enfugue)
-ENFUGUE_SERVER=$(which enfugue-server)
-CONDA=$CONDA_EXE
-# Make sure conda can be executed.
-if [ ! -x $CONDA ]; then
-    CONDA=""
-fi
-
-# These will be populated later if relevant.
-ENFUGUE_INSTALLED_PIP_VERSION=""
-ENFUGUE_AVAILABLE_PIP_VERSION=""
-ENFUGUE_INSTALLED_PORTABLE_VERSION=""
-ENFUGUE_AVAILABLE_PORTABLE_VERSION=""
-
-# Check if we can simply activate an existing conda environment.
-if [[ "$ENFUGUE" == "" && "$CONDA" != "" ]]; then
-    if conda env list | grep -q enfugue; then
-        echo "Found enfugue environment, activating."
-        source $(dirname $CONDA)/activate enfugue
-        ENFUGUE=$(which enfugue)
-    fi
-fi
-
-# Get the current python executable
-PYTHON=$(which python3)
 
 # Check if either of the above tactics found enfugue. If so, and it's not disabled, check for updates.
 if [ "$ENFUGUE" != "" ]; then
