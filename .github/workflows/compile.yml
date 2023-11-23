@@ -111,7 +111,9 @@ jobs:
       run: |
         . /c/Miniconda/etc/profile.d/conda.sh
         conda activate base
-        make vendor
+        mkdir -p build/static
+        ./vendor/get-gpu-js.sh build/static
+        ./vendor/get-font-awesome.sh build/static
         make
     - name: Clean space and split artifact
       if: ${{ contains(inputs.os, 'ubuntu') }} 
