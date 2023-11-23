@@ -304,7 +304,8 @@ def main() -> None:
                 "method": "esrgan"
             }],
             layers=[{
-                "image": base
+                "image": base,
+                "visibility": "visible"
             }]
         )
         invoke(
@@ -314,7 +315,8 @@ def main() -> None:
                 "method": "gfpgan"
             }],
             layers=[{
-                "image": base
+                "image": base,
+                "visibility": "visible"
             }]
         )
 
@@ -358,7 +360,8 @@ def main() -> None:
                 width=1024,
                 height=1024,
                 layers=[{
-                    "image": fit_image(inpaint_image, width=1024, height=1024, fit="stretch")
+                    "image": fit_image(inpaint_image, width=1024, height=1024, fit="stretch"),
+                    "visibility": "visible"
                 }]
             )
 
@@ -370,7 +373,8 @@ def main() -> None:
                 width=1024,
                 height=1024,
                 layers=[{
-                    "image": fit_image(inpaint_image, width=1024, height=1024, fit="stretch")
+                    "image": fit_image(inpaint_image, width=1024, height=1024, fit="stretch"),
+                "visibility": "visible"
                 }]
             )
 

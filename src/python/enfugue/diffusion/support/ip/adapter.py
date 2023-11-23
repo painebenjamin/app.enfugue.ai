@@ -143,10 +143,10 @@ class IPAdapter(SupportModel):
                 current_processors = controlnets[controlnet].attn_processors
                 for key in current_processors:
                     if isinstance(current_processors[key], AttnProcessor2_0):
-                        new_processors[controlnet][key] = CNAttentionProcessor2_0()
+                        new_processors[key] = CNAttentionProcessor2_0()
                     else:
-                        new_processors[controlnet][key] = CNAttentionProcessor()
-                controlnets[controlnet].set_attn_processor(new_processors[controlnet])
+                        new_processors[key] = CNAttentionProcessor()
+                controlnets[controlnet].set_attn_processor(new_processors)
 
     @property
     def use_fine_grained(self) -> bool:
