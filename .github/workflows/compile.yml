@@ -111,6 +111,7 @@ jobs:
       run: |
         . /c/Miniconda/etc/profile.d/conda.sh
         conda activate base
+        make vendor
         make
     - name: Clean space and split artifact
       if: ${{ contains(inputs.os, 'ubuntu') }} 
