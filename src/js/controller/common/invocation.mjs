@@ -1162,6 +1162,7 @@ class InvocationController extends Controller {
         if (this.outpaint !== newOutpaint) {
             this.publish("engineOutpaintChange", newOutpaint);
         }
+        this.kwargs.outpaint = newOutpaint;
     }
 
     /**

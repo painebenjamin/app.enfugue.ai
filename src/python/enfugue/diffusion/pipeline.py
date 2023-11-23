@@ -545,11 +545,6 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
         unet.load_state_dict(converted_unet_checkpoint, strict=False)
 
-        if offload_models:
-            logger.debug("Offloading enabled; sending UNet to CPU")
-            unet.to("cpu")
-            empty_cache()
-
         # Convert the VAE model.
         if vae_path is None:
             try:
@@ -899,7 +894,6 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         device: Union[str, torch.device],
         scale: float = 1.0,
         model: Optional[IP_ADAPTER_LITERAL]=None,
-        keepalive_callback: Optional[Callable[[], None]]=None
     ) -> None:
         """
         Loads the IP Adapter
@@ -907,47 +901,16 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         if getattr(self, "ip_adapter", None) is None:
             raise RuntimeError("Pipeline does not have an IP adapter")
 
-        if self.ip_adapter_loaded:
-            altered = self.ip_adapter.set_scale( # type: ignore[union-attr]
-                unet=self.unet,
-                scale=scale,
-                model=model,
-                keepalive_callback=keepalive_callback,
-                is_sdxl=self.is_sdxl,
-                controlnets=self.controlnets
-            )
-            if altered == 0:
-                logger.error("IP adapter appeared loaded, but setting scale did not modify it.")
-                self.ip_adapter.load( # type: ignore[union-attr]
-                    unet=self.unet,
-                    scale=scale,
-                    model=model,
-                    keepalive_callback=keepalive_callback,
-                    is_sdxl=self.is_sdxl,
-                    controlnets=self.controlnets
-                )
-        else:
+        if not self.ip_adapter_loaded:
             logger.debug("Loading IP adapter")
             self.ip_adapter.load( # type: ignore[union-attr]
                 self.unet,
                 scale=scale,
                 model=model,
-                keepalive_callback=keepalive_callback,
                 is_sdxl=self.is_sdxl,
                 controlnets=self.controlnets
             )
             self.ip_adapter_loaded = True
-
-    def unload_ip_adapter(self) -> None:
-        """
-        Unloads the IP adapter by resetting attention processors to previous values
-        """
-        if getattr(self, "ip_adapter", None) is None:
-            return
-        if self.ip_adapter_loaded:
-            logger.debug("Unloading IP adapter")
-            self.ip_adapter.unload(self.unet, self.controlnets) # type: ignore[union-attr]
-            self.ip_adapter_loaded = False
 
     def get_image_embeds(
         self,
@@ -1169,23 +1132,19 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         animation_frames: Optional[int],
         device: Union[str, torch.device],
         ip_adapter_scale: Optional[Union[List[float], float]] = None,
-        ip_adapter_model: Optional[IP_ADAPTER_LITERAL] = None,
         step_complete: Optional[Callable[[bool], None]] = None
     ) -> Iterator[None]:
         """
         Builds the runtime context, which ensures everything is on the right devices
         """
+        logger.info(f"IP adapter {ip_adapter_scale}")
         if isinstance(device, str):
             device = torch.device(device)
         if ip_adapter_scale is not None:
-            self.load_ip_adapter(
-                device=device,
-                scale=max(ip_adapter_scale) if isinstance(ip_adapter_scale, list) else ip_adapter_scale,
-                model=ip_adapter_model,
-                keepalive_callback=None if step_complete is None else lambda: step_complete(False) # type: ignore[misc]
+            self.ip_adapter.set_scale( # type: ignore[union-attr]
+                unet=self.unet,
+                scale=ip_adapter_scale
             )
-        else:
-            self.unload_ip_adapter()
         if self.text_encoder is not None:
             self.text_encoder.to(device)
         if self.text_encoder_2 is not None:
@@ -3495,7 +3454,6 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             animation_frames=animation_frames,
             device=device,
             ip_adapter_scale=ip_adapter_scale,
-            ip_adapter_model=ip_adapter_model,
             step_complete=step_complete
         ):
             # First standardize to list of prompts

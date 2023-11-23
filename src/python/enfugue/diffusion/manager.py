@@ -142,6 +142,7 @@ class DiffusionPipelineManager:
     _inpainter_pipeline: EnfugueStableDiffusionPipeline
     _animator_pipeline: EnfugueAnimateStableDiffusionPipeline
     _task_callback: Optional[Callable[[str], None]] = None
+    _ip_adapter_model: Optional[IP_ADAPTER_LITERAL] = None
 
     def __init__(
         self,
@@ -3302,6 +3303,16 @@ class DiffusionPipelineManager:
                     self.task_callback("Saving pipeline to pretrained cache.")
                     pipeline.save_pretrained(self.model_diffusers_dir)
             if not self.tensorrt_is_ready:
+                if self._ip_adapter_model is not None:
+                    self.ip_adapter.check_download(
+                        is_sdxl=self.is_sdxl,
+                        model=self._ip_adapter_model,
+                        task_callback=self.task_callback,
+                    )
+                    pipeline.load_ip_adapter(
+                        device=self.device,
+                        model=self._ip_adapter_model,
+                    )
                 for lora, weight in self.lora:
                     self.task_callback(f"Adding LoRA {os.path.basename(lora)} to pipeline with weight {weight}")
                     pipeline.load_lora_weights(lora, multiplier=weight)
@@ -3611,6 +3622,16 @@ class DiffusionPipelineManager:
                     self.task_callback("Saving inpainter pipeline to pretrained cache.")
                     inpainter_pipeline.save_pretrained(self.inpainter_diffusers_dir)
             if not self.inpainter_tensorrt_is_ready:
+                if self._ip_adapter_model is not None:
+                    self.ip_adapter.check_download(
+                        is_sdxl=self.inpainter_is_sdxl,
+                        model=self._ip_adapter_model,
+                        task_callback=self.task_callback,
+                    )
+                    inpainter_pipeline.load_ip_adapter(
+                        device=self.device,
+                        model=self._ip_adapter_model,
+                    )
                 for lora, weight in self.lora:
                     self.task_callback(f"Adding LoRA {os.path.basename(lora)} to inpainter pipeline with weight {weight}")
                     inpainter_pipeline.load_lora_weights(lora, multiplier=weight)
@@ -3755,6 +3776,16 @@ class DiffusionPipelineManager:
                     self.task_callback("Saving animator pipeline to pretrained cache.")
                     animator_pipeline.save_pretrained(self.animator_diffusers_dir)
             if not self.animator_tensorrt_is_ready:
+                if self._ip_adapter_model is not None:
+                    self.ip_adapter.check_download(
+                        is_sdxl=self.animator_is_sdxl,
+                        model=self._ip_adapter_model,
+                        task_callback=self.task_callback,
+                    )
+                    animator_pipeline.load_ip_adapter(
+                        device=self.device,
+                        model=self._ip_adapter_model,
+                    )
                 for lora, weight in self.lora:
                     self.task_callback(f"Adding LoRA {os.path.basename(lora)} to animator pipeline with weight {weight}")
                     animator_pipeline.load_lora_weights(lora, multiplier=weight)
@@ -4405,6 +4436,15 @@ class DiffusionPipelineManager:
             task_callback = lambda arg: None
 
         self._task_callback = task_callback
+
+        if kwargs.get("ip_adapter_images", None) is not None:
+            requested_ip_adapter = kwargs.get("ip_adapter_model", "default")
+            if requested_ip_adapter is None:
+                requested_ip_adapter = "default"
+            self._ip_adapter_model = requested_ip_adapter
+        else:
+            self._ip_adapter_model = None
+
         latent_callback = noop
         will_refine = (refiner_strength != 0 or (refiner_start != 0 and refiner_start != 1)) and self.refiner is not None
         callback_images: List[PIL.Image.Image] = []
@@ -4489,7 +4529,7 @@ class DiffusionPipelineManager:
                     self.tenssort_is_enabled = True
                 
                 # Check IP adapter for TensorRT
-                if kwargs.get("ip_adapter_scale", None) is not None and self.tensorrt_is_enabled:
+                if self._ip_adapter_model is not None:
                     logger.info(f"IP adapter requested, TensorRT is not compatible, disabling.")
                     self.tensorrt_is_enabled = False
 
@@ -4502,9 +4542,18 @@ class DiffusionPipelineManager:
                     self.offload_refiner(intention) # type: ignore
                     self.offload_inpainter(intention) # type: ignore
 
-                    pipe = self.animator_pipeline
-
+                    # Check IP adapter load/unload
+                    if hasattr(self, "_animator_pipeline"):
+                        if self._ip_adapter_model is None:
+                            if self._animator_pipeline.ip_adapter_loaded:
+                                self.unload_animator("disabling IP adapter")
+                        else:
+                            if not self._animator_pipeline.ip_adapter_loaded:
+                                self.unload_animator("enabling IP adapter")
+                            elif self.ip_adapter.model != self._ip_adapter_model:
+                                self.unload_animator("changing IP adapter model")
                     if self.reload_motion_module:
+                        pipe = self.animator_pipeline
                         if task_callback is not None:
                             task_callback("Reloading motion module")
                         try:
@@ -4521,10 +4570,23 @@ class DiffusionPipelineManager:
                             self.reload_motion_module = False
                             self.unload_animator("Re-initializing Pipeline")
                             pipe = self.animator_pipeline # Will raise
+                    else:
+                        pipe = self.animator_pipeline
+
                 elif inpainting and (self.has_inpainter or self.create_inpainter):
                     self.offload_pipeline(intention) # type: ignore
                     self.offload_refiner(intention) # type: ignore
                     self.offload_animator(intention) # type: ignore
+                    # Check IP adapter load/unload
+                    if hasattr(self, "_inpainter_pipeline"):
+                        if self._ip_adapter_model is None:
+                            if self._inpainter_pipeline.ip_adapter_loaded:
+                                self.unload_inpainter("disabling IP adapter")
+                        else:
+                            if not self._inpainter_pipeline.ip_adapter_loaded:
+                                self.unload_inpainter("enabling IP adapter")
+                            elif self.ip_adapter.model != self._ip_adapter_model:
+                                self.unload_inpainter("changing IP adapter model")
                     pipe = self.inpainter_pipeline # type: ignore
                 else:
                     if inpainting:
@@ -4532,7 +4594,16 @@ class DiffusionPipelineManager:
                     self.offload_refiner(intention) # type: ignore
                     self.offload_inpainter(intention) # type: ignore
                     self.offload_animator(intention) # type: ignore
-
+                    # Check IP adapter load/unload
+                    if hasattr(self, "_pipeline"):
+                        if self._ip_adapter_model is None:
+                            if self._pipeline.ip_adapter_loaded:
+                                self.unload_pipeline("disabling IP adapter")
+                        else:
+                            if not self._pipeline.ip_adapter_loaded:
+                                self.unload_pipeline("enabling IP adapter")
+                            elif self.ip_adapter.model != self._ip_adapter_model:
+                                self.unload_pipeline("changing IP adapter model")
                     pipe = self.pipeline # type: ignore
 
                 # Check refining settings
@@ -4541,14 +4612,6 @@ class DiffusionPipelineManager:
                     if refiner_start > 0 and refiner_start < 1:
                         kwargs["denoising_end"] = refiner_start
                         kwargs["output_type"] = "latent"
-
-                # Check IP adapter for downloads
-                if kwargs.get("ip_adapter_images", None) is not None:
-                    self.ip_adapter.check_download(
-                        is_sdxl=pipe.is_sdxl,
-                        model=kwargs.get("ip_adapter_model", None),
-                        task_callback=task_callback,
-                    )
 
                 self.stop_keepalive()
                 task_callback("Executing Inference")

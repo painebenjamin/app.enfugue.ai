@@ -28,6 +28,7 @@ if TYPE_CHECKING:
         CLIPTextModel,
         CLIPImageProcessor,
         CLIPTextModelWithProjection,
+        CLIPVisionModelWithProjection
     )
     from diffusers.models import (
         AutoencoderKL,
@@ -74,6 +75,7 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         scheduler: KarrasDiffusionSchedulers,
         safety_checker: StableDiffusionSafetyChecker,
         feature_extractor: CLIPImageProcessor,
+        image_encoder: Optional[CLIPVisionModelWithProjection] = None,
         requires_safety_checker: bool = True,
         force_zeros_for_empty_prompt: bool = True,
         requires_aesthetic_score: bool = False,
@@ -100,6 +102,7 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
             scheduler=scheduler,
             safety_checker=safety_checker,
             feature_extractor=feature_extractor,
+            image_encoder=image_encoder,
             requires_safety_checker=requires_safety_checker,
             force_zeros_for_empty_prompt=force_zeros_for_empty_prompt,
             force_full_precision_vae=force_full_precision_vae,

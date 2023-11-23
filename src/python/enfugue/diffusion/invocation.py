@@ -111,7 +111,7 @@ class LayeredInvocation:
     position_encoding_truncate_length: Optional[int]=None
     position_encoding_scale_length: Optional[int]=None
     # img2img
-    strength: Optional[float]=0.99
+    strength: Optional[float]=None
     # Inpainting
     mask: Optional[Union[str, Image, List[Image]]]=None
     crop_inpaint: bool=True
@@ -1637,6 +1637,11 @@ class LayeredInvocation:
                     "frame_window_stride": self.frame_window_stride
                 }
 
+                # If the pipeline has an IP adapter, pass the image through that
+                if detail_pipeline.ip_adapter_loaded:
+                    logger.debug(f"Detail pipeline has IP adapter loaded, adding image to adapter input.")
+                    detail_kwargs["ip_adapter_images"] = [(image, 1.0)]
+
                 logger.debug(f"Detailing sample {i} with arguments {detail_kwargs}")
 
                 result = detail_pipeline(**detail_kwargs)["images"]
@@ -1947,6 +1952,10 @@ class LayeredInvocation:
                     else:
                         pipeline.controlnets = None
                         upscale_pipeline = pipeline.pipeline
+
+                    if upscale_pipeline.ip_adapter_loaded:
+                        logger.debug(f"Upscale pipeline has IP adapter loaded, adding image to adapter input.")
+                        kwargs["ip_adapter_images"] = [(image, 1.0)]
 
                     logger.debug(f"Upscaling sample {i} with arguments {kwargs}")
                     pipeline.stop_keepalive() # Stop here to kill during upscale diffusion

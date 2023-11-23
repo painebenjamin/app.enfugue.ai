@@ -12,176 +12,18 @@ if TYPE_CHECKING:
     from enfugue.diffusion.constants import IP_ADAPTER_LITERAL
     from enfugue.diffusion.support.ip.projection import ImageProjectionModel
     from enfugue.diffusion.support.ip.resampler import Resampler # type: ignore
-    from diffusers.models import UNet2DConditionModel, ControlNetModel, ModelMixin
-    from diffusers.attention import AttentionProcessor
+    from enfugue.diffusion.support.ip.attention import ( # type: ignore[attr-defined]
+        AttentionProcessor,
+        AttentionProcessor2_0,
+        IPAttentionProcessor,
+        IPAttentionProcessor2_0,
+    )
+    from diffusers.models import UNet2DConditionModel, ControlNetModel
     from transformers import (
         CLIPVisionModelWithProjection,
         CLIPImageProcessor,
         PretrainedConfig
     )
-
-def get_processor(
-    module: torch.nn.Module,
-    return_deprecated_lora: bool = False
-) -> AttentionProcessor:
-    """
-    Get the attention processor in use.
-
-    Args:
-        return_deprecated_lora (`bool`, *optional*, defaults to `False`):
-            Set to `True` to return the deprecated LoRA attention processor.
-
-    Returns:
-        "AttentionProcessor": The attention processor in use.
-    """
-    from importlib import import_module
-    from diffusers.models.attention_processor import (
-        LoRAAttnProcessor,
-        LoRAAttnProcessor2_0,
-        LoRAXFormersAttnProcessor,
-        LoRAAttnAddedKVProcessor
-    )
-    if not return_deprecated_lora:
-        return module.processor
-
-    # TODO(Sayak, Patrick). The rest of the function is needed to ensure backwards compatible
-    # serialization format for LoRA Attention Processors. It should be deleted once the integration
-    # with PEFT is completed.
-    is_lora_activated = {
-        name: module.lora_layer is not None
-        for name, module in module.named_modules()
-        if hasattr(module, "lora_layer")
-    }
-
-    # 1. if no layer has a LoRA activated we can return the processor as usual
-    if not any(is_lora_activated.values()):
-        return module.processor
-
-    # If doesn't apply LoRA do `add_k_proj` or `add_v_proj`
-    is_lora_activated.pop("add_k_proj", None)
-    is_lora_activated.pop("add_v_proj", None)
-    # 2. else it is not posssible that only some layers have LoRA activated
-    if not all(is_lora_activated.values()):
-        raise ValueError(
-            f"Make sure that either all layers or no layers have LoRA activated, but have {is_lora_activated}"
-        )
-
-    # 3. And we need to merge the current LoRA layers into the corresponding LoRA attention processor
-    non_lora_processor_cls_name = module.processor.__class__.__name__
-    lora_processor_cls = getattr(import_module(module.processor.__module__), "LoRA" + non_lora_processor_cls_name)
-
-    hidden_size = module.inner_dim
-
-    # now create a LoRA attention processor from the LoRA layers
-    if lora_processor_cls in [LoRAAttnProcessor, LoRAAttnProcessor2_0, LoRAXFormersAttnProcessor]:
-        kwargs = {
-            "cross_attention_dim": module.cross_attention_dim,
-            "rank": module.to_q.lora_layer.rank,
-            "network_alpha": module.to_q.lora_layer.network_alpha,
-            "q_rank": module.to_q.lora_layer.rank,
-            "q_hidden_size": module.to_q.lora_layer.out_features,
-            "k_rank": module.to_k.lora_layer.rank,
-            "k_hidden_size": module.to_k.lora_layer.out_features,
-            "v_rank": module.to_v.lora_layer.rank,
-            "v_hidden_size": module.to_v.lora_layer.out_features,
-            "out_rank": module.to_out[0].lora_layer.rank,
-            "out_hidden_size": module.to_out[0].lora_layer.out_features,
-        }
-
-        if hasattr(module.processor, "attention_op"):
-            kwargs["attention_op"] = module.processor.attention_op
-
-        lora_processor = lora_processor_cls(hidden_size, **kwargs)
-        lora_processor.to_q_lora.load_state_dict(module.to_q.lora_layer.state_dict())
-        lora_processor.to_k_lora.load_state_dict(module.to_k.lora_layer.state_dict())
-        lora_processor.to_v_lora.load_state_dict(module.to_v.lora_layer.state_dict())
-        lora_processor.to_out_lora.load_state_dict(module.to_out[0].lora_layer.state_dict())
-    elif lora_processor_cls == LoRAAttnAddedKVProcessor:
-        lora_processor = lora_processor_cls(
-            hidden_size,
-            cross_attention_dim=module.add_k_proj.weight.shape[0],
-            rank=module.to_q.lora_layer.rank,
-            network_alpha=module.to_q.lora_layer.network_alpha,
-        )
-        lora_processor.to_q_lora.load_state_dict(module.to_q.lora_layer.state_dict())
-        lora_processor.to_k_lora.load_state_dict(module.to_k.lora_layer.state_dict())
-        lora_processor.to_v_lora.load_state_dict(module.to_v.lora_layer.state_dict())
-        lora_processor.to_out_lora.load_state_dict(module.to_out[0].lora_layer.state_dict())
-
-        # only save if used
-        if module.add_k_proj.lora_layer is not None:
-            lora_processor.add_k_proj_lora.load_state_dict(module.add_k_proj.lora_layer.state_dict())
-            lora_processor.add_v_proj_lora.load_state_dict(module.add_v_proj.lora_layer.state_dict())
-        else:
-            lora_processor.add_k_proj_lora = None
-            lora_processor.add_v_proj_lora = None
-    else:
-        raise ValueError(f"{lora_processor_cls} does not exist.")
-
-    return lora_processor
-
-def get_attn_processors(
-    model: ModelMixin,
-    return_deprecated_lora: bool=True
-) -> Dict[str, AttentionProcessor]:
-    """
-    Returns:
-        `dict` of attention processors: A dictionary containing all attention processors used in the model with
-        indexed by its weight name.
-    """
-    # set recursively
-    processors: Dict[str, AttentionProcessor] = {}
-
-    def fn_recursive_add_processors(name: str, module: torch.nn.Module, processors: Dict[str, AttentionProcessor]):
-        if hasattr(module, "processor"):
-            processors[f"{name}.processor"] = get_processor(
-                module,
-                return_deprecated_lora=return_deprecated_lora
-            )
-
-        for sub_name, child in module.named_children():
-            fn_recursive_add_processors(f"{name}.{sub_name}", child, processors)
-
-        return processors
-
-    for name, module in model.named_children():
-        fn_recursive_add_processors(name, module, processors)
-
-    return processors
-
-def set_attn_processors(
-    model: ModelMixin,
-    processor: Union[AttentionProcessor, Dict[str, AttentionProcessor]],
-    remove_lora: bool=False
-) -> None:
-    """
-    Sets the attention processor to use to compute attention.
-
-    Parameters:
-        processor (`dict` of `AttentionProcessor` or only `AttentionProcessor`):
-            The instantiated processor class or a dictionary of processor classes that will be set as the processor
-            for **all** `Attention` layers.
-
-            If `processor` is a dict, the key needs to define the path to the corresponding cross attention
-            processor. This is strongly recommended when setting trainable attention processors.
-
-    """
-    def fn_recursive_attn_processor(
-        name: str,
-        module: torch.nn.Module,
-        processor: Union[AttentionProcessor, Dict[str, AttentionProcessor]]
-    ) -> None:
-        if hasattr(module, "set_processor"):
-            if not isinstance(processor, dict):
-                module.set_processor(processor, _remove_lora=remove_lora)
-            else:
-                module.set_processor(processor.pop(f"{name}.processor"), _remove_lora=remove_lora)
-
-        for sub_name, child in module.named_children():
-            fn_recursive_attn_processor(f"{name}.{sub_name}", child, processor)
-
-    for name, module in model.named_children():
-        fn_recursive_attn_processor(name, module, processor)
 
 class IPAdapter(SupportModel):
     """
@@ -248,16 +90,12 @@ class IPAdapter(SupportModel):
         self.is_sdxl = is_sdxl
         self.model = model
         self.cross_attention_dim = unet.config.cross_attention_dim # type: ignore[attr-defined]
-
-        self._default_unet_attention_processors: Dict[str, Any] = {}
-        self._default_controlnet_attention_processors: Dict[str, Dict[str, Any]] = {}
-
         new_attention_processors: Dict[str, Any] = {}
-        attn_processors = get_attn_processors(unet)
 
-        for name in attn_processors.keys():
-            current_processor = attn_processors[name]
+        for name in unet.attn_processors.keys():
+            current_processor = unet.attn_processors[name]
             cross_attention_dim = None if name.endswith("attn1.processor") else self.cross_attention_dim
+
             if name.startswith("mid_block"):
                 hidden_size = unet.config.block_out_channels[-1] # type: ignore[attr-defined]
             elif name.startswith("up_blocks"):
@@ -267,14 +105,11 @@ class IPAdapter(SupportModel):
                 block_id = int(name[len("down_blocks.")])
                 hidden_size = unet.config.block_out_channels[block_id] # type: ignore[attr-defined]
 
-            self._default_unet_attention_processors[name] = current_processor
-
             if cross_attention_dim is None:
                 if type(current_processor) in [AttnProcessor2_0, LoRAAttnProcessor2_0]:
                     attn_class = AttentionProcessor2_0
                 else:
                     attn_class = AttentionProcessor
-
                 new_attention_processors[name] = attn_class()
             else:
                 if type(current_processor) in [AttnProcessor2_0, LoRAAttnProcessor2_0]:
@@ -290,16 +125,13 @@ class IPAdapter(SupportModel):
                 ).to(self.device, dtype=self.dtype)
 
         keepalive_callback()
-        set_attn_processors(unet, new_attention_processors)
-        layers = torch.nn.ModuleList([
-            module for module in attn_processors.values()
-            if isinstance(module, torch.nn.Module)
-        ]) # type: ignore[arg-type]
+        unet.set_attn_processor(new_attention_processors)
+        layers = torch.nn.ModuleList(unet.attn_processors.values()) # type: ignore[arg-type]
 
         state_dict = self.xl_state_dict if is_sdxl else self.default_state_dict
 
         keepalive_callback()
-        layers.load_state_dict(state_dict["ip_adapter"], strict=False)
+        layers.load_state_dict(state_dict["ip_adapter"])
 
         keepalive_callback()
         self.projector.load_state_dict(state_dict["image_proj"])
@@ -307,16 +139,14 @@ class IPAdapter(SupportModel):
         if controlnets is not None:
             keepalive_callback()
             for controlnet in controlnets:
-                new_processors = {}
-                current_processors = get_attn_processors(controlnets[controlnet])
-                self._default_controlnet_attention_processors[controlnet] = {}
+                new_processors: Dict[str, Any] = {}
+                current_processors = controlnets[controlnet].attn_processors
                 for key in current_processors:
-                    self._default_controlnet_attention_processors[controlnet][key] = current_processors[key]
                     if isinstance(current_processors[key], AttnProcessor2_0):
-                        new_processors[key] = CNAttentionProcessor2_0()
+                        new_processors[controlnet][key] = CNAttentionProcessor2_0()
                     else:
-                        new_processors[key] = CNAttentionProcessor()
-                set_attn_processors(controlnets[controlnet], new_processors)
+                        new_processors[controlnet][key] = CNAttentionProcessor()
+                controlnets[controlnet].set_attn_processor(new_processors[controlnet])
 
     @property
     def use_fine_grained(self) -> bool:
@@ -362,65 +192,25 @@ class IPAdapter(SupportModel):
         self.is_sdxl = _is_sdxl
         self.model = _model
 
-    def set_scale(
-        self,
-        unet: UNet2DConditionModel,
-        scale: float,
-        is_sdxl: bool=False,
-        model: Optional[IP_ADAPTER_LITERAL]="default",
-        keepalive_callback: Optional[Callable[[],None]]=None,
-        controlnets: Optional[Dict[str, ControlNetModel]]=None,
-    ) -> int:
+    def set_scale(self, unet: UNet2DConditionModel, scale: float) -> None:
         """
         Sets the scale on attention processors.
         """
-        if model is None:
-            model = "default"
-        if self.is_sdxl != is_sdxl or self.model != model:
-            # Completely reload adapter
-            self.unload(unet, controlnets)
-            self.load(
-                unet,
-                is_sdxl=is_sdxl,
-                scale=scale,
-                model=model,
-                keepalive_callback=keepalive_callback,
-                controlnets=controlnets
-            )
-            return 1
+        def get_attn_processors(module: torch.nn.Module) -> Iterator[AttentionProcessor]:
+            if hasattr(module, "processor"):
+                yield module.processor
+            for name, child in module.named_children():
+                for processor in get_attn_processors(child):
+                    yield processor
 
         from enfugue.diffusion.support.ip.attention import ( # type: ignore[attr-defined]
             IPAttentionProcessor,
             IPAttentionProcessor2_0,
         )
 
-        processors_altered = 0
-        attn_processors = get_attn_processors(unet, False)
-        for name in attn_processors.keys():
-            processor = attn_processors[name]
+        for processor in get_attn_processors(unet):
             if isinstance(processor, IPAttentionProcessor) or isinstance(processor, IPAttentionProcessor2_0):
                 processor.scale = scale
-                processors_altered += 1
-        return processors_altered
-
-    def unload(self, unet: UNet2DConditionModel, controlnets: Optional[Dict[str, ControlNetModel]] = None) -> None:
-        """
-        Unloads the IP adapter by resetting attention processors to previous values
-        """
-        if not hasattr(self, "_default_unet_attention_processors"):
-            raise RuntimeError("IP adapter was not loaded, cannot unload")
-
-        set_attn_processors(unet, {**self._default_unet_attention_processors})
-
-        if controlnets is not None:
-            for controlnet in controlnets:
-                if controlnet in self._default_controlnet_attention_processors:
-                    set_attn_processors(controlnets[controlnet], {
-                        **self._default_controlnet_attention_processors[controlnet]
-                    })
-
-        del self._default_unet_attention_processors
-        del self._default_controlnet_attention_processors
 
     @property
     def default_encoder_model(self) -> str:

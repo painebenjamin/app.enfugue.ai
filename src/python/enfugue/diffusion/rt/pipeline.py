@@ -13,6 +13,7 @@ from transformers import (
     CLIPTokenizer,
     CLIPTextModel,
     CLIPTextModelWithProjection,
+    CLIPVisionModelWithProjection
 )
 
 from diffusers.schedulers import KarrasDiffusionSchedulers, DDIMScheduler
@@ -51,6 +52,7 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         scheduler: KarrasDiffusionSchedulers,
         safety_checker: StableDiffusionSafetyChecker,
         feature_extractor: CLIPImageProcessor,
+        image_encoder: Optional[CLIPVisionModelWithProjection] = None,
         requires_safety_checker: bool = True,
         force_zeros_for_empty_prompt: bool = True,
         requires_aesthetic_score: bool = False,
@@ -201,7 +203,6 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         animation_frames: Optional[int],
         device: Union[str, torch.device],
         ip_adapter_scale: Optional[Union[float, List[float]]]=None,
-        ip_adapter_mode: Optional[IP_ADAPTER_LITERAL]=None,
         step_complete: Optional[Callable[[bool], None]]=None
     ) -> Iterator[None]:
         """

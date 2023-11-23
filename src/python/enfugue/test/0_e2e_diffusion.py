@@ -143,7 +143,8 @@ def main() -> None:
             mask=inpaint_mask,
             layers=[{
                 "image": inpaint_image,
-                "fit": "cover"
+                "fit": "cover",
+                "visibility": "visible"
             }],
             width=512,
             height=512,
@@ -156,23 +157,28 @@ def main() -> None:
             mask=inpaint_mask,
             layers=[{
                 "image": inpaint_image,
-                "fit": "cover"
+                "fit": "cover",
+                "visibility": "visible"
             }],
             width=512,
             height=512,
         )
 
         # Automatic background removal with no inference
+        width, height = inpaint_image.size
         invoke(
             "background", 
+            width=width,
+            height=height,
             layers=[{
                 "image": inpaint_image,
                 "fit": "cover",
-                "remove_background": True
+                "remove_background": True,
+                "visibility": "visible"
             }],
             outpaint=False
         )
-        
+
         # Automatic background removal with outpaint
         invoke(
             "background-fill",
@@ -180,7 +186,8 @@ def main() -> None:
             layers=[{
                 "image": inpaint_image,
                 "fit": "cover",
-                "remove_background": True
+                "remove_background": True,
+                "visibility": "visible"
             }],
             outpaint=True
         )
@@ -188,28 +195,28 @@ def main() -> None:
         # IP Adapter
         invoke(
             "ip-adapter",
+            prompt="a handsome man",
             layers=[{
                 "image": inpaint_image,
-                "ip_adapter_scale": 0.3,
-                "visibility": "invisible"
+                "ip_adapter_scale": 1.0
             }]
         )
         invoke(
             "ip-adapter-plus",
             ip_adapter_model="plus",
+            prompt="a handsome man",
             layers=[{
                 "image": inpaint_image,
-                "ip_adapter_scale": 0.3,
-                "visibility": "invisible"
+                "ip_adapter_scale": 1.0
             }]
         )
         invoke(
             "ip-adapter-plus-face",
             ip_adapter_model="plus-face",
+            prompt="a handsome man",
             layers=[{
                 "image": inpaint_image,
-                "ip_adapter_scale": 0.3,
-                "visibility": "invisible"
+                "ip_adapter_scale": 1.0
             }]
         )
         
@@ -242,7 +249,6 @@ def main() -> None:
                         "controlnet": controlnet,
                     }],
                     "image": base,
-                    "visibility": "invisible"
                 }]
             )
             
@@ -388,7 +394,6 @@ def main() -> None:
                             "scale": 0.5
                         }],
                         "image": control,
-                        "visibility": "invisible",
                     }],
                     prompt="A bride and groom on their wedding day",
                     guidance_scale=6
@@ -404,7 +409,6 @@ def main() -> None:
                             "scale": 0.5
                         }],
                         "image": control,
-                        "visibility": "invisible"
                     }],
                     prompt="A bride and groom on their wedding day",
                     refiner_start=0.85,
