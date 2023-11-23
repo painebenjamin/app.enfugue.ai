@@ -39,6 +39,8 @@ from enfugue.util import (
 
 from enfugue.diffusion.constants import *
 
+from pibble.api.exceptions import BadRequestError
+
 if TYPE_CHECKING:
     from PIL.Image import Image
     from enfugue.diffusers.manager import DiffusionPipelineManager
@@ -718,7 +720,7 @@ class LayeredInvocation:
                     if isinstance(mask, str):
                         mask = get_frames_or_image_from_file(mask)
                     if not mask:
-                        raise ValueError("Expected mask dictionary to have 'image' key")
+                        raise BadRequestError("Expected mask dictionary to have 'image' key")
                     if invert:
                         from PIL import ImageOps
                         if isinstance(mask, list):
@@ -1011,7 +1013,7 @@ class LayeredInvocation:
                 if mask_max == mask_min == 0:
                     # Nothing to do
                     if raise_when_unused:
-                        raise IOError("Nothing to do - canvas is covered by non-denoised images. Either modify the canvas such that there is blank space to be filled, enable denoising on an image on the canvas, or add inpainting.")
+                        raise BadRequestError("Nothing to do - canvas is covered by non-denoised images. Either modify the canvas such that there is blank space to be filled, enable denoising on an image on the canvas, or add inpainting.")
                     # Might have no invocation
                     invocation_mask = None
                     no_inference = True
@@ -1159,7 +1161,7 @@ class LayeredInvocation:
 
         if invocation_kwargs.pop("no_inference", False):
             if "image" not in invocation_kwargs:
-                raise IOError("No inference and no images.")
+                raise BadRequestError("No inference and no images.")
             images = invocation_kwargs["image"]
             if not isinstance(images, list):
                 images = [images]

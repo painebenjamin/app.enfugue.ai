@@ -14,7 +14,7 @@ from typing import Type, Union, Any, Optional, List, Tuple, Dict, Callable, Lite
 from hashlib import md5
 
 from pibble.api.configuration import APIConfiguration
-from pibble.api.exceptions import ConfigurationError
+from pibble.api.exceptions import ConfigurationError, BadRequestError
 from pibble.util.files import dump_json, load_json
 from pibble.util.numeric import human_size
 
@@ -4616,14 +4616,24 @@ class DiffusionPipelineManager:
                 self.stop_keepalive()
                 task_callback("Executing Inference")
                 logger.debug(f"Calling pipeline with arguments {redact(kwargs)}")
-                result = pipe( # type: ignore[assignment]
-                    generator=self.generator,
-                    device=self.device,
-                    offload_models=self.pipeline_sequential_onload,
-                    noise_generator=self.noise_generator,
-                    **kwargs
-                )
-
+                try:
+                    result = pipe( # type: ignore[assignment]
+                        generator=self.generator,
+                        device=self.device,
+                        offload_models=self.pipeline_sequential_onload,
+                        noise_generator=self.noise_generator,
+                        **kwargs
+                    )
+                except BadRequestError:
+                    raise
+                except:
+                    if inpainting and (self.has_inpainter or self.create_inpainter):
+                        self.unload_inpainter("invocation error")
+                    elif animating:
+                        self.unload_animator("invocation error")
+                    else:
+                        self.unload_pipeline("invocation error")
+                    raise
             if will_refine:
                 self.start_keepalive()
 
