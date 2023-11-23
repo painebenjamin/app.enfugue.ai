@@ -42,6 +42,7 @@ jobs:
       run: echo "version=$(make version)" >> $GITHUB_OUTPUT
     - name: Get Version (Windows)
       id: windowsversion
+      shell: bash
       if: ${{ contains(inputs.os, 'windows') }}
       run: |
         . /c/Miniconda/etc/profile.d/conda.sh
