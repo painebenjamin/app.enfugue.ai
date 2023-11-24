@@ -3993,7 +3993,7 @@ class DiffusionPipelineManager:
         Gets the IP adapter.
         """
         if not hasattr(self, "_ip_adapter"):
-            from enfugue.diffusion.support.ip import IPAdapter
+            from enfugue.diffusion.support import IPAdapter
             self._ip_adapter = IPAdapter(
                 self.engine_other_dir,
                 device=self.device,
@@ -4002,6 +4002,22 @@ class DiffusionPipelineManager:
             )
             self._ip_adapter.task_callback = self._task_callback
         return self._ip_adapter
+
+    @property
+    def caption_upsampler(self) -> CaptionUpsampler:
+        """
+        Gets the caption upsampler.
+        """
+        if not hasattr(self, "_caption_upsampler"):
+            from enfugue.diffusion.support import CaptionUpsampler
+            self._caption_upsampler = CaptionUpsampler(
+                self.engine_other_dir,
+                device=self.device,
+                dtype=self.dtype,
+                offline=self.offline
+            )
+            self._caption_upsampler.task_callback = self._task_callback
+        return self._caption_upsampler
 
     def get_xl_controlnet(self, controlnet: str) -> ControlNetModel:
         """

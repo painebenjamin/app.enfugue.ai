@@ -1,10 +1,12 @@
-from typing import Dict, Any
+from typing import Dict, Any, Iterator
+from contextlib import contextmanager
 
 __all__ = [
     "noop",
     "merge_into",
     "replace_images",
-    "redact_for_log"
+    "redact_for_log",
+    "profiler"
 ]
 
 def noop(*args: Any, **kwargs: Any) -> None:
@@ -72,3 +74,14 @@ def redact_for_log(dictionary: Dict[str, Any]) -> Dict[str, Any]:
         else:
             redacted[key] = str(value) # type: ignore[assignment]
     return redacted
+
+@contextmanager
+def profiler() -> Iterator:
+    """
+    Runs a profiler.
+    """
+    from cProfile import Profile
+    from pstats import SortKey, Stats
+    with Profile() as profile:
+        yield
+        Stats(profile).strip_dirs().sort_stats(SortKey.CALLS).print_stats()
