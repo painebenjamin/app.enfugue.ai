@@ -84,4 +84,4 @@ def profiler() -> Iterator:
     from pstats import SortKey, Stats
     with Profile() as profile:
         yield
-        Stats(profile).strip_dirs().sort_stats(SortKey.CALLS).print_stats()
+        Stats(profile).strip_dirs().sort_stats(SortKey.TIME).print_stats()
