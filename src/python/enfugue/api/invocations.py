@@ -196,9 +196,10 @@ class Invocation:
         """
         with self.lock:
             self.start_time = datetime.datetime.now()
-            payload = self.plan.serialize(self.intermediate_dir)
+            payload: Dict[str, Any] = {}
             payload["intermediate_dir"] = self.intermediate_dir
             payload["intermediate_steps"] = self.intermediate_steps
+            payload["plan"] = self.plan
             self.id = self.engine.dispatch("plan", payload)
 
     def poll(self) -> None:

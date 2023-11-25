@@ -1,11 +1,15 @@
 from __future__ import annotations
 # Modified from https://github.com/sayakpaul/caption-upsampling/
 
-from typing import TYPE_CHECKING
+from typing import Callable, Optional, List, Dict, Iterator, TYPE_CHECKING
 from contextlib import contextmanager
 
 if TYPE_CHECKING:
-    from transformers import MistralForCausalLM, Pipeline
+    from transformers import (
+        MistralForCausalLM,
+        LlamaTokenizer,
+        Pipeline
+    )
 
 from enfugue.diffusion.support.model import SupportModel
 

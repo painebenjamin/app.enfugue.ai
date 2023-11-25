@@ -31,7 +31,6 @@ from enfugue.util import (
     fit_image,
     get_frames_or_image,
     get_frames_or_image_from_file,
-    save_frames_or_image,
     dilate_erode,
     redact_images_from_metadata,
     merge_tokens,
@@ -526,10 +525,7 @@ class LayeredInvocation:
         return cls(**invocation_kwargs)
 
     @classmethod
-    def minimize_dict(
-        cls,
-        kwargs: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    def minimize_dict(cls, kwargs: Dict[str, Any]) -> Dict[str, Any]:
         """
         Pops unnecessary variables from an invocation dict
         """
@@ -588,60 +584,11 @@ class LayeredInvocation:
             for key in minimal_keys
         ])
 
-    @classmethod
-    def format_serialization_dict(
-        cls,
-        save_directory: Optional[str]=None,
-        save_name: Optional[str]=None,
-        mask: Optional[Union[str, Image, List[Image]]]=None,
-        layers: Optional[List[Dict]]=None,
-        **kwargs: Any
-    ) -> Dict[str, Any]:
-        """
-        Formats kwargs to remove images and instead reutnr temporary paths if possible
-        """
-        kwargs["mask"] = mask
-        kwargs["layers"] = layers
-        if save_directory is not None:
-            if mask is not None:
-                if isinstance(mask, dict):
-                    mask["image"] = save_frames_or_image(
-                        image=mask["image"],
-                        directory=save_directory,
-                        name=save_name
-                    )
-                else:
-                    kwargs["mask"] = save_frames_or_image(
-                        image=mask,
-                        directory=save_directory,
-                        name=f"{save_name}_mask" if save_name is not None else None
-                    )
-
-            if layers is not None:
-                for i, layer in enumerate(layers):
-                    layer_image = layer.get("image", None)
-                    if layer_image:
-                        layer["image"] = save_frames_or_image(
-                            image=layer_image,
-                            directory=save_directory,
-                            name=f"{save_name}_layer_{i}" if save_name is not None else None
-                        )
-
-        return cls.minimize_dict(kwargs)
-
-    def serialize(
-        self,
-        save_directory: Optional[str]=None,
-        save_name: Optional[str]=None,
-    ) -> Dict[str, Any]:
+    def serialize(self) -> Dict[str, Any]:
         """
         Assembles self into a serializable dict
         """
-        return self.format_serialization_dict(
-            save_directory=save_directory,
-            save_name=save_name,
-            **asdict(self)
-        )
+        return self.minimize_dict(asdict(self))
 
     @contextmanager
     def preprocessors(

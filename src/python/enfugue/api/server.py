@@ -266,7 +266,7 @@ class EnfugueAPIServerBase(JSONWebServiceAPIServer, UserRESTExtensionServerBase)
         elif model_ext == ".safetensors":
             # Reads safetensors metadata
             import safetensors
-            with safetensors.safe_open(model_path, framework="pt", device="cpu") as f:
+            with safetensors.safe_open(model_path, framework="pt", device="cpu") as f: # type: ignore
                 keys = list(f.keys())
                 xl_base = self.XL_BASE_KEY in keys
                 xl_refiner = self.XL_REFINER_KEY in keys

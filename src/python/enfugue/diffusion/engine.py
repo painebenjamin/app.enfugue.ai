@@ -10,7 +10,6 @@ from multiprocessing.queues import Queue
 from queue import Empty
 
 from pibble.api.configuration import APIConfiguration
-from pibble.util.strings import Serializer
 from pibble.util.helpers import resolve
 
 from enfugue.util import logger
@@ -244,7 +243,7 @@ class Engine:
         self.request += 1
         envelope = {"id": self.request, "action": action, "payload": payload}
         logger.debug(f"Dispatching envelope {envelope} to {self.instructions}")
-        self.instructions.put(Serializer.serialize(envelope))
+        self.instructions.put(envelope)
         return envelope["id"]
 
     def last_intermediate(self, id: int) -> Any:
@@ -261,13 +260,12 @@ class Engine:
 
         intermediate_data: Optional[Dict[str, Any]] = None
         for step in all_steps:
-            step_deserialized = Serializer.deserialize(step)
-            if step_deserialized["id"] == id:
+            if step["id"] == id:
                 if intermediate_data is None:
                     intermediate_data = {"id": id}
                 for key in ["step", "total", "rate", "images", "task", "video"]:
-                    if key in step_deserialized:
-                        intermediate_data[key] = step_deserialized[key]
+                    if key in step:
+                        intermediate_data[key] = step[key]
             else:
                 # Wrong ID, put back in queue
                 self.intermediates.put_nowait(step)
@@ -292,15 +290,14 @@ class Engine:
                 pass
 
             for result in all_results:
-                result_deserialized = Serializer.deserialize(result)
                 try:
-                    if result_deserialized["id"] == id:
-                        if "error" in result_deserialized:
-                            to_raise = resolve(result_deserialized["error"])(result_deserialized["message"])
-                            if "trace" in result_deserialized:
-                                logger.error(result_deserialized["trace"])
+                    if result["id"] == id:
+                        if "error" in result:
+                            to_raise = resolve(result["error"])(result["message"])
+                            if "trace" in result:
+                                logger.error(result["trace"])
                         else:
-                            to_return = result_deserialized["result"]
+                            to_return = result["result"]
                     else:
                         self.results.put_nowait(result)
                 except:
@@ -340,17 +337,27 @@ class DiffusionEngine(Engine):
     def execute(
         self,
         plan: LayeredInvocation,
+        intermediate_dir: Optional[str]=None,
+        intermediate_steps: Optional[int]=None,
         timeout: Optional[Union[int, float]] = None, wait: bool = False
     ) -> Any:
         """
         This is a helpful method to just serialize and execute a plan.
         """
-        id = self.dispatch("plan", plan.serialize())
+        id = self.dispatch("plan", {
+            "plan": plan,
+            "intermediate_dir": intermediate_dir,
+            "intermediate_steps": intermediate_steps
+        })
         if wait:
             return self.wait(id, timeout)
         return id
 
-    def __call__(self, timeout: Optional[Union[int, float]] = None, **kwargs: Any) -> Any:
+    def __call__(
+        self,
+        timeout: Optional[Union[int, float]]=None,
+        **kwargs: Any
+    ) -> Any:
         """
         Issues a single invocation request using kwarg syntax.
         """

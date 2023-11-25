@@ -51,7 +51,8 @@ if TYPE_CHECKING:
         ControlImageProcessor,
         Upscaler,
         IPAdapter,
-        BackgroundRemover
+        BackgroundRemover,
+        CaptionUpsampler
     )
 
 def noop(*args: Any) -> None:
@@ -1220,6 +1221,18 @@ class DiffusionPipelineManager:
         Gets where motion modules are saved.
         """
         path = self.configuration.get("enfugue.engine.motion", "~/.cache/enfugue/motion")
+        if path.startswith("~"):
+            path = os.path.expanduser(path)
+        path = os.path.realpath(path)
+        check_make_directory(path)
+        return path
+
+    @property
+    def engine_language_dir(self) -> str:
+        """
+        Gets where language modules are saved.
+        """
+        path = self.configuration.get("enfugue.engine.language", "~/.cache/enfugue/language")
         if path.startswith("~"):
             path = os.path.expanduser(path)
         path = os.path.realpath(path)
@@ -4011,7 +4024,7 @@ class DiffusionPipelineManager:
         if not hasattr(self, "_caption_upsampler"):
             from enfugue.diffusion.support import CaptionUpsampler
             self._caption_upsampler = CaptionUpsampler(
-                self.engine_other_dir,
+                self.engine_language_dir,
                 device=self.device,
                 dtype=self.dtype,
                 offline=self.offline

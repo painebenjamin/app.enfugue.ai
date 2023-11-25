@@ -28,7 +28,7 @@ from queue import Empty
 
 from pibble.api.configuration import APIConfiguration
 from pibble.util.helpers import qualify
-from pibble.util.strings import Serializer, get_uuid
+from pibble.util.strings import get_uuid
 
 from enfugue.util import logger
 
@@ -148,7 +148,7 @@ class EngineProcess(Process):
 
             while True:
                 try:
-                    payload = self.instructions.get(timeout=self.POLLING_DELAY_MS / 1000)
+                    instruction = self.instructions.get(timeout=self.POLLING_DELAY_MS / 1000)
                 except KeyboardInterrupt:
                     return
                 except Empty:
@@ -164,7 +164,6 @@ class EngineProcess(Process):
                         logger.debug(traceback.format_exc())
                     raise IOError("Received unexpected {0}, process will exit. {1}".format(type(ex).__name__, ex))
 
-                instruction = Serializer.deserialize(payload)
                 if not isinstance(instruction, dict):
                     logger.error(f"Unexpected non-dictionary argument {instruction}")
                     continue
@@ -174,7 +173,7 @@ class EngineProcess(Process):
                 instruction_payload = instruction.get("payload", None)
 
                 if instruction_action == "ping":
-                    self.results.put(Serializer.serialize({"id": instruction_id, "result": "pong"}))
+                    self.results.put({"id": instruction_id, "result": "pong"})
                 elif instruction_action in ["exit", "stop"]:
                     logger.debug("Exiting process")
                     self.clear_state()
@@ -192,7 +191,7 @@ class EngineProcess(Process):
                         if logger.isEnabledFor(logging.DEBUG):
                             response["trace"] = traceback.format_exc()
                             logger.debug(response["trace"])
-                    self.results.put(Serializer.serialize(response))
+                    self.results.put(response)
                 last_data = datetime.datetime.now()
 
 class DiffusionEngineProcess(EngineProcess):
@@ -223,13 +222,6 @@ class DiffusionEngineProcess(EngineProcess):
             self._pipemanager = DiffusionPipelineManager(self.configuration, optimize=False)
         return self._pipemanager
 
-    def get_diffusion_plan(self, payload: Dict[str, Any]) -> LayeredInvocation:
-        """
-        Deserializes a plan.
-        """
-        from enfugue.diffusion.invocation import LayeredInvocation
-        return LayeredInvocation.assemble(**payload)
-
     def handle(
         self,
         instruction_id: int,
@@ -243,10 +235,13 @@ class DiffusionEngineProcess(EngineProcess):
             raise ValueError(f"Expected dictionary payload.")
         try:
             if instruction_action == "plan":
+                from enfugue.diffusion.invocation import LayeredInvocation
                 intermediate_dir = instruction_payload.get("intermediate_dir", None)
                 intermediate_steps = instruction_payload.get("intermediate_steps", None)
-                logger.debug("Received invocation payload, constructing plan.")
-                plan = self.get_diffusion_plan(instruction_payload)
+                plan = instruction_payload.get("plan", None)
+                if not isinstance(plan, LayeredInvocation):
+                    raise IOError("Did not receive an invocation plan.")
+
                 return self.execute_diffusion_plan(
                     instruction_id,
                     plan,
@@ -304,7 +299,7 @@ class DiffusionEngineProcess(EngineProcess):
                 "total": total_steps,
                 "rate": current_rate,
             }
-            self.intermediates.put_nowait(Serializer.serialize(to_send))
+            self.intermediates.put_nowait(to_send)
 
         return callback
 
@@ -322,7 +317,7 @@ class DiffusionEngineProcess(EngineProcess):
                 image_path = os.path.join(intermediate_dir, f"{instruction_id}_{image_id}_{i}.png")
                 image.save(image_path)
                 to_send["images"].append(image_path)
-            self.intermediates.put_nowait(Serializer.serialize(to_send))
+            self.intermediates.put_nowait(to_send)
 
         return callback
 
@@ -337,7 +332,7 @@ class DiffusionEngineProcess(EngineProcess):
         def callback(task: str) -> None:
             logger.debug(f"Instruction {instruction_id} beginning task “{task}”")
             payload = {"id": instruction_id, "task": task}
-            self.intermediates.put_nowait(Serializer.serialize(payload))
+            self.intermediates.put_nowait(payload)
         
         return callback
 
@@ -457,8 +452,7 @@ class DiffusionEngineProcess(EngineProcess):
         try:
             while True:
                 next_intermediate = self.intermediates.get_nowait()
-                # Avoid parsing
-                if f'"id": {instruction_id}' not in next_intermediate[:40]:
+                if next_intermediate["id"] != instruction_id:
                     # Not ours, put back on the queue
                     self.intermediates.put_nowait(next_intermediate)
         except Empty:
