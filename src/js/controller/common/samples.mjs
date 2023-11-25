@@ -273,7 +273,15 @@ class SamplesController extends Controller {
                 false,
                 true
             );
-            await this.application.layers.addImageLayer(this.sampleViewer.getDataURL());
+            await this.application.layers.setState({layers: [{
+                "classname": "ImageEditorImageNodeView",
+                "x": 0,
+                "y": 0,
+                "w": this.sampleViewer.width,
+                "h": this.sampleViewer.height,
+                "src": this.sampleViewer.getDataURL(),
+                "visibility": "visible"
+            }]});
             this.publish("quickUpscale", values);
             // Remove window
             this.imageUpscaleWindow.remove();
@@ -307,16 +315,21 @@ class SamplesController extends Controller {
         });
         this.videoUpscaleForm.onCancel(() => this.videoUpscaleWindow.remove());
         this.videoUpscaleForm.onSubmit(async (values) => {
-            await this.application.layers.emptyLayers();
             await this.application.images.setDimension(
                 this.sampleViewer.width,
                 this.sampleViewer.height,
                 false,
                 true
             );
-            await this.application.layers.addVideoLayer(
-                await downloadAsDataURL(this.video)
-            );
+            await this.application.layers.setState({layers: [{
+                "classname": "ImageEditorVideoNodeView",
+                "x": 0,
+                "y": 0,
+                "w": this.sampleViewer.width,
+                "h": this.sampleViewer.height,
+                "src": await downloadAsDataURL(this.video),
+                "visibility": "visible"
+            }]});
             this.publish("quickUpscale", values);
             // Remove window
             this.videoUpscaleWindow.remove();
