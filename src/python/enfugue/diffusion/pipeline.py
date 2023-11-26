@@ -1137,7 +1137,6 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         """
         Builds the runtime context, which ensures everything is on the right devices
         """
-        logger.info(f"IP adapter {ip_adapter_scale}")
         if isinstance(device, str):
             device = torch.device(device)
         if ip_adapter_scale is not None:
