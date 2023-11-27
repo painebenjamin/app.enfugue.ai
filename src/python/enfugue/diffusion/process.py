@@ -52,7 +52,7 @@ class EngineProcess(Process):
     """
     This process allows for easy two-way communication with a waiting subprocess
     """
-    POLLING_DELAY_MS = 100
+    POLLING_DELAY_MS = 20
     IDLE_SEC = 15
 
     def __init__(

@@ -153,7 +153,7 @@ class Engine:
             return
 
         logger.debug("No current engine process, creating.")
-        poll_delay_seconds = self.process_class.POLLING_DELAY_MS / 250
+        poll_delay_seconds = self.process_class.POLLING_DELAY_MS / 250 # 4 ticks
         self.process = self.process_class(self.configuration, *self.get_queues())
 
         try:
@@ -188,7 +188,7 @@ class Engine:
 
         if self.process.is_alive():
             start = datetime.datetime.now()
-            sleep_time = self.process_class.POLLING_DELAY_MS / 500
+            sleep_time = 0.25 # termination can be slower
             self.dispatch("stop")
             time.sleep(sleep_time)
             while self.process.is_alive():
@@ -276,7 +276,7 @@ class Engine:
         Waits for a response after issuing a request and getting an ID
         """
         start = datetime.datetime.now()
-        poll_delay_seconds = DiffusionEngineProcess.POLLING_DELAY_MS / 500
+        poll_delay_seconds = DiffusionEngineProcess.POLLING_DELAY_MS / 1000 # 1 Tick
 
         while True:
             if not self.is_alive():
