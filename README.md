@@ -22,13 +22,19 @@ Enfugue is a feature-rich Stable Diffusion web app for desktop or server.
 <p align="center">
 <strong>Now available in the cloud at <a href="https://www.rundiffusion.com/">RunDiffusion.com!</a></strong>
 </p>
-<p align="center">
-<img src="https://github.com/painebenjamin/app.enfugue.ai/assets/57536852/2fdacbe5-a863-43c7-82d9-1b3f5a07dc1b" width="500" height="260" />
-<img src="https://github.com/painebenjamin/app.enfugue.ai/assets/57536852/ce5ec222-3892-4fd9-88e5-d0303a1eadfb" width="500" height="260" /><br />
-<img src="https://github.com/painebenjamin/app.enfugue.ai/assets/57536852/da7b358d-ba59-4726-848c-041668214f62" width="500" height="260" />
-<img src="https://github.com/painebenjamin/app.enfugue.ai/assets/57536852/79fbd447-8f4b-4725-94ce-71ab0523a672" width="500" height="260" /><br />
-<em>Views of the ENFUGUE user interface, click to view full-size.</em>
-</p>
+<div align="center">
+<img src="https://github.com/painebenjamin/app.enfugue.ai/assets/57536852/28b4bc57-ab6c-4c83-b1cb-b8c16332779d" width="260" />
+<img src="https://github.com/painebenjamin/app.enfugue.ai/assets/57536852/7ec7528d-de24-4c08-b5d0-061dcc675e21" width="260" />
+<img src="https://github.com/painebenjamin/app.enfugue.ai/assets/57536852/2215ef54-d820-4e78-869d-330eee5f297c" width="260" />
+<br />
+<img src="https://github.com/painebenjamin/app.enfugue.ai/assets/57536852/f0bca178-9a50-45f8-94a3-fa54cabf23bd" width="260" />
+<img src="https://github.com/painebenjamin/app.enfugue.ai/assets/57536852/7e1adeb3-642a-43b0-9a2b-b244d50fa44b" width="260" />
+<img src="https://github.com/painebenjamin/app.enfugue.ai/assets/57536852/1596f720-e609-4e24-ab1d-c90a34821687" width="260" />
+<br />
+<img src="https://github.com/painebenjamin/app.enfugue.ai/assets/57536852/85749fca-dd0b-47e3-a491-6d6219168bb0" width="260" />
+<img src="https://github.com/painebenjamin/app.enfugue.ai/assets/57536852/98a6ac73-9b03-446c-91b2-9d09d6ce428a" width="260" /><br />
+<em>Views of the ENFUGUE user interface in various configurable themes, click to view full-size.</em>
+</div><br />
 
 # Feature Summary
 
