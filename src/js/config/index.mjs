@@ -38,6 +38,20 @@ Configuration.themes = {
         "bodyFont": "Noto Sans",
         "monospaceFont": "Ubuntu Mono"
     },
+    "Automatic": {
+        "themeColorPrimary": "#f36912",
+        "themeColorSecondary": "#b1bacf",
+        "themeColorTertiary": "#ffffff",
+        "lightColor": "#dee2eb",
+        "lighterColor": "#c7cedd",
+        "lightestColor": "#ffffff",
+        "darkColor": "#0b0f19",
+        "darkerColor": "#1f2937",
+        "darkestColor": "#06080f",
+        "headerFont": "Roboto",
+        "bodyFont": "Noto Sans",
+        "monospaceFont": "Ubuntu Mono"
+    },
     "Ice": {
         "themeColorPrimary": "#066d72",
         "themeColorSecondary": "#0b7378",
@@ -66,7 +80,7 @@ Configuration.themes = {
         "bodyFont": "Noto Sans",
         "monospaceFont": "Ubuntu Mono"
     },
-    "Analog Sunset": {
+    "Retro": {
         "themeColorPrimary": "#CE5A67",
         "themeColorSecondary": "#F4BF96",
         "themeColorTertiary": "#FCF5ED",

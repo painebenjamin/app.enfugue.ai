@@ -21,8 +21,12 @@ from pibble.api.middleware.database.orm import ORMMiddlewareBase
 from pibble.api.exceptions import NotFoundError
 
 from enfugue.api.controller.base import EnfugueAPIControllerBase
+from enfugue.api.invocations import *
 
-from enfugue.diffusion.invocation import LayeredInvocation
+from enfugue.diffusion.invocation import (
+    LayeredInvocation,
+    CaptionInvocation
+)
 from enfugue.diffusion.constants import *
 
 from enfugue.util import logger
@@ -216,6 +220,23 @@ class EnfugueAPIInvocationController(EnfugueAPIControllerBase):
             video_rate=video_rate,
             disable_intermediate_decoding=disable_decoding,
             synchronous=request.parsed.get("synchronous", False)
+        ).format()
+
+    @handlers.path("^/api/invoke/language$")
+    @handlers.methods("POST")
+    @handlers.format()
+    @handlers.secured()
+    def invoke_language(self, request: Request, response: Response) -> Dict[str, Any]:
+        """
+        Invokes an LLM
+        """
+        plan = CaptionInvocation(
+            prompts=request.parsed["prompts"],
+            num_results_per_prompt=request.parsed.get("num_results_per_prompt", 1)
+        )
+        return self.invoke(
+            request.token.user.id,
+            plan
         ).format()
 
     @handlers.path("^/api/invocation$")
@@ -421,28 +442,29 @@ class EnfugueAPIInvocationController(EnfugueAPIControllerBase):
         for invocation in self.manager.get_invocations(request.token.user.id):
             if invocation.uuid == uuid:
                 formatted = invocation.format()
-                database_invocation = (
-                    self.database.query(self.orm.DiffusionInvocation)
-                    .filter(self.orm.DiffusionInvocation.id == uuid)
-                    .one_or_none()
-                )
-                if database_invocation is None:
-                    # Didn't get saved in the database, try again
-                    database_invocation = self.orm.DiffusionInvocation(
-                        id=invocation.uuid,
-                        user_id=request.token.user.id,
-                        plan=self.format_plan(invocation.plan)
+                if isinstance(invocation, DiffusionInvocationMonitor):
+                    database_invocation = (
+                        self.database.query(self.orm.DiffusionInvocation)
+                        .filter(self.orm.DiffusionInvocation.id == uuid)
+                        .one_or_none()
                     )
-                    self.database.add(database_invocation)
+                    if database_invocation is None:
+                        # Didn't get saved in the database, try again
+                        database_invocation = self.orm.DiffusionInvocation(
+                            id=invocation.uuid,
+                            user_id=request.token.user.id,
+                            plan=self.format_plan(invocation.plan)
+                        )
+                        self.database.add(database_invocation)
+                        self.database.commit()
+                        logger.debug("Invocation was present in memory but not present in database; this issue has been corrected.")
+                    formatted_images = formatted.get("images", [])
+                    if isinstance(formatted_images, list):
+                        database_invocation.outputs = len(formatted_images)
+                    database_invocation.duration = formatted.get("duration", 0)
+                    if "message" in formatted:
+                        database_invocation.error = formatted["message"]
                     self.database.commit()
-                    logger.debug("Invocation was present in memory but not present in database; this issue has been corrected.")
-                formatted_images = formatted.get("images", [])
-                if isinstance(formatted_images, list):
-                    database_invocation.outputs = len(formatted_images)
-                database_invocation.duration = formatted.get("duration", 0)
-                if "message" in formatted:
-                    database_invocation.error = formatted["message"]
-                self.database.commit()
                 return formatted
         raise NotFoundError(f"No invocation matching UUID {uuid}")
 

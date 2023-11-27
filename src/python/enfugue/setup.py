@@ -22,7 +22,7 @@ install_requires = [
     "brotli>=1.0.9",
     "cheroot>=9.0.0",
     "nvidia-pyindex>=1.0.9",
-    "pibble[cherrypy]>=0.6",
+    "pibble[cherrypy]>=0.7.2",
     "torch>=1.13.1",  # Minimum, works with 2.1.0 but not with TensorRT
     "torchvision>=0.14.1",  # Minimum, works with 0.17
     "numpy>=1.24.3",
@@ -56,6 +56,7 @@ install_requires = [
     "torchsde>=0.2.5,<0.3",
     "timm>=0.9.2,<1.0",
     "opensimplex>=0.4.5,<0.5",
+    "sentencepiece>=0.1",
     "tensorflow", # Any version
 ]
 

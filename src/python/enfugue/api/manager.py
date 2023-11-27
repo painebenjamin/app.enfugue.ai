@@ -3,7 +3,8 @@ import os
 import time
 import datetime
 
-from typing import Optional, Dict, List, Any, Tuple, TypedDict
+from typing import Optional, Dict, List, Any, Tuple, TypedDict, Union
+
 from threading import Thread, Event
 from multiprocessing import Lock
 
@@ -12,19 +13,17 @@ from pibble.api.exceptions import TooManyRequestsError, BadRequestError
 from pibble.util.numeric import human_size
 
 from enfugue.api.downloads import Download
-from enfugue.api.invocations import Invocation
+from enfugue.api.invocations import *
+
 from enfugue.diffusion.engine import DiffusionEngine
 from enfugue.diffusion.interpolate import InterpolationEngine
-
-from enfugue.diffusion.invocation import LayeredInvocation
-from enfugue.util import logger, check_make_directory, find_file_in_directory
-from enfugue.diffusion.constants import (
-    DEFAULT_MODEL,
-    DEFAULT_INPAINTING_MODEL,
-    DEFAULT_SDXL_MODEL,
-    DEFAULT_SDXL_REFINER,
-    DEFAULT_SDXL_INPAINTING_MODEL,
+from enfugue.diffusion.invocation import (
+    LayeredInvocation,
+    CaptionInvocation
 )
+
+from enfugue.util import logger, check_make_directory, find_file_in_directory
+from enfugue.diffusion.constants import *
 
 __all__ = ["SystemManagerThread", "SystemManager"]
 
@@ -91,10 +90,10 @@ class SystemManager:
     DEFAULT_MAX_QUEUED_INVOCATIONS = 2
 
     downloads: Dict[int, List[Download]]
-    invocations: Dict[int, List[Invocation]]
+    invocations: Dict[int, List[InvocationMonitor]]
     download_queue: List[Download]
-    invocation_queue: List[Invocation]
-    active_invocation: Optional[Invocation]
+    invocation_queue: List[InvocationMonitor]
+    active_invocation: Optional[InvocationMonitor]
 
     def __init__(self, configuration: APIConfiguration) -> None:
         self.lock = Lock()
@@ -455,14 +454,14 @@ class SystemManager:
     def invoke(
         self,
         user_id: int,
-        plan: LayeredInvocation,
+        plan: Union[LayeredInvocation, CaptionInvocation],
         ui_state: Optional[str] = None,
         disable_intermediate_decoding: bool = False,
         video_rate: Optional[float] = None,
         video_codec: Optional[str] = None,
         video_format: Optional[str] = None,
         **kwargs: Any,
-    ) -> Invocation:
+    ) -> InvocationMonitor:
         """
         Starts an invocation.
         """
@@ -472,33 +471,42 @@ class SystemManager:
         if not can_start and not can_queue:
             raise TooManyRequestsError()
 
-        if disable_intermediate_decoding:
-            kwargs["decode_nth_intermediate"] = None
+        if isinstance(plan, LayeredInvocation):
+            if disable_intermediate_decoding:
+                kwargs["decode_nth_intermediate"] = None
+            else:
+                kwargs["decode_nth_intermediate"] = self.engine_intermediate_steps
+
+            if video_rate is not None:
+                kwargs["video_rate"] = video_rate
+            if video_codec is not None:
+                kwargs["video_codec"] = video_codec
+            if video_format is not None:
+                kwargs["video_format"] = video_format
+
+            invocation = DiffusionInvocationMonitor(
+                engine=self.engine,
+                interpolator=self.interpolator,
+                plan=plan,
+                engine_image_dir=self.engine_image_dir,
+                engine_intermediate_dir=self.engine_intermediate_dir,
+                ui_state=ui_state,
+                **kwargs,
+            )
+        elif isinstance(plan, CaptionInvocation):
+            invocation = CaptionInvocationMonitor( # type: ignore[assignment]
+                engine=self.engine,
+                plan=plan,
+                **kwargs
+            )
         else:
-            kwargs["decode_nth_intermediate"] = self.engine_intermediate_steps
-
-        if video_rate is not None:
-            kwargs["video_rate"] = video_rate
-        if video_codec is not None:
-            kwargs["video_codec"] = video_codec
-        if video_format is not None:
-            kwargs["video_format"] = video_format
-
-        invocation = Invocation(
-            engine=self.engine,
-            interpolator=self.interpolator,
-            plan=plan,
-            engine_image_dir=self.engine_image_dir,
-            engine_intermediate_dir=self.engine_intermediate_dir,
-            ui_state=ui_state,
-            **kwargs,
-        )
-
+            raise IOError(f"Unknown invocation plan type {type(plan)}") # type: ignore[unreachable]
         if can_start:
             invocation.start()
             self.active_invocation = invocation
         else:
             self.invocation_queue.append(invocation)
+
         if user_id not in self.invocations:
             self.invocations[user_id] = []
 
@@ -511,7 +519,7 @@ class SystemManager:
         """
         return self.downloads.get(user_id, [])
 
-    def get_invocations(self, user_id: int) -> List[Invocation]:
+    def get_invocations(self, user_id: int) -> List[InvocationMonitor]:
         """
         Gets invocations for a user.
         """
@@ -616,7 +624,7 @@ class SystemManager:
                     logger.info("Active invocation appears to be dangling, terminating it.")
                     self.active_invocation.timeout()
                     time.sleep(5)
-                elif self.active_invocation.results is None and self.active_invocation.error is None:
+                elif self.active_invocation.result is None and self.active_invocation.error is None:
                     try:
                         self.active_invocation.poll()
                     except IOError:

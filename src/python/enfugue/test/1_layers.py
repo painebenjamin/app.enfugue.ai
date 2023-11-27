@@ -26,11 +26,7 @@ def main() -> None:
         def log_invocation(name, invocation):
             logger.info(name)
             processed = invocation.preprocess(manager, raise_when_unused=False)
-            formatted = LayeredInvocation.format_serialization_dict(
-                save_directory=save_dir,
-                save_name=name,
-                **processed
-            )
+            formatted = LayeredInvocation.minimize_dict(processed)
             logger.debug(f"{formatted}")
         
         # Layered, image covers entire canvas

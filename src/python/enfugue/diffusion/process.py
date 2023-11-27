@@ -37,7 +37,10 @@ if TYPE_CHECKING:
     # We avoid importing them before the process starts at runtime,
     # since we don't want torch to initialize itself.
     from enfugue.diffusion.manager import DiffusionPipelineManager
-    from enfugue.diffusion.invocation import LayeredInvocation
+    from enfugue.diffusion.invocation import (
+        LayeredInvocation,
+        CaptionInvocation
+    )
     from diffusers.pipelines.stable_diffusion import StableDiffusionPipelineOutput
 
 __all__ = [
@@ -248,6 +251,16 @@ class DiffusionEngineProcess(EngineProcess):
                     intermediate_dir=intermediate_dir,
                     intermediate_steps=intermediate_steps,
                 )
+            elif instruction_action == "language":
+                from enfugue.diffusion.invocation import CaptionInvocation
+                plan = instruction_payload.get("plan", None)
+                if not isinstance(plan, CaptionInvocation):
+                    raise IOError("Did not receive a caption plan.")
+
+                return self.execute_caption_plan(
+                    instruction_id,
+                    plan,
+                )
             else:
                 logger.debug("Received direct invocation payload, executing.")
                 payload = self.check_invoke_kwargs(instruction_id, **instruction_payload)
@@ -321,6 +334,22 @@ class DiffusionEngineProcess(EngineProcess):
 
         return callback
 
+    def create_caption_callback(
+        self, instruction_id: int,
+    ) -> Callable[[List[str]], None]:
+        """
+        Generates a callback that sends caption results to the pipe.
+        """
+
+        def callback(results: List[str]) -> None:
+            to_send: Dict[str, Any] = {
+                "id": instruction_id,
+                "captions": results
+            }
+            self.intermediates.put_nowait(to_send)
+
+        return callback
+
     def create_task_callback(
         self,
         instruction_id: int
@@ -335,6 +364,30 @@ class DiffusionEngineProcess(EngineProcess):
             self.intermediates.put_nowait(payload)
         
         return callback
+
+    def execute_caption_plan(
+        self,
+        instruction_id: int,
+        plan: CaptionInvocation,
+    ) -> Dict[str, Any]:
+        """
+        Executes the plan, getting callbacks first.
+        """
+
+        progress_callback = self.create_progress_callback(instruction_id)
+        task_callback = self.create_task_callback(instruction_id)
+        caption_callback = self.create_caption_callback(instruction_id)
+
+        self.pipemanager.keepalive_callback = lambda: progress_callback(0, 0, 0.0)
+
+        return {
+            "captions": plan.execute(
+                self.pipemanager,
+                result_callback=caption_callback,
+                progress_callback=progress_callback,
+                task_callback=task_callback
+            )
+        }
 
     def check_invoke_kwargs(
         self,

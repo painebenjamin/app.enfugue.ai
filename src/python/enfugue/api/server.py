@@ -33,7 +33,7 @@ from enfugue.interface.helpers import *
 from enfugue.api.controller import *
 
 from enfugue.api.manager import SystemManager
-from enfugue.api.invocations import Invocation
+from enfugue.api.invocations import InvocationMonitor
 from enfugue.api.downloads import Download
 from enfugue.api.config import EnfugueConfiguration
 
@@ -510,13 +510,16 @@ class EnfugueAPIServerBase(JSONWebServiceAPIServer, UserRESTExtensionServerBase)
         model = find_file_in_directory(checkpoint_dir, diffusion_model.model)
         if not model:
             raise ValueError(f"Could not find {diffusion_model.model} in {checkpoint_dir}")
+        
+        # We use casts to remove sqlalchemy metadata
+        model = str(model)
 
         refiner = diffusion_model.refiner
         if refiner:
             refiner_model = find_file_in_directory(checkpoint_dir, refiner[0].model)
             if not refiner_model:
                 raise ValueError(f"Could not find {refiner[0].model} in {checkpoint_dir}")
-            refiner = refiner_model
+            refiner = str(refiner_model)
         else:
             refiner = None
 
@@ -525,35 +528,37 @@ class EnfugueAPIServerBase(JSONWebServiceAPIServer, UserRESTExtensionServerBase)
             inpainter_model = os.path.join(checkpoint_dir, inpainter[0].model)
             if not inpainter_model:
                 raise ValueError(f"Could not find {inpainter[0].model} in {checkpoint_dir}")
-            inpainter = inpainter_model
+            inpainter = str(inpainter_model)
         else:
             inpainter = None
 
         scheduler = diffusion_model.scheduler
         if scheduler:
-            scheduler = scheduler[0].name
+            scheduler = str(scheduler[0].name)
+        else:
+            scheduler = None
 
         vae = diffusion_model.vae
         if vae:
-            vae = diffusion_model.vae[0].name
+            vae = str(diffusion_model.vae[0].name)
         else:
             vae = None
 
         refiner_vae = diffusion_model.refiner_vae
         if refiner_vae:
-            refiner_vae = diffusion_model.refiner_vae[0].name
+            refiner_vae = str(diffusion_model.refiner_vae[0].name)
         else:
             refiner_vae = None
 
         inpainter_vae = diffusion_model.inpainter_vae
         if inpainter_vae:
-            inpainter_vae = diffusion_model.inpainter_vae[0].name
+            inpainter_vae = str(diffusion_model.inpainter_vae[0].name)
         else:
             inpainter_vae = None
 
         motion_module = diffusion_model.motion_module
         if motion_module:
-            motion_module = diffusion_model.motion_module[0].name
+            motion_module = str(diffusion_model.motion_module[0].name)
         else:
             motion_module = None
 
@@ -562,24 +567,33 @@ class EnfugueAPIServerBase(JSONWebServiceAPIServer, UserRESTExtensionServerBase)
             lora_model_path = find_file_in_directory(lora_dir, lora_model.model)
             if not lora_model_path:
                 raise ValueError(f"Could not find {lora_model.model} in {lora_dir}")
-            lora.append((lora_model_path, float(lora_model.weight)))
+            lora.append((str(lora_model_path), float(lora_model.weight)))
 
         lycoris = []
         for lycoris_model in diffusion_model.lycoris:
             lycoris_model_path = find_file_in_directory(lycoris_dir, lycoris_model.model)
             if not lycoris_model_path:
                 raise ValueError(f"Could not find {lycoris_model.model} in {lycoris_dir}")
-            lycoris.append((lycoris_model_path, float(lycoris_model.weight)))
+            lycoris.append((str(lycoris_model_path), float(lycoris_model.weight)))
 
         inversion = []
         for inversion_model in diffusion_model.inversion:
             inversion_model_path = find_file_in_directory(inversion_dir, inversion_model.model)
             if not inversion_model_path:
                 raise ValueError(f"Could not find {inversion_model.model} in {inversion_dir}")
-            inversion.append(inversion_model_path)
+            inversion.append(str(inversion_model_path))
 
         model_prompt = diffusion_model.prompt
+        if model_prompt:
+            model_prompt = str(model_prompt)
+        else:
+            model_prompt = None
+
         model_negative_prompt = diffusion_model.negative_prompt
+        if model_negative_prompt:
+            model_negative_prompt = str(model_negative_prompt)
+        else:
+            model_negative_prompt = None
 
         plan_kwargs: Dict[str, Any] = {
             "model": model,
@@ -597,7 +611,12 @@ class EnfugueAPIServerBase(JSONWebServiceAPIServer, UserRESTExtensionServerBase)
 
         model_config = {}
         for default in diffusion_model.config:
-            model_config[default.configuration_key] = default.configuration_value
+            if isinstance(default.configuration_value, float):
+                model_config[str(default.configuration_key)] = float(default.configuration_value)
+            elif isinstance(default.configuration_value, int):
+                model_config[str(default.configuration_key)] = int(default.configuration_value)
+            else:
+                model_config[str(default.configuration_key)] = str(default.configuration_value) # type: ignore[assignment]
 
         if include_prompts:
             plan_kwargs["model_prompt"] = model_prompt
@@ -619,7 +638,7 @@ class EnfugueAPIServerBase(JSONWebServiceAPIServer, UserRESTExtensionServerBase)
         video_rate: Optional[float] = None,
         synchronous: bool = False,
         **kwargs: Any,
-    ) -> Invocation:
+    ) -> InvocationMonitor:
         """
         Invokes the platform and saves any resulting images, returning their paths.
         """

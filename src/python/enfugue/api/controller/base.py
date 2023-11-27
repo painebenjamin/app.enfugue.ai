@@ -4,7 +4,7 @@ from typing import Iterator, Callable, Optional, Dict, List, Any
 
 from pibble.api.server.webservice.jsonapi import JSONWebServiceAPIServer
 
-from enfugue.api.invocations import Invocation
+from enfugue.api.invocations import InvocationMonitor
 from enfugue.api.downloads import Download
 from enfugue.api.manager import SystemManager
 
@@ -24,7 +24,7 @@ class EnfugueAPIControllerBase(JSONWebServiceAPIServer):
     manager: SystemManager
 
     # Methods defined in server
-    invoke: Callable[..., Invocation]
+    invoke: Callable[..., InvocationMonitor]
     download: Callable[[int, str, str], Download]
     check_name: Callable[[str], None]
     check_find_model: Callable[[str, str], str]
