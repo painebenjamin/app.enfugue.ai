@@ -32,7 +32,9 @@ Enfugue is a feature-rich Stable Diffusion web app for desktop or server.
 <img src="https://github.com/painebenjamin/app.enfugue.ai/assets/57536852/1596f720-e609-4e24-ab1d-c90a34821687" width="260" />
 <br />
 <img src="https://github.com/painebenjamin/app.enfugue.ai/assets/57536852/85749fca-dd0b-47e3-a491-6d6219168bb0" width="260" />
-<img src="https://github.com/painebenjamin/app.enfugue.ai/assets/57536852/98a6ac73-9b03-446c-91b2-9d09d6ce428a" width="260" /><br />
+<img src="https://github.com/painebenjamin/app.enfugue.ai/assets/57536852/98a6ac73-9b03-446c-91b2-9d09d6ce428a" width="260" />
+<img src="https://github.com/painebenjamin/app.enfugue.ai/assets/57536852/44a7c5fb-87f0-4594-a8ee-f54de7e8f46d" width="260" />
+<br />
 <em>Views of the ENFUGUE user interface in various configurable themes, click to view full-size.</em>
 </div><br />
 
