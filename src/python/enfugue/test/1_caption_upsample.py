@@ -21,8 +21,9 @@ def main() -> None:
         manager = DiffusionPipelineManager()
         with manager.caption_upsampler.upsampler() as upsample:
             for caption in CAPTIONS:
-                upsampled = upsample(caption)
-                print(f"{caption} = {upsampled}")
+                for i in range(NUM_CAPTIONS_PER_PROMPT):
+                    upsampled = upsample(caption)
+                    print(f"{caption} = {upsampled}")
 
 
 if __name__ == "__main__":
