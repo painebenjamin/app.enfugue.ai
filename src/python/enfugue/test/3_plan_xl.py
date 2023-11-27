@@ -49,7 +49,10 @@ def main() -> None:
         
         # Upscale again alone
         plan = LayeredInvocation.assemble(
-            image=result,
+            layers=[{
+                "image": result,
+                "visibility": "visible"
+            }],
             upscale=[{
                 "amount": 2,
                 "method": "esrgan",

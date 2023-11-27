@@ -39,7 +39,10 @@ def main() -> None:
                 width = width,
                 height = height,
                 mask=mask,
-                image=image,
+                layers=[{
+                    "image": image,
+                    "visibility": "visible"
+                }],
                 strength=1.0,
             )
 

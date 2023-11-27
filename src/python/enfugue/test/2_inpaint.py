@@ -36,7 +36,11 @@ def main() -> None:
             prompt=prompt,
             negative_prompt=negative_prompt,
             num_inference_steps=20,
-            image=image,
+            layers=[{
+                "image":image,
+                "visibility": "visible"
+            }],
+            strength=1.0,
             mask={
                 "image": mask,
                 "invert": True
@@ -52,7 +56,10 @@ def main() -> None:
             prompt="blue sky and green grass",
             negative_prompt=negative_prompt,
             num_inference_steps=20,
-            image=image,
+            layers=[{
+                "image":image,
+                "visibility": "visible"
+            }],
             mask={
                 "image": mask,
                 "invert": True
