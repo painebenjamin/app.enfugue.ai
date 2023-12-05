@@ -382,18 +382,10 @@ SET %2=%_Lib_UCase_Tmp%
 EXIT /b
 
 :: -- version compare function --
-:CompareVersion  version1  version2
+
+:CompareVersion
 REM Adapted from https://stackoverflow.com/questions/15807762/compare-version-numbers-in-batch-file
 REM Compares two version numbers and returns the result in the ERRORLEVEL
-
-REM Returns 1 if version1 > version2
-REM         0 if version1 = version2
-REM        -1 if version1 < version2
-
-REM The nodes must be delimited by . or , or -
-
-REM Nodes are normally strictly numeric, without a 0 prefix. A letter suffix
-REM is treated as a separate node
 
 SET "v1=!%~1!"
 SET "v2=!%~2!"
