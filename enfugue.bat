@@ -270,8 +270,8 @@ if "!INSTALL_TYPE!" NEQ "conda" where enfugue-server.exe >NUL 2>NUL && (
 )
 IF "!ENFUGUE_AVAILABLE_PORTABLE_VERSION!" NEQ "" (
     REM Trim by quotes
-    FOR /f delims^=^"^ ^tokens^=3 %%I IN ('ECHO !ENFUGUE_AVAILABLE_PORTABLE_VERSION!') DO (
-        SET ENFUGUE_AVAILABLE_PORTABLE_VERSION=%%~I
+    FOR /f delims^=^"^ ^tokens^=4 %%I IN ('ECHO !ENFUGUE_AVAILABLE_PORTABLE_VERSION!') DO (
+        SET ENFUGUE_AVAILABLE_PORTABLE_VERSION=%%I
     )
 )
 
@@ -290,11 +290,12 @@ IF "!ENFUGUE_AVAILABLE_PIP_VERSION!" NEQ "" IF "!ENFUGUE_INSTALLED_PIP_VERSION!"
         )
     )
 )
-IF "!ENFUGUE_AVAILABLE_PORTABLE_VERSION!" NEQ "" IF "!ENFUGUE_INSTALLED_PIP_VERSION!" NEQ "" (
+IF "!ENFUGUE_AVAILABLE_PORTABLE_VERSION!" NEQ "" IF "!ENFUGUE_INSTALLED_PORTABLE_VERSION!" NEQ "" (
     :: Compare installed portable versions
     CALL :CompareVersion ENFUGUE_INSTALLED_PORTABLE_VERSION ENFUGUE_AVAILABLE_PORTABLE_VERSION
     IF ERRORLEVEL 1 (
         IF "!INSTALL_UPDATE!" == "1" (
+            ECHO There is a new portable version of ENFUGUE available ^(v.!ENFUGUE_AVAILABLE_PORTABLE_VERSION!^). Downloading now.
             CALL :DownloadPortable
         ) ELSE (
             CALL :PromptYesNo "There is a new portable version of ENFUGUE available (v.!ENFUGUE_AVAILABLE_PORTABLE_VERSION!). Download and install update? (Yes): "
@@ -354,7 +355,7 @@ IF "!INSTALL_TYPE!" NEQ "conda" where enfugue-server.exe 2>NUL >NUL && (
     START enfugue-server
     ECHO ENFUGUE launched. A browser window will open shortly - this window can now be closed. To terminate the ENFUGUE server, right-click the icon in the bottom-right hand corner.
     ECHO This window will automatically close in 15 seconds.
-    TIMEOUT /T 15
+    %WINDIR%\System32\timeout.exe /T 15
 )
 
 EXIT /b 0
@@ -449,7 +450,7 @@ FOR /f "delims=" %%I IN ('curl -s https://api.github.com/repos/painebenjamin/app
                 ) ELSE (
                     SET ARCHIVES=!ARCHIVES! %%~nJ%%~xJ
                 )
-                curl -L %%J -o %%~nJ%%~xJ TODO
+                curl -L %%J -o %%~nJ%%~xJ
             )
         )
     )
