@@ -408,11 +408,11 @@ FOR /f "tokens=1* delims=.,-" %%A IN ("%~1") DO (
   SET "%~2=%%A"
   SET "%~3=%%B"
 )
-EXIT /b
+EXIT /b 0
 
 :DivideLetters  versionVar
 FOR %%C IN (a b c d e f g h i j k l m n o p q r s t u v w x y z) DO SET "%~1=!%~1:%%C=.%%C!"
-EXIT /b
+EXIT /b 0
 
 :: -- prompt user function --
 :PromptYesNo
@@ -464,7 +464,7 @@ IF NOT "!ARCHIVE_NAME!"=="" (
         )
     )
 )
-EXIT /b
+EXIT /b 0
 
 :: -- download conda installation function --
 :DownloadConda
@@ -480,10 +480,10 @@ curl https://raw.githubusercontent.com/painebenjamin/app.enfugue.ai/main/environ
 ECHO Creating Environment
 FOR /f %%I IN ('where conda.bat') DO (
     %%I env create -f environment.yml
-    %%I activate enfugue
+    CALL %%I activate enfugue
 )
 DEL environment.yml
-EXIT /b
+EXIT /b 0
 
 :: -- install mmpose function --
 :InstallMMPose
