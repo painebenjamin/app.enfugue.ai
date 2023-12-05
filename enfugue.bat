@@ -208,7 +208,7 @@ where conda.bat >NUL 2>NUL && (
 )
 
 :: Look for enfugue environment if conda exists and activate it
-IF "!CONDA_AVAILABLE!"=="1" (
+IF "!INSTALL_TYPE!" NEQ "portable" IF "!CONDA_AVAILABLE!" == "1" (
     FOR /f "delims=" %%I IN ('conda.bat env list') DO (
         ECHO "%%I" | findstr /C:"enfugue">NUL && (
             ECHO Found ENFUGUE conda environment, activating it.
