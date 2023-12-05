@@ -308,11 +308,14 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         """
         Instantiates the UNet from config
         """
+        from diffusers.models.attention_processor import AttnProcessor2_0
         if is_sdxl and is_inpainter and config["in_channels"] == 9:
             config_url = "https://huggingface.co/diffusers/stable-diffusion-xl-1.0-inpainting-0.1/raw/main/unet/config.json"
             config_path = check_download_to_dir(config_url, cache_dir, check_size=False)
             config = load_json(config_path)
-        return UNet2DConditionModel.from_config(config)
+        unet = UNet2DConditionModel.from_config(config)
+        unet.set_attn_processor(AttnProcessor2_0())
+        return unet
 
     @classmethod
     def from_ckpt(
@@ -520,6 +523,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
         unet_config = create_unet_diffusers_config(original_config, image_size=image_size)
         unet_config["upcast_attention"] = upcast_attention
+        if "num_class_embeds" not in unet_config:
+            unet_config["num_class_embeds"] = None
 
         unet = cls.create_unet(
             unet_config,
