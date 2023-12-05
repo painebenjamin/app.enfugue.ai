@@ -183,6 +183,7 @@ SET INSTALL_MMPOSE=
 
 :: Iterate over command-line arguments
 FOR %%I IN (%*) DO (
+    IF "%%I"=="--help" GOTO :Usage
     IF "%%I"=="--conda" SET INSTALL_TYPE=conda
     IF "%%I"=="--portable" SET INSTALL_TYPE=portable
     IF "%%I"=="--update" SET INSTALL_UPDATE=1
@@ -462,7 +463,7 @@ IF NOT "!ARCHIVE_NAME!"=="" (
             curl -L https://www.7-zip.org/a/7zr.exe -o 7zr.exe
         )
         7zr x !ARCHIVE_NAME!.001 -y
-        REM Specifically call built-in tar in case we're in cygwin
+        REM Specifically call built-in tar just in case we're in cygwin
         %WINDIR%\System32\tar.exe -xvf !ARCHIVE_NAME!
         DEL !ARCHIVE_NAME!
         FOR %%I IN (!ARCHIVES!) DO (
@@ -503,7 +504,7 @@ EXIT /b 0
 :: -- usage help function --
 :Usage
 REM This function prints out the help message.
-@ECHO USAGE: %~1 (options) ^
+@ECHO USAGE: %~n0%~x0 (options) ^
 
 Options: ^
 
