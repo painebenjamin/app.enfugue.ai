@@ -1,13 +1,8 @@
 <p align="center">
     <img src="https://github.com/painebenjamin/app.enfugue.ai/assets/57536852/5953edad-0150-4271-ac56-e86a94495ef1" alt="ENFUGUE is now available on rundiffusion.com">
 </p>
-<h2 align="center">
-Enfugue is a feature-rich Stable Diffusion web app for desktop or server.
-</h2>
-<p align="center">
-<em>Forever open source and totally free.</em><br />
-</p>
-
+<h3 align="center">ENFUGUE is an open-source app for creating studio-grade AI-generated images and video.</h3>
+<p align="center"><i>For server or desktop, beginners or pros.</i></p><hr />
 <p align="center">
   <img src="https://img.shields.io/static/v1?label=painebenjamin&message=app.enfugue.ai&color=ff3366&logo=github" alt="painebenjamin - app.enfugue.ai">
     <img src="https://img.shields.io/github/stars/painebenjamin/app.enfugue.ai?style=social" alt="stars - app.enfugue.ai">
@@ -40,21 +35,18 @@ Enfugue is a feature-rich Stable Diffusion web app for desktop or server.
 
 # Feature Summary
 
-- 🚀 **One Click Install:** Enfugue is available as a simple `.exe` to make it as easy as possible to get busy making images, not configuring environments.
-- 🤝 **Plays Nice with Others:** If you want more control in managing your environment, simply install `enfugue` via `pip` into your existing stable diffusion workflow. Worried about a whole webapp clogging up your installation? Don't be, Enfugue is only `1 MB` in size on it's own.
-- 👥 **Owners and Users:** Optional authentication and authorization keeps your installation settings locked down.
-- 🗃 **Easy Model Management:** In-app CivitAI browser makes community checkpoints, LoRA, and Textual Inversions one click away. Drop any other models directly into the app to keep files organized.
-- 🧷 **Safety's On:** Safety checker is on by default, and can be disabled by owners right in the UI.
-- ⚡ **Turbocharged:** Have a powerful Nvidia GPU? TensorRT support is built-in; speed up inference by up to 100% using state-of-the-art AI technology from Nvidia.
-- ♻️ **Waste Not, Want Not:** AI can take a lot of resources, and Enfugue takes care to only use what it needs. It will free your GPU for desktop applications or gaming as soon as it's no longer needed, and clean up unneeded files as it goes.
-- 🧈 **Unified Pipeline:** Never choose between `txt2img`, `img2img`, `inpainting`, or any upscaling pipeline again, with or without multi-diffusion. Just ask what you want, and Enfugue will take care of the rest.
-- 🕹️ **Take Control:** Region prompting and Controlnet are standard.
+- 🚀 **One Click Install:** ENFUGUE is available as a simple `.exe` or one-and-done `.sh` file to make it as easy as possible to get busy making images and video, not configuring environments.
+- 🤝 **Plays Nice with Others:** Share AI models or entire server environments between ENFUGUE and all the most popular open-source AI applications.
+- 🔪 **Cutting Edge:** All the best open-source image/video generartion models are implemented and available as soon as they're released to the public.
+- 👥 **Owners and Users:** Optional authentication and authorization keeps your installation settings locked down for shared environments.
+- 🗃 **Easy Model Management:** In-app CivitAI browser brings all the best community models to 
+- 🧷 **Safety's On:** Safety checker is on by default, and can be disabled by owners right in the UI. You can feel safe 
+- ♻️ **Waste Not, Want Not:** AI can take a lot of resources, and ENFUGUE takes care to only use what it needs. It will free your GPU as soon as it's no longer needed and clean up unneeded files as it goes.
+- 🧈 **Unified Pipeline:** You never need to switch tabs to change input modes. Text-to-image, image-to-video, and all kinds of advanced operations are all immediately available through a combination of the layered canvas and input roles.
+- 🛈 **Tooltipped:** Wondering what an input does? Hover your mouse over it and find out; documentation is available right in-app to help ease you into learning features as you need them.
 - 🔌 **Plug Away:** All features are available via JSON API, or can be added to your Python scripts using our `diffusers` extensions.
-- 👁️ **Eye Queue:** Have things to do? Send an unlimited\* number of invocations at once, let Enfugue take care of making sure they all get done.
 - ☁️ **Your Own Cloud:** All of the best features you would expect from a SaaS application, with the security of knowing nothing ever leaves your computer. Results are kept by the app until you no longer need them, and your browser keeps a lengthy history of workspaces so you can always revisit where you left off.
 - ⚙️ **Configurable:** Numerous configuration options are available, both in the GUI and via configuration file. Change IP addresses, ports, SSL configuration, directories, and much more.
-
-*\* configurable in-app, defaults to five queued invocations*
 
 # Installation and Running
 
