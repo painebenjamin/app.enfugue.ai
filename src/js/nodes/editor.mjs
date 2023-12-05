@@ -552,13 +552,15 @@ class NodeEditorView extends View {
                     (editorPosition.y + editorPosition.height - 100),
                     (canvasPosition.y + canvasPosition.height)
                 ),
+                editorArea = editorPosition.width * editorPosition.height,
                 canvasArea = canvasPosition.width * canvasPosition.height,
                 intersectArea = 0.0;
 
             if (intersectLeft <= intersectRight && intersectTop <= intersectBottom) {
                 intersectArea = (intersectRight - intersectLeft) * (intersectBottom - intersectTop);
             }
-            let intersectAmount = intersectArea / canvasArea;
+
+            let intersectAmount = intersectArea / Math.min(canvasArea, editorArea);
             if (intersectAmount <= 0.1) {
                 SimpleNotification.notify("Resetting canvas position");
                 this.resetCanvasPosition();
