@@ -14,7 +14,9 @@ dependencies:
   - make=4.3
   - torchvision=0.14.1
   - pytorch=1.13.1
-  - nodejs=18.16.0
+  - nodejs=18.16.
+  - opencv
+  - openh264
   - pip:
     - torch==1.13.1+cu117
     - brotli>=1.0.9

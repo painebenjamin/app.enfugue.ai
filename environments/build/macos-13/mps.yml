@@ -10,7 +10,8 @@ dependencies:
   - make=4.3
   - nodejs=18.16.0
   - ffmpeg=6.0.0
-  - opencv=4.6.0
+  - opencv
+  - openh264
   - pip:
     - brotli>=1.0.9
     - torch>=2.0.1
