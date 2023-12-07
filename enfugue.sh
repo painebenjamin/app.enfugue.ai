@@ -234,6 +234,22 @@ while [ "$#" -gt 0 ]; do
     shift
 done
 
+# Set portable directory and paths
+PORTABLE_DIR="$PWD/enfugue-server"
+export PATH=$PATH:$PWD:$PORTABLE_DIR:$HOME/miniconda3/bin
+
+# Gather some variables from the current environment.
+CONDA=$CONDA_EXE
+
+# Make sure conda can be executed.
+if [ ! -x $CONDA ]; then
+    CONDA="$(which conda)"
+    if [ ! -x $CONDA ]; then
+        CONDA=""
+    fi
+fi
+
+
 # Check if we can simply activate an existing conda environment.
 if [[ "$CONDA" != "" ]]; then
     if conda env list | grep -q enfugue; then
@@ -243,25 +259,13 @@ if [[ "$CONDA" != "" ]]; then
     fi
 fi
 
-# Set portable directory and paths
-PORTABLE_DIR="$PWD/enfugue-server"
-export PATH=$PATH:$PWD:$PORTABLE_DIR
-
-# Gather some variables from the current environment.
 ENFUGUE=$(which enfugue)
 ENFUGUE_SERVER=$(which enfugue-server)
-CONDA=$CONDA_EXE
-
 # Change variables if forcing portable/conda
 if [ "$INSTALL_TYPE" == "conda" ]; then
     ENFUGUE_SERVER=""
 elif [ "$INSTALL_TYPE" == "portable" ]; then
     ENFUGUE=""
-fi
-
-# Make sure conda can be executed.
-if [ ! -x $CONDA ]; then
-    CONDA=""
 fi
 
 # These will be populated later if relevant.
