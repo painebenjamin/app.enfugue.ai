@@ -344,7 +344,7 @@ if [[ "$ENFUGUE" == "" && "$ENFUGUE_SERVER" == "" ]]; then
             bash $MINICONDA_INSTALL_DIR/miniconda.sh -b -u -p $MINICONDA_INSTALL_DIR
             # Remove the miniconda installer
             rm -rf $MINICONDA_INSTALL_DIR/miniconda.sh
-            CONDA=$MINICONDA_INSTALL_DIR/condabin/conda
+            CONDA=$MINICONDA_INSTALL_DIR/bin/conda
         fi
         echo "Creating enfugue environment. This can take up to 15 minutes depending on download speeds, please be patient."
         # Download the latest environment file from the github
