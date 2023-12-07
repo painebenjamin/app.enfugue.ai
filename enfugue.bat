@@ -311,8 +311,8 @@ IF "!ENFUGUE_INSTALLED_PIP_VERSION!"=="" IF "!ENFUGUE_INSTALLED_PORTABLE_VERSION
     ECHO ENFUGUE is not currently installed.
     :GetInstallType
     IF "!INSTALL_TYPE!" == "" (
-        SET /P "INSTALL_TYPE=How would you like to install? Type either 'conda' or 'portable' and press enter (or simply press enter for conda): "
-        IF "!INSTALL_TYPE!" == "" SET INSTALL_TYPE=conda
+        SET /P "INSTALL_TYPE=How would you like to install? Type either 'conda' or 'portable' and press enter (or simply press enter for portable): "
+        IF "!INSTALL_TYPE!" == "" SET INSTALL_TYPE=portable
     )
     IF "!INSTALL_TYPE!" NEQ "conda" IF "!INSTALL_TYPE!" NEQ "portable" (
         ECHO Invalid response '!INSTALL_TYPE!'

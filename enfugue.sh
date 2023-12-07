@@ -234,6 +234,15 @@ while [ "$#" -gt 0 ]; do
     shift
 done
 
+# Check if we can simply activate an existing conda environment.
+if [[ "$CONDA" != "" ]]; then
+    if conda env list | grep -q enfugue; then
+        echo "Found enfugue environment, activating."
+        source $(dirname $CONDA)/activate enfugue
+        ENFUGUE=$(which enfugue)
+    fi
+fi
+
 # Set portable directory and paths
 PORTABLE_DIR="$PWD/enfugue-server"
 export PATH=$PATH:$PWD:$PORTABLE_DIR
@@ -260,15 +269,6 @@ ENFUGUE_INSTALLED_PIP_VERSION=""
 ENFUGUE_AVAILABLE_PIP_VERSION=""
 ENFUGUE_INSTALLED_PORTABLE_VERSION=""
 ENFUGUE_AVAILABLE_PORTABLE_VERSION=""
-
-# Check if we can simply activate an existing conda environment.
-if [[ "$ENFUGUE" == "" && "$CONDA" != "" ]]; then
-    if conda env list | grep -q enfugue; then
-        echo "Found enfugue environment, activating."
-        source $(dirname $CONDA)/activate enfugue
-        ENFUGUE=$(which enfugue)
-    fi
-fi
 
 # Get the current python executable
 PYTHON=$(which python3)
@@ -359,7 +359,7 @@ if [[ "$ENFUGUE" == "" && "$ENFUGUE_SERVER" == "" ]]; then
         PYTHON=$(which python)
     elif [ "$DOWNLOAD_TYPE" == "2" ]; then
         # Download and extract the latest portable
-        PORTABLE_DIR=$(download_portable $INSTALL_DIRECTORY)
+        download_portable
         ENFUGUE_SERVER="$PORTABLE_DIR/enfugue-server"
     fi
 fi
