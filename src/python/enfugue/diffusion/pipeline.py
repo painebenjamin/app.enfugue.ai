@@ -259,7 +259,10 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         self.ip_adapter_loaded = False
 
         # Create helpers
-        self.latent_scaler = LatentScaler()
+        self.latent_scaler = LatentScaler(
+            upscale_mode="bicubic",
+            downscale_mode="bicubic"
+        )
 
     @classmethod
     def debug_tensors(cls, **kwargs: Union[Dict, List, torch.Tensor]) -> None:
@@ -654,20 +657,58 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             safety_checker = None
             feature_extractor = None
 
-        # Convert the text model.
-        if model_type == "FrozenCLIPEmbedder":
-            text_model = convert_ldm_clip_checkpoint(checkpoint)
+        # Convert the text model and instantiate.
+        if model_type == "FrozenOpenCLIPEmbedder":
+            # SD V2
+            tokenizer_path = "stabilityai/stable-diffusion-2"
+
+            task_callback(f"Loading tokenizer {tokenizer_path}")
+
+            tokenizer = CLIPTokenizer.from_pretrained(
+                tokenizer_path,
+                subfolder="tokenizer",
+                cache_dir=cache_dir
+            )
+
+            text_model = convert_open_clip_checkpoint(
+                checkpoint,
+                tokenizer_path,
+                subfolder="text_encoder"
+            )
             if offload_models:
                 logger.debug("Offloading enabled; sending text encoder to CPU")
                 text_model.to("cpu")
                 empty_cache()
 
+            kwargs["text_encoder_2"] = None
+            kwargs["tokenizer_2"] = None
+
+            pipe = cls(
+                vae=vae,
+                text_encoder=text_model,
+                tokenizer=tokenizer,
+                unet=unet, # type: ignore[arg-type]
+                scheduler=scheduler,
+                safety_checker=safety_checker,
+                feature_extractor=feature_extractor,
+                **kwargs
+            )
+        elif model_type == "FrozenCLIPEmbedder":
+            # SD V1
             tokenizer_path = "openai/clip-vit-large-patch14"
+
             task_callback(f"Loading tokenizer {tokenizer_path}")
+
             tokenizer = CLIPTokenizer.from_pretrained(
                 tokenizer_path,
                 cache_dir=cache_dir
             )
+
+            text_model = convert_ldm_clip_checkpoint(checkpoint)
+            if offload_models:
+                logger.debug("Offloading enabled; sending text encoder to CPU")
+                text_model.to("cpu")
+                empty_cache()
 
             kwargs["text_encoder_2"] = None
             kwargs["tokenizer_2"] = None
@@ -683,26 +724,48 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 **kwargs,
             )
         elif model_type == "SDXL":
-            tokenizer_path = "openai/clip-vit-large-patch14"
+            clip_vit_l_path = "openai/clip-vit-large-patch14"
+            openclip_vit_g_path = "laion/CLIP-ViT-bigG-14-laion2B-39B-b160k"
+            playground_v2_path = "playgroundai/playground-v2-1024px-aesthetic"
+
+            is_playground_v2 = "conditioner.embedders.0.transformer.text_model.embeddings.position_ids" not in checkpoint
+
+            if is_playground_v2:
+                tokenizer_path = playground_v2_path
+                subfolder = "tokenizer"
+            else:
+                tokenizer_path = clip_vit_l_path
+                subfolder = None
+
             task_callback(f"Loading tokenizer 1 {tokenizer_path}")
             tokenizer = CLIPTokenizer.from_pretrained(
                 tokenizer_path,
-                cache_dir=cache_dir
+                cache_dir=cache_dir,
+                subfolder=subfolder,
             )
 
             text_encoder = convert_ldm_clip_checkpoint(checkpoint)
 
-            tokenizer_2_path = "laion/CLIP-ViT-bigG-14-laion2B-39B-b160k"
+            if is_playground_v2:
+                if "conditioner.embedders.1.model.text_projection.weight" in checkpoint:
+                    checkpoint["conditioner.embedders.1.model.text_projection"] = checkpoint.pop("conditioner.embedders.1.model.text_projection.weight")
+                tokenizer_2_path = playground_v2_path
+                subfolder_2 = "tokenizer_2"
+            else:
+                tokenizer_2_path = openclip_vit_g_path
+                subfolder_2 = None
+                
             task_callback(f"Loading tokenizer 2 {tokenizer_2_path}")
 
             tokenizer_2 = CLIPTokenizer.from_pretrained(
                 tokenizer_2_path,
                 cache_dir=cache_dir,
+                subfolder=subfolder_2,
                 pad_token="!"
             )
             text_encoder_2 = convert_open_clip_checkpoint(
                 checkpoint,
-                tokenizer_2_path,
+                openclip_vit_g_path,
                 prefix="conditioner.embedders.1.model.",
                 has_projection=True,
                 projection_dim=1280,

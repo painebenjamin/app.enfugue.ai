@@ -4,15 +4,90 @@ import os
 import re
 import gc
 
+from dataclasses import dataclass
+
 from enfugue.util import logger
 from enfugue.diffusion.constants import *
 
-from typing import Optional, Union, Literal, Dict, cast, TYPE_CHECKING
+from typing import Optional, Union, Literal, Dict, List, cast, TYPE_CHECKING
 
 if TYPE_CHECKING:
     import torch
 
-__all__ = [ "ModelMerger"]
+__all__ = ["ModelMerger", "ModelMetadata"]
+
+KEY_INPUT = "model.diffusion_model.input_blocks.0.0.weight"
+KEY_2_1 = "model.diffusion_model.input_blocks.2.1.transformer_blocks.0.attn2.to_k.weight"
+KEY_XL_BASE = "conditioner.embedders.1.model.transformer.resblocks.9.mlp.c_proj.bias"
+KEY_XL_REFINER = "conditioner.embedders.0.model.transformer.resblocks.9.mlp.c_proj.bias"
+KEY_PLAYGROUND_V2 = "conditioner.embedders.0.transformer.text_model.embeddings.position_ids"
+
+@dataclass
+class ModelMetadata:
+    """
+    Allows introspecting various Stable Diffusion models.
+    """
+    model_type: Literal["SD1", "SD2", "SDXL-Base", "SDXL-Refiner"]
+    image_size: int
+    in_channels: int
+    model_subtype: Optional[str] = None
+
+    @property
+    def is_sdxl(self) -> bool:
+        return self.model_type in ["SDXL-Base", "SDXL-Refiner"]
+
+    @staticmethod
+    def from_file(file_path: str) -> ModelMetadata:
+        """
+        Gets metadata from a file.
+        """
+        if not os.path.exists(file_path):
+            raise IOError(f"Can't read file {file_path}")
+        import torch
+        checkpoint: Dict[str, torch.Tensor] = {}
+        keys: List[str] = []
+
+        if "safetensor" in file_path:
+            from safetensors import safe_open
+            with safe_open(file_path, framework="pt", device="cpu") as f:
+                keys = list(f.keys())
+                for key in [KEY_INPUT, KEY_2_1]:
+                    if key in keys:
+                        checkpoint[key] = f.get_tensor(key)
+        else:
+            checkpoint = torch.load(file_path, map_location="cpu")
+            keys = list(checkpoint.keys())
+
+        model_subtype = None
+        in_channels = 4
+
+        if KEY_2_1 in keys and checkpoint[KEY_2_1].shape[-1] == 1024:
+            model_type = "SD2"
+            image_size = 768
+        elif KEY_XL_BASE in keys:
+            model_type = "SDXL-Base"
+            image_size = 1024
+        elif KEY_XL_REFINER in keys:
+            model_type = "SDXL-Refiner"
+            image_size = 1024
+        else:
+            model_type = "SD1"
+            image_size = 512
+
+        if KEY_INPUT in keys:
+            in_channels = checkpoint[KEY_INPUT].shape[1]
+
+        if model_type == "SDXL":
+            if KEY_PLAYGROUND_V2 not in keys:
+                model_subtype = "PlaygroundV2"
+
+        return ModelMetadata(
+            model_type=model_type, # type: ignore[arg-type]
+            image_size=image_size,
+            in_channels=in_channels,
+            model_subtype=model_subtype
+        )
+
 
 class ModelMerger:
     """

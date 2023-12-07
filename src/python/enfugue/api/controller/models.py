@@ -321,13 +321,14 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
     @handlers.secured("DiffusionModel", "read")
     def get_model_status(self, request: Request, response: Response, model_name_or_ckpt: str) -> Dict[str, Any]:
         """
-        Gets status for a particular model
+        Gets status for a particular model or checkpoint
         """
+        diffusers_models = self.get_diffusers_models()
         if "." in model_name_or_ckpt:
             return {
                 "model": model_name_or_ckpt,
                 "metadata": {
-                    "base": self.get_model_metadata(model_name_or_ckpt)
+                    "base": self.get_model_metadata(model_name_or_ckpt, diffusers_models)
                 }
             }
 
@@ -348,11 +349,12 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
             [(lycoris.model, lycoris.weight) for lycoris in model.lycoris],
             [inversion.model for inversion in model.inversion],
         )
-        main_model_metadata = self.get_model_metadata(model.model)
+
+        main_model_metadata = self.get_model_metadata(model.model, diffusers_models)
 
         if model.inpainter:
             inpainter_model = model.inpainter[0].model
-            inpainter_model_metadata = self.get_model_metadata(inpainter_model)
+            inpainter_model_metadata = self.get_model_metadata(inpainter_model, diffusers_models)
             inpainter_model_status = DiffusionPipelineManager.get_status(
                 self.engine_root,
                 model.inpainter[0].model,
@@ -361,7 +363,7 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         else:
             model_name, ext = os.path.splitext(model.model)
             inpainter_model = f"{model_name}-inpainting{ext}"
-            inpainter_model_metadata = self.get_model_metadata(inpainter_model)
+            inpainter_model_metadata = self.get_model_metadata(inpainter_model, diffusers_models)
             inpainter_model_status = DiffusionPipelineManager.get_status(
                 self.engine_root,
                 inpainter_model,
@@ -370,7 +372,7 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
 
         if model.refiner:
             refiner_model = model.refiner[0].model
-            refiner_model_metadata = self.get_model_metadata(refiner_model)
+            refiner_model_metadata = self.get_model_metadata(refiner_model, diffusers_models)
             refiner_model_status = DiffusionPipelineManager.get_status(
                 self.engine_root,
                 refiner_model,
@@ -739,14 +741,25 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
     @handlers.methods("GET")
     @handlers.format()
     @handlers.secured("DiffusionModel", "read")
-    def get_all_models(self, request: Request, response: Response) -> List[Dict[str, Any]]:
+    def get_selectable_models(self, request: Request, response: Response) -> List[Dict[str, Any]]:
         """
         Gets all checkpoints, diffusers caches and model names for the picker.
         """
         # Get checkpoints
         checkpoints_dir = self.get_configured_directory("checkpoint")
-        checkpoint_paths = self.get_models_in_directory(checkpoints_dir)
-        checkpoint_paths.sort(key=lambda item: os.path.getmtime(os.path.join(checkpoints_dir, item)))
+        all_checkpoint_paths = self.get_models_in_directory(checkpoints_dir)
+
+        # Get diffusers models
+        diffusers_models = self.get_diffusers_models()
+
+        # Filter out inpainting/refiner checkpoints
+        checkpoint_paths = []
+        for path in all_checkpoint_paths:
+            metadata = self.get_model_metadata(path, diffusers_models)
+            if metadata and (not metadata["inpainter"] and not metadata["refiner"]):
+                checkpoint_paths.append(path)
+
+        # Get full paths and names
         checkpoints = [
             {
                 "name": os.path.basename(filename),
@@ -755,6 +768,8 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
             }
             for filename in checkpoint_paths
         ]
+
+        # Add any default checkpoints that haven't been downloaded yet
         for checkpoint in self.default_checkpoints.keys():
             if checkpoint not in [cp["name"] for cp in checkpoints]:
                 checkpoints.append({
@@ -763,8 +778,7 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
                     "type": "checkpoint"
                 })
 
-        # Get diffusers caches
-        diffusers_models = self.get_diffusers_models()
+        # Filter diffusers caches
         diffusers_caches = []
         for model in diffusers_models:
             found = False
@@ -792,7 +806,10 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
             }
             for model_name in model_names
         ]
-        return checkpoints + diffusers_caches + preconfigured_models
+
+        model_options = checkpoints + diffusers_caches + preconfigured_models
+        model_options.sort(key = lambda item: f"{item['name']}".lower())
+        return model_options
 
     @handlers.path("^/api/model-merge$")
     @handlers.methods("POST")

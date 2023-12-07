@@ -95,7 +95,7 @@ class Application {
      * @var object The menu items to load. Will introspect controllers in these directories.
      */
     static menuCategories = {
-        "file": "File"
+        "file": "File",
     };
 
     /**
@@ -113,6 +113,7 @@ class Application {
         "file": "f",
         "models": "m",
         "system": "s",
+        "extras": "e",
         "theme": "t",
         "help": "h"
     };
@@ -336,6 +337,36 @@ class Application {
     }
 
     /**
+     * Sets getters for one dynamic input
+     */
+    registerDynamicModelInput(inputView, apiEndpoint, metadataEndpoint = null) {
+        inputView.defaultOptions = async () => {
+            let models = await this.model.get(apiEndpoint);
+            return models.reduce((carry, datum) => {
+                if (!isEmpty(datum.directory) && datum.directory !== ".") {
+                    carry[datum.name] = `<strong>${datum.name}</strong><span class='note' style='margin-left: 2px'>(${datum.directory})</note>`;
+                } else {
+                    carry[datum.name] = datum.name;
+                }
+                return carry;
+            }, {});
+        };
+        if (!isEmpty(metadataEndpoint)) {
+            inputView.showModelMetadata = async (model) => {
+                let metadataView = new ModelMetadataView(this.config),
+                    metadataWindow = await this.windows.spawnWindow(
+                        `Metadata for ${model}`,
+                        metadataView,
+                        this.constructor.metadataWindowWidth,
+                        this.constructor.metadataWindowHeight
+                    ),
+                    metadata = await this.model.get(`${metadataEndpoint}/${model}`);
+                metadataView.setMetadata(metadata);
+            };
+        }
+    }
+
+    /**
      * Sets getters for dynamic inputs
      */
     async registerDynamicInputs() {
@@ -343,116 +374,12 @@ class Application {
             // Remove other input
             delete DefaultVaeInputView.defaultOptions.other;
         }
-        CheckpointInputView.defaultOptions = async () => {
-            let checkpoints = await this.model.get("/checkpoints");
-            return checkpoints.reduce((carry, datum) => {
-                if (!isEmpty(datum.directory) && datum.directory !== ".") {
-                    carry[datum.name] = `<strong>${datum.name}</strong><span class='note' style='margin-left: 2px'>(${datum.directory})</note>`;
-                } else {
-                    carry[datum.name] = datum.name;
-                }
-                return carry;
-            }, {});
-        };
-        CheckpointInputView.showModelMetadata = async (model) => {
-            let metadataView = new ModelMetadataView(this.config, "checkpoint", model),
-                metadataWindow = await this.windows.spawnWindow(
-                    `Metadata for Checkpoint ${model}`,
-                    metadataView,
-                    this.constructor.metadataWindowWidth,
-                    this.constructor.metadataWindowHeight
-                ),
-                metadata = await this.model.get(`/checkpoints/${model}`);
-            metadataView.setMetadata(metadata);
-        };
-        LoraInputView.defaultOptions = async () => {
-            let models = await this.model.get("/lora");
-            return models.reduce((carry, datum) => {
-                if (!isEmpty(datum.directory) && datum.directory !== ".") {
-                    carry[datum.name] = `<strong>${datum.name}</strong><span class='note' style='margin-left: 2px'>(${datum.directory})</note>`;
-                } else {
-                    carry[datum.name] = datum.name;
-                }
-                return carry;
-            }, {});
-        };
-        LoraInputView.showModelMetadata = async (model) => {
-            let metadataView = new ModelMetadataView(this.config, "lora", model),
-                metadataWindow = await this.windows.spawnWindow(
-                    `Metadata for LoRA ${model}`,
-                    metadataView,
-                    this.constructor.metadataWindowWidth,
-                    this.constructor.metadataWindowHeight
-                ),
-                metadata = await this.model.get(`/lora/${model}`);
-            metadataView.setMetadata(metadata);
-        };
-        LycorisInputView.defaultOptions = async () => {
-            let models = await this.model.get("/lycoris");
-            return models.reduce((carry, datum) => {
-                if (!isEmpty(datum.directory) && datum.directory !== ".") {
-                    carry[datum.name] = `<strong>${datum.name}</strong><span class='note' style='margin-left: 2px'>(${datum.directory})</note>`;
-                } else {
-                    carry[datum.name] = datum.name;
-                }
-                return carry;
-            }, {});
-        };
-        LycorisInputView.showModelMetadata = async (model) => {
-            let metadataView = new ModelMetadataView(this.config, "lycoris", model),
-                metadataWindow = await this.windows.spawnWindow(
-                    `Metadata for LyCORIS ${model}`,
-                    metadataView,
-                    this.constructor.metadataWindowWidth,
-                    this.constructor.metadataWindowHeight
-                ),
-                metadata = await this.model.get(`/lycoris/${model}`);
-            metadataView.setMetadata(metadata);
-        };
-        InversionInputView.defaultOptions = async () => {
-            let models = await this.model.get("/inversions");
-            return models.reduce((carry, datum) => {
-                if (!isEmpty(datum.directory) && datum.directory !== ".") {
-                    carry[datum.name] = `<strong>${datum.name}</strong><span class='note' style='margin-left: 2px'>(${datum.directory})</note>`;
-                } else {
-                    carry[datum.name] = datum.name;
-                }
-                return carry;
-            }, {});
-        };
-        InversionInputView.showModelMetadata = async (model) => {
-            let metadataView = new ModelMetadataView(this.config, "inversions", model),
-                metadataWindow = await this.windows.spawnWindow(
-                    `Metadata for Textual Inversion ${model}`,
-                    metadataView,
-                    this.constructor.metadataWindowWidth,
-                    this.constructor.metadataWindowHeight
-                ),
-                metadata = await this.model.get(`/inversions/${model}`);
-            metadataView.setMetadata(metadata);
-        };
-        MotionModuleInputView.defaultOptions = async () => {
-            let models = await this.model.get("/motion");
-            return models.reduce((carry, datum) => {
-                if (!isEmpty(datum.directory) && datum.directory !== ".") {
-                    carry[datum.name] = `<strong>${datum.name}</strong><span class='note' style='margin-left: 2px'>(${datum.directory})</note>`;
-                } else {
-                    carry[datum.name] = datum.name;
-                }
-                return carry;
-            }, {});
-        };
-        MotionModuleInputView.showModelMetadata = async (model) => {
-            let metadataView = new ModelMetadataView(this.config, "motion", model),
-                metadataWindow = await this.windows.spawnWindow(
-                    `Metadata for Motion Module ${model}`,
-                    metadataView,
-                    this.constructor.metadataWindowWidth,
-                    this.constructor.metadataWindowHeight
-                ),
-                metadata = await this.model.get(`/motion/${model}`);
-            metadataView.setMetadata(metadata);
-        };
+        this.registerDynamicModelInput(CheckpointInputView, "/checkpoints", "/checkpoints");
+        this.registerDynamicModelInput(LoraInputView, "/lora", "/lora");
+        this.registerDynamicModelInput(LycorisInputView, "/lycoris", "/lycoris");
+        this.registerDynamicModelInput(InversionInputView, "/inversions", "/inversions");
+        this.registerDynamicModelInput(MotionModuleInputView, "/motion", "/motion");
+
         ModelPickerInputView.defaultOptions = async () => {
             let allModels = await this.model.get("/model-options");
             return allModels.reduce((carry, datum) => {
@@ -461,10 +388,11 @@ class Application {
                     :datum.type === "checkpoint"
                         ? "Checkpoint"
                         : datum.type === "checkpoint+diffusers"
-                            ? "Checkpoint + Diffusers Cache"
+                            ? "Checkpoint + Diffusers"
                             : datum.type === "diffusers"
-                                ? "Diffusers Cache"
+                                ? "Diffusers"
                                 : "Preconfigured Model";
+
                 if (!isEmpty(datum.directory) && datum.directory !== ".") {
                     carry[`${datum.type}/${datum.name}`] = `<strong>${datum.name}</strong><span class='note' style='margin-left: 2px'>(${datum.directory})</note></span><em>${typeString}</em>`;
                 } else {
@@ -571,6 +499,7 @@ class Application {
                 delete menuCategories.system;
             }
         }
+        menuCategories.extras = "Extras";
         menuCategories.theme = "Theme";
         menuCategories.help = "Help";
         return menuCategories;

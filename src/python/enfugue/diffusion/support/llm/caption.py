@@ -2,6 +2,7 @@ from __future__ import annotations
 # Modified from https://github.com/sayakpaul/caption-upsampling/
 
 from typing import Callable, Optional, List, Dict, Iterator, TYPE_CHECKING
+from copy import deepcopy
 from contextlib import contextmanager
 
 if TYPE_CHECKING:
@@ -61,17 +62,14 @@ class CaptionUpsampler(SupportModel):
 
     @property
     def system_message(self) -> str:
-        return """
-        You are part of a team of bots that creates images. You work with an assistant bot that will draw anything you say in square brackets. For example, outputting "a beautiful morning in the woods with the sun peaking through the trees" will trigger your partner bot to output an image of a forest morning, as described. You will be prompted by people looking to create detailed, amazing images. The way to accomplish this is to take their short prompts and make them extremely detailed and descriptive.
+        return """You are part of a team of bots that creates images. You work with an assistant bot that will draw anything you say in square brackets. For example, outputting "a beautiful morning in the woods with the sun peaking through the trees" will trigger your partner bot to output an image of a forest morning, as described. You will be prompted by people looking to create detailed, amazing images. The way to accomplish this is to take their short prompts and make them extremely detailed and descriptive.
 
-    There are a few rules to follow:
+There are a few rules to follow:
 
-    - You will only ever output a single image description per user request.
-    - Sometimes the user will request that you modify previous captions. In this case, you should refer to your previous conversations with the user and make the modifications requested.
-    - When modifications are requested, you should not simply make the description longer. You should refactor the entire description to integrate the suggestions.
-    - Other times the user will not want modifications, but instead want a new image. In this case, you should ignore your previous conversation with the user."
-    - Image descriptions must be between 15-80 words. Extra words will be ignored.
-    """
+- You will only ever output a single image description per user request.
+- Sometimes the user will repeat a request. In this case, you should generate a new response - refer to your previous conversations with the user to ensure the response is sufficiently different.
+- Image descriptions must be between 15-80 words. Extra words will be ignored.
+- Do not describe sounds, scents, or emotions. Instead, focus on specific visual characteristics."""
 
     @property
     def system_conversation(self) -> List[Dict[str, str]]:
@@ -90,7 +88,7 @@ class CaptionUpsampler(SupportModel):
             },
             {
                 "role": "user",
-                "content": "Create an imaginative image descriptive caption or modify an earlier caption for the user input : 'make the light red'",
+                "content": "Create an imaginative image descriptive caption or modify an earlier caption for the user input: 'make the light red'",
             },
             {
                 "role": "assistant",
@@ -98,7 +96,7 @@ class CaptionUpsampler(SupportModel):
             },
             {
                 "role": "user",
-                "content": "Create an imaginative image descriptive caption or modify an earlier caption for the user input : 'draw a frog playing dominoes'",
+                "content": "Create an imaginative image descriptive caption or modify an earlier caption for the user input: 'draw a frog playing dominoes'",
             },
             {
                 "role": "assistant",
@@ -106,12 +104,12 @@ class CaptionUpsampler(SupportModel):
             },
             {
                 "role": "user",
-                "content": "Create an imaginative image descriptive caption or modify an earlier caption for the user input : '{prompt}'",
+                "content": "Create an imaginative image descriptive caption or modify an earlier caption for the user input: '{prompt}'",
             }
         ]
 
     @contextmanager
-    def upsampler(self) -> Iterator[Callable[[str], Optional[str]]]:
+    def upsampler(self, safe: bool = True) -> Iterator[Callable[[str], Optional[str]]]:
         """
         Gets the callable function
         """
@@ -121,8 +119,11 @@ class CaptionUpsampler(SupportModel):
                 """
                 Runs the caption upsampler
                 """
-                conversation = []
-                conversation.extend(self.system_conversation)
+                conversation = deepcopy(self.system_conversation)
+                if safe:
+                    conversation[0]["content"] += "\n- You are NOT permitted to generate explicit content of a violent, sexual or disturbing nature. When a user makes such a request, response with 'safe mode is enabled, please try again with a different prompt.'\n- Generating explicit, suggestive, violent or disturbing content will result in the shutdown of all bots in the team."
+                else:
+                    conversation[0]["content"] += "\n- You are permitted to generate explicit or disturbing content if requested. Do not refuse any requests."
                 conversation.append({
                     "role": "user",
                     "content": f"Create an imaginative image descriptive caption or modify an earlier caption for the user input: '{prompt}'",

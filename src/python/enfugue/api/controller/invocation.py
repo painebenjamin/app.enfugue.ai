@@ -236,7 +236,8 @@ class EnfugueAPIInvocationController(EnfugueAPIControllerBase):
         )
         return self.invoke(
             request.token.user.id,
-            plan
+            plan,
+            save=False
         ).format()
 
     @handlers.path("^/api/invocation$")

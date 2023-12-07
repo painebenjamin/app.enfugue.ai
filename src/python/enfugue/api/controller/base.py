@@ -31,7 +31,7 @@ class EnfugueAPIControllerBase(JSONWebServiceAPIServer):
     get_checksum: Callable[[str], str]
     get_civitai_metadata: Callable[[str], List[Dict[str, Any]]]
     get_models_in_directory: Callable[[str], List[str]]
-    get_model_metadata: Callable[[str], Optional[Dict[str, Any]]]
+    get_model_metadata: Callable[[str, List[str]], Optional[Dict[str, Any]]]
     get_diffusers_models: Callable[[], List[str]]
     get_configured_directory: Callable[[str], str]
     get_default_model: Callable[[str], Optional[str]]

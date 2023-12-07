@@ -230,7 +230,11 @@ class EnfugueAPIServerBase(JSONWebServiceAPIServer, UserRESTExtensionServerBase)
             self.write_civitai_metadata(model, model_metadata)
         return load_json(model_metadata)
 
-    def get_model_metadata(self, model: str) -> Optional[Dict[str, Any]]:
+    def get_model_metadata(
+        self,
+        model: str,
+        diffusers_models: Optional[List[str]]=None
+    ) -> Optional[Dict[str, Any]]:
         """
         Gets metadata for a checkpoint if it exists
         ONLY reads safetensors files
@@ -248,7 +252,10 @@ class EnfugueAPIServerBase(JSONWebServiceAPIServer, UserRESTExtensionServerBase)
             "inpainter": "inpaint" in model_name.lower()
         }
 
-        if model_name in self.get_diffusers_models():
+        if diffusers_models is None:
+            diffusers_models = self.get_diffusers_models()
+
+        if model_name in diffusers_models:
             # Read diffusers cache
             diffusers_cache_dir = os.path.join(self.get_configured_directory("diffusers"), model_name)
             model_metadata["xl"] = os.path.exists(os.path.join(diffusers_cache_dir, "text_encoder_2"))
@@ -265,20 +272,23 @@ class EnfugueAPIServerBase(JSONWebServiceAPIServer, UserRESTExtensionServerBase)
                 model_metadata["inpainter"] = False
         elif model_ext == ".safetensors":
             # Reads safetensors metadata
-            import safetensors
-            with safetensors.safe_open(model_path, framework="pt", device="cpu") as f: # type: ignore
-                keys = list(f.keys())
-                xl_base = self.XL_BASE_KEY in keys
-                xl_refiner = self.XL_REFINER_KEY in keys
-                model_metadata["xl"] = xl_base or xl_refiner
-                model_metadata["refiner"] = xl_refiner
-                if self.INPUT_BLOCK_KEY in keys:
-                    input_weights = f.get_tensor(self.INPUT_BLOCK_KEY)
-                    model_metadata["inpainter"] = input_weights.shape[1] == 9 # type: ignore[union-attr]
-                else:
-                    logger.warning(f"Checkpoint file {model_path} with no input block shape is unexpected, errors may occur.")
-                    model_metadata["inpainter"] = False
-
+            try:
+                import safetensors
+                with safetensors.safe_open(model_path, framework="pt", device="cpu") as f: # type: ignore
+                    keys = list(f.keys())
+                    xl_base = self.XL_BASE_KEY in keys
+                    xl_refiner = self.XL_REFINER_KEY in keys
+                    model_metadata["xl"] = xl_base or xl_refiner
+                    model_metadata["refiner"] = xl_refiner
+                    if self.INPUT_BLOCK_KEY in keys:
+                        input_weights = f.get_tensor(self.INPUT_BLOCK_KEY)
+                        model_metadata["inpainter"] = input_weights.shape[1] == 9 # type: ignore[union-attr]
+                    else:
+                        logger.warning(f"Checkpoint file {model_path} with no input block shape is unexpected, errors may occur.")
+                        model_metadata["inpainter"] = False
+            except Exception as ex:
+                # Can't read file, may be incomplete
+                pass
         return model_metadata
 
     def get_diffusers_models(self) -> List[str]:

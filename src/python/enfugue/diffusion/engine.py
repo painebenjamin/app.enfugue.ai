@@ -263,7 +263,7 @@ class Engine:
             if step["id"] == id:
                 if intermediate_data is None:
                     intermediate_data = {"id": id}
-                for key in ["step", "total", "rate", "images", "task", "video"]:
+                for key in ["step", "total", "rate", "images", "task", "video", "captions"]:
                     if key in step:
                         intermediate_data[key] = step[key]
             else:

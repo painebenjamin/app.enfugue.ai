@@ -164,7 +164,13 @@ class RepeatableInputView extends InputView {
                 .find("input.add-item")
                 .disabled(false)
                 .removeClass("disabled");
-            this.enableRemove();
+
+            if (
+                this.constructor.minimumItems === 0 ||
+                this.inputViews.length > this.constructor.minimumItems
+            ) {
+                this.enableRemove();
+            }
         }
     }
 

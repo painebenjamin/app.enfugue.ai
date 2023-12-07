@@ -8,13 +8,12 @@ from enfugue.diffusion.manager import DiffusionPipelineManager
 from pibble.util.log import DebugUnifiedLoggingContext
 
 CAPTIONS = [
+    "a golden retriever",
     "a cat in a hat",
-    "a pretty pony",
-    "a nice sunset",
-    "a pretty lady",
-    "a puppy"
+    "an elderly couple walking through a park"
 ]
 
+NUM_CAPTIONS_PER_PROMPT = 4
 
 def main() -> None:
     with DebugUnifiedLoggingContext():

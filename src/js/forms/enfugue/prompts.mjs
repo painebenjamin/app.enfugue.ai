@@ -1,10 +1,15 @@
 /** @module forms/enfugue/prompts */
+import { ElementBuilder } from "../../base/builder.mjs";
 import { FormView } from "../base.mjs";
 import {
     PromptInputView,
     NumberInputView,
-    CheckboxInputView
+    CheckboxInputView,
+    RepeatableInputView,
+    TextInputView
 } from "../input.mjs";
+
+const E = new ElementBuilder();
 
 /**
  * Extends the prompt input view to look for ctrl+enter to auto-submit parent form
@@ -116,7 +121,64 @@ class PromptTravelFormView extends FormView {
     };
 }
 
+/**
+ * This small class allows repeating captions
+ */
+class CaptionInputView extends RepeatableInputView {
+    /**
+     * @var class Use text input (no secondary prompts)
+     */
+    static memberClass = TextInputView;
+
+    /**
+     * @var int Minimum inputs
+     */
+    static minimumItems = 1;
+}
+
+/**
+ * The caption upsample form view lets you send one or more
+ * prompts at a time to the backend for upsampling
+ */
+class CaptionUpsampleFormView extends FormView {
+    /**
+     * @var string The text to show in the form
+     */
+    static description = "Use this tool to transform a prompt into a more descriptive one using a large language model.<br /><br />At present, the only available model is <a href='https://huggingface.co/HuggingFaceH4/zephyr-7b-alpha' target='_blank'>HuggingFace's 7-billion parameter Zephyr model</a>. This requires approximately 10Gb of hard-drive space and 12Gb of VRAM. Other open-source models will be available in the future.";
+
+    /**
+     * @var object The field sets
+     */
+    static fieldSets = {
+        "Prompts": {
+            "prompts": {
+                "class": CaptionInputView
+            }
+        },
+        "Captions Per Prompt": {
+            "num_results_per_prompt": {
+                "class": NumberInputView,
+                "config": {
+                    "min": 1,
+                    "value": 1,
+                    "step": 1
+                 }
+             }
+         }
+    };
+
+    /**
+     * On build, prepend text.
+     */
+    async build() {
+        let node = await super.build();
+        node.prepend(E.p().content(this.constructor.description));
+        return node;
+    }
+}
+
 export {
     PromptsFormView,
-    PromptTravelFormView
+    PromptTravelFormView,
+    CaptionUpsampleFormView
 };

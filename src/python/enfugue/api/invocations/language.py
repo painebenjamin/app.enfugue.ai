@@ -46,5 +46,5 @@ class CaptionInvocationMonitor(InvocationMonitor):
         """
         formatted = super(CaptionInvocationMonitor, self).format()
         if formatted["status"] == "processing":
-            formatted["results"] = [self.last_captions] if self.last_captions is not None else None
+            formatted["captions"] = self.last_captions if self.last_captions is not None else None
         return formatted

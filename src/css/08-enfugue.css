@@ -2424,3 +2424,72 @@ enfugue-invocation-output .buttons button {
 enfugue-invocation-output .buttons button i {
     font-size: 10px;
 }
+
+enfugue-conversation-view {
+    padding: 25px 10px 10px 10px;
+    display: flex;
+    flex-flow: column nowrap;
+    align-items: stretch;
+    justify-content: stretch;
+    gap: 5px;
+}
+
+enfugue-conversation-view enfugue-conversation-status-view {
+    position: absolute;
+    top: 1px;
+    left: 0;
+    right: 0;
+    padding-bottom: 1px;
+    text-align: center;
+    color: var(--lighter-color);
+    text-shadow: -1px -1px 1px var(--darker-color),
+                 -1px  1px 1px var(--darker-color),
+                  1px  1px 1px var(--darker-color),
+                  1px  1px 1px var(--darker-color);
+    height: 14px;
+    font-size: 11px;
+}
+
+enfugue-message-view {
+    position: relative;
+    display: flex;
+    flex-flow: row nowrap;
+    align-items: center;
+    justify-content: flex-start;
+}
+
+enfugue-message-view.agent {
+    justify-content: flex-end;
+}
+
+enfugue-message-view div::after {
+    content: "\A";
+    position: absolute;
+    border-left: 10px solid transparent;
+    border-top: 10px solid var(--theme-color-secondary);
+    border-right: 10px solid var(--theme-color-secondary);
+    left: 0;
+    bottom: 4px;
+}
+
+enfugue-message-view div {
+    margin: 0 0 0 10px;
+    padding: 10px;
+    border-radius: 8px;
+    background-color: var(--theme-color-secondary);
+    color: var(--darker-color);
+}
+
+enfugue-message-view.agent div {
+    margin: 0 10px 0 0;
+    background-color: var(--theme-color-tertiary);
+}
+
+enfugue-message-view.agent div::after {
+    border-right: 10px solid transparent;
+    border-top: 10px solid var(--theme-color-tertiary);
+    border-left: 10px solid var(--theme-color-tertiary);
+    left: auto;
+    right: 0;
+    bottom: 5px;
+}

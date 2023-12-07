@@ -47,12 +47,13 @@ if TYPE_CHECKING:
     from diffusers.schedulers.scheduling_utils import KarrasDiffusionSchedulers
     from enfugue.diffusion.pipeline import EnfugueStableDiffusionPipeline
     from enfugue.diffusion.animate.pipeline import EnfugueAnimateStableDiffusionPipeline
+    from enfugue.diffusion.util import ModelMetadata
     from enfugue.diffusion.support import (
         ControlImageProcessor,
         Upscaler,
         IPAdapter,
         BackgroundRemover,
-        CaptionUpsampler
+        CaptionUpsampler,
     )
 
 def noop(*args: Any) -> None:
@@ -2495,6 +2496,8 @@ class DiffusionPipelineManager:
                 self.unload_inpainter("base model changing")
                 self.is_default_inpainter = False
         self._model = model
+        if hasattr(self, "_model_metadata"):
+            delattr(self, "_model_metadata")
 
     @property
     def model_name(self) -> str:
@@ -2502,6 +2505,16 @@ class DiffusionPipelineManager:
         Gets just the basename of the model
         """
         return os.path.splitext(os.path.basename(self.model))[0]
+
+    @property
+    def model_metadata(self) -> ModelMetadata:
+        """
+        Gets metadata from the model
+        """
+        if not hasattr(self, "_model_metadata"):
+            from enfugue.diffusion.util import ModelMetadata
+            self._model_metadata = ModelMetadata.from_file(self.model)
+        return self._model_metadata
 
     @property
     def has_refiner(self) -> bool:
@@ -2538,6 +2551,8 @@ class DiffusionPipelineManager:
         if self.refiner_name != refiner_name:
             self.unload_refiner("model changing")
         self._refiner = refiner
+        if hasattr(self, "_refiner_metadata"):
+            delattr(self, "_refiner_metadata")
 
     @property
     def refiner_name(self) -> Optional[str]:
@@ -2547,6 +2562,16 @@ class DiffusionPipelineManager:
         if self.refiner is None:
             return None
         return os.path.splitext(os.path.basename(self.refiner))[0]
+
+    @property
+    def refiner_metadata(self) -> ModelMetadata:
+        """
+        Gets metadata from the refiner
+        """
+        if not hasattr(self, "_refiner_metadata"):
+            from enfugue.diffusion.util import ModelMetadata
+            self._refiner_metadata = ModelMetadata.from_file(self.refiner) # type: ignore[arg-type]
+        return self._refiner_metadata
 
     @property
     def has_inpainter(self) -> bool:
@@ -2587,6 +2612,8 @@ class DiffusionPipelineManager:
         if self.inpainter_name != inpainter_name:
             self.unload_inpainter("model changing")
         self._inpainter = inpainter
+        if hasattr(self, "_inpainter_metadata"):
+            delattr(self, "_inpainter_metadata")
 
     @property
     def inpainter_name(self) -> Optional[str]:
@@ -2596,7 +2623,17 @@ class DiffusionPipelineManager:
         if self.inpainter is None:
             return None
         return os.path.splitext(os.path.basename(self.inpainter))[0]
-    
+
+    @property
+    def inpainter_metadata(self) -> ModelMetadata:
+        """
+        Gets metadata from the inpainter
+        """
+        if not hasattr(self, "_inpainter_metadata"):
+            from enfugue.diffusion.util import ModelMetadata
+            self._inpainter_metadata = ModelMetadata.from_file(self.inpainter) # type: ignore[arg-type]
+        return self._inpainter_metadata
+
     @property
     def animator(self) -> Optional[str]:
         """
@@ -2625,8 +2662,9 @@ class DiffusionPipelineManager:
         animator_name, _ = os.path.splitext(os.path.basename(animator))
         if self.animator_name != animator_name:
             self.unload_animator("model changing")
-
         self._animator = animator
+        if hasattr(self, "_animator_metadata"):
+            delattr(self, "_animator_metadata")
 
     @property
     def animator_name(self) -> Optional[str]:
@@ -2636,6 +2674,16 @@ class DiffusionPipelineManager:
         if self.animator is None:
             return None
         return os.path.splitext(os.path.basename(self.animator))[0]
+
+    @property
+    def animator_metadata(self) -> ModelMetadata:
+        """
+        Gets metadata from the animator
+        """
+        if not hasattr(self, "_animator_metadata"):
+            from enfugue.diffusion.util import ModelMetadata
+            self._animator_metadata = ModelMetadata.from_file(self.animator) # type: ignore[arg-type]
+        return self._animator_metadata
 
     @property
     def has_animator(self) -> bool:
@@ -2961,7 +3009,9 @@ class DiffusionPipelineManager:
         """
         Gets whether or not the diffusers cache exists.
         """
-        return self.model_diffusers_cache_dir is not None
+        return self.model_diffusers_cache_dir is not None and os.path.exists(
+            os.path.join(self.model_diffusers_cache_dir, "model_index.json")
+        )
 
     @property
     def refiner_diffusers_cache_dir(self) -> Optional[str]:
@@ -2979,7 +3029,9 @@ class DiffusionPipelineManager:
         """
         Gets whether or not the diffusers cache exists.
         """
-        return self.refiner_diffusers_cache_dir is not None
+        return self.refiner_diffusers_cache_dir is not None and os.path.exists(
+            os.path.join(self.refiner_diffusers_cache_dir, "model_index.json")
+        )
 
     @property
     def inpainter_diffusers_cache_dir(self) -> Optional[str]:
@@ -2997,7 +3049,9 @@ class DiffusionPipelineManager:
         """
         Gets whether or not the diffusers cache exists.
         """
-        return self.inpainter_diffusers_cache_dir is not None
+        return self.inpainter_diffusers_cache_dir is not None and os.path.exists(
+            os.path.join(self.inpainter_diffusers_cache_dir, "model_index.json")
+        )
 
     @property
     def animator_diffusers_cache_dir(self) -> Optional[str]:
@@ -3015,7 +3069,9 @@ class DiffusionPipelineManager:
         """
         Gets whether or not the diffusers cache exists.
         """
-        return self.animator_diffusers_cache_dir is not None
+        return self.animator_diffusers_cache_dir is not None and os.path.exists(
+            os.path.join(self.animator_diffusers_cache_dir, "model_index.json")
+        )
 
     @property
     def should_cache(self) -> bool:
@@ -3065,8 +3121,10 @@ class DiffusionPipelineManager:
         """
         if getattr(self, "_pipeline", None) is not None:
             return self._pipeline.is_sdxl
-        if self.model_diffusers_cache_dir is not None:
+        if self.engine_cache_exists:
             return os.path.exists(os.path.join(self.model_diffusers_cache_dir, "text_encoder_2"))  # type: ignore[arg-type]
+        if ".safetensor" in self.model:
+            return self.model_metadata.is_sdxl
         return "xl" in self.model_name.lower()
 
     @property
@@ -3079,8 +3137,10 @@ class DiffusionPipelineManager:
             return False
         if getattr(self, "_refiner_pipeline", None) is not None:
             return self._refiner_pipeline.is_sdxl
-        if self.refiner_diffusers_cache_dir is not None:
+        if self.refiner_engine_cache_exists:
             return os.path.exists(os.path.join(self.refiner_diffusers_cache_dir, "text_encoder_2"))  # type: ignore[arg-type]
+        if ".safetensor" in self.refiner: # type: ignore[operator]
+            return self.refiner_metadata.is_sdxl
         return "xl" in self.refiner_name.lower()
 
     @property
@@ -3091,10 +3151,10 @@ class DiffusionPipelineManager:
         """
         if not self.refiner_name:
             return False
-        if self.refiner_diffusers_cache_dir is not None:
-            model_index = os.path.join(self.refiner_diffusers_cache_dir, "model_index.json")
-            if os.path.exists(model_index):
-                return load_json(model_index).get("requires_aesthetic_score", False)
+        if self.refiner_engine_cache_exists:
+            return load_json(os.path.join(self.refiner_diffusers_cache_dir, "model_index.json")).get("requires_aesthetic_score", False) # type: ignore[arg-type]
+        if ".safetensor" in self.refiner: # type: ignore[operator]
+            return self.refiner_metadata.model_type == "SDXL-Refiner"
         return "xl" in self.refiner_name.lower() and "refine" in self.refiner_name.lower()
 
     @property
@@ -3107,8 +3167,10 @@ class DiffusionPipelineManager:
             return self.is_sdxl
         if getattr(self, "_inpainter_pipeline", None) is not None:
             return self._inpainter_pipeline.is_sdxl
-        if self.inpainter_diffusers_cache_dir is not None:
+        if self.inpainter_engine_cache_exists:
             return os.path.exists(os.path.join(self.inpainter_diffusers_cache_dir, "text_encoder_2"))  # type: ignore[arg-type]
+        if ".safetensor" in self.inpainter: # type: ignore[operator]
+            return self.inpainter_metadata.is_sdxl
         return "xl" in self.inpainter_name.lower()
 
     @property
@@ -3121,8 +3183,10 @@ class DiffusionPipelineManager:
             return False
         if getattr(self, "_animator_pipeline", None) is not None:
             return self._animator_pipeline.is_sdxl
-        if self.animator_diffusers_cache_dir is not None:
+        if self.animator_engine_cache_exists:
             return os.path.exists(os.path.join(self.animator_diffusers_cache_dir, "text_encoder_2"))  # type: ignore[arg-type]
+        if ".safetensor" in self.animator: # type: ignore[operator]
+            return self.animator_metadata.is_sdxl
         return "xl" in self.animator_name.lower()
 
     def check_create_engine_cache(self) -> None:
@@ -3401,6 +3465,7 @@ class DiffusionPipelineManager:
                     kwargs["clip_engine_dir"] = self.refiner_tensorrt_clip_dir
 
                 self.check_create_refiner_engine_cache()
+
                 if self.refiner_is_sdxl and self.refiner_requires_aesthetic_score: # type: ignore[unreachable]
                     kwargs["text_encoder"] = None # type: ignore[unreachable]
                     kwargs["tokenizer"] = None

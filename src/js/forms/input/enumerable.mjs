@@ -1,5 +1,5 @@
 /** @module forms/input/enumerable */
-import { isEmpty, jaroWinkler, strip, stripHTML } from "../../base/helpers.mjs";
+import { isEmpty, levenshtein, strip, stripHTML } from "../../base/helpers.mjs";
 import { ElementBuilder } from "../../base/builder.mjs";
 import { InputView } from "./base.mjs";
 import { StringInputView } from "./string.mjs";
@@ -489,7 +489,7 @@ class SearchListMultiInputListView extends ListMultiInputView {
 
 /**
  * This shows a text input and allows a user to select from the closest results.
- * Closeness is measured using jaro-winkler.
+ * Closeness is measured using length-normalized levenshtein edit distance.
  */
 class SearchListInputView extends EnumerableInputView {
     /**
@@ -521,6 +521,11 @@ class SearchListInputView extends EnumerableInputView {
      * @var class The class of the text input that will be shown
      */
     static stringInputClass = StringInputView;
+
+    /**
+     * @var bool Whether or not to allow new values in the string input.
+     */
+    static allowNewValues = false;
 
     /**
      * @var bool Whether or not to set this input to the closest value when the user blurs
@@ -614,48 +619,60 @@ class SearchListInputView extends EnumerableInputView {
 
         this.stringInput.onBlur(async (e) => {
             if (this.constructor.hideListOnBlur) {
-                let onMouseUpHideList = (e2) => {
-                    setTimeout(async () => {
-                        this.listInput.hide();
-                        document.body.removeChild(
-                            (await this.listInput.getNode()).element
-                        );
-                    }, 100);
-                    window.removeEventListener("mouseup", onMouseUpHideList, true);
-                };
-                window.addEventListener("mouseup", onMouseUpHideList, true);
+                if (this.listInputInput) {
+                    let onMouseUpHideList = (e2) => {
+                        setTimeout(async () => {
+                            this.listInput.hide();
+                            document.body.removeChild((await this.listInput.getNode()).element);
+                        }, 100);
+                        window.removeEventListener("mouseup", onMouseUpHideList, true);
+                    };
+                    window.addEventListener("mouseup", onMouseUpHideList, true);
+                } else {
+                    this.listInput.hide();
+                    document.body.removeChild(
+                        (await this.listInput.getNode()).element
+                    );
+                }
                 clearTimeout(this.searchDebounceTimer);
                 clearInterval(this.repositionInterval);
             }
+
             if (this.listInputInput === true) {
                 // blur was due to clicking on the list input, don't trigger setting closest
                 return;
             }
+
             if (this.constructor.setClosestOnBlur) {
                 let searchValue = strip(this.stringInput.getValue()).toLowerCase(),
                     triggerChange = false;
+
                 if (isEmpty(searchValue)) {
                     triggerChange = !isEmpty(this.value);
                     this.value = null;
                 } else {
                     let options = await this.getOptions(),
-                        optionValues = Object.getOwnPropertyNames(options);
-                    optionValues.sort(
-                        (a, b) =>
-                            jaroWinkler(options[b].toLowerCase(), searchValue) -
-                            jaroWinkler(options[a].toLowerCase(), searchValue)
-                    );
+                        optionValues = Object.getOwnPropertyNames(options),
+                        optionSearch = this.getSearchSortFunction(searchValue);
+
+                    optionValues.sort((a, b) => optionSearch(a, b, options[a], options[b]));
                     triggerChange = this.value !== optionValues[0];
+
                     this.value = optionValues[0];
                     this.stringInput.setValue(options[this.value], false);
                 }
+
                 if (triggerChange) {
                     this.changed();
                 }
+            } else if (this.constructor.allowNewValues) {
+                this.value = this.stringInput.getValue();
+                this.changed();
             }
         });
 
         this.listInput = new this.constructor.listInputClass(config, "list", {options: () => this.getOptions()});
+
         this.listInput.onMouseDown(async () => {
             this.listInputInput = true;
         });
@@ -665,7 +682,9 @@ class SearchListInputView extends EnumerableInputView {
         this.listInput.onChange(async () => {
             let options = await this.getOptions(),
                 value = this.listInput.getValue();
+
             this.value = value;
+
             if (this.constructor.populateSearchOnSet) {
                 this.stringInput.setValue(options[value], false);
             }
@@ -754,32 +773,42 @@ class SearchListInputView extends EnumerableInputView {
     }
 
     /**
+     * Builds a function to sort inputs based on edit distance and length.
+     *
+     * @param string $searchValue The value from the search input.
+     * @return callable The executable function to compare two strings to the searched value.
+     */
+    getSearchSortFunction(searchValue) {
+        searchValue = searchValue.toLowerCase();
+        return (a, b, va, vb) => {
+            let checkLeft = strip(stripHTML(va)).toLowerCase(),
+                checkRight = strip(stripHTML(vb)).toLowerCase(),
+                minLength = Math.min(checkLeft.length, checkRight.length, searchValue.length),
+                minSearchValue = searchValue.substring(0, minLength);
+
+            checkLeft = checkLeft.substring(0, minLength);
+            checkRight = checkRight.substring(0, minLength);
+
+            let leftEditDistance = levenshtein(checkLeft, minSearchValue),
+                rightEditDistance = levenshtein(checkRight, minSearchValue);
+
+            return leftEditDistance === rightEditDistance
+                ? checkLeft.length - checkRight.length
+                : leftEditDistance - rightEditDistance;
+        }
+    }
+
+    /**
      * This is the callback fired when the searchChanged timer expires.
      *
      * @param string $searchValue The string input in the search field
      */
     async search(searchValue) {
-        searchValue = strip(searchValue.toLowerCase());
+        searchValue = strip(searchValue);
         if (isEmpty(searchValue)) {
-            await this.listInput.sortFilterOptions(
-                (a, b) => a - b,
-                (a, b) => false
-            );
+            await this.listInput.sortOptions((a, b) => a - b);
         } else {
-            await this.listInput.sortFilterOptions(
-                (a, b, va, vb) => {
-                    return (
-                        jaroWinkler(strip(stripHTML(vb)).toLowerCase(), searchValue) -
-                        jaroWinkler(strip(stripHTML(va)).toLowerCase(), searchValue)
-                    );
-                },
-                (key, value) => {
-                    return (
-                        1.0 - jaroWinkler(strip(stripHTML(value)).toLowerCase(), searchValue) >=
-                        this.constructor.filterThreshold
-                    );
-                }
-            );
+            await this.listInput.sortOptions(this.getSearchSortFunction(searchValue));
         }
     }
 
@@ -941,6 +970,7 @@ class SearchListMultiInputView extends SearchListInputView {
         this.onChange(async () => {
             let value = this.getValue(),
                 options = await this.getOptions();
+
             if (isEmpty(value)) value = [];
             if (this.node !== undefined) {
                 this.node.content(
