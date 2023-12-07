@@ -24,7 +24,8 @@ class CanvasController extends Controller {
                 "tileVertical": false,
                 "width": this.config.model.invocation.width,
                 "height": this.config.model.invocation.height,
-                "useTiling": false,
+                "tilingUnet": false,
+                "tilingVae": false,
                 "tilingSize": this.config.model.invocation.tilingSize,
                 "tilingStride": this.config.model.invocation.tilingStride,
                 "tilingMaskType": this.config.model.invocation.tilingMaskType
@@ -55,7 +56,9 @@ class CanvasController extends Controller {
             this.engine.height = values.height;
             this.engine.tileHorizontal = values.tileHorizontal;
             this.engine.tileVertical = values.tileVertical;
-            if (values.useTiling || values.tileHorizontal || values.tileVertical) {
+            this.engine.tilingUnet = values.tilingUnet;
+            this.engine.tilingVae = values.tilingVae;
+            if (values.tilingUnet || values.tilingVae || values.tileHorizontal || values.tileVertical) {
                 this.engine.tilingSize = values.tilingSize;
                 this.engine.tilingMaskType = values.tilingMaskType;
                 this.engine.tilingStride = isEmpty(values.tilingStride) ? 64 : values.tilingStride;

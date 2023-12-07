@@ -58,10 +58,10 @@ dependencies:
     - protobuf==3.20.1
     - openmim>=0.3.9,<0.4
     - tensorflow
+    - diffusers>=0.24.0
     - enfugue==0.3.1
     - git+https://github.com/CompVis/taming-transformers.git@master#egg=taming-transformers
     - git+https://github.com/openai/CLIP.git@main#egg=clip
     - git+https://github.com/CompVis/stable-diffusion.git@main#egg=latent-diffusion
-    - git+https://github.com/huggingface/diffusers@main#egg=diffusers
     - --extra-index-url https://download.pytorch.org/whl/cu117
     - --extra-index-url https://pypi.ngc.nvidia.com

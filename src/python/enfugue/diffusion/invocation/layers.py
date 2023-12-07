@@ -83,6 +83,8 @@ class LayeredInvocation:
     negative_prompt: Optional[str]=None
     negative_prompt_2: Optional[str]=None
     clip_skip: Optional[int]=None
+    tiling_unet: bool=False
+    tiling_vae: bool=False
     tiling_size: Optional[int]=None
     tiling_stride: Optional[int]=None
     tiling_mask_type: Optional[MASK_TYPE_LITERAL]=None
@@ -293,6 +295,8 @@ class LayeredInvocation:
             "noise_method": self.noise_method,
             "noise_blend_method": self.noise_blend_method,
             "loop": self.loop,
+            "tiling_vae": self.tiling_vae,
+            "tiling_unet": self.tiling_unet,
             "tiling_size": self.tiling_size,
             "tiling_stride": self.tiling_stride,
             "tiling_mask_type": self.tiling_mask_type,
@@ -1690,6 +1694,8 @@ class LayeredInvocation:
             controlnet = upscale_step.get("controlnet", None)
             controlnet_scale = upscale_step.get("controlnet_scale", 1.0)
             scheduler = upscale_step.get("scheduler", self.scheduler)
+            tiling_unet = upscale_step.get("tiling_unet", True)
+            tiling_vae = upscale_step.get("tiling_vae", True)
             tiling_stride = upscale_step.get("tiling_stride", DEFAULT_UPSCALE_TILING_STRIDE)
             tiling_size = upscale_step.get("tiling_size", DEFAULT_UPSCALE_TILING_SIZE)
             tiling_mask_type = upscale_step.get("tiling_mask_type", None)
@@ -1854,6 +1860,8 @@ class LayeredInvocation:
                         "strength": strength,
                         "num_inference_steps": num_inference_steps,
                         "guidance_scale": guidance_scale,
+                        "tiling_unet": tiling_unet,
+                        "tiling_vae": tiling_vae,
                         "tiling_size": tiling_size,
                         "tiling_stride": tiling_stride,
                         "tiling_mask_type": tiling_mask_type,

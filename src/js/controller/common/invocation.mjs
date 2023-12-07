@@ -66,12 +66,46 @@ class InvocationController extends Controller {
     }
 
     /**
+     * @return bool Whether or not to tile during diffusion
+     */
+    get tilingUnet() {
+        return this.kwargs.tiling_unet || false;
+    }
+
+    /**
+     * @param bool Whether or not to tile during diffusion
+     */
+    set tilingUnet(newTilingUnet) {
+        if (this.tilingUnet !== newTilingUnet) {
+            this.publish("engineTilingUnetChange", newTilingUnet);
+        }
+        this.kwargs.tiling_unet = newTilingUnet;
+    }
+
+    /**
+     * @return bool Whether or not to tile during VAE
+     */
+    get tilingVae() {
+        return this.kwargs.tiling_vae || false;
+    }
+
+    /**
+     * @param bool Whether or not to tile during VAE
+     */
+    set tilingVae(newTilingVae) {
+        if (this.tilingVae !== newTilingVae) {
+            this.publish("engineTilingVaeChange", newTilingVae);
+        }
+        this.kwargs.tiling_vae = newTilingVae;
+    }
+
+    /**
      * @return The engine size when not using preconfigured models
      */
     get tilingSize() {
         return this.kwargs.tiling_size || null;
     }
-    
+
     /**
      * @param int The engine size when not using preconfigured models
      */
@@ -442,6 +476,12 @@ class InvocationController extends Controller {
             }
             if (!isEmpty(step.guidanceScale)) {
                 formattedStep.guidance_scale = step.guidanceScale;
+            }
+            if (!isEmpty(step.tilingUnet)) {
+                formattedStep.tiling_unet = step.tilingUnet;
+            }
+            if (!isEmpty(step.tilingVae)) {
+                formattedStep.tiling_vae = step.tilingVae;
             }
             if (!isEmpty(step.tilingStride)) {
                 formattedStep.tiling_stride = step.tilingStride;

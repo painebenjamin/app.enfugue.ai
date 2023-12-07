@@ -131,11 +131,19 @@ class CanvasFormView extends FormView {
                     "tooltip": "When enabled, the resulting image will tile vertically, i.e., when duplicated and placed with on image on top of the other, there will be no seams between the copies."
                 }
             },
-            "useTiling": {
-                "label": "Enabled Tiled Diffusion/VAE",
+            "tilingUnet": {
+                "label": "Enable<br />Tiled UNet",
                 "class": CheckboxInputView,
                 "config": {
-                    "tooltip": "When enabled, the engine will only ever process a square in the size of the configured model size at once. After each square, the frame will be moved by the configured amount of pixels along either the horizontal or vertical axis, and then the image is re-diffused. When this is disabled, the entire canvas will be diffused at once. This can have varying results, but a guaranteed result is increased VRAM use.",
+                    "tooltip": "When enabled, the engine will only ever process a square in the size of the configured model size at once. After each square, the frame will be moved by the configured amount of pixels along either the horizontal or vertical axis, and then the image is re-diffused. When this is disabled, the entire canvas will be diffused at once.",
+                    "value": false
+                }
+            },
+            "tilingVae": {
+                "label": "Enable<br />Tiled VAE",
+                "class": CheckboxInputView,
+                "config": {
+                    "tooltip": "When enabled, the engine will only ever decode or encode a square in the size of the configured model size at once.",
                     "value": false
                 }
             },
@@ -189,8 +197,8 @@ class CanvasFormView extends FormView {
      */
     async submit() {
         await super.submit();
-
-        let chunkInput = await this.getInputView("useTiling"),
+        // Check tile/tiling
+        let chunkInput = await this.getInputView("tilingUnet"),
             widthInput = await this.getInputView("width"),
             heightInput = await this.getInputView("height");
 
@@ -200,13 +208,13 @@ class CanvasFormView extends FormView {
             chunkInput.disable();
         } else {
             chunkInput.enable();
-            if (this.values.useTiling) {
+            if (this.values.tilingUnet || this.values.tilingVae) {
                 this.removeClass("no-tiling");
             } else {
                 this.addClass("no-tiling");
             }
         }
-
+        // Check size
         if (
             isEmpty(this.values.size) &&
             !isEmpty(this.values.width) &&

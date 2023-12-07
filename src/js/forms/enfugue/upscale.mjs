@@ -82,13 +82,29 @@ class UpscaleFormView extends FormView {
                 "label": "Guidance Scale",
                 "class": UpscaleDiffusionGuidanceScaleInputView
             },
+            "tilingUnet": {
+                "label": "Enable Tiled Diffusion",
+                "class": CheckboxInputView,
+                "config": {
+                    "value": true,
+                    "tooltip": "Whether or not to used tiling during diffusion."
+                }
+            },
+            "tilingVae": {
+                "label": "Enable Tiled VAE",
+                "class": CheckboxInputView,
+                "config": {
+                    "value": true,
+                    "tooltip": "Whether or not to used tiling during encoding/decoding."
+                }
+            },
             "tilingStride": {
                 "label": "Tiling Stride",
                 "class": SelectInputView,
                 "config": {
-                    "options": ["0", "8", "16", "32", "64", "128", "256", "512"],
+                    "options": ["8", "16", "32", "64", "128", "256", "512"],
                     "value": "128",
-                    "tooltip": "The number of pixels to move the frame by during diffusion. Smaller values produce better results, but take longer. Set to 0 to disable."
+                    "tooltip": "The number of pixels to move the frame by during diffusion. Smaller values produce better results, but take longer."
                 }
             },
             "animationSize": {

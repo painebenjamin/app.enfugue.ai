@@ -9,7 +9,7 @@ from typing import Optional, Dict, Any, Union, Callable, List, TYPE_CHECKING
 
 from pibble.util.files import load_json
 
-from diffusers.utils import WEIGHTS_NAME, DIFFUSERS_CACHE
+from diffusers.utils import WEIGHTS_NAME
 from diffusers.models.modeling_utils import ModelMixin
 from diffusers.schedulers import EulerDiscreteScheduler
 
@@ -168,7 +168,7 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
 
         unet = cls.create_unet(
             load_json(unet_config),
-            kwargs.get("cache_dir", DIFFUSERS_CACHE),
+            kwargs.get("cache_dir", None),
             motion_dir=kwargs.get("motion_dir", None),
             is_sdxl=is_sdxl,
             is_inpainter=False,
@@ -691,7 +691,8 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         chunker: Chunker,
         weight_builder: MaskWeightBuilder,
         progress_callback: Optional[Callable[[bool], None]]=None,
-        scale_latents: bool=True
+        scale_latents: bool=True,
+        tiling: bool=False,
     ) -> torch.Tensor:
         """
         Decodes each video frame individually.
@@ -714,7 +715,8 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
                     weight_builder=weight_builder,
                     chunker=chunker,
                     progress_callback=progress_callback,
-                    scale_latents=False
+                    scale_latents=False,
+                    tiling=tiling
                 )
             )
         video = torch.cat(video) # type: ignore

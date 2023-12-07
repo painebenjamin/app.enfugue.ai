@@ -1638,6 +1638,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         weight_builder: MaskWeightBuilder,
         generator: Optional[torch.Generator] = None,
         progress_callback: Optional[Callable[[bool], None]] = None,
+        tiling: bool = False
     ) -> torch.Tensor:
         """
         Encodes an image in chunks using the VAE.
@@ -1653,7 +1654,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         # Align device
         self.vae.to(device)
 
-        if total_steps == 1:
+        if total_steps == 1 or not tiling:
             result = self.encode_image_unchunked(image, dtype, generator)
             if progress_callback is not None:
                 progress_callback(True)
@@ -1729,6 +1730,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         generator: Optional[torch.Generator] = None,
         progress_callback: Optional[Callable[[bool], None]] = None,
         add_noise: bool = True,
+        tiling: bool = False,
         animation_frames: Optional[int] = None
     ) -> torch.Tensor:
         """
@@ -1746,7 +1748,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                         dtype=dtype,
                         chunker=chunker,
                         weight_builder=weight_builder,
-                        progress_callback=progress_callback
+                        progress_callback=progress_callback,
+                        tiling=tiling
                     )
 
         # these should all be [1, 4, h, w], collapse along batch dim
@@ -1799,7 +1802,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         generator: Optional[torch.Generator] = None,
         do_classifier_free_guidance: bool = False,
         progress_callback: Optional[Callable[[bool], None]] = None,
-        animation_frames: Optional[int] = None
+        animation_frames: Optional[int] = None,
+        tiling: bool = False,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Prepares both mask and image latents for inpainting
@@ -1829,7 +1833,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     dtype=dtype,
                     chunker=chunker,
                     weight_builder=weight_builder,
-                    progress_callback=progress_callback
+                    progress_callback=progress_callback,
+                    tiling=tiling,
                 ).unsqueeze(0).to(device=device, dtype=dtype)
             ])
 
@@ -2371,6 +2376,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         extra_step_kwargs: Optional[Dict[str, Any]] = None,
         cross_attention_kwargs: Optional[Dict[str, Any]] = None,
         added_cond_kwargs: Optional[Dict[str, Any]] = None,
+        tiling: bool = False,
     ) -> torch.Tensor:
         """
         Executes the denoising loop.
@@ -2387,7 +2393,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         num_chunks = chunker.num_chunks
         num_temporal_chunks = chunker.num_frame_chunks
 
-        if num_chunks <= 1 and num_temporal_chunks <= 1:
+        if (num_chunks <= 1 and num_temporal_chunks <= 1) or not tiling:
             return self.denoise_unchunked(
                 height=height,
                 width=width,
@@ -2866,7 +2872,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         chunker: Chunker,
         weight_builder: MaskWeightBuilder,
         progress_callback: Optional[Callable[[bool], None]]=None,
-        scale_latents: bool=True
+        scale_latents: bool=True,
+        tiling: bool=False,
     ) -> torch.Tensor:
         """
         Decodes the latents in chunks as necessary.
@@ -2893,7 +2900,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             latents = latents.to(dtype=torch.float32)
             weight_builder.dtype = torch.float32
 
-        if total_steps <= 1:
+        if total_steps <= 1 or not tiling:
             result = self.decode_latents_unchunked(latents, device)
             if progress_callback is not None:
                 progress_callback(True)
@@ -3273,6 +3280,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         ip_adapter_model: Optional[IP_ADAPTER_LITERAL]=None,
         height: Optional[int]=None,
         width: Optional[int]=None,
+        tiling_unet: bool=False,
+        tiling_vae: bool=False,
         tiling_size: Optional[int]=None,
         tiling_stride: Optional[int]=None,
         frame_window_size: Optional[int]=None,
@@ -3484,7 +3493,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 encoding_steps += 1
             if not self.is_inpainting_unet:
                 if isinstance(image, list):
-                    encoding_steps +=len(image)
+                    encoding_steps += len(image)
                 else:
                     encoding_steps += 1
         if ip_adapter_images is not None:
@@ -3495,13 +3504,20 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             image_prompt_probes = 0
 
         num_frames = 1 if not animation_frames else animation_frames
-        overall_num_steps = num_chunks * (encoding_steps + (decoding_steps * num_frames) + (num_scheduled_inference_steps * num_temporal_chunks)) + image_prompt_probes
+        unet_spatial_chunks = (1 if not tiling_unet else num_chunks)
+        unet_temporal_chunks = (1 if not tiling_unet else num_temporal_chunks)
+        unet_steps = unet_spatial_chunks * unet_temporal_chunks * num_scheduled_inference_steps
+
+        vae_chunks = (1 if not tiling_vae else num_chunks)
+        vae_steps = vae_chunks * (encoding_steps + (decoding_steps * num_frames))
+        overall_num_steps = image_prompt_probes + unet_steps + vae_steps
+
         logger.debug(
             " ".join([
-                f"Calculated overall steps to be {overall_num_steps} -",
+                f"Calculated overall steps to be {overall_num_steps}.",
                 f"{image_prompt_probes} image prompt embedding probe(s) +",
-                f"[{num_chunks} chunk(s) * ({encoding_steps} encoding step(s) + ({decoding_steps} decoding step(s) * {num_frames} frame(s)) +",
-                f"({num_temporal_chunks} temporal chunk(s) * {num_scheduled_inference_steps} inference step(s))]"
+                f"{unet_steps} UNet step(s) ({unet_spatial_chunks} spatial chunk(s) * {unet_temporal_chunks} temporal chunk(s) * {num_scheduled_inference_steps} inference step(s)) +",
+                f"{vae_steps} VAE step(s) ({vae_chunks} chunk(s) * ({encoding_steps} encoding step(s) + ({decoding_steps} decoding step(s) * {num_frames} frame(s))))"
             ])
         )
 
@@ -3672,7 +3688,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                                 generator=generator,
                                 progress_callback=step_complete,
                                 add_noise=denoising_start is None,
-                                animation_frames=animation_frames
+                                animation_frames=animation_frames,
+                                tiling=tiling_vae
                             )
                         else:
                             prepared_latents = self.create_latents(
@@ -3699,7 +3716,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                         weight_builder=weight_builder,
                         do_classifier_free_guidance=do_classifier_free_guidance,
                         progress_callback=step_complete,
-                        animation_frames=animation_frames
+                        animation_frames=animation_frames,
+                        tiling=tiling_vae,
                     )
 
                     if init_image is not None:
@@ -3714,7 +3732,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                             generator=generator,
                             progress_callback=step_complete,
                             add_noise=False,
-                            animation_frames=animation_frames
+                            animation_frames=animation_frames,
+                            tiling=tiling_vae,
                         )
                     # prepared_latents = noise or init latents + noise
                     # prepared_mask = only mask
@@ -3733,7 +3752,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                         generator=generator,
                         progress_callback=step_complete,
                         add_noise=denoising_start is None,
-                        animation_frames=animation_frames
+                        animation_frames=animation_frames,
+                        tiling=tiling_vae,
                     )
                     prepared_image_latents = None # Don't need to store these separately
                     # prepared_latents = img + noise
@@ -3965,6 +3985,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     extra_step_kwargs=extra_step_kwargs,
                     cross_attention_kwargs=cross_attention_kwargs,
                     added_cond_kwargs=added_cond_kwargs,
+                    tiling=tiling_unet,
                 )
 
                 # Clear no longer needed tensors
@@ -4012,7 +4033,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                         device=device,
                         chunker=chunker,
                         progress_callback=step_complete,
-                        weight_builder=weight_builder
+                        weight_builder=weight_builder,
+                        tiling=tiling_vae,
                     )
                     if not animation_frames:
                         output = self.denormalize_latents(prepared_latents)
