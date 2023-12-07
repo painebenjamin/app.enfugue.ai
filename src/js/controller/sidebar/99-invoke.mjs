@@ -44,7 +44,7 @@ class InvokeButtonController extends Controller {
     /**
      * Gets the step data from the canvas for invocation.
      */
-    getLayers() {
+    async getLayers() {
         let layerState = this.application.layers.getState(),
             unusedLayers = [],
             mapped = layerState.layers.map((datum, i) => {
@@ -109,15 +109,17 @@ class InvokeButtonController extends Controller {
                 this_these = unusedLayers.length === 1 ? "this" : "these",
                 was_were = unusedLayers.length === 1 ? "was" : "were",
                 it_them = unusedLayers.length === 1 ? "it" : "them";
-            this.notify(
-                "warn",
-                `Unused Layer${s}`,
+
+            if (!(await this.confirm(
                 `${unusedLayers.length} layer${s} ha${s_ve} no role assigned, ` +
-                `${this_these} layer${s} ${was_were} not sent to the backend. ` +
+                `${this_these} layer${s} will not be not sent to the backend. ` +
                 `Add a role to ${this_these} layer${s} to use ${it_them}, like selecting ` +
                 `"Visible" or "Denoised" visibility mode, using it with IP ` +
-                `Adapter, and/or assigning one or more control units.`
-            );
+                `Adapter, and/or assigning one or more control units.` +
+                `<br /><br />Continue anyway?`
+            ))) {
+                throw "Invocation canceled.";
+            }
             return mapped.filter((v, i) => unusedLayers.indexOf(i) === -1);
         }
         return mapped;
@@ -133,7 +135,7 @@ class InvokeButtonController extends Controller {
         this.invokeButton.disable().addClass("sliding-gradient");
         try {
             this.application.autosave();
-            await this.application.invoke({"layers": this.getLayers()});
+            await this.application.invoke({"layers": await this.getLayers()});
         } catch(e) {
             console.error(e);
             let errorMessage = `${e}`;

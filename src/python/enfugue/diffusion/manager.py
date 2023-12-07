@@ -2295,7 +2295,15 @@ class DiffusionPipelineManager:
         """
         Defines how to switch to inpainting.
         """
-        return bool(self.configuration.get("enfugue.pipeline.inpainter", True))
+        configured = self.configuration.get("enfugue.pipeline.inpainter", "sd")
+        if type(configured) is bool:
+            return configured
+        if configured == "sd":
+            return not self.is_sdxl
+        elif configured == "xl":
+            return self.is_sdxl
+        logger.warning(f"Unknown configuration for inpainting '{configured}', defaulting to 'sd'")
+        return not self.is_sdxl
 
     @property
     def create_animator(self) -> bool:
