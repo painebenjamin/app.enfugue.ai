@@ -53,9 +53,10 @@
 A script is provided for Windows and Linux machines to install, update, and run ENFUGUE. Copy the relevant command below and answer the on-screen prompts to choose your installation type and install optional dependencies.
 
 ## Windows
+Access the command prompt from the start menu by searching for "command." Alternatively, hold the windows key on your keyboard and click `x`, then press `r` or click `run`, then type `cmd` and press enter or click `ok`.
 ```cmd
 curl https://raw.githubusercontent.com/painebenjamin/app.enfugue.ai/main/enfugue.bat -o enfugue.bat
-enfugue.bat
+.\enfugue.bat
 ```
 
 ## Linux
