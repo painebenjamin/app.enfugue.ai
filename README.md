@@ -1,7 +1,7 @@
 <p align="center">
     <img src="https://github.com/painebenjamin/app.enfugue.ai/assets/57536852/5953edad-0150-4271-ac56-e86a94495ef1" alt="ENFUGUE is now available on rundiffusion.com">
 </p>
-<h3 align="center">ENFUGUE is an open-source app for creating studio-grade AI-generated images and video.</h3>
+<h3 align="center">ENFUGUE is an open-source app for making studio-grade AI-generated images and video.</h3>
 <p align="center"><i>For server or desktop, beginners or pros.</i></p><hr />
 <p align="center">
   <img src="https://img.shields.io/static/v1?label=painebenjamin&message=app.enfugue.ai&color=ff3366&logo=github" alt="painebenjamin - app.enfugue.ai">
