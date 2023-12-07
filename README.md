@@ -35,8 +35,8 @@
 
 # Feature Summary
 
-- 🚀 **One Click Install:** ENFUGUE is available as a simple `.exe` or one-and-done `.sh` file to make it as easy as possible to get busy making images and video, not configuring environments.
-- 🤝 **Plays Nice with Others:** Share AI models or entire server environments between ENFUGUE and all the most popular open-source AI applications.
+- 🚀 **One Click Install:** Use our convenient installation script to install, update and launch ENFUGUE without any configuration needed.
+-  **Plays Nice with Others:** Share AI models or entire server environments between ENFUGUE and all the most popular open-source AI applications.
 - 🔪 **Cutting Edge:** All the best open-source image/video generartion models are implemented and available as soon as they're released to the public.
 - 👥 **Owners and Users:** Optional authentication and authorization keeps your installation settings locked down for shared environments.
 - 🗃 **Easy Model Management:** In-app CivitAI browser brings all the best community models to 
@@ -50,61 +50,45 @@
 
 # Installation and Running
 
-## As Easy as Possible: Self-Contained Executable
+A script is provided for Windows and Linux machines to install, update, and run ENFUGUE. Copy the relevant command below and answer the on-screen prompts to choose your installation type and install optional dependencies.
 
-1. Navigate to [the Releases page](https://github.com/painebenjamin/app.enfugue.ai/releases) and download the latest release as `.zip` (Windows) or `.tar.gz` (MacOS & Linux).
-2. Extract the archive anywhere. See the releases page for details on extraction.
-3. Navigate to the archive folder and run the executable file - `enfugue-server.exe` for Windows, or `enfugue.sh` for Linux and MacOS. Some situations may require additional commands, see the releases page for more details.
+## Windows
+```cmd
+curl https://raw.githubusercontent.com/painebenjamin/app.enfugue.ai/main/enfugue.bat -o enfugue.bat
+enfugue.bat
+```
 
-On windows, you will now see the Enfugue icon in the bottom-right-hand corner of your screen. Click on this to exit the server when you wish. To enable TensorRT for Windows follow the steps under **Windows TensorRT Support** below.
+## Linux
+```sh
+curl https://raw.githubusercontent.com/painebenjamin/app.enfugue.ai/main/enfugue.sh -o enfugue.sh
+chmod u+x enfugue.sh
+./enfugue.sh
+```
 
-## Advanced: Creating your Own Environment and Running from Command Line
+Both of these commands accept the same flags.
 
-This instruction assumes you are using a variant of [Conda](https://docs.conda.io/projects/conda/en/stable/).
-1. Choose an environment in in the `environments/` directory that corresponds to your platform and hardware.
-   1. If you have a powerful next-generation Nvidia GPU (3000 series and better with at least 12 GB of VRAM), use `tensorrt` for all of the capabilities of `cuda` with the added ability to compile TensorRT engines.
-   2. If you have any other Nvidia GPU or CUDA-capable device, or do not plan to use `tensorrt`, use `cuda`.
-   3. If you are on a MacOS M1 or M2 device, use `macos-mps`. Other MacOS devices are not supported.
-   4. Additional graphics APIs for AMD devices coming soon.
-2. Run the command `conda env create -f <file_downloaded_above>`
-3. Run the command `conda activate enfugue`
-4. Run the command `enfugue run` to run the server. Issue a keyboard interrupt (Ctrl+C) to stop it.
+```sh
+USAGE: enfugue.(bat|sh) [OPTIONS]
+Options:
+ --help                   Display this help message.
+ --conda / --portable     Automatically set installation type (do not prompt.)
+ --update / --no-update   Automatically apply or skip updates (do not prompt.)
+ --mmpose / --no-mmpose   Automatically install or skip installing MMPose (do not prompt.)
+```
 
-## À la Carte
+## Manual Installation
 
-You can install `enfugue` into any other latent diffusion Python environment using `pip install enfugue`. If you are on Linux and want to install TensorRT support as well, use `pip install enfugue[tensorrt]`. If you are on Windows, this will not work, you will need to install the python packages from source as detailed below.
-
-## Windows Nvidia TensorRT Support
-
-In order to use Nvidia TensorRT on Windows, some additional steps must be taken. This is temporary (hopefully) as TensorRT support for Windows is very new.
-
-You will be asked to add a number of directories to your PATH. On windows, the easiest way to reach it is:
-1. Open the start menu and begin typing "Environment". You will see an option that says "Edit the system environment variables," click this.
-2. In the bottom-right-hand corner of the System Properties window, click "Environment Variables."
-3. Under your user, click the "Path" variable and then click "Edit".
-4. Add a new entry pointing to the requested path.
-
-<p align="center">
-    <img src="https://github.com/painebenjamin/app.enfugue.ai/blob/main/docs/github-windows-env.png?raw=true" alt="Windows Configuration for Enabling TensorRT" />
-</p>
-
-Before downloading anything, you will need to make an account with Nvidia and [Join the Nvidia Developer Program](https://developer.nvidia.com/developer-program).
-
-Once that is complete, download the following packages and install them anywhere to your system. 
-1. [Install CUDA](https://developer.nvidia.com/cuda-11-7-1-download-archive?target_os=Windows&target_arch=x86_64&target_version=10&target_type=exe_local), add `/bin` to PATH
-2. [Install CUDNN](https://developer.nvidia.com/rdp/cudnn-download), add `/lib` to PATH
-3. [Install TensorRT](https://developer.nvidia.com/nvidia-tensorrt-8x-download), add `/lib` to PATH. If you are creating your own environment, you should also use `pip` to install `python/tensorrt-8.*-cp310-none-win_amd64.whl` from this directory.
-4. If you are creating your own environment, now run `pip install enfugue[tensorrt]`
+If you want to install without using the installation scripts, see this [Wiki page](https://github.com/painebenjamin/app.enfugue.ai/wiki/Manual-Installation).
 
 ## Configuration
 
-Many configuration options are available, but none are required. If you want to specify things such as the host and port that the server listens on, please review the documentation for this on [the wiki](https://github.com/painebenjamin/app.enfugue.ai/wiki/Configuration-for-Advanced-Users).
+Many configuration options are available, but none are required. If you want to specify things such as the host and port that the server listens on, please review the documentation for this on [this Wiki page](https://github.com/painebenjamin/app.enfugue.ai/wiki/Configuration-for-Advanced-Users).
 
 # App Quickstart Guide
 
 Once the Enfugue server is running on your computer, you can start using the app. Simply open any browser (Chromium-based browsers are recommended for all features, but Firefox is also supported) and navigate to `https://app.enfugue.ai:45554`, or for short, `my.enfugue.ai` (this redirects you to the first address.) If you specified your own configuration, then the server will instead be listening on your configured address. You'll be greeted by your application home screen and some initial documentation - please read it in it's entirety.
 
-## Windows
+## Interface Windows
 
 The Enfugue interface uses a custom frontend framework which features a windows-like interface. Many interface elements will spawn windows; these can be moved around, minimized, maximized, resized and closed as you would expect if you've ever worked in a window-focused interface.
 
