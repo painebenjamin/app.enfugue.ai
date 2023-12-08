@@ -353,7 +353,7 @@ IF "!INSTALL_TYPE!" NEQ "portable" where enfugue.exe 2>NUL >NUL && (
 IF "!INSTALL_TYPE!" NEQ "conda" where enfugue-server.exe 2>NUL >NUL && (
     :: Execute (asynchronous)
     START enfugue-server
-    ECHO ENFUGUE launched. A browser window will open shortly - this window can now be closed. To terminate the ENFUGUE server, right-click the icon in the bottom-right hand corner.
+    ECHO ENFUGUE launched. A browser window will open shortly - this window can now be closed. To terminate the ENFUGUE server, right-click the icon in the system tray (by default in the bottom-right hand corner.)
     ECHO This window will automatically close in 15 seconds.
     %WINDIR%\System32\timeout.exe /T 15
 )
@@ -471,7 +471,8 @@ EXIT /b 0
 REM Download conda if it's not available
 IF "%CONDA_AVAILABLE%"=="0" (
     ECHO Downloading miniconda [Package Manager]
-    curl -L https://repo.anaconda.com/miniconda/Miniconda3-latest-Windows-x86_64.exe -o miniconda.exe
+
+curl -L https://repo.anaconda.com/miniconda/Miniconda3-latest-Windows-x86_64.exe -o miniconda.exe
     START /wait "" miniconda.exe /InstallationType=JustMe /RegisterPython=0 /S /D=%CONDA_INSTALL_PATH%
     DEL miniconda.exe
 )
