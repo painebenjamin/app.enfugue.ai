@@ -14,6 +14,7 @@ dependencies:
   - ffmpeg
   - opencv
   - openh264
+  - git
   - pip:
     - torch>=2.0.1+cu118
     - torchvision>=0.15.2+cu118

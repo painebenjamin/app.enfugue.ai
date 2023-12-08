@@ -12,6 +12,7 @@ dependencies:
   - ffmpeg=6.0.0
   - opencv
   - openh264
+  - git
   - pip:
     - brotli>=1.0.9
     - torch>=2.0.1

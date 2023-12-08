@@ -10,6 +10,7 @@ dependencies:
   - pip
   - numpy
   - ffmpeg
+  - git
   - pip:
     - torch>=2.0.1
     - torchvisio>=0.15.2

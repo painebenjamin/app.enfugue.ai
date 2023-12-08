@@ -9,6 +9,7 @@ dependencies:
   - pip
   - numpy
   - ffmpeg
+  - git
   - pip:
     - brotli>=1.0.9
     - torch>=2.0.1

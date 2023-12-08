@@ -16,6 +16,7 @@ dependencies:
   - pytorch=1.13.1
   - opencv
   - openh264
+  - git
   - pip:
     - torch==1.13.1+cu117
     - brotli>=1.0.9
