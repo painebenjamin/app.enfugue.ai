@@ -159,11 +159,18 @@ enfugue: ^
 ::
 :: -- end of configuration --
 
+:: URLs for remote resources
+SET GITHUB_API_RELEASE_URL=https://api.github.com/repos/painebenjamin/app.enfugue.ai/releases/latest
+SET CONDA_ENV_FILE_URL=https://raw.githubusercontent.com/painebenjamin/app.enfugue.ai/main/environments/windows-cuda.yml
+SET CONDA_DOWNLOAD_URL=https://repo.anaconda.com/miniconda/Miniconda3-latest-Windows-x86_64.exe
+SET ZIP_DOWNLOAD_URL=https://www.7-zip.org/a/7zr.exe -o 7zr.exe
+
 :: Static Variables
 SET LF=-
 SET VERSION_FILE_PATH=enfugue\version.txt
 SET CONDA_INSTALL_PATH=%UserProfile%\miniconda3
 SET GET_PIP_VERSIONS="python -m pip install enfugue== 2>&1"
+SET CURL_FLAGS=--ssl-no-revoke --location
 
 :: Capability Flags
 SET ZIP_AVAILABLE=0
@@ -261,7 +268,7 @@ if "!INSTALL_TYPE!" NEQ "conda" where enfugue-server.exe >NUL 2>NUL && (
     )
     IF "!INSTALL_UPDATE!" NEQ "0" IF "!INSTALL_TYPE!" NEQ "conda" (
         REM Get available version
-        FOR /f "delims=" %%I IN ('curl -s https://api.github.com/repos/painebenjamin/app.enfugue.ai/releases/latest') DO (
+        FOR /f "delims=" %%I IN ('curl %CURL_FLAGS% -s %GITHUB_API_RELEASE_URL%') DO (
             ECHO "%%I" | findstr /C:"tag_name">NUL && (
                 SET ENFUGUE_AVAILABLE_PORTABLE_VERSION=%%I
             )
@@ -432,7 +439,7 @@ EXIT /b 0
 REM This function downloads and extracts the latest portable release.
 SET ARCHIVE_NAME=
 SET ARCHIVES=
-FOR /f "delims=" %%I IN ('curl -s https://api.github.com/repos/painebenjamin/app.enfugue.ai/releases/latest') DO (
+FOR /f "delims=" %%I IN ('curl %CURL_FLAGS% -s %GITHUB_API_RELEASE_URL%') DO (
     ECHO "%%I" | findstr /C:"browser_download_url">NUL && (
         ECHO "%%I" | findstr /C:"win">NUL && (
             FOR /f delims^=^"^ ^tokens^=4 %%J IN ('ECHO %%I') DO (
@@ -442,7 +449,7 @@ FOR /f "delims=" %%I IN ('curl -s https://api.github.com/repos/painebenjamin/app
                 ) ELSE (
                     SET ARCHIVES=!ARCHIVES! %%~nJ%%~xJ
                 )
-                curl -L %%J -o %%~nJ%%~xJ
+                curl %CURL_FLAGS% %%J -o %%~nJ%%~xJ
             )
         )
     )
@@ -453,7 +460,7 @@ IF NOT "!ARCHIVE_NAME!"=="" (
     ) ELSE (
         IF "!ZIP_R_AVAILABLE!"=="0" (
             ECHO Downloading 7zr.exe [7-Zip Standalone Executable]
-            curl -L https://www.7-zip.org/a/7zr.exe -o 7zr.exe
+            curl %CURL_FLAGS% %ZIP_DOWNLOAD_URL% -o 7zr.exe
         )
         7zr x !ARCHIVE_NAME!.001 -y
         REM Specifically call built-in tar just in case we're in cygwin
@@ -472,12 +479,12 @@ REM Download conda if it's not available
 IF "%CONDA_AVAILABLE%"=="0" (
     ECHO Downloading miniconda [Package Manager]
 
-curl -L https://repo.anaconda.com/miniconda/Miniconda3-latest-Windows-x86_64.exe -o miniconda.exe
+curl %CURL_FLAGS% %CONDA_DOWNLOAD_URL% -o miniconda.exe
     START /wait "" miniconda.exe /InstallationType=JustMe /RegisterPython=0 /S /D=%CONDA_INSTALL_PATH%
     DEL miniconda.exe
 )
 REM Download environment file
-curl https://raw.githubusercontent.com/painebenjamin/app.enfugue.ai/main/environments/windows-cuda.yml -o environment.yml 2>NUL
+curl %CURL_FLAGS% %CONDA_ENV_FILE_URL% -o environment.yml 2>NUL
 ECHO Creating Environment
 FOR /f %%I IN ('where conda.bat') DO (
     %%I env create -f environment.yml
