@@ -177,6 +177,11 @@ class InpaintingController extends Controller {
 
         this.subscribe("engineWidthChange", (newWidth) => this.resize(newWidth));
         this.subscribe("engineHeightChange", (newHeight) => this.resize(null, newHeight));
+        this.subscribe("quickUpscale", () => {
+            let currentState = this.getState();
+            currentState.inpainting.options.inpaint = false;
+            this.setState(currentState);
+        });
         this.subscribe("layersChanged", (layers) => {
             if (isEmpty(layers)) {
                 this.inpaintForm.hide();
