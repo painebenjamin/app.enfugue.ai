@@ -55,6 +55,7 @@ if TYPE_CHECKING:
         BackgroundRemover,
         CaptionUpsampler,
     )
+    from torch import Tensor
 
 def noop(*args: Any) -> None:
     """

@@ -39,7 +39,7 @@ class TweaksFormView extends FormView {
                 "label": "Guidance Scale",
                 "class": FloatInputView,
                 "config": {
-                    "min": 1.0,
+                    "min": 0.0,
                     "max": 100.0,
                     "value": defaultGuidanceScale,
                     "step": 0.01,
@@ -50,7 +50,7 @@ class TweaksFormView extends FormView {
                 "label": "Inference Steps",
                 "class": NumberInputView,
                 "config": {
-                    "min": 2,
+                    "min": 1,
                     "max": 250,
                     "value": defaultInferenceSteps,
                     "tooltip": "How many steps to take during primary inference, larger values take longer to process but can produce better results."

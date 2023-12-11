@@ -118,6 +118,12 @@ class CaptionUpsamplerConversationView extends View {
                 }
             }
             this.node.content(...nodeContents);
+        } else if (status.status === "error" && !isEmpty(status.message)) {
+            for (let loadingNode of this.node.findAll(".loading")) {
+                this.node.remove(loadingNode);
+            }
+            this.node.append(E.message().class("agent").content(E.div().content(`ERROR: ${status.message}`)));
+            this.node.render();
         }
     }
 

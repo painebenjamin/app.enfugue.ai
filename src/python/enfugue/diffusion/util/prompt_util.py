@@ -1,11 +1,134 @@
 from __future__ import annotations
+
 from dataclasses import dataclass
+
+from compel import Compel, DownweightMode, BaseTextualInversionManager
+from compel.embeddings_provider import EmbeddingsProvider, EmbeddingsProviderMulti, ReturnedEmbeddingsType
 from typing import Optional, Union, Tuple, List, Callable, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from torch import Tensor, dtype
+    import torch
+    from transformers import CLIPTokenizer, CLIPTextModel
+    from torch import Tensor
 
-__all__ = ["Prompt", "EncodedPrompt", "EncodedPrompts"]
+__all__ = ["Prompt", "EncodedPrompt", "EncodedPrompts", "PromptEncoder"]
+
+def default_get_dtype_for_device(device: torch.device) -> torch.dtype:
+    import torch
+    return torch.float32
+
+class PromptEncoder(Compel):
+    """
+    Extend compel slightly to permit multiple CLIP skip levels and make encoding more generic
+    """
+    def __init__(self,
+         tokenizer: Union[CLIPTokenizer, List[CLIPTokenizer]],
+         text_encoder: Union[CLIPTextModel, List[CLIPTextModel]],
+         textual_inversion_manager: Optional[BaseTextualInversionManager] = None,
+         dtype_for_device_getter: Callable[[torch.device], torch.dtype] = default_get_dtype_for_device,
+         truncate_long_prompts: bool = True,
+         padding_attention_mask_value: int = 1,
+         downweight_mode: DownweightMode = DownweightMode.MASK,
+         returned_embeddings_type: ReturnedEmbeddingsType = ReturnedEmbeddingsType.LAST_HIDDEN_STATES_NORMALIZED,
+         requires_pooled: Union[bool, List[bool]] = False,
+         device: Optional[str] = None
+     ) -> None:
+        """
+        Copied from https://github.com/damian0815/compel/blob/main/src/compel/compel.py
+        Modified slightly to change EmbeddingsProvider to FlexibleEmbeddingsProvider
+        """
+        if isinstance(tokenizer, (tuple, list)) and not isinstance(text_encoder, (tuple, list)):
+            raise ValueError("Cannot provide list of tokenizers, but not of text encoders.")
+        elif not isinstance(tokenizer, (tuple, list)) and isinstance(text_encoder, (tuple, list)):
+            raise ValueError("Cannot provide list of text encoders, but not of tokenizers.")
+        elif isinstance(tokenizer, (tuple, list)) and isinstance(text_encoder, (tuple, list)):
+            self.conditioning_provider = EmbeddingsProviderMulti(tokenizers=tokenizer,
+                text_encoders=text_encoder,
+                textual_inversion_manager=textual_inversion_manager,
+                dtype_for_device_getter=dtype_for_device_getter,
+                truncate=truncate_long_prompts,
+                padding_attention_mask_value = padding_attention_mask_value,
+                downweight_mode=downweight_mode,
+                returned_embeddings_type=returned_embeddings_type,
+                requires_pooled_mask = requires_pooled
+            )
+        else:
+            self.conditioning_provider = FlexibleEmbeddingsProvider(tokenizer=tokenizer,
+                text_encoder=text_encoder,
+                textual_inversion_manager=textual_inversion_manager,
+                dtype_for_device_getter=dtype_for_device_getter,
+                truncate=truncate_long_prompts,
+                padding_attention_mask_value = padding_attention_mask_value,
+                downweight_mode=downweight_mode,
+                returned_embeddings_type=returned_embeddings_type,
+                device=device
+            )
+        self._device = device
+        self.requires_pooled = requires_pooled
+
+    @property
+    def clip_skip(self) -> int:
+        """
+        Passes clip-skip through to conditioning provider
+        """
+        return getattr(self.conditioning_provider, "clip_skip", 0)
+
+    @clip_skip.setter
+    def clip_skip(self, skip: int) -> None:
+        """
+        Passes clip-skip through to conditioning provider
+        """
+        setattr(self.conditioning_provider, "clip_skip", skip)
+
+class FlexibleEmbeddingsProvider(EmbeddingsProvider):
+    """
+    Extend compel slightly to permit multiple CLIP skip levels and make encoding more generic
+    """
+    clip_skip: int = 0
+
+    def _encode_token_ids_to_embeddings(self, token_ids: Tensor, attention_mask: Optional[Tensor]=None) -> Tensor:
+        """
+        Extends compels functionality to permit any level of clip skip
+        """
+        needs_hidden_states = (
+            self.returned_embeddings_type == ReturnedEmbeddingsType.PENULTIMATE_HIDDEN_STATES_NORMALIZED or
+            self.returned_embeddings_type == ReturnedEmbeddingsType.PENULTIMATE_HIDDEN_STATES_NON_NORMALIZED
+        )
+        text_encoder_output = self.text_encoder(
+            token_ids,
+            attention_mask,
+            output_hidden_states=needs_hidden_states,
+            return_dict=True
+        )
+        if self.returned_embeddings_type is ReturnedEmbeddingsType.PENULTIMATE_HIDDEN_STATES_NON_NORMALIZED:
+            penultimate_hidden_state = text_encoder_output.hidden_states[-(self.clip_skip + 2)]
+            return penultimate_hidden_state
+        elif self.returned_embeddings_type is ReturnedEmbeddingsType.PENULTIMATE_HIDDEN_STATES_NORMALIZED:
+            penultimate_hidden_state = text_encoder_output.hidden_states[-(self.clip_skip + 1)]
+            return self.text_encoder.text_model.final_layer_norm(penultimate_hidden_state)
+        elif self.returned_embeddings_type is ReturnedEmbeddingsType.LAST_HIDDEN_STATES_NORMALIZED:
+            # already normalized
+            return text_encoder_output.last_hidden_state
+
+        assert False, f"unrecognized ReturnEmbeddingsType: {self.returned_embeddings_type}"
+
+    def get_pooled_embeddings(
+        self,
+        texts: List[str],
+        attention_mask: Optional[Tensor]=None,
+        device: Optional[str]=None
+    ) -> Optional[Tensor]:
+        """
+        Uses the generic way to get pooled embeddings
+        """
+        import torch
+        device = device or self.device
+
+        token_ids = self.get_token_ids(texts, padding="max_length", truncation_override=True)
+        token_ids = torch.tensor(token_ids, dtype=torch.long).to(device)
+
+        return self.text_encoder(token_ids, attention_mask)[0]
+
 
 @dataclass(frozen=True)
 class Prompt:
@@ -110,7 +233,7 @@ class EncodedPrompt:
         return self.check_get_tensor(frames, self.negative_pooled_embeds)
 
     @property
-    def dtype(self) -> dtype:
+    def dtype(self) -> torch.dtype:
         """
         Gets the dtype of the encoded prompt.
         """
@@ -345,7 +468,7 @@ class EncodedPrompts:
         return pooled_embeds
 
     @property
-    def dtype(self) -> dtype:
+    def dtype(self) -> torch.dtype:
         """
         Gets the dtype of the encoded prompt.
         """

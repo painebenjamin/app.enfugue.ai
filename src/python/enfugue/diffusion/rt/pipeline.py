@@ -26,7 +26,7 @@ from diffusers.models import (
 )
 from diffusers.pipelines.stable_diffusion import StableDiffusionSafetyChecker
 
-from enfugue.util import logger, TokenMerger
+from enfugue.util import logger, merge_tokens
 from enfugue.diffusion.pipeline import EnfugueStableDiffusionPipeline
 from enfugue.diffusion.util import DTypeConverter
 from enfugue.diffusion.rt.engine import Engine
@@ -343,14 +343,14 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
             raise ValueError("No tokenizer available in TensorRT pipeline.")
         if prompt and prompt_2:
             logger.debug("Merging prompt and prompt_2")
-            prompt = str(TokenMerger(prompt, prompt_2))
+            prompt = merge_tokens(prompt, prompt_2)
         elif not prompt and prompt_2:
             logger.debug("Using prompt_2 for empty primary prompt")
             prompt = prompt_2
         
         if negative_prompt and negative_prompt_2:
             logger.debug("Merging negative_prompt and negative_prompt_2")
-            negative_prompt = str(TokenMerger(negative_prompt, negative_prompt_2))
+            negative_prompt = merge_tokens(negative_prompt, negative_prompt_2)
         elif not negative_prompt and negative_prompt_2:
             logger.debug("Using negative_prompt_2 for empty primary negative_prompt")
             negative_prompt = negative_prompt_2

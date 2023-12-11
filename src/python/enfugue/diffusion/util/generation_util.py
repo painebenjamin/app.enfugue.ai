@@ -54,7 +54,7 @@ class GridMaker:
         """
         Calculates the maximum length of text
         """
-        return (self.font_size - 4) + self.grid_size // (self.font_size - 4)
+        return (self.font_size - 8) + self.grid_size // (self.font_size - 4)
 
     def split_text(self, text: str) -> str:
         """

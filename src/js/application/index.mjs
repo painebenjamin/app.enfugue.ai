@@ -33,6 +33,7 @@ import { LayersController } from "../controller/common/layers.mjs";
 import { PromptTravelController } from "../controller/common/prompts.mjs";
 import { AnimationsController } from "../controller/common/animations.mjs";
 import { ThemeController } from "../controller/common/theme.mjs";
+import { LayoutController } from "../controller/common/layout.mjs";
 import { AnnouncementsController } from "../controller/common/announcements.mjs";
 import { HistoryDatabase } from "../common/history.mjs";
 import { SimpleNotification } from "../common/notify.mjs";
@@ -114,6 +115,7 @@ class Application {
         "models": "m",
         "system": "s",
         "extras": "e",
+        "layout": "l",
         "theme": "t",
         "help": "h"
     };
@@ -189,6 +191,8 @@ class Application {
      * Performs all the actions necessary to initialize the frontend.
      */
     async initialize() {
+        this.mouseX = 0;
+        this.mouseY = 0;
         this.tooltips = new TooltipHelper();
         this.container = document.querySelector(this.config.view.applicationContainer);
         if (isEmpty(this.container)) {
@@ -205,11 +209,13 @@ class Application {
         this.notifications = new NotificationCenterView(this.config);
         this.history = new HistoryDatabase(this.config.history.size, this.config.debug);
         this.images = new ImageEditorView(this);
+        this.canvas = new ImageEditorView(this);
         this.controlsHelper = new ControlsHelperView(this.config);
 
         this.container.appendChild(await this.menu.render());
         this.container.appendChild(await this.sidebar.render());
         this.container.appendChild(await this.images.render());
+        this.container.appendChild(await this.canvas.render());
         this.container.appendChild(await this.windows.render());
         this.container.appendChild(await this.notifications.render());
         this.container.appendChild(await this.controlsHelper.render());
@@ -234,6 +240,8 @@ class Application {
         await this.registerPromptControllers();
         if (this.config.debug) console.log("Registering menu controllers.");
         await this.registerMenuControllers();
+        if (this.config.debug) console.log("Registering layout controllers.");
+        await this.registerLayoutControllers();
         if (this.config.debug) console.log("Registering theme controllers.");
         await this.registerThemeControllers();
         if (this.config.debug) console.log("Registering sidebar controllers.");
@@ -254,6 +262,8 @@ class Application {
         document.addEventListener("keypress", (e) => this.onKeyPress(e));
         document.addEventListener("keyup", (e) => this.onKeyUp(e));
         document.addEventListener("keydown", (e) => this.onKeyDown(e));
+        document.addEventListener("mousemove", (e) => this.onMouseMove(e));
+        document.addEventListener("mouseleave", (e) => this.onMouseLeave(e));
 
         if (this.config.debug) console.log("Application initialization complete.");
 
@@ -275,34 +285,13 @@ class Application {
     /**
      * Binds animations that should start immediately.
      */
-    async startAnimations() {
-        let headerLogo = document.querySelector("header h1");
-        if (isEmpty(headerLogo)) {
+    startAnimations() {
+        this.headerLogo = document.querySelector("header h1");
+        if (isEmpty(this.headerLogo)) {
             console.warn("Can't find header logo, not binding animations.");
             return;
         }
         this.animations = true;
-        window.addEventListener("mousemove", (e) => {
-            if (this.animations === false) return;
-            let [x, y] = [
-                    e.clientX / window.innerWidth,
-                    e.clientY / window.innerHeight
-                ],
-                textShadowParts = [];
-            
-            for (let i = 0; i < this.constructor.logoShadowSteps; i++) {
-                let [shadowDistanceX, shadowDistanceY] = [
-                        x * (i + 1) * this.constructor.logoShadowOffset,
-                        y * (i + 1) * this.constructor.logoShadowOffset
-                    ],
-                    shadowOpacity = this.constructor.logoShadowOpacity - (
-                        (i / this.constructor.logoShadowSteps) * this.constructor.logoShadowOpacity
-                    ),
-                    shadowColor = `rgba(${this.constructor.logoShadowRGB.concat(shadowOpacity.toFixed(2)).join(',')})`;
-                textShadowParts.push(`${shadowDistanceX}px ${shadowDistanceY}px ${this.constructor.logoShadowSpread}px ${shadowColor}`);
-            }
-            headerLogo.style.textShadow = textShadowParts.join(",");
-        });
     }
 
     /**
@@ -462,6 +451,14 @@ class Application {
     }
 
     /**
+     * Creates the layout manager (adjust canvas/samples)
+     */
+    async registerLayoutControllers() {
+        this.layout = new LayoutController(this);
+        await this.layout.initialize();
+    }
+
+    /**
      * Creates the themes manager (adjust colors/fonts.)
      */
     async registerThemeControllers() {
@@ -499,8 +496,9 @@ class Application {
                 delete menuCategories.system;
             }
         }
-        menuCategories.extras = "Extras";
+        menuCategories.layout = "Layout";
         menuCategories.theme = "Theme";
+        menuCategories.extras = "Extras";
         menuCategories.help = "Help";
         return menuCategories;
     }
@@ -517,7 +515,7 @@ class Application {
             this.menuControllers[menuCategoryName] = [];
             try {
                 let menuCategory = await this.menu.addCategory(menuCategoryLabel, menuCategoryShortcut);
-                if (menuCategoryName === "theme") continue; // Theme is built dynamically
+                if (["theme", "layout"].indexOf(menuCategoryName) !== -1) continue; // Built dynamically
                 let menuCategoryModule = await import(`../controller/${menuCategoryName}/index.autogenerated.mjs`);
                 for (let menuControllerPath of menuCategoryModule.Index) {
                     try {
@@ -1154,6 +1152,32 @@ class Application {
         if (e.key === "Shift") {
             this.menu.addClass("highlight");
         }
+        if (e.code === "Space") {
+            if (this.isDragging) return;
+            for (let nodeEditor of [this.images, this.canvas]) {
+                if (!isEmpty(nodeEditor.node)) {
+                    let nodeCanvas = nodeEditor.node.find("enfugue-node-canvas");
+                    if (!isEmpty(nodeCanvas) && !isEmpty(nodeCanvas.element) && nodeCanvas.element.checkVisibility()) {
+                        let canvasPosition = nodeCanvas.element.getBoundingClientRect();
+                        if (
+                            (canvasPosition.x < this.mouseX && this.mouseX < canvasPosition.x + canvasPosition.width) &&
+                            (canvasPosition.y < this.mouseY && this.mouseY < canvasPosition.y + canvasPosition.height)
+                        ) {
+                            let e = new MouseEvent(
+                                "mousedown",
+                                {
+                                    "clientX": this.mouseX,
+                                    "clientY": this.mouseY,
+                                    "button": 1
+                                }
+                            );
+                            nodeCanvas.trigger(e);
+                        }
+                    }
+                }
+            }
+            console.log(this.mouseX, this.mouseY);
+        }
     }
 
     /**
@@ -1163,6 +1187,42 @@ class Application {
         if (e.key === "Shift") {
             this.menu.removeClass("highlight");
         }
+    }
+
+    /**
+     * The global mouseleave event 
+     */
+    onMouseLeave(e) {
+
+    }
+
+    /**
+     * The global onMouseMove event tracks position and fires animations.
+     */
+    onMouseMove(e) {
+        this.mouseX = e.clientX;
+        this.mouseY = e.clientY;
+        if (this.animations === false) {
+            return;
+        }
+        let [x, y] = [
+                e.clientX / window.innerWidth,
+                e.clientY / window.innerHeight
+            ],
+            textShadowParts = [];
+
+        for (let i = 0; i < this.constructor.logoShadowSteps; i++) {
+            let [shadowDistanceX, shadowDistanceY] = [
+                    x * (i + 1) * this.constructor.logoShadowOffset,
+                    y * (i + 1) * this.constructor.logoShadowOffset
+                ],
+                shadowOpacity = this.constructor.logoShadowOpacity - (
+                    (i / this.constructor.logoShadowSteps) * this.constructor.logoShadowOpacity
+                ),
+                shadowColor = `rgba(${this.constructor.logoShadowRGB.concat(shadowOpacity.toFixed(2)).join(',')})`;
+            textShadowParts.push(`${shadowDistanceX}px ${shadowDistanceY}px ${this.constructor.logoShadowSpread}px ${shadowColor}`);
+        }
+        this.headerLogo.style.textShadow = textShadowParts.join(",");
     }
 
     /**

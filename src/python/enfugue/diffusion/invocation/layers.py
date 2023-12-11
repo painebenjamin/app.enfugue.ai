@@ -33,7 +33,6 @@ from enfugue.util import (
     get_frames_or_image_from_file,
     dilate_erode,
     redact_images_from_metadata,
-    merge_tokens,
 )
 
 from enfugue.diffusion.constants import *
@@ -157,11 +156,11 @@ class LayeredInvocation:
         """
         if all([not prompt for prompt, weight in args]):
             return None
-        return merge_tokens(**dict([
-            (prompt, weight)
+        return "".join([
+            f"({prompt}){weight}"
             for prompt, weight in args
             if prompt
-        ]))
+        ])
 
     @classmethod
     def get_image_bounding_box(
@@ -314,6 +313,7 @@ class LayeredInvocation:
             "refiner_negative_prompt": self.refiner_negative_prompt,
             "refiner_negative_prompt_2": self.refiner_negative_prompt_2,
             "ip_adapter_model": self.ip_adapter_model,
+            "clip_skip": self.clip_skip
         }
 
     @classmethod

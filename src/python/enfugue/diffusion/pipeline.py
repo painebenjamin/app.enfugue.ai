@@ -33,6 +33,8 @@ import safetensors.torch
 from contextlib import contextmanager
 from collections import defaultdict
 from omegaconf import OmegaConf
+from compel import ReturnedEmbeddingsType
+from einops import rearrange
 from math import floor, ceil
 
 from transformers import (
@@ -86,34 +88,29 @@ from diffusers.utils import PIL_INTERPOLATION
 from diffusers.utils.torch_utils import randn_tensor
 from diffusers.image_processor import VaeImageProcessor
 
+from pibble.util.files import load_json
+
 from enfugue.diffusion.constants import *
-from enfugue.diffusion.util import (
-    MaskWeightBuilder,
-    Prompt,
-    Chunker,
-    EncodedPrompt,
-    EncodedPrompts,
-    Video,
-    load_state_dict
-)
 from enfugue.util import (
     logger,
     check_download,
     check_download_to_dir,
-    TokenMerger,
+    merge_tokens,
 )
 
-from einops import rearrange
-from pibble.util.files import load_json
-
-from enfugue.util import logger, check_download, check_download_to_dir, TokenMerger
 from enfugue.diffusion.util import (
     load_state_dict,
     empty_cache,
     make_noise,
     blend_latents,
     LatentScaler,
-    MaskWeightBuilder
+    MaskWeightBuilder,
+    PromptEncoder,
+    Prompt,
+    Chunker,
+    EncodedPrompt,
+    EncodedPrompts,
+    Video,
 )
 
 if TYPE_CHECKING:
@@ -526,8 +523,6 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
         unet_config = create_unet_diffusers_config(original_config, image_size=image_size)
         unet_config["upcast_attention"] = upcast_attention
-        if "num_class_embeds" not in unet_config:
-            unet_config["num_class_embeds"] = None
 
         unet = cls.create_unet(
             unet_config,
@@ -1033,14 +1028,14 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         else:
             if prompt and prompt_2:
                 logger.debug("Merging prompt and prompt_2")
-                prompt = str(TokenMerger(prompt, prompt_2))
+                prompt = merge_tokens(prompt, prompt_2)
             elif not prompt and prompt_2:
                 logger.debug("Using prompt_2 for empty primary prompt")
                 prompt = prompt_2
             
             if negative_prompt and negative_prompt_2:
                 logger.debug("Merging negative_prompt and negative_prompt_2")
-                negative_prompt = str(TokenMerger(negative_prompt, negative_prompt_2))
+                negative_prompt = merge_tokens(negative_prompt, negative_prompt_2)
             elif not negative_prompt and negative_prompt_2:
                 logger.debug("Using negative_prompt_2 for empty primary negative_prompt")
                 negative_prompt = negative_prompt_2
@@ -1049,10 +1044,11 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             negative_prompts = [negative_prompt, negative_prompt]
 
         # Align device
+        dtype = torch.float32 if device.type == "cpu" else torch.float16
         if self.text_encoder:
-            self.text_encoder = self.text_encoder.to(device, dtype=torch.float16)
+            self.text_encoder = self.text_encoder.to(device, dtype=dtype)
         if self.text_encoder_2:
-            self.text_encoder_2 = self.text_encoder_2.to(device, dtype=torch.float16)
+            self.text_encoder_2 = self.text_encoder_2.to(device, dtype=dtype)
 
         tokenizers = [self.tokenizer, self.tokenizer_2]
         text_encoders = [self.text_encoder, self.text_encoder_2]
@@ -1062,54 +1058,26 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             for tokenizer, text_encoder, prompt in zip(tokenizers, text_encoders, prompts):
                 if tokenizer is None or text_encoder is None:
                     continue
-                text_inputs = tokenizer(
-                    prompt,
-                    padding="max_length",
-                    max_length=tokenizer.model_max_length,
-                    truncation=True,
-                    return_tensors="pt",
-                )
-                text_input_ids = text_inputs.input_ids
-                untruncated_ids = tokenizer(prompt, padding="longest", return_tensors="pt").input_ids
-
-                if untruncated_ids.shape[-1] >= text_input_ids.shape[-1] and not torch.equal(
-                    text_input_ids, untruncated_ids
-                ):
-                    removed_text = tokenizer.batch_decode(untruncated_ids[:, tokenizer.model_max_length - 1 : -1])
-                    logger.warning(
-                        "The following part of your input was truncated because CLIP can only handle sequences up to"
-                        f" {tokenizer.model_max_length} tokens: {removed_text}"
-                    )
-
-                if (
-                    not self.is_sdxl
-                    and hasattr(text_encoder.config, "use_attention_mask")
-                    and text_encoder.config.use_attention_mask
-                ):
-                    attention_mask = text_inputs.attention_mask.to(device)
-                else:
-                    attention_mask = None
-
-                # Align device and encode
-                text_input_ids = text_input_ids.to(device=device)
-                text_encoder.to(device=device)
-                prompt_embeds = text_encoder(
-                    text_input_ids,
-                    output_hidden_states=self.is_sdxl or clip_skip is not None,
-                    attention_mask=attention_mask
-                )
 
                 if self.is_sdxl:
-                    pooled_prompt_embeds = prompt_embeds[0]  # type: ignore
-                    if clip_skip is None:
-                        prompt_embeds = prompt_embeds.hidden_states[-2]  # type: ignore
-                    else:
-                        prompt_embeds = prompt_embeds.hidden_states[-(clip_skip + 2)] # type: ignore
-                elif clip_skip is not None:
-                    prompt_embeds = prompt_embeds[-1][-(clip_skip + 1)] # type: ignore
-                    prompt_embeds = text_encoder.text_model.final_layer_norm(prompt_embeds)
+                    return_type = ReturnedEmbeddingsType.PENULTIMATE_HIDDEN_STATES_NON_NORMALIZED
+                elif clip_skip:
+                    return_type = ReturnedEmbeddingsType.PENULTIMATE_HIDDEN_STATES_NORMALIZED
                 else:
-                    prompt_embeds = prompt_embeds[0].to(dtype=text_encoder.dtype, device=device)  # type: ignore
+                    return_type = ReturnedEmbeddingsType.LAST_HIDDEN_STATES_NORMALIZED
+
+                compel = PromptEncoder(
+                    text_encoder=text_encoder,
+                    tokenizer=tokenizer,
+                    returned_embeddings_type=return_type,
+                    requires_pooled=self.is_sdxl
+                )
+                compel.clip_skip = 0 if not clip_skip else clip_skip
+
+                if self.is_sdxl:
+                    prompt_embeds, pooled_prompt_embeds = compel([prompt])
+                else:
+                    prompt_embeds = compel([prompt])
 
                 bs_embed, seq_len, _ = prompt_embeds.shape  # type: ignore
                 # duplicate text embeddings for each generation per prompt, using mps friendly method
@@ -1118,6 +1086,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
                 if self.is_sdxl:
                     prompt_embeds_list.append(prompt_embeds)
+
             if self.is_sdxl:
                 prompt_embeds = torch.concat(prompt_embeds_list, dim=-1)
 
@@ -1128,40 +1097,24 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             negative_prompt_embeds = torch.zeros_like(prompt_embeds)  # type: ignore
             negative_pooled_prompt_embeds = torch.zeros_like(pooled_prompt_embeds)
         elif do_classifier_free_guidance and negative_prompt_embeds is None:
-            uncond_tokens: List[str] = [negative_prompt or ""]
             negative_prompt_embeds_list = []
 
             for tokenizer, text_encoder, negative_prompt in zip(tokenizers, text_encoders, negative_prompts):
                 if tokenizer is None or text_encoder is None:
                     continue
-                max_length = prompt_embeds.shape[1]  # type: ignore
-                uncond_input = tokenizer(
-                    uncond_tokens,
-                    padding="max_length",
-                    max_length=max_length,
-                    truncation=True,
-                    return_tensors="pt",
-                )
 
-                if (
-                    not self.is_sdxl
-                    and hasattr(text_encoder.config, "use_attention_mask")
-                    and text_encoder.config.use_attention_mask
-                ):
-                    attention_mask = text_inputs.attention_mask.to(device)
-                else:
-                    attention_mask = None
-
-                negative_prompt_embeds = text_encoder(
-                    uncond_input.input_ids.to(device), output_hidden_states=self.is_sdxl, attention_mask=attention_mask
+                compel = PromptEncoder(
+                    text_encoder=text_encoder,
+                    tokenizer=tokenizer,
+                    returned_embeddings_type=return_type,
+                    requires_pooled=self.is_sdxl
                 )
+                compel.clip_skip = 0 if not clip_skip else clip_skip
 
                 if self.is_sdxl:
-                    # We are only ALWAYS interested in the pooled output of the final text encoder
-                    negative_pooled_prompt_embeds = negative_prompt_embeds[0]  # type: ignore
-                    negative_prompt_embeds = negative_prompt_embeds.hidden_states[-2]  # type: ignore
+                    negative_prompt_embeds, negative_pooled_prompt_embeds = compel([negative_prompt or ""])
                 else:
-                    negative_prompt_embeds = negative_prompt_embeds[0]  # type: ignore
+                    negative_prompt_embeds = compel([negative_prompt or ""])
 
                 if do_classifier_free_guidance:
                     # duplicate unconditional embeddings for each generation per prompt, using mps friendly method
@@ -3289,7 +3242,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         denoising_start: Optional[float]=None,
         denoising_end: Optional[float]=None,
         strength: Optional[float]=0.8,
-        num_inference_steps: int=40,
+        num_inference_steps: int=20,
         guidance_scale: float=7.5,
         num_results_per_prompt: int=1,
         animation_frames: Optional[int]=None,
@@ -3572,7 +3525,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                         prompt_embeds=prompt_embeds,
                         negative_prompt_embeds=negative_prompt_embeds,
                         prompt_2=given_prompt.positive_2,
-                        negative_prompt_2=given_prompt.negative_2
+                        negative_prompt_2=given_prompt.negative_2,
+                        clip_skip=clip_skip
                     )
                 else:
                     these_prompt_embeds = self.encode_prompt(
@@ -3584,7 +3538,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                         prompt_embeds=prompt_embeds,
                         negative_prompt_embeds=negative_prompt_embeds,
                         prompt_2=given_prompt.positive_2,
-                        negative_prompt_2=given_prompt.negative_2
+                        negative_prompt_2=given_prompt.negative_2,
+                        clip_skip=clip_skip
                     )  # type: ignore
                     these_pooled_prompt_embeds = None
                     these_negative_prompt_embeds = None
