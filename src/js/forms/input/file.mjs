@@ -1,5 +1,6 @@
 /** @module forms/input/files */
 import { isEmpty } from "../../base/helpers.mjs";
+import { ImageView } from "../../view/image.mjs";
 import { InputView } from "./base.mjs";
 
 /**
@@ -42,7 +43,7 @@ class FileInputView extends InputView {
         this.progress = i;
         if (this.node !== undefined) {
             this.node.css({
-                "background-size": `${this.progress * 100}% 100%`
+                "background-size": `${this.progress*100}% 100%`
             });
         }
     }
@@ -54,8 +55,69 @@ class FileInputView extends InputView {
         let node = await super.build(),
             progress = isEmpty(this.progress) ? 0 : this.progress;
 
-        return node.css({"background-size": `${progress * 100}% 100%`});
+        node.css({"background-size": `${progress*100}% 100%`})
+            .on("drop", (e) => {
+                if (e.dataTransfer.files) {
+                    e.stopPropagation();
+                }
+            });
+        return node;
     }
 }
 
-export { FileInputView };
+/**
+ * This class extends the file input view to be specific to images.
+ * It also shows the image in the UI.
+ */
+class ImageFileInputView extends FileInputView {
+    /**
+     * Override getValue() to return the data if read
+     */
+    getValue() {
+        if (!isEmpty(this.data)) {
+            return this.data;
+        }
+        return super.getValue();
+    }
+
+    changed() {
+        this.data = null;
+        if (this.node !== undefined) {
+            let nodeParent = this.node.element.parentElement;
+            if (!isEmpty(nodeParent)) {
+                let loadedImage = nodeParent.querySelector("img");
+                if (!isEmpty(loadedImage)) {
+                    nodeParent.removeChild(loadedImage);
+                }
+            }
+        }
+        return new Promise(async (resolve, reject) => {
+            let value = this.getValue();
+            if (value instanceof File) {
+                let reader = new FileReader();
+                reader.addEventListener("load", async () => {
+                    let fileType = reader.result.substring(5, reader.result.indexOf(";"));
+                    if (!fileType.startsWith("image")) {
+                        this.setValue(null);
+                        reject("File must be an image.");
+                        return;
+                    }
+                    this.data = reader.result;
+                    let image = new ImageView(this.config, this.data);
+                    this.node.element.parentElement.insertBefore(await image.render(), this.node.element.parentElement.children[0]);
+                    await super.changed();
+                    resolve();
+                });
+                reader.readAsDataURL(value);
+            } else {
+                await super.changed();
+                resolve();
+            }
+        });
+    }
+}
+
+export {
+    FileInputView,
+    ImageFileInputView
+};

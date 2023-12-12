@@ -460,6 +460,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 model_type = "SDXL-Refiner"
 
         is_sdxl = isinstance(model_type, str) and model_type.startswith("SDXL")
+        is_sdxl_turbo = is_sdxl and "denoiser.sigmas" in checkpoint
 
         num_train_timesteps = 1000  # Default is SDXL
         if "timesteps" in original_config.model.params:
@@ -479,7 +480,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 "set_alpha_to_one": False,
                 "skip_prk_steps": True,
                 "steps_offset": 1,
-                "timestep_spacing": "leading",
+                "timestep_spacing": "trailing" if is_sdxl_turbo else "leading",
             }
             scheduler = EulerDiscreteScheduler.from_config(scheduler_dict)
             scheduler_type = "euler"
@@ -523,6 +524,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
         unet_config = create_unet_diffusers_config(original_config, image_size=image_size)
         unet_config["upcast_attention"] = upcast_attention
+        if is_sdxl_turbo:
+            unet_config["sample_size"] = 64
 
         unet = cls.create_unet(
             unet_config,
@@ -3374,7 +3377,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         elif isinstance(device, str):
             device = torch.device(device)
 
-        do_classifier_free_guidance = guidance_scale > 1.0
+        do_classifier_free_guidance = guidance_scale > 1.0 and self.unet.config.time_cond_proj_dim is None # type: ignore[attr-defined]
 
         # Calculate chunks
         chunker = Chunker(
@@ -3392,7 +3395,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         num_chunks = chunker.num_chunks 
         num_temporal_chunks = chunker.num_frame_chunks
 
-        if strength is not None and floor(num_inference_steps * strength) == 0:
+        if strength is not None and image is not None and floor(num_inference_steps * strength) == 0:
             required_steps = ceil(1.0 / strength)
             logger.warning(f"Strength and steps combination will result in no inference steps, changing `num_inference_steps` to {required_steps}")
             num_inference_steps = required_steps
@@ -3855,7 +3858,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                             target_size=target_size,
                             dtype=encoded_prompts.dtype,
                         )
-                        add_time_ids = torch.cat([add_time_ids, add_time_ids], dim=0)
+                        if do_classifier_free_guidance:
+                            add_time_ids = torch.cat([add_time_ids, add_time_ids], dim=0)
                     add_time_ids = add_time_ids.to(device).repeat(batch_size, 1)
                     added_cond_kwargs["time_ids"] = add_time_ids
             

@@ -38,6 +38,7 @@ DEFAULT_SDXL_REFINER_FILE = os.path.basename(DEFAULT_SDXL_REFINER)
 
 if TYPE_CHECKING:
     from diffusers.pipelines.stable_diffusion import StableDiffusionPipelineOutput
+    from diffusers.pipelines.stable_video_diffusion import StableVideoDiffusionPipeline
     from diffusers.models import (
         ControlNetModel,
         AutoencoderKL,
@@ -3302,8 +3303,7 @@ class DiffusionPipelineManager:
                 "tiling_stride": self.tiling_stride,
                 "requires_safety_checker": self.safe,
                 "torch_dtype": self.dtype,
-                "cache_dir": self.engine_cache_dir,
-                "force_full_precision_vae": self.is_sdxl and "16" not in self.model and (self.vae_name is None or "16" not in self.vae_name),
+                "force_full_precision_vae": self.is_sdxl and "fp16_vae" not in self.model and (self.vae_name is None or "16" not in self.vae_name),
                 "controlnets": self.controlnets,
                 "ip_adapter": self.ip_adapter,
                 "task_callback": getattr(self, "_task_callback", None),
@@ -3446,7 +3446,7 @@ class DiffusionPipelineManager:
                 "tiling_stride": self.tiling_stride,
                 "torch_dtype": self.dtype,
                 "requires_safety_checker": False,
-                "force_full_precision_vae": self.refiner_is_sdxl and "16" not in self.refiner and (
+                "force_full_precision_vae": self.refiner_is_sdxl and "fp16_vae" not in self.refiner and (
                     self.refiner_vae_name is None or "16" not in self.refiner_vae_name
                 ),
                 "controlnets": self.refiner_controlnets,
@@ -3538,7 +3538,7 @@ class DiffusionPipelineManager:
                     **kwargs,
                 )
 
-                if refiner_pipeline.is_sdxl and "16" not in self.refiner and (self.refiner_vae_name is None or "16" not in self.refiner_vae_name):
+                if refiner_pipeline.is_sdxl and "fp16_vae" not in self.refiner and (self.refiner_vae_name is None or "16" not in self.refiner_vae_name):
                     refiner_pipeline.register_to_config(force_full_precision_vae=True)
                 if self.should_cache_refiner:
                     self.task_callback("Saving pipeline to pretrained.")
@@ -3618,7 +3618,7 @@ class DiffusionPipelineManager:
                 "requires_safety_checker": self.safe,
                 "requires_aesthetic_score": False,
                 "controlnets": self.inpainter_controlnets,
-                "force_full_precision_vae": self.inpainter_is_sdxl and "16" not in self.inpainter and (
+                "force_full_precision_vae": self.inpainter_is_sdxl and "fp16_vae" not in self.inpainter and (
                     self.inpainter_vae_name is None or "16" not in self.inpainter_vae_name
                 ),
                 "ip_adapter": self.ip_adapter,
@@ -4106,6 +4106,22 @@ class DiffusionPipelineManager:
             self._caption_upsampler.task_callback = self._task_callback
         return self._caption_upsampler
 
+    def get_svd_pipeline(self, use_xt: bool = True) -> StableVideoDiffusionPipeline:
+        """
+        Gets a SDV pipeline. This should eventually not be separate.
+        """
+        from diffusers import StableVideoDiffusionPipeline
+        path = "stabilityai/stable-video-diffusion-img2vid-xt" if use_xt else "stabilityai/stable-video-diffusion-img2vid"
+        self.task_callback(f"Initializing SVD pipeline from {path}")
+        pipe = StableVideoDiffusionPipeline.from_pretrained(
+            path,
+            torch_dtype=self.dtype,
+            cache_dir=self.engine_cache_dir,
+            variant="fp16"
+        )
+        pipe.enable_model_cpu_offload()
+        return pipe.to(self.device)
+
     def get_xl_controlnet(self, controlnet: str) -> ControlNetModel:
         """
         Loads an XL ControlNet from file or dies trying
@@ -4513,6 +4529,81 @@ class DiffusionPipelineManager:
         Gets the name of the control net, if one was set.
         """
         return getattr(self, "_refiner_controlnet_names", set())
+
+    def svd_img2vid(
+        self,
+        image: Union[str, PIL.Image.Image],
+        use_xt: bool = True,
+        num_frames: Optional[int] = None,
+        decode_chunk_size: Optional[int] = 1,
+        num_inference_steps: int = 25,
+        min_guidance_scale: float = 1.0,
+        max_guidance_scale: float = 3.0,
+        fps: int = 7,
+        motion_bucket_id: int = 127,
+        noise_aug_strength: float = 0.02,
+        task_callback: Optional[Callable[[str], None]] = None,
+        progress_callback: Optional[Callable[[int, int, float], None]] = None,
+        image_callback: Optional[Callable[[List[PIL.Image.Image]], None]] = None,
+        image_callback_steps: Optional[int] = None,
+        **kwargs: Any
+    ) -> List[PIL.Image.Image]:
+        """
+        Gets a Stable Video Diffusion (SVD) pipeline and executes it.
+        """
+        if task_callback is None:
+            task_callback = lambda arg: None
+        self._task_callback = task_callback
+        self.start_keepalive()
+        try:
+            if isinstance(image, str):
+                from enfugue.util import image_from_uri
+                image = image_from_uri(image)
+
+            width, height = image.size
+            pipe = self.get_svd_pipeline(use_xt=use_xt)
+            self.stop_keepalive()
+            task_callback("Executing Inference")
+
+            step_start: datetime.datetime = datetime.datetime.now()
+            step_times: List[float] = []
+
+            def step_callback(
+                pipe: StableVideoDiffusionPipeline,
+                step: int,
+                timestep: Tensor,
+                callback_kwargs: Dict[str, Any]
+            ) -> Dict[str, Any]:
+                nonlocal step_start
+                now = datetime.datetime.now()
+                step_times.append((now-step_start).total_seconds())
+                step_start = now
+                if progress_callback is not None:
+                    time_slice = step_times[-5:]
+                    step_rate = 1.0 / (sum(time_slice)/len(time_slice))
+                    progress_callback(step, num_inference_steps, step_rate)
+                return callback_kwargs
+
+            frames = pipe( # type: ignore[operator]
+                image=image.convert("RGB"),
+                height=height,
+                width=width,
+                num_frames=num_frames,
+                decode_chunk_size=decode_chunk_size,
+                num_inference_steps=num_inference_steps,
+                min_guidance_scale=min_guidance_scale,
+                max_guidance_scale=max_guidance_scale,
+                fps=fps,
+                motion_bucket_id=motion_bucket_id,
+                noise_aug_strength=noise_aug_strength,
+                generator=self.noise_generator,
+                callback_on_step_end=step_callback,
+            ).frames[0]
+            del pipe
+            self.clear_memory()
+            return frames
+        finally:
+            self.stop_keepalive()
 
     def __call__(
         self,

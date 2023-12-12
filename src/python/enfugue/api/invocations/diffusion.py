@@ -199,8 +199,13 @@ class DiffusionInvocationMonitor(InvocationMonitor):
         Formats the invocation to a dictionary
         """
         with self.lock:
+            animation = bool(self.plan.animation_frames)
             if self.id is None or self.start_time is None:
-                return {"status": "queued", "uuid": self.uuid}
+                return {
+                    "status": "queued",
+                    "uuid": self.uuid,
+                    "animation": animation
+                }
 
             if self.error is not None:
                 if self.image_results:
@@ -222,6 +227,7 @@ class DiffusionInvocationMonitor(InvocationMonitor):
                     "images": images,
                     "video": video,
                     "duration": duration,
+                    "animation": animation
                 }
 
             images = None # type: ignore[unreachable]
@@ -300,7 +306,8 @@ class DiffusionInvocationMonitor(InvocationMonitor):
                 "images": images,
                 "video": video,
                 "rate": rate,
-                "task": self.last_task
+                "task": self.last_task,
+                "animation": animation
             }
 
             if self.metadata:

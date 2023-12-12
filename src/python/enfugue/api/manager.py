@@ -19,13 +19,20 @@ from enfugue.diffusion.engine import DiffusionEngine
 from enfugue.diffusion.interpolate import InterpolationEngine
 from enfugue.diffusion.invocation import (
     LayeredInvocation,
-    CaptionInvocation
+    CaptionInvocation,
+    StableVideoDiffusionInvocation
 )
 
 from enfugue.util import logger, check_make_directory, find_file_in_directory
 from enfugue.diffusion.constants import *
 
 __all__ = ["SystemManagerThread", "SystemManager"]
+
+InvocationType = Union[
+    LayeredInvocation,
+    CaptionInvocation,
+    StableVideoDiffusionInvocation
+]
 
 class SystemManagerThread(Thread):
     """
@@ -454,7 +461,7 @@ class SystemManager:
     def invoke(
         self,
         user_id: int,
-        plan: Union[LayeredInvocation, CaptionInvocation],
+        plan: InvocationType,
         ui_state: Optional[str] = None,
         disable_intermediate_decoding: bool = False,
         video_rate: Optional[float] = None,
@@ -471,7 +478,10 @@ class SystemManager:
         if not can_start and not can_queue:
             raise TooManyRequestsError()
 
-        if isinstance(plan, LayeredInvocation):
+        if (
+            isinstance(plan, LayeredInvocation) or
+            isinstance(plan, StableVideoDiffusionInvocation)
+        ):
             if disable_intermediate_decoding:
                 kwargs["decode_nth_intermediate"] = None
             else:

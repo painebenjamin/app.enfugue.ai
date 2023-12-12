@@ -23,10 +23,7 @@ from pibble.api.exceptions import NotFoundError
 from enfugue.api.controller.base import EnfugueAPIControllerBase
 from enfugue.api.invocations import *
 
-from enfugue.diffusion.invocation import (
-    LayeredInvocation,
-    CaptionInvocation
-)
+from enfugue.diffusion.invocation import *
 from enfugue.diffusion.constants import *
 
 from enfugue.util import logger
@@ -220,6 +217,33 @@ class EnfugueAPIInvocationController(EnfugueAPIControllerBase):
             video_rate=video_rate,
             disable_intermediate_decoding=disable_decoding,
             synchronous=request.parsed.get("synchronous", False)
+        ).format()
+
+    @handlers.path("^/api/invoke/svd$")
+    @handlers.methods("POST")
+    @handlers.format()
+    @handlers.secured()
+    def invoke_svd(self, request: Request, response: Response) -> Dict[str, Any]:
+        """
+        Invokes Stable Video Diffusion
+        """
+        plan_kwargs: Dict[str, Any] = {}
+        ui_state: Optional[str] = None
+        video_rate: Optional[float] = None
+
+        for key, value in request.parsed.items():
+            if key == "state":
+                ui_state = value
+            elif key == "frame_rate":
+                video_rate = value
+            elif value is not None:
+                plan_kwargs[key] = value
+        plan = StableVideoDiffusionInvocation.assemble(**request.parsed)
+        return self.invoke(
+            request.token.user.id,
+            plan,
+            ui_state=ui_state,
+            video_rate=video_rate,
         ).format()
 
     @handlers.path("^/api/invoke/language$")

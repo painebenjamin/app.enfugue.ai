@@ -36,11 +36,8 @@ if TYPE_CHECKING:
     # We only import these here when type checking.
     # We avoid importing them before the process starts at runtime,
     # since we don't want torch to initialize itself.
+    from enfugue.diffusion.invocation import *
     from enfugue.diffusion.manager import DiffusionPipelineManager
-    from enfugue.diffusion.invocation import (
-        LayeredInvocation,
-        CaptionInvocation
-    )
     from diffusers.pipelines.stable_diffusion import StableDiffusionPipelineOutput
 
 __all__ = [
@@ -238,11 +235,11 @@ class DiffusionEngineProcess(EngineProcess):
             raise ValueError(f"Expected dictionary payload.")
         try:
             if instruction_action == "plan":
-                from enfugue.diffusion.invocation import LayeredInvocation
+                from enfugue.diffusion.invocation import LayeredInvocation, StableVideoDiffusionInvocation
                 intermediate_dir = instruction_payload.get("intermediate_dir", None)
                 intermediate_steps = instruction_payload.get("intermediate_steps", None)
                 plan = instruction_payload.get("plan", None)
-                if not isinstance(plan, LayeredInvocation):
+                if not isinstance(plan, LayeredInvocation) and not isinstance(plan, StableVideoDiffusionInvocation):
                     raise IOError("Did not receive an invocation plan.")
 
                 return self.execute_diffusion_plan(
@@ -273,7 +270,7 @@ class DiffusionEngineProcess(EngineProcess):
     def execute_diffusion_plan(
         self,
         instruction_id: int,
-        plan: LayeredInvocation,
+        plan: Union[LayeredInvocation, StableVideoDiffusionInvocation],
         intermediate_dir: Optional[str] = None,
         intermediate_steps: Optional[int] = None,
     ) -> StableDiffusionPipelineOutput:

@@ -1947,7 +1947,6 @@ class LayeredInvocation:
 
         return images, nsfw
 
-
     def format_output(
         self,
         images: List[Image],

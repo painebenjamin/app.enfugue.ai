@@ -142,7 +142,7 @@ class CaptionUpsamplerConversationView extends View {
 }
 
 /**
- * Shows the 'download models' form
+ * Shows the caption upsampler form and spawns conversations
  */
 class CaptionUpsamplerController extends MenuController {
     /**
@@ -178,7 +178,7 @@ class CaptionUpsamplerController extends MenuController {
     /**
      * @var string The keyboard shortcut
      */
-    static menuShortcut = "d";
+    static menuShortcut = "c";
 
     /**
      * Show the new model form when clicked

@@ -1472,7 +1472,7 @@ class InvocationController extends Controller {
                 this.startSample = true;
                 this.application.samples.resetState();
                 this.application.samples.showCanvas();
-                await this.canvasInvocation(result.uuid);
+                await this.canvasInvocation(result.uuid, result.animation);
             }
         }
     }
@@ -1501,9 +1501,8 @@ class InvocationController extends Controller {
     /**
      * Sets the sample images on the canvas and chooser
      */
-    setSampleImages(images) {
+    setSampleImages(images, isAnimation = false) {
         // Get IDs from images
-        let isAnimation = !isEmpty(this.animationFrames) && this.animationFrames > 0;
         this.application.samples.setSamples(
             images,
             isAnimation
@@ -1631,7 +1630,7 @@ class InvocationController extends Controller {
      *
      * @param string uuid The UUID of the invocation.
      */
-    async canvasInvocation(uuid) {
+    async canvasInvocation(uuid, animation = false) {
         let complete = false,
             invocationComplete = false,
             start = (new Date()).getTime(),
@@ -1654,7 +1653,7 @@ class InvocationController extends Controller {
             durationNode = this.loadingBar.find(E.getCustomTag("invocationDuration")),
             iterationsNode = this.loadingBar.find(E.getCustomTag("invocationIterations")),
             remainingNode = this.loadingBar.find(E.getCustomTag("invocationRemaining")),
-            updateImages = () => this.setSampleImages(lastImages),
+            updateImages = () => this.setSampleImages(lastImages, animation),
             updateNodes = () => {
                 let elapsedTime = lastTick - start;
                 durationNode.content(humanDuration(elapsedTime/1000));

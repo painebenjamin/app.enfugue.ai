@@ -30,6 +30,26 @@ enfugue-application > enfugue-node-editor.windows {
     top: 35px;
 }
 
+enfugue-application.enfugue-layout-horizontal > enfugue-node-editor.image-editor {
+    left: 250px;
+    right: calc(250px + (50vw - 249px));
+}
+
+enfugue-application.enfugue-layout-horizontal > enfugue-node-editor.image-editor.samples {
+    left: calc(250px + (50vw - 249px));
+    right: 250px;
+}
+
+enfugue-application.enfugue-layout-vertical > enfugue-node-editor.image-editor {
+    top: 96px;
+    bottom: calc(80px + (50vh - 80px));
+}
+
+enfugue-application.enfugue-layout-vertical > enfugue-node-editor.image-editor.samples {
+    top: calc(96px + (50vh - 119px));
+    bottom: 80px;
+}
+
 enfugue-menu {
     display: flex;
     flex-flow:   row nowrap;

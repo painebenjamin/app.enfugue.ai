@@ -14,8 +14,8 @@ class LayoutController extends Controller {
      */
     setLayout(newLayout) {
         if (this.layout !== newLayout) {
-            this.application.container.removeClass(`enfugue-layout-${this.layout}`);
-            this.application.container.addClass(`enfugue-layout-${newLayout}`);
+            this.application.container.classList.remove(`enfugue-layout-${this.layout}`);
+            this.application.container.classList.add(`enfugue-layout-${newLayout}`);
             this.layout = newLayout;
         }
     }

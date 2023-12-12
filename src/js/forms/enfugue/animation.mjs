@@ -3,7 +3,9 @@ import { isEmpty } from "../../base/helpers.mjs";
 import { FormView } from "../base.mjs";
 import {
     NumberInputView,
+    SelectInputView,
     CheckboxInputView,
+    ImageFileInputView,
     AnimationLoopInputView,
     AnimationInterpolationStepsInputView,
 } from "../input.mjs";
@@ -190,4 +192,130 @@ class AnimationFormView extends FormView {
     }
 }
 
-export { AnimationFormView };
+/**
+ * This form allows selecting specific options for SVD.
+ */
+class StableVideoDiffusionFormView extends FormView {
+    /**
+     * @var object Options for SVD
+     */
+    static fieldSets = {
+        "Model": {
+            "model": {
+                "class": SelectInputView,
+                "config": {
+                    "options": {
+                        "svd": "SVD (18 Frames)",
+                        "svd_xt": "SVD-XT (25 Frames)"
+                    },
+                    "value": "svd",
+                }
+            }
+        },
+        "Image": {
+            "image": {
+                "class": ImageFileInputView,
+                "config": {
+                    "required": true,
+                    "tooltip": "The first image of the animation. The recommended resolution is 1024×576, with some ability to create vertical video at 576×1024. Other resolutions may work, but some can produce errors."
+                }
+            }
+        },
+        "Tweaks": {
+            "num_inference_steps": {
+                "label": "Inference Steps",
+                "class": NumberInputView,
+                "config": {
+                    "min": 1,
+                    "max": 200,
+                    "value": 25,
+                    "step": 1,
+                    "tooltip": "The number of steps to run through the UNet. Defaults to 25."
+                }
+            },
+            "min_guidance_scale": {
+                "label": "Minimum Guidance",
+                "class": NumberInputView,
+                "config": {
+                    "min": 0,
+                    "max": 100,
+                    "value": 1.0,
+                    "step": 0.01,
+                    "tooltip": "The starting guidance scale. This will increase linearly to the ending scale over the course of inference."
+                }
+            },
+            "max_guidance_scale": {
+                "label": "Maximum Guidance",
+                "class": NumberInputView,
+                "config": {
+                    "min": 0,
+                    "max": 100,
+                    "value": 3.0,
+                    "step": 0.01,
+                    "tooltip": "The ending guidance scale."
+                }
+            },
+            "fps": {
+                "label": "Frame Rate",
+                "class": NumberInputView,
+                "config": {
+                    "min": 1,
+                    "max": 60,
+                    "value": 7,
+                    "step": 1,
+                    "tooltip": "The number of frames in a second for the output video. Note that this is slightly different from the usual frame rate in that the diffusion model uses this value as a parameter."
+                }
+            },
+            "motion_bucket_id": {
+                "label": "Motion Bucket ID",
+                "class": NumberInputView,
+                "config": {
+                    "min": 1,
+                    "max": 512,
+                    "value": 127,
+                    "step": 1,
+                    "tooltip": "Approximately represents the amount of motion in the frame, using values from 1 to 255. Higher values are accepted with unpredictable results."
+                }
+            },
+            "noise_aug_strength": {
+                "label": "Noise Strength",
+                "class": NumberInputView,
+                "config": {
+                    "min": 0.0,
+                    "max": 1.0,
+                    "value": 0.02,
+                    "step": 0.01,
+                    "tooltip": "The factor when adding noise to the initial image. The recommended value is 0.02."
+                }
+            }
+        },
+        "Post-Processing": {
+            "reflect": {
+                "label": "Reflect Animation",
+                "class": CheckboxInputView,
+                "config": {
+                    "tooltip": "When enabled, the animation will play in reverse after playing normally. Some interpolated frames will be added at the beginning and end to ease the motion bounce."
+                }
+            },
+            "interpolation_frames": {
+                "label": "Frame Interpolation",
+                "class": AnimationInterpolationStepsInputView
+            }
+        }
+    };
+};
+
+class QuickStableVideoDiffusionFormView extends StableVideoDiffusionFormView {
+    /**
+     * @var object Hide the image input
+     */
+    static fieldSetConditions = {
+        "Image": () => false
+    }
+};
+
+export {
+    AnimationFormView,
+    StableVideoDiffusionFormView,
+    QuickStableVideoDiffusionFormView
+};

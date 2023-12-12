@@ -263,6 +263,10 @@ fieldset .field-container.hidden-input-view {
     display: none;
 }
 
+fieldset .field-container > img {
+    max-width: 100%;
+}
+
 form label {
     display: inline-block;
     flex-grow: 0;

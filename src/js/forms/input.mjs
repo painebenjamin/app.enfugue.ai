@@ -1,7 +1,7 @@
 /** @module forms/input.mjs */
 import { InputView } from "./input/base.mjs";
 import { HiddenInputView, ButtonInputView } from "./input/misc.mjs";
-import { FileInputView } from "./input/file.mjs";
+import { FileInputView, ImageFileInputView } from "./input/file.mjs";
 import { CheckboxInputView } from "./input/bool.mjs";
 import { ColorInputView } from "./input/color.mjs";
 import { RepeatableInputView, FormInputView } from "./input/parent.mjs";
@@ -105,6 +105,7 @@ export {
     TextInputView,
     PasswordInputView,
     FileInputView,
+    ImageFileInputView,
     NumberInputView,
     FloatInputView,
     SliderInputView,
