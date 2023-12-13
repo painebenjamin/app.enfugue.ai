@@ -38,7 +38,6 @@ if TYPE_CHECKING:
     # since we don't want torch to initialize itself.
     from enfugue.diffusion.invocation import *
     from enfugue.diffusion.manager import DiffusionPipelineManager
-    from diffusers.pipelines.stable_diffusion import StableDiffusionPipelineOutput
 
 __all__ = [
     "EngineProcess",
@@ -273,7 +272,7 @@ class DiffusionEngineProcess(EngineProcess):
         plan: Union[LayeredInvocation, StableVideoDiffusionInvocation],
         intermediate_dir: Optional[str] = None,
         intermediate_steps: Optional[int] = None,
-    ) -> StableDiffusionPipelineOutput:
+    ) -> Dict[str, Any]:
         """
         Executes the plan, getting callbacks first.
         """

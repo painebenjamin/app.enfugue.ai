@@ -55,6 +55,7 @@ if TYPE_CHECKING:
         IPAdapter,
         BackgroundRemover,
         CaptionUpsampler,
+        Interpolator,
     )
     from torch import Tensor
 
@@ -4106,9 +4107,25 @@ class DiffusionPipelineManager:
             self._caption_upsampler.task_callback = self._task_callback
         return self._caption_upsampler
 
+    @property
+    def interpolator(self) -> Interpolator:
+        """
+        Gets the interpolator.
+        """
+        if not hasattr(self, "_interpolator"):
+            from enfugue.diffusion.support import Interpolator
+            self._interpolator = Interpolator(
+                self.engine_other_dir,
+                device=self.device,
+                dtype=self.dtype,
+                offline=self.offline
+            )
+            self._interpolator.task_callback = self._task_callback
+        return self._interpolator
+
     def get_svd_pipeline(self, use_xt: bool = True) -> StableVideoDiffusionPipeline:
         """
-        Gets a SDV pipeline. This should eventually not be separate.
+        Gets an SVD pipeline. This should eventually not be separate.
         """
         from diffusers import StableVideoDiffusionPipeline
         path = "stabilityai/stable-video-diffusion-img2vid-xt" if use_xt else "stabilityai/stable-video-diffusion-img2vid"

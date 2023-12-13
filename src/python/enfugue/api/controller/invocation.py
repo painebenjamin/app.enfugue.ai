@@ -238,7 +238,9 @@ class EnfugueAPIInvocationController(EnfugueAPIControllerBase):
                 video_rate = value
             elif value is not None:
                 plan_kwargs[key] = value
-        plan = StableVideoDiffusionInvocation.assemble(**request.parsed)
+
+        plan = StableVideoDiffusionInvocation.assemble(**plan_kwargs)
+
         return self.invoke(
             request.token.user.id,
             plan,
@@ -525,4 +527,3 @@ class EnfugueAPIInvocationController(EnfugueAPIControllerBase):
         Stops the engine and any invocations.
         """
         self.manager.stop_engine()
-        self.manager.stop_interpolator()

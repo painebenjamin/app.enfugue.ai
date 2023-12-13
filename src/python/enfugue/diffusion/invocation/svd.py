@@ -4,7 +4,7 @@ import inspect
 
 from dataclasses import dataclass, asdict
 
-from typing import List, Optional, Callable, Dict, Any, Literal, Union, Tuple, TYPE_CHECKING
+from typing import List, Optional, Callable, Dict, Any, Literal, Union, TYPE_CHECKING
 
 from enfugue.util import logger, redact_images_from_metadata
 
@@ -12,7 +12,6 @@ from PIL import Image
 
 if TYPE_CHECKING:
     from enfugue.diffusion.manager import DiffusionPipelineManager
-    from diffusers.pipelines.stable_diffusion.pipeline_output import StableDiffusionPipelineOutput
 
 __all__ = ["StableVideoDiffusionInvocation"]
 
@@ -31,7 +30,8 @@ class StableVideoDiffusionInvocation:
     decode_chunk_size: Optional[int]=1
     motion_bucket_id: int=127
     reflect: bool=False
-    interpolate_frames: Optional[Union[int, Tuple[int, ...], List[int]]]=None
+    interpolate_frames: Optional[Union[int, List[int]]]=None
+    seed: Optional[int]=None
 
     @property
     def animation_frames(self) -> int:
@@ -79,10 +79,13 @@ class StableVideoDiffusionInvocation:
         progress_callback: Optional[Callable[[int, int, float], None]] = None,
         image_callback: Optional[Callable[[List[Image.Image]], None]] = None,
         image_callback_steps: Optional[int] = None,
-    ) -> StableDiffusionPipelineOutput:
+    ) -> Dict[str, Any]:
         """
         This is the main interface for execution.
         """
+        if self.seed is not None:
+            pipeline.seed = self.seed
+
         frames = pipeline.svd_img2vid(
             task_callback=task_callback,
             progress_callback=progress_callback,
@@ -90,17 +93,47 @@ class StableVideoDiffusionInvocation:
             image_callback_steps=image_callback_steps,
             **self.kwargs
         )
-        from diffusers.pipelines.stable_diffusion.pipeline_output import StableDiffusionPipelineOutput
-        return StableDiffusionPipelineOutput(
-            images=frames,
-            nsfw_content_detected=[False]*len(frames)
-        )
+
+        result = {
+            "images": frames,
+        }
+
+        if self.interpolate_frames or self.reflect:
+            from enfugue.diffusion.util import interpolate_frames, reflect_frames
+            with pipeline.interpolator.film() as interpolate:
+                if self.interpolate_frames:
+                    if task_callback:
+                        task_callback("Interpolating")
+                    result["frames"] = [
+                        frame for frame in interpolate_frames(
+                            frames=frames,
+                            multiplier=self.interpolate_frames,
+                            interpolate=interpolate,
+                            progress_callback=progress_callback
+                        )
+                    ]
+                else:
+                    result["frames"] = result["images"]
+                if self.reflect:
+                    if task_callback:
+                        task_callback("Reflecting")
+                    result["frames"] = [
+                        frame for frame in reflect_frames(
+                            frames=result["frames"],
+                            interpolate=interpolate,
+                            progress_callback=progress_callback
+                        )
+                    ]
+        return result
 
     def serialize(self) -> Dict[str, Any]:
         """
         Returns the invocation as a dict
         """
-        return asdict(self)
+        return {
+            **{"animation_frames": self.animation_frames},
+            **asdict(self)
+        }
 
     @property
     def metadata(self) -> Dict[str, Any]:

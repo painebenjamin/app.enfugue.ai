@@ -2349,7 +2349,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         num_chunks = chunker.num_chunks
         num_temporal_chunks = chunker.num_frame_chunks
 
-        if (num_chunks <= 1 and num_temporal_chunks <= 1) or not tiling:
+        if num_temporal_chunks <= 1 and (num_chunks <= 1 or not tiling):
             return self.denoise_unchunked(
                 height=height,
                 width=width,
@@ -2374,6 +2374,12 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 cross_attention_kwargs=cross_attention_kwargs,
                 added_cond_kwargs=added_cond_kwargs,
             )
+
+        revert_chunker_size: Any = None
+        if num_chunks > 1 and not tiling:
+            # Disable spatial tiling
+            revert_chunker_size = chunker.size
+            chunker.size = None
 
         chunk_scheduler_status = []
         for i in range(num_chunks * num_temporal_chunks):
@@ -2712,7 +2718,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                                 latent_callback_value = self.image_processor.numpy_to_pil(latent_callback_value)
 
                 latent_callback(latent_callback_value)
-
+        if revert_chunker_size is not None:
+            chunker.size = revert_chunker_size
         return latents
 
     def decode_latent_preview(
@@ -3461,8 +3468,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
         num_frames = 1 if not animation_frames else animation_frames
         unet_spatial_chunks = (1 if not tiling_unet else num_chunks)
-        unet_temporal_chunks = (1 if not tiling_unet else num_temporal_chunks)
-        unet_steps = unet_spatial_chunks * unet_temporal_chunks * num_scheduled_inference_steps
+        unet_steps = unet_spatial_chunks * num_temporal_chunks * num_scheduled_inference_steps
 
         vae_chunks = (1 if not tiling_vae else num_chunks)
         vae_steps = vae_chunks * (encoding_steps + (decoding_steps * num_frames))
@@ -3472,7 +3478,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             " ".join([
                 f"Calculated overall steps to be {overall_num_steps}.",
                 f"{image_prompt_probes} image prompt embedding probe(s) +",
-                f"{unet_steps} UNet step(s) ({unet_spatial_chunks} spatial chunk(s) * {unet_temporal_chunks} temporal chunk(s) * {num_scheduled_inference_steps} inference step(s)) +",
+                f"{unet_steps} UNet step(s) ({unet_spatial_chunks} spatial chunk(s) * {num_temporal_chunks} temporal chunk(s) * {num_scheduled_inference_steps} inference step(s)) +",
                 f"{vae_steps} VAE step(s) ({vae_chunks} chunk(s) * ({encoding_steps} encoding step(s) + ({decoding_steps} decoding step(s) * {num_frames} frame(s))))"
             ])
         )

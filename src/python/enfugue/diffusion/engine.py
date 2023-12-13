@@ -19,7 +19,7 @@ from enfugue.diffusion.process import (
 )
 
 if TYPE_CHECKING:
-    from enfugue.diffusion.invocation import LayeredInvocation
+    from enfugue.diffusion.invocation import *
 
 __all__ = [
     "Engine",
@@ -336,10 +336,11 @@ class DiffusionEngine(Engine):
 
     def execute(
         self,
-        plan: LayeredInvocation,
+        plan: Union[LayeredInvocation, StableVideoDiffusionInvocation],
         intermediate_dir: Optional[str]=None,
         intermediate_steps: Optional[int]=None,
-        timeout: Optional[Union[int, float]] = None, wait: bool = False
+        timeout: Optional[Union[int, float]] = None,
+        wait: bool = False
     ) -> Any:
         """
         This is a helpful method to just serialize and execute a plan.

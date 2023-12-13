@@ -14,12 +14,12 @@ class StableVideoController extends MenuController {
     /**
      * @var int width of the input window
      */
-    static stableVideoWindowWidth = 300;
+    static stableVideoWindowWidth = 400;
 
     /**
      * @var int height of the input window
      */
-    static stableVideoWindowHeight = 750;
+    static stableVideoWindowHeight = 815;
 
     /**
      * @var string The text in the UI
@@ -62,7 +62,7 @@ class StableVideoController extends MenuController {
                 }
                 this.engine.enableStop();
                 this.engine.startSample = true;
-                this.engine.canvasInvocation(result.uuid);
+                this.engine.canvasInvocation(result.uuid, true);
                 stableVideoForm.enable();
             } catch(e) {
                 stableVideoForm.setError(e);

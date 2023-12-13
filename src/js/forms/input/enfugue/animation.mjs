@@ -34,36 +34,16 @@ class AnimationLoopInputView extends SelectInputView {
 /**
  * Provides a repeatable input for interpolation steps
  */
-class AnimationInterpolationStepsInputView extends RepeatableInputView {
+class AnimationInterpolationStepsInputView extends NumberInputView {
     /**
-     * @var class member class
+     * @var int Minimum value, 0 is disabled
      */
-    static memberClass = NumberInputView;
-
-    /**
-     * @var object config for member class
-     */
-    static memberConfig = {
-        "min": 2,
-        "max": 10,
-        "step": 1,
-        "value": 2
-    };
+    static min = 0;
 
     /**
      * @var string tooltip
      */
-    static tooltip = "Interpolation is the process of trying to calculate a frame between two other frames such that when the calculated frame is placed between the two other frames, there appears to be a smooth motion between the three.<br />You can add multiple <strong>interpolation factors</strong>, where a value of <em>2</em> means that there will be two frames for every one frame (thus one frame placed in-between every frame,) a value of <em>3</em> means there will be three frames for every one frame (and thus two frames placed in-between every frame, attempting to maintain a smooth motion across all of them.) Multiple factors will be executed recursively. The smoothest results can be obtained via repeated factors of 2.";
-
-    /**
-     * @var string Text to show when no items
-     */
-    static noItemsLabel = "No Interpolation";
-
-    /**
-     * @var string Text to show in the 'add item' button
-     */
-    static addItemLabel = "Add Interpolation Step";
+    static tooltip = "Interpolation is the process of trying to calculate a frame between two other frames such that when the calculated frame is placed between the two other frames, there appears to be a smooth motion between the three.<br />Specify any number greater than zero to add that many frames in-between every frame, interpolated using FILM - Frame Interpolation for Large Motion, an AI model from Google.";
 }
 
 export {

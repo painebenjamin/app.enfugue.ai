@@ -221,6 +221,27 @@ class StableVideoDiffusionFormView extends FormView {
                 }
             }
         },
+        "Generation": {
+            "motion_bucket_id": {
+                "label": "Motion Bucket ID",
+                "class": NumberInputView,
+                "config": {
+                    "min": 1,
+                    "max": 512,
+                    "value": 127,
+                    "step": 1,
+                    "tooltip": "Approximately represents the amount of motion in the frame, using values from 1 to 255. Higher values are accepted with unpredictable results."
+                }
+            },
+            "seed": {
+                "label": "Seed",
+                "class": NumberInputView,
+                "config": {
+                    "step": 1,
+                    "tooltip": "The initial seed. Seed this to a specific number for repeatable generations, or leave blank for random."
+                }
+            }
+        },
         "Tweaks": {
             "num_inference_steps": {
                 "label": "Inference Steps",
@@ -256,25 +277,14 @@ class StableVideoDiffusionFormView extends FormView {
                 }
             },
             "fps": {
-                "label": "Frame Rate",
+                "label": "FPS",
                 "class": NumberInputView,
                 "config": {
                     "min": 1,
                     "max": 60,
                     "value": 7,
                     "step": 1,
-                    "tooltip": "The number of frames in a second for the output video. Note that this is slightly different from the usual frame rate in that the diffusion model uses this value as a parameter."
-                }
-            },
-            "motion_bucket_id": {
-                "label": "Motion Bucket ID",
-                "class": NumberInputView,
-                "config": {
-                    "min": 1,
-                    "max": 512,
-                    "value": 127,
-                    "step": 1,
-                    "tooltip": "Approximately represents the amount of motion in the frame, using values from 1 to 255. Higher values are accepted with unpredictable results."
+                    "tooltip": "The number of frames per second for inference. Note that this is slightly different from the usual frame rate in that the diffusion model uses this value as a parameter."
                 }
             },
             "noise_aug_strength": {
@@ -297,9 +307,19 @@ class StableVideoDiffusionFormView extends FormView {
                     "tooltip": "When enabled, the animation will play in reverse after playing normally. Some interpolated frames will be added at the beginning and end to ease the motion bounce."
                 }
             },
-            "interpolation_frames": {
+            "interpolate_frames": {
                 "label": "Frame Interpolation",
                 "class": AnimationInterpolationStepsInputView
+            },
+            "frame_rate": {
+                "label": "Frame Rate",
+                "class": NumberInputView,
+                "config": {
+                    "min": 4,
+                    "max": 120,
+                    "value": 8,
+                    "tooltip": "The final frame rate of the output video after interpolation."
+                }
             }
         }
     };

@@ -97,7 +97,7 @@ class SupportModel:
     @classmethod
     def get_default_instance(cls) -> SupportModel:
         """
-        Builds a default interpolator without a configuration passed
+        Builds a default model without a configuration passed
         """
         import torch
         from enfugue.diffusion.util import get_optimal_device

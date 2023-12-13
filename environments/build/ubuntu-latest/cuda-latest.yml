@@ -65,7 +65,6 @@ dependencies:
     - lycoris-lora>=1.8
     - openmim>=0.3.9,<0.4
     - opensimplex>=0.4.5,<0.5
-    - tensorflow[and-cuda]==2.14.0
     - sentencepiece>=0.1
     - compel>=2.0
     - git+https://github.com/CompVis/taming-transformers.git@master#egg=taming-transformers

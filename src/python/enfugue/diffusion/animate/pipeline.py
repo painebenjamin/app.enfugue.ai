@@ -211,7 +211,7 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         """
         Reduce scaling (increase factor) for animation
         """
-        return vae_scale_factor / 0.8
+        return vae_scale_factor / 0.75
 
     @classmethod
     def create_unet(

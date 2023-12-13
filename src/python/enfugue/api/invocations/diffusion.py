@@ -30,11 +30,6 @@ class DiffusionInvocationMonitor(InvocationMonitor):
     video_result: Optional[str] = None
     image_results: Optional[List[str]] = None
     last_images: Optional[List[str]] = None
-    interpolate_id: Optional[int] = None
-    interpolate_result: Any = None
-
-    start_interpolate_time: Optional[datetime] = None
-    end_interpolate_time: Optional[datetime] = None
 
     def __init__(
         self,
@@ -46,11 +41,10 @@ class DiffusionInvocationMonitor(InvocationMonitor):
             engine=engine,
             communcation_timeout=communication_timeout,
         )
-        self.interpolator = kwargs["interpolator"]
         self.plan = kwargs["plan"]
 
         self.results_dir = kwargs["engine_image_dir"]
-        self.intermediate_dir = kwargs["engine_intermediate_dir"]
+        self.intermediate_dir = kwargs.get("engine_intermediate_dir", None)
         self.ui_state = kwargs.get("ui_state", None)
         self.intermediate_steps = kwargs.get("decode_nth_intermediate", None)
         self.metadata = kwargs.get("metadata", None)
@@ -104,95 +98,25 @@ class DiffusionInvocationMonitor(InvocationMonitor):
                         self.image_results.append("unsaved")
 
                 if self.plan.animation_frames:
-                    if self.plan.interpolate_frames or self.plan.reflect:
-                        # Start interpolation
-                        self.start_interpolate()
-                    else:
-                        # Save video
-                        try:
-                            from enfugue.diffusion.util.video_util import Video
-                            video_path = f"{self.results_dir}/{self.uuid}.{self.video_format}"
-                            Video(self.result["images"]).save(
-                                video_path,
-                                rate=self.video_rate,
-                                encoder=self.video_codec
-                            )
-                            self.interpolate_result = video_path
-                        except Exception as ex:
-                            self.error = ex
-                            logger.error(f"Couldn't save video: {ex}")
-                            logger.debug(traceback.format_exc())
+                    # Save video
+                    frames = self.result.get("frames", self.result["images"])
+                    try:
+                        from enfugue.diffusion.util.video_util import Video
+                        video_path = f"{self.results_dir}/{self.uuid}.{self.video_format}"
+                        Video(frames).save(
+                            video_path,
+                            rate=self.video_rate,
+                            encoder=self.video_codec
+                        )
+                        self.video_result = video_path
+                    except Exception as ex:
+                        self.error = ex
+                        logger.error(f"Couldn't save video: {ex}")
+                        logger.debug(traceback.format_exc())
 
             if self.metadata is not None and "tensorrt_build" in self.metadata:
                 logger.info("TensorRT build complete, terminating engine to start fresh on next invocation.")
                 self.engine.terminate_process()
-
-    def start_interpolate(self) -> None:
-        """
-        Starts the interpolation (is locked when called)
-        """
-        if self.interpolate_id is not None:
-            raise IOError("Interpolation already began.")
-        assert isinstance(self.image_results, list), "Must have a list of image results"
-        self.interpolate_start_time = datetime.now()
-        self.interpolate_id = self.interpolator.dispatch("plan", {
-            "reflect": self.plan.reflect,
-            "frames": self.plan.interpolate_frames,
-            "images": self.image_results,
-            "save_path": f"{self.results_dir}/{self.uuid}.{self.video_format}",
-            "video_rate": self.video_rate,
-            "video_codec": self.video_codec
-        })
-
-    def _interpolate_communicate(self) -> None:
-        """
-        Tries to communicate with the engine to see what's going on.
-        """
-        if self.interpolate_id is None:
-            raise IOError("Interpolation not started yet.")
-        if self.interpolate_result is not None: # type: ignore[unreachable]
-            raise IOError("Interpolation already completed.")
-        try:
-            start_comm = datetime.now()
-            last_intermediate = self.interpolator.last_intermediate(self.interpolate_id)
-            if last_intermediate is not None:
-                for key in ["step", "total", "rate", "task"]:
-                    if key in last_intermediate:
-                        setattr(self, f"last_{key}", last_intermediate[key])
-                self.last_intermediate_time = datetime.now()
-            end_comm = (datetime.now() - start_comm).total_seconds()
-
-            try:
-                result = self.interpolator.wait(self.interpolate_id, timeout=0.1)
-            except TimeoutError:
-                raise
-            except Exception as ex:
-                result = None
-                self.error = ex
-
-            if result is not None:
-                # Complete
-                if isinstance(result, list):
-                    from enfugue.diffusion.util.video_util import Video
-                    self.interpolate_end_time = datetime.now()
-                    video_path = f"{self.results_dir}/{self.uuid}.{self.video_format}"
-                    Video(result).save(
-                        video_path,
-                        rate=self.video_rate,
-                        encoder=self.video_codec
-                    )
-                    self.interpolate_result = video_path
-                else:
-                    self.interpolate_result = result
-        except TimeoutError:
-            return
-
-    def poll_interpolator(self) -> None:
-        """
-        Calls communicate on the interpolator once (locks)
-        """
-        with self.lock:
-            self._interpolate_communicate()
 
     def format(self) -> Dict[str, Any]:
         """
@@ -212,8 +136,8 @@ class DiffusionInvocationMonitor(InvocationMonitor):
                     images = get_relative_paths(self.image_results)
                 else:
                     images = None
-                if self.interpolate_result:
-                    video = get_relative_paths([self.interpolate_result])[0] # type: ignore[unreachable]
+                if self.video_result:
+                    video = get_relative_paths([self.video_result])[0] # type: ignore[unreachable]
                 else:
                     video = None
                 if self.end_time is not None:
@@ -235,36 +159,19 @@ class DiffusionInvocationMonitor(InvocationMonitor):
             
             try:
                 if self.image_results is not None:
-                    if self.plan.animation_frames:
-                        if self.interpolate_result:
-                            status = "completed" # type: ignore[unreachable]
-                            video = get_relative_paths([self.interpolate_result])[0]
-                        elif self.plan.interpolate_frames or self.plan.reflect:
-                            status = "interpolating"
-                            self._interpolate_communicate()
-                        else:
-                            # Saving
-                            status = "processing"
-                    else:
-                        status = "completed"
-                        if self.plan.animation_frames:
-                            video = get_relative_paths([self.interpolate_result])[0] # type: ignore[list-item]
+                    status = "completed"
                     images = get_relative_paths(self.image_results)
+                    if self.video_result:
+                        video = get_relative_paths([self.video_result])[0]
                 else:
                     status = "processing"
                     self._communicate()
                     if self.image_results is not None:
                         # Finished in previous _communicate() calling
-                        if self.plan.animation_frames: # type: ignore[unreachable]
-                            if self.plan.interpolate_frames or self.plan.reflect:
-                                # Interpolation just started
-                                ...
-                            elif self.interpolate_result:
-                                status = "completed"
-                                video = get_relative_paths([self.interpolate_result])[0]
-                        else:
-                            status = "completed"
+                        status = "completed" # type: ignore[unreachable]
                         images = get_relative_paths(self.image_results)
+                        if self.video_result:
+                            video = get_relative_paths([self.video_result])[0]
                     elif self.last_images is not None:
                         images = get_relative_paths(self.last_images)
 

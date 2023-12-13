@@ -80,6 +80,9 @@ class ImageFileInputView extends FileInputView {
         return super.getValue();
     }
 
+    /**
+     * Extend .changed() to show the image when one is chosen
+     */
     changed() {
         this.data = null;
         if (this.node !== undefined) {

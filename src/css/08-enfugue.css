@@ -1473,6 +1473,7 @@ enfugue-image-browser span {
 .field-container.scheduler-input-view,
 .field-container.multi-diffusion-scheduler-input-view,
 .field-container.prompt-input-view,
+.field-container.checkbox-input-view-reflect,
 fieldset.field-set-refining-defaults .slider-precise-input-view,
 fieldset.field-set-prompts .field-container,
 fieldset.field-set-secondary-prompts .field-container,

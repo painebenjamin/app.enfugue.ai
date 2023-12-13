@@ -42,7 +42,6 @@ from pibble.api.exceptions import BadRequestError
 if TYPE_CHECKING:
     from PIL.Image import Image
     from enfugue.diffusers.manager import DiffusionPipelineManager
-    from diffusers.pipeline.stable_diffusion.pipeline_output import StableDiffusionPipelineOutput
     from enfugue.util import IMAGE_FIT_LITERAL, IMAGE_ANCHOR_LITERAL
 
 __all__ = ["LayeredInvocation"]
@@ -1079,7 +1078,7 @@ class LayeredInvocation:
         progress_callback: Optional[Callable[[int, int, float], None]] = None,
         image_callback: Optional[Callable[[List[Image]], None]] = None,
         image_callback_steps: Optional[int] = None,
-    ) -> StableDiffusionPipelineOutput:
+    ) -> Dict[str, Any]:
         """
         This is the main interface for execution.
 
@@ -1246,7 +1245,11 @@ class LayeredInvocation:
         logger.debug("Stopping pipeline keepalive and clearing memory.")
         pipeline.stop_keepalive() # Make sure this is stopped
         pipeline.clear_memory()
-        return self.format_output(images, nsfw)
+
+        return {
+            "images": images,
+            "nsfw_content_detected": nsfw
+        }
 
     def prepare_pipeline(self, pipeline: DiffusionPipelineManager) -> None:
         """
@@ -1946,21 +1949,6 @@ class LayeredInvocation:
                     pipeline.controlnets = None # Make sure we reset controlnets
 
         return images, nsfw
-
-    def format_output(
-        self,
-        images: List[Image],
-        nsfw: List[bool]
-    ) -> StableDiffusionPipelineOutput:
-        """
-        Adds Enfugue metadata to an image result
-        """
-        from diffusers.pipelines.stable_diffusion.pipeline_output import StableDiffusionPipelineOutput
-
-        return StableDiffusionPipelineOutput(
-            images=images,
-            nsfw_content_detected=nsfw
-        )
 
     @property
     def metadata(self) -> Dict[str, Any]:

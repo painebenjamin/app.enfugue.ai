@@ -16,7 +16,6 @@ from enfugue.api.downloads import Download
 from enfugue.api.invocations import *
 
 from enfugue.diffusion.engine import DiffusionEngine
-from enfugue.diffusion.interpolate import InterpolationEngine
 from enfugue.diffusion.invocation import (
     LayeredInvocation,
     CaptionInvocation,
@@ -107,7 +106,6 @@ class SystemManager:
         self.active_invocation = None
         self.configuration = configuration
         self.engine = DiffusionEngine(self.configuration)
-        self.interpolator = InterpolationEngine(self.configuration)
         self.downloads = {}
         self.invocations = {}
         self.download_queue = []
@@ -496,7 +494,6 @@ class SystemManager:
 
             invocation = DiffusionInvocationMonitor(
                 engine=self.engine,
-                interpolator=self.interpolator,
                 plan=plan,
                 engine_image_dir=self.engine_image_dir,
                 engine_intermediate_dir=self.engine_intermediate_dir,
@@ -547,12 +544,6 @@ class SystemManager:
                 logger.info(f"ignoring exception during invocation termination: {ex}")
             self.active_invocation = None
         self.engine.terminate_process()
-
-    def stop_interpolator(self) -> None:
-        """
-        stops the interpolator forcibly.
-        """
-        self.interpolator.terminate_process()
 
     def clean_intermediates(self) -> None:
         """
