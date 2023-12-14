@@ -289,7 +289,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             return [PIL.Image.open(path)]
 
     @classmethod
-    def get_config_from_url(cls, cache_dir: dir, url: dir) -> Dict[str, Any]:
+    def get_config_from_url(cls, cache_dir: str, url: str) -> Dict[str, Any]:
         """
         Downloads remote config and loads it
         """
@@ -541,7 +541,6 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 cache_dir,
                 "https://huggingface.co/segmind/Segmind-Vega/raw/main/unet/config.json?filename=segmind-vega-unet-config.json"
             )
-            logger.critical(unet_config)
         else:
             unet_config = create_unet_diffusers_config(original_config, image_size=image_size)
 
@@ -624,7 +623,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     check_size=False
                 )
                 task_callback("Loading VAE")
-                VAE_Config = AutoencoderKL._dict_from_json_file(vae_config_path)
+                vae_config = AutoencoderKL._dict_from_json_file(vae_config_path)
                 if "scaling_factor" in vae_config:
                     vae_config["scaling_factor"] = cls.get_vae_scale_factor(vae_config["scaling_factor"])
                 vae = AutoencoderKL.from_config(vae_config)
@@ -3485,9 +3484,9 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
         # Open images if they're files
         if isinstance(image, str):
-            image = self.open_image(image)
+            image = self.open_image(image) # type: ignore[unreachable]
         if isinstance(mask, str):
-            mask = self.open_image(mask)
+            mask = self.open_image(mask) # type: ignore[unreachable]
 
         if image is not None and type(image) is not torch.Tensor:
             if isinstance(image, list):

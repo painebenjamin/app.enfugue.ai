@@ -1253,7 +1253,7 @@ class LayeredInvocation:
             from enfugue.diffusion.util import interpolate_frames, reflect_frames
             with pipeline.interpolator.film() as interpolate:
                 if self.interpolate_frames:
-                    if task_callback:
+                    if task_callback is not None:
                         task_callback("Interpolating")
                     result["frames"] = [
                         frame for frame in interpolate_frames(
@@ -1266,7 +1266,7 @@ class LayeredInvocation:
                 else:
                     result["frames"] = result["images"]
                 if self.reflect:
-                    if task_callback:
+                    if task_callback is not None:
                         task_callback("Reflecting")
                     result["frames"] = [
                         frame for frame in reflect_frames(
