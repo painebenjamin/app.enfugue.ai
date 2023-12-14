@@ -1127,7 +1127,7 @@ class InvocationController extends Controller {
      * @param array<int> interpolation frames
      */
     set animationInterpolation(newFrames) {
-        if (!isEquivalent(this.animationInterpolation, newFrames)) {
+        if (this.animationInterpolation !== newFrames) {
             this.publish("engineAnimationInterpolationChange", newFrames);
         }
         this.kwargs.interpolate_frames = newFrames;

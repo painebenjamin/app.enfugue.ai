@@ -145,7 +145,7 @@ class LayeredInvocation:
     detailer_controlnet_scale: float=1.0
     detailer_switch_pipeline: bool=False
     upscale: Optional[Union[UpscaleStepDict, List[UpscaleStepDict]]]=None
-    interpolate_frames: Optional[Union[int, Tuple[int, ...], List[int]]]=None
+    interpolate_frames: Optional[int]=None
     reflect: bool=False
 
     @staticmethod
@@ -1242,14 +1242,44 @@ class LayeredInvocation:
             image_callback=image_callback,
             invocation_kwargs=invocation_kwargs
         )
-        logger.debug("Stopping pipeline keepalive and clearing memory.")
-        pipeline.stop_keepalive() # Make sure this is stopped
-        pipeline.clear_memory()
 
-        return {
+        result = {
             "images": images,
             "nsfw_content_detected": nsfw
         }
+
+        # Execute interpolation/reflect, if requested
+        if (self.interpolate_frames or self.reflect) and self.animation_frames:
+            from enfugue.diffusion.util import interpolate_frames, reflect_frames
+            with pipeline.interpolator.film() as interpolate:
+                if self.interpolate_frames:
+                    if task_callback:
+                        task_callback("Interpolating")
+                    result["frames"] = [
+                        frame for frame in interpolate_frames(
+                            frames=result["images"],
+                            multiplier=self.interpolate_frames,
+                            interpolate=interpolate,
+                            progress_callback=progress_callback
+                        )
+                    ]
+                else:
+                    result["frames"] = result["images"]
+                if self.reflect:
+                    if task_callback:
+                        task_callback("Reflecting")
+                    result["frames"] = [
+                        frame for frame in reflect_frames(
+                            frames=result["frames"],
+                            interpolate=interpolate,
+                            progress_callback=progress_callback
+                        )
+                    ]
+
+        logger.debug("Stopping pipeline keepalive and clearing memory.")
+        pipeline.stop_keepalive() # Make sure this is stopped
+        pipeline.clear_memory()
+        return result
 
     def prepare_pipeline(self, pipeline: DiffusionPipelineManager) -> None:
         """

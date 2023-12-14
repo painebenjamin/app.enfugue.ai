@@ -57,7 +57,7 @@ class RefiningController extends Controller {
         this.refiningForm.hide();
         this.application.sidebar.addChild(this.refiningForm);
         this.subscribe("modelPickerChange", (model) => {
-            if (isEmpty(model) || isEmpty(model.refiner)) {
+            if (isEmpty(model) || isEmpty(model.status) || isEmpty(model.status.refiner)) {
                 this.refiningForm.hide();
             } else {
                 let defaultConfig = model.defaultConfiguration,

@@ -259,9 +259,9 @@ class Application {
         document.addEventListener("dragover", (e) => this.onDragOver(e));
         document.addEventListener("drop", (e) => this.onDrop(e));
         document.addEventListener("paste", (e) => this.onPaste(e));
-        document.addEventListener("keypress", (e) => this.onKeyPress(e));
         document.addEventListener("keyup", (e) => this.onKeyUp(e));
         document.addEventListener("keydown", (e) => this.onKeyDown(e));
+        document.addEventListener("keypress", (e) => this.onKeyPress(e));
         document.addEventListener("mousemove", (e) => this.onMouseMove(e));
         document.addEventListener("mouseleave", (e) => this.onMouseLeave(e));
 
@@ -1146,6 +1146,29 @@ class Application {
     }
 
     /**
+     * Gets the canvas element under the current mouse position.
+     */
+    getCanvasUnderMouse(returnEditor = false) {
+        for (let nodeEditor of [this.images, this.canvas]) {
+            if (!isEmpty(nodeEditor.node)) {
+                let nodeCanvas = nodeEditor.node.find("enfugue-node-canvas");
+                if (!isEmpty(nodeCanvas) && !isEmpty(nodeCanvas.element) && nodeCanvas.element.checkVisibility()) {
+                    let canvasPosition = nodeCanvas.element.getBoundingClientRect();
+                    if (
+                        (canvasPosition.x < this.mouseX && this.mouseX < canvasPosition.x + canvasPosition.width) &&
+                        (canvasPosition.y < this.mouseY && this.mouseY < canvasPosition.y + canvasPosition.height)
+                    ) {
+                        if (returnEditor) {
+                            return nodeEditor;
+                        }
+                        return nodeCanvas;
+                    }
+                }
+            }
+        }
+    }
+
+    /**
      * The global keydown event highlights menu shortcuts.
      */
     onKeyDown(e){
@@ -1153,30 +1176,16 @@ class Application {
             this.menu.addClass("highlight");
         }
         if (e.code === "Space") {
-            if (this.isDragging) return;
-            for (let nodeEditor of [this.images, this.canvas]) {
-                if (!isEmpty(nodeEditor.node)) {
-                    let nodeCanvas = nodeEditor.node.find("enfugue-node-canvas");
-                    if (!isEmpty(nodeCanvas) && !isEmpty(nodeCanvas.element) && nodeCanvas.element.checkVisibility()) {
-                        let canvasPosition = nodeCanvas.element.getBoundingClientRect();
-                        if (
-                            (canvasPosition.x < this.mouseX && this.mouseX < canvasPosition.x + canvasPosition.width) &&
-                            (canvasPosition.y < this.mouseY && this.mouseY < canvasPosition.y + canvasPosition.height)
-                        ) {
-                            let e = new MouseEvent(
-                                "mousedown",
-                                {
-                                    "clientX": this.mouseX,
-                                    "clientY": this.mouseY,
-                                    "button": 1
-                                }
-                            );
-                            nodeCanvas.trigger(e);
-                        }
+            let nodeCanvas = this.getCanvasUnderMouse(),
+                e = new MouseEvent(
+                    "mousedown",
+                    {
+                        "clientX": this.mouseX,
+                        "clientY": this.mouseY,
+                        "button": 1
                     }
-                }
-            }
-            console.log(this.mouseX, this.mouseY);
+                );
+            nodeCanvas.trigger(e);
         }
     }
 
@@ -1186,6 +1195,18 @@ class Application {
     onKeyUp(e){
         if (e.key === "Shift") {
             this.menu.removeClass("highlight");
+        }
+        if (e.code === "Space"){
+            let nodeCanvas = this.getCanvasUnderMouse(),
+                e = new MouseEvent(
+                    "mouseup",
+                    {
+                        "clientX": this.mouseX,
+                        "clientY": this.mouseY,
+                        "button": 1
+                    }
+                );
+            nodeCanvas.trigger(e);
         }
     }
 

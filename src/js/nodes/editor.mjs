@@ -634,29 +634,43 @@ class NodeEditorView extends View {
         } else {
             if (this.constructor.canMove) {
                 node.append(position);
-                canvas.on('mousedown', (e) => {
-                    if (!(e.which === 2 || (e.which === 1 && (e.ctrlKey || e.altKey || e.metaKey)))) {
+                let isMoving = false;
+                canvas.on('mousedown,touchstart', (e) => {
+                    if (e.type === "mousedown" && (!(e.which === 2 || (e.which === 1 && (e.ctrlKey || e.altKey || e.metaKey))) || isMoving)) {
                         return;
                     }
                     e.preventDefault();
                     e.stopPropagation();
-                    let [startDownX, startDownY] = [e.clientX, e.clientY];
+
+                    let startDownX,
+                        startDownY,
+                        newX = this.left,
+                        newY = this.top;
+
+                    if (e.touches) {
+                        startDownX = e.touches[0].clientX;
+                        startDownY = e.touches[0].clientY;
+                    } else {
+                        startDownX = e.clientX;
+                        startDownY = e.clientY;
+                    }
+
+                    isMoving = true;
 
                     canvas.css('cursor', 'grabbing');
-
                     canvas
-                        .on('mousemove', (e2) => {
+                        .on('mousemove,touchmove', (e2) => {
                             e2.preventDefault();
-                            e2.stopPropagation();
-
-                            let [deltaX, deltaY] = [
-                                    e2.clientX - startDownX,
-                                    e2.clientY - startDownY
-                                ],
-                                [newX, newY] = [
-                                    this.left + deltaX,
-                                    this.top + deltaY
-                                ];
+                            let deltaX, deltaY;
+                            if (e2.touches) {
+                                deltaX = e2.touches[0].clientX - startDownX;
+                                deltaY = e2.touches[0].clientY - startDownY;
+                            } else {
+                                deltaX = e2.clientX - startDownX;
+                                deltaY = e2.clientY - startDownY;
+                            }
+                            newX = this.left + deltaX;
+                            newY = this.top + deltaY;
 
                             canvas.css({
                                 left: `${newX}px`,
@@ -682,18 +696,23 @@ class NodeEditorView extends View {
                             }
                             positionReadout.content(`${canvasReadoutX},${canvasReadoutY}`);
                         })
-                        .on('mouseup,mouseleave', (e2) => {
+                        .on('mouseup,mouseleave,touchend,touchleave', (e2) => {
                             e2.preventDefault();
                             e2.stopPropagation();
-                            let [deltaX, deltaY] = [
-                                e2.clientX - startDownX,
-                                e2.clientY - startDownY
-                            ];
 
-                            this.left += deltaX;
-                            this.top += deltaY;
+                            if (e2.touches) {
+                                this.left = newX;
+                                this.top = newY;
+                            } else {
+                                let deltaX, deltaY;
+                                deltaX = e2.clientX - startDownX;
+                                deltaY = e2.clientY - startDownY;
 
-                            canvas.off('mouseup,mousemove,mouseleave');
+                                this.left += deltaX;
+                                this.top += deltaY;
+                            }
+
+                            canvas.off('mouseup,mousemove,mouseleave,touchend,touchleave');
                             canvas.css({
                                 left: `${this.left}px`,
                                 top: `${this.top}px`,
@@ -718,12 +737,14 @@ class NodeEditorView extends View {
                                 canvasReadoutY = canvasReadoutY.toFixed(2);
                             }
                             positionReadout.content(`${canvasReadoutX},${canvasReadoutY}`);
+                            isMoving = false;
                         });
                 });
 
                 positionReset.on('click', (e) => {
                     e.preventDefault();
                     e.stopPropagation();
+
                     if (this.constructor.centered) {
                         this.left = -(this.width / 2) * this.zoom + node.element.clientWidth / 2;
                         this.top =  -(this.height / 2) * this.zoom + node.element.clientHeight / 2;

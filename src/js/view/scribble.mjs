@@ -200,7 +200,18 @@ class ScribbleView extends View {
      * Gets the zoom-adjusted x, y coordinates from an event
      */
     getCoordinates(e) {
-        return [e.offsetX, e.offsetY];
+        if (e.touches && e.touches.length > 0) {
+            let frame = e.target.getBoundingClientRect();
+            return [
+                e.touches[0].clientX - frame.x,
+                e.touches[0].clientY - frame.y
+            ]
+        } else {
+            return [
+                e.offsetX,
+                e.offsetY
+            ];
+        }
     }
 
     /**
@@ -219,12 +230,13 @@ class ScribbleView extends View {
         this.lastX = null;
         this.lastY = null;
     }
-    
+
     /**
      * The 'mousedown' handler
      */
     onNodeMouseDown(e) {
-        if (e.which !== 1 || (e.metaKey || e.ctrlKey)) return;
+        if (e.type === "mousedown" && e.which !== 1) return;
+        if (e.metaKey || e.ctrlKey) return;
         e.preventDefault();
         e.stopPropagation();
         this.active = true;
@@ -400,6 +412,9 @@ class ScribbleView extends View {
         node.on("mouseup", (e) => this.onNodeMouseUp(e));
         node.on("mouseleave", (e) => this.onNodeMouseLeave(e));
         node.on("wheel", (e) => this.onNodeWheel(e));
+        node.on("touchstart", (e) => this.onNodeMouseDown(e));
+        node.on("touchmove", (e) => this.onNodeMouseMove(e));
+        node.on("touchend", (e) => this.onNodeMouseUp(e));
         this.updateVisibleCanvas();
         return node;
     }

@@ -485,6 +485,8 @@ class ModelPickerController extends Controller {
                         }
 
                         this.abridgedModelFormView.submit();
+                        modelMetadata.refiner = this.abridgedModelFormView.values.refiner;
+                        modelMetadata.inpainter = this.abridgedModelFormView.values.inpainter;
                         this.modelPickerFormView.setTensorRTStatus({supported: false});
                         this.publish("modelPickerChange", {"status": modelMetadata, "defaultConfiguration": {}});
                     } catch(e) {
@@ -494,6 +496,8 @@ class ModelPickerController extends Controller {
                             if (!isEmpty(e.detail)) {
                                 errorMessage += `(${e.detail})`;
                             }
+                        } else {
+                            console.error(e);
                         }
                         this.notify("warn", "Metadata Error", errorMessage);
                     }

@@ -289,6 +289,14 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             return [PIL.Image.open(path)]
 
     @classmethod
+    def get_config_from_url(cls, cache_dir: dir, url: dir) -> Dict[str, Any]:
+        """
+        Downloads remote config and loads it
+        """
+        config_path = check_download_to_dir(url, cache_dir, check_size=False)
+        return load_json(config_path)
+
+    @classmethod
     def get_vae_scale_factor(cls, vae_scale_factor: float) -> float:
         """
         Pass-through for base pipeline
@@ -310,9 +318,10 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         """
         from diffusers.models.attention_processor import AttnProcessor2_0
         if is_sdxl and is_inpainter and config["in_channels"] == 9:
-            config_url = "https://huggingface.co/diffusers/stable-diffusion-xl-1.0-inpainting-0.1/raw/main/unet/config.json"
-            config_path = check_download_to_dir(config_url, cache_dir, check_size=False)
-            config = load_json(config_path)
+            config = cls.get_config_from_url(
+                cache_dir,
+                "https://huggingface.co/diffusers/stable-diffusion-xl-1.0-inpainting-0.1/raw/main/unet/config.json?filename=stable-diffusion-xl-1.0-inpainting-0.1-unet-config.json"
+            )
         unet = UNet2DConditionModel.from_config(config)
         unet.set_attn_processor(AttnProcessor2_0())
         return unet
@@ -420,6 +429,10 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             num_in_channels = 9 if is_inpainter else 4
             logger.info(f"Could not automatically determine input channels, forcing {num_in_channels} input channels")
 
+        if "conditioner.embedders.1.model.text_projection.weight" in checkpoint:
+            # Fix for playgroundv2, segmind
+            checkpoint["conditioner.embedders.1.model.text_projection"] = checkpoint.pop("conditioner.embedders.1.model.text_projection.weight")
+
         if "unet_config" in original_config["model"]["params"]:  # type: ignore
             # SD 1 or 2
             original_config["model"]["params"]["unet_config"]["params"]["in_channels"] = num_in_channels  # type: ignore
@@ -461,6 +474,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
         is_sdxl = isinstance(model_type, str) and model_type.startswith("SDXL")
         is_sdxl_turbo = is_sdxl and "denoiser.sigmas" in checkpoint
+        is_segmind = model_type == "SDXL" and "model.diffusion_model.output_blocks.0.1.transformer_blocks.2.attn1.to_k.weight" not in checkpoint
 
         num_train_timesteps = 1000  # Default is SDXL
         if "timesteps" in original_config.model.params:
@@ -521,10 +535,19 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             raise ValueError(f"Scheduler of type {scheduler_type} doesn't exist!")
 
         task_callback("Loading UNet")
+        if is_segmind:
+            logger.debug("Detected segmind distilled model.")
+            unet_config = cls.get_config_from_url(
+                cache_dir,
+                "https://huggingface.co/segmind/Segmind-Vega/raw/main/unet/config.json?filename=segmind-vega-unet-config.json"
+            )
+            logger.critical(unet_config)
+        else:
+            unet_config = create_unet_diffusers_config(original_config, image_size=image_size)
 
-        unet_config = create_unet_diffusers_config(original_config, image_size=image_size)
         unet_config["upcast_attention"] = upcast_attention
         if is_sdxl_turbo:
+            logger.debug("Lowering sample size for turbo.")
             unet_config["sample_size"] = 64
 
         unet = cls.create_unet(
@@ -532,7 +555,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             cache_dir=cache_dir,
             motion_dir=motion_dir,
             motion_module=motion_module,
-            is_sdxl=isinstance(model_type, str) and model_type.startswith("SDXL"),
+            is_sdxl=is_sdxl,
             is_inpainter=is_inpainter,
             task_callback=task_callback,
             position_encoding_truncate_length=position_encoding_truncate_length,
@@ -540,12 +563,24 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             **unet_kwargs
     	)
 
+        if is_segmind:
+            # Add middle blocks back in temporarily
+            checkpoint["model.diffusion_model.middle_block.1.temporary"] = torch.ones((2, 2), dtype=torch.float16)
+            checkpoint["model.diffusion_model.middle_block.2.temporary"] = torch.ones((2, 2), dtype=torch.float16)
+
         converted_unet_checkpoint = convert_ldm_unet_checkpoint(
             checkpoint,
             unet_config,
             path=checkpoint_path,
             extract_ema=extract_ema
         )
+
+        if is_segmind:
+            # Remove temporarily added middle blocks
+            for key in list(converted_unet_checkpoint.keys()):
+                if "mid_block.resnets.1" in key or "mid_block.attentsion.0" in key:
+                    converted_unet_checkpoint.pop(key)
+
         unet_keys = len(list(converted_unet_checkpoint.keys()))
         logger.debug(f"Loading {unet_keys} keys into UNet state dict (non-strict)")
 
@@ -589,7 +624,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     check_size=False
                 )
                 task_callback("Loading VAE")
-                vae_config = AutoencoderKL._dict_from_json_file(vae_config_path)
+                VAE_Config = AutoencoderKL._dict_from_json_file(vae_config_path)
                 if "scaling_factor" in vae_config:
                     vae_config["scaling_factor"] = cls.get_vae_scale_factor(vae_config["scaling_factor"])
                 vae = AutoencoderKL.from_config(vae_config)
@@ -725,10 +760,14 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             clip_vit_l_path = "openai/clip-vit-large-patch14"
             openclip_vit_g_path = "laion/CLIP-ViT-bigG-14-laion2B-39B-b160k"
             playground_v2_path = "playgroundai/playground-v2-1024px-aesthetic"
+            segmind_vega_path = "segmind/Segmind-Vega"
 
-            is_playground_v2 = "conditioner.embedders.0.transformer.text_model.embeddings.position_ids" not in checkpoint
+            is_playground_v2 = "conditioner.embedders.0.transformer.text_model.embeddings.position_ids" not in checkpoint and not is_segmind
 
-            if is_playground_v2:
+            if is_segmind:
+                tokenizer_path = segmind_vega_path
+                subfolder = "tokenizer"
+            elif is_playground_v2:
                 tokenizer_path = playground_v2_path
                 subfolder = "tokenizer"
             else:
@@ -744,9 +783,10 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
             text_encoder = convert_ldm_clip_checkpoint(checkpoint)
 
-            if is_playground_v2:
-                if "conditioner.embedders.1.model.text_projection.weight" in checkpoint:
-                    checkpoint["conditioner.embedders.1.model.text_projection"] = checkpoint.pop("conditioner.embedders.1.model.text_projection.weight")
+            if is_segmind:
+                tokenizer_2_path = segmind_vega_path
+                subfolder_2 = "tokenizer_2"
+            elif is_playground_v2:
                 tokenizer_2_path = playground_v2_path
                 subfolder_2 = "tokenizer_2"
             else:
@@ -2054,13 +2094,13 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     for key, tensor in added_cond_kwargs.items()
                 ])
             else:
-                added_cond_input = None
+                added_cond_input = {}
         else:
             batch, channels, height, width = latents.shape
             frames = None
             latent_input = latents
             hidden_state_input = encoder_hidden_states
-            added_cond_input = added_cond_kwargs
+            added_cond_input = added_cond_kwargs if added_cond_kwargs is not None else {}
 
         down_blocks, mid_block = None, None
         for name in controlnet_conds:
@@ -3374,17 +3414,22 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         if self.is_inpainting_unet:
             if image is None:
                 logger.warning("No image present, but using inpainting model. Adding blank image.")
-                image = PIL.Image.new("RGB", (width, height))
+                image = [PIL.Image.new("RGB", (width, height))]
             if mask is None:
                 logger.warning("No mask present, but using inpainting model. Adding blank mask.")
-                mask = PIL.Image.new("RGB", (width, height), (255, 255, 255))
+                mask = [PIL.Image.new("RGB", (width, height), (255, 255, 255))]
 
         if device is None:
             device = torch.device("cpu")
         elif isinstance(device, str):
             device = torch.device(device)
 
-        do_classifier_free_guidance = guidance_scale > 1.0 and self.unet.config.time_cond_proj_dim is None # type: ignore[attr-defined]
+        try:
+            has_time_cond_proj = self.unet.config.time_cond_proj_dim is not None # type: ignore[attr-defined]
+        except AttributeError:
+            has_time_cond_proj = False
+
+        do_classifier_free_guidance = guidance_scale > 1.0 and not has_time_cond_proj
 
         # Calculate chunks
         chunker = Chunker(
