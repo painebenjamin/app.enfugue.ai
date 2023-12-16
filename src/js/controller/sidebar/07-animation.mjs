@@ -28,6 +28,7 @@ class AnimationController extends Controller {
                 "animationStride": 8,
                 "animationLoop": null,
                 "animationRate": 8,
+                "animationDecodeChunkSize": 1,
                 "animationInterpolation": null,
             }
         };
@@ -51,6 +52,7 @@ class AnimationController extends Controller {
             if (values.animationEnabled) {
                 this.engine.animationFrames = values.animationFrames;
                 this.engine.animationRate = values.animationRate;
+                this.engine.animationDecodeChunkSize = values.animationDecodeChunkSize;
                 this.engine.animationInterpolation = values.animationInterpolation;
                 this.engine.animationLoop = values.animationLoop;
 

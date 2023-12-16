@@ -30,8 +30,8 @@ class InpaintingController extends Controller {
                 "options": {
                     "outpaint": true,
                     "inpaint": false,
-                    "croppedInpaint": true,
-                    "croppedInpaintFeather": 32
+                    "cropInpaint": true,
+                    "inpaintFeather": 32
                 }
             }
         };

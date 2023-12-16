@@ -106,6 +106,7 @@ class LayeredInvocation:
     animation_rate: int=8
     frame_window_size: Optional[int]=16
     frame_window_stride: Optional[int]=4
+    frame_decode_chunk_size: Optional[int]=None
     loop: bool=False
     motion_module: Optional[str]=None
     motion_scale: Optional[float]=None
@@ -301,6 +302,7 @@ class LayeredInvocation:
             "motion_scale": self.motion_scale,
             "frame_window_size": self.frame_window_size,
             "frame_window_stride": self.frame_window_stride,
+            "frame_decode_chunk_size": self.frame_decode_chunk_size,
             "guidance_scale": self.guidance_scale,
             "refiner_start": self.refiner_start,
             "refiner_strength": self.refiner_strength,
@@ -314,6 +316,36 @@ class LayeredInvocation:
             "ip_adapter_model": self.ip_adapter_model,
             "clip_skip": self.clip_skip
         }
+
+    @classmethod
+    def remove_alpha(
+        cls,
+        image: Image,
+        pipeline: Optional[DiffusionPipelineManager]=None
+    ) -> Image:
+        """
+        Replaces the alpha channel in an image with noise.
+        Uses the generator from the pipeline, if one exists.
+        """
+        import torch
+        from enfugue.diffusion.util import make_noise, tensor_to_image
+        if image.mode == "RGBA":
+            width, height = image.size
+            noise = make_noise(
+                method="perlin",
+                width=width,
+                height=height,
+                channels=3,
+                batch_size=1,
+                generator=None if pipeline is None else pipeline.noise_generator,
+                min_clamp=0.1,
+                max_clamp=0.9,
+                scale=2
+            )
+            noise_image = tensor_to_image(noise)
+            noise_image.paste(image, mask=image.split()[-1])
+            return noise_image
+        return image
 
     @classmethod
     def prepare_image(
@@ -528,7 +560,11 @@ class LayeredInvocation:
         return cls(**invocation_kwargs)
 
     @classmethod
-    def minimize_dict(cls, kwargs: Dict[str, Any]) -> Dict[str, Any]:
+    def minimize_dict(
+        cls,
+        kwargs: Dict[str, Any],
+        has_refiner: bool = False
+    ) -> Dict[str, Any]:
         """
         Pops unnecessary variables from an invocation dict
         """
@@ -539,7 +575,6 @@ class LayeredInvocation:
 
         minimal_keys = []
 
-        has_refiner = bool(kwargs.get("refiner", None))
         has_noise = bool(kwargs.get("noise_offset", None))
         will_inpaint = bool(kwargs.get("mask", None))
         will_animate = bool(kwargs.get("animation_frames", None))
@@ -973,9 +1008,6 @@ class LayeredInvocation:
                 elif not self.outpaint and not mask:
                     # Disabled outpainting
                     invocation_mask = None
-                elif self.outpaint and not mask:
-                    # Outpaint, set strength to 1
-                    self.strength = 1.0
 
         # Evaluate prompts
         prompts = self.prompts
@@ -1063,11 +1095,14 @@ class LayeredInvocation:
         if prompts:
             results_dict["prompts"] = prompts
 
-        results_dict = self.minimize_dict({
-            **self.kwargs,
-            **refiner_prompts,
-            **results_dict
-        })
+        results_dict = self.minimize_dict(
+            {
+                **self.kwargs,
+                **refiner_prompts,
+                **results_dict
+            },
+            has_refiner=bool(self.refiner)
+        )
 
         return results_dict
 
@@ -1243,40 +1278,16 @@ class LayeredInvocation:
             invocation_kwargs=invocation_kwargs
         )
 
-        result = {
-            "images": images,
-            "nsfw_content_detected": nsfw
-        }
-
         # Execute interpolation/reflect, if requested
-        if (self.interpolate_frames or self.reflect) and self.animation_frames:
-            from enfugue.diffusion.util import interpolate_frames, reflect_frames
-            with pipeline.interpolator.film() as interpolate:
-                if self.interpolate_frames:
-                    if task_callback is not None:
-                        task_callback("Interpolating")
-                    result["frames"] = [
-                        frame for frame in interpolate_frames(
-                            frames=result["images"],
-                            multiplier=self.interpolate_frames,
-                            interpolate=interpolate,
-                            progress_callback=progress_callback
-                        )
-                    ]
-                else:
-                    result["frames"] = result["images"]
-                if self.reflect:
-                    if task_callback is not None:
-                        task_callback("Reflecting")
-                    result["frames"] = [
-                        frame for frame in reflect_frames(
-                            frames=result["frames"],
-                            interpolate=interpolate,
-                            progress_callback=progress_callback
-                        )
-                    ]
+        result = self.execute_interpolate(
+            pipeline,
+            images=images,
+            nsfw=nsfw,
+            task_callback=task_callback,
+            progress_callback=progress_callback,
+            image_callback=image_callback,
+        )
 
-        logger.debug("Stopping pipeline keepalive and clearing memory.")
         pipeline.stop_keepalive() # Make sure this is stopped
         pipeline.clear_memory()
         return result
@@ -1373,11 +1384,15 @@ class LayeredInvocation:
                     invocation_kwargs["image"][i].copy() if len(invocation_kwargs["image"]) > i else invocation_kwargs["image"][-1].copy()
                     for i in range(total_images)
                 ]
+                # Replace empty space with noise (instead of black)
+                for i, image in enumerate(invocation_kwargs["image"]):
+                    invocation_kwargs["image"][i] = self.remove_alpha(image, pipeline)
             else:
                 images = [
                     invocation_kwargs["image"].copy()
                     for i in range(total_images)
                 ]
+                invocation_kwargs["image"] = self.remove_alpha(invocation_kwargs["image"], pipeline)
         else:
             images = [
                 Image.new("RGBA", (width, height))
@@ -1824,6 +1839,7 @@ class LayeredInvocation:
                 task_callback(f"Upscaling samples")
 
             with get_upscale_image() as upscale_image:
+                pipeline.stop_keepalive()
                 if progress_callback is not None:
                     progress_callback(0, len(images), 0.0)
                 for i, image in enumerate(images):
@@ -1958,7 +1974,6 @@ class LayeredInvocation:
                         offload_models=pipeline.pipeline_sequential_onload,
                         **kwargs
                     ).images
-                    pipeline.start_keepalive() # Return keepalive between iterations
 
                     if animation_frames:
                         images = image
@@ -1979,6 +1994,62 @@ class LayeredInvocation:
                     pipeline.controlnets = None # Make sure we reset controlnets
 
         return images, nsfw
+
+    def execute_interpolate(
+        self,
+        pipeline: DiffusionPipelineManager,
+        images: List[Image],
+        nsfw: List[bool],
+        task_callback: Optional[Callable[[str], None]] = None,
+        progress_callback: Optional[Callable[[int, int, float], None]] = None,
+        image_callback: Optional[Callable[[List[Image]], None]] = None,
+        image_callback_steps: Optional[int] = None,
+        invocation_kwargs: Dict[str, Any] = {},
+    ) -> Dict[str, Any]:
+        """
+        Finishes the result and interpolates
+        """
+        result = {
+            "images": images,
+            "nsfw_content_detected": nsfw
+        }
+
+        if not self.animation_frames or not (self.interpolate_frames or self.reflect):
+            return result
+
+        from enfugue.diffusion.util import interpolate_frames, reflect_frames
+        with pipeline.interpolator.film() as interpolate:
+            if self.interpolate_frames:
+                if task_callback is not None:
+                    task_callback("Interpolating")
+                if invocation_kwargs.get("loop", False):
+                    # Add copy of first frame to end
+                    result["images"].append(result["images"][-1])
+                result["frames"] = [
+                    frame for frame in interpolate_frames(
+                        frames=result["images"],
+                        multiplier=self.interpolate_frames,
+                        interpolate=interpolate,
+                        progress_callback=progress_callback
+                    )
+                ]
+                if invocation_kwargs.get("loop", False):
+                    # remove copy of first frame from end
+                    result["frames"] = result["frames"][:-1]
+                    result["images"] = result["images"][:-1]
+            else:
+                result["frames"] = result["images"]
+            if self.reflect:
+                if task_callback is not None:
+                    task_callback("Reflecting")
+                result["frames"] = [
+                    frame for frame in reflect_frames(
+                        frames=result["frames"],
+                        interpolate=interpolate,
+                        progress_callback=progress_callback
+                    )
+                ]
+        return result
 
     @property
     def metadata(self) -> Dict[str, Any]:

@@ -2298,15 +2298,15 @@ class DiffusionPipelineManager:
         """
         Defines how to switch to inpainting.
         """
-        configured = self.configuration.get("enfugue.pipeline.inpainter", "sd")
+        configured = self.configuration.get("enfugue.pipeline.inpainter", True)
         if type(configured) is bool:
             return configured
         if configured == "sd":
             return not self.is_sdxl
         elif configured == "xl":
             return self.is_sdxl
-        logger.warning(f"Unknown configuration for inpainting '{configured}', defaulting to 'sd'")
-        return not self.is_sdxl
+        logger.warning(f"Unknown configuration for inpainting '{configured}', defaulting to True")
+        return True
 
     @property
     def create_animator(self) -> bool:
@@ -2778,6 +2778,8 @@ class DiffusionPipelineManager:
         if new_lora is None:
             if hasattr(self, "_lora") and len(self._lora) > 0:
                 self.unload_pipeline("LoRA changing")
+                self.unload_inpainter("LoRA changing")
+                self.unload_animator("LoRA changing")
             self._lora: List[Tuple[str, float]] = []
             return
 
@@ -2834,6 +2836,8 @@ class DiffusionPipelineManager:
         if new_lycoris is None:
             if hasattr(self, "_lycoris") and len(self._lycoris) > 0:
                 self.unload_pipeline("LyCORIS changing")
+                self.unload_inpainter("LyCORIS changing")
+                self.unload_animator("LyCORIS changing")
             self._lycoris: List[Tuple[str, float]] = []
             return
 
@@ -2888,6 +2892,8 @@ class DiffusionPipelineManager:
         if new_inversion is None:
             if hasattr(self, "_inversion") and len(self._inversion) > 0:
                 self.unload_pipeline("Textual Inversions changing")
+                self.unload_inpainter("Textual Inversions changing")
+                self.unload_animator("Textual Inversions changing")
             self._inversion: List[str] = []
             return
 
@@ -3387,7 +3393,7 @@ class DiffusionPipelineManager:
                     # We can fix that here, though, by forcing full precision VAE
                     pipeline.register_to_config(force_full_precision_vae=True)
                 if self.should_cache:
-                    self.task_callback("Saving pipeline to pretrained cache.")
+                    self.task_callback("Saving pipeline to pretrained cache")
                     pipeline.save_pretrained(self.model_diffusers_dir)
             if not self.tensorrt_is_ready:
                 if self._ip_adapter_model is not None:
@@ -3707,7 +3713,7 @@ class DiffusionPipelineManager:
                 if inpainter_pipeline.is_sdxl and "16" not in self.inpainter and (self.inpainter_vae_name is None or "16" not in self.inpainter_vae_name):
                     inpainter_pipeline.register_to_config(force_full_precision_vae=True)
                 if self.should_cache_inpainter:
-                    self.task_callback("Saving inpainter pipeline to pretrained cache.")
+                    self.task_callback("Saving inpainter pipeline to pretrained cache")
                     inpainter_pipeline.save_pretrained(self.inpainter_diffusers_dir)
             if not self.inpainter_tensorrt_is_ready:
                 if self._ip_adapter_model is not None:
@@ -3861,7 +3867,7 @@ class DiffusionPipelineManager:
                 if animator_pipeline.is_sdxl and self.animator_vae_name not in ["xl16", VAE_XL16]:
                     animator_pipeline.register_to_config(force_full_precision_vae=True)
                 if self.should_cache_animator:
-                    self.task_callback("Saving animator pipeline to pretrained cache.")
+                    self.task_callback("Saving animator pipeline to pretrained cache")
                     animator_pipeline.save_pretrained(self.animator_diffusers_dir)
             if not self.animator_tensorrt_is_ready:
                 if self._ip_adapter_model is not None:
@@ -4026,6 +4032,15 @@ class DiffusionPipelineManager:
                 logger.debug("Offloading animator to CPU")
                 self._animator_pipeline = self._animator_pipeline.to("cpu", torch_dtype=torch.float32) # type: ignore[attr-defined]
             self.clear_memory()
+
+    def offload_all(self) -> None:
+        """
+        Offloads pipelines that are present.
+        """
+        self.offload_pipeline()
+        self.offload_refiner()
+        self.offload_inpainter()
+        self.offload_animator()
 
     @property
     def upscaler(self) -> Upscaler:
@@ -4570,7 +4585,9 @@ class DiffusionPipelineManager:
         """
         if task_callback is None:
             task_callback = lambda arg: None
+
         self._task_callback = task_callback
+        self.offload_all() # Send any active diffusion pipelines to CPU
         self.start_keepalive()
         try:
             if isinstance(image, str):
@@ -4580,6 +4597,7 @@ class DiffusionPipelineManager:
             width, height = image.size
             pipe = self.get_svd_pipeline(use_xt=use_xt)
             self.stop_keepalive()
+
             task_callback("Executing Inference")
 
             step_start: datetime.datetime = datetime.datetime.now()

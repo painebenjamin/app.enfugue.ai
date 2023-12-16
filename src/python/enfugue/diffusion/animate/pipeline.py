@@ -16,8 +16,12 @@ from diffusers.schedulers import EulerDiscreteScheduler
 from einops import rearrange
 
 from enfugue.util import check_download_to_dir, logger
-from enfugue.diffusion.pipeline import EnfugueStableDiffusionPipeline
 
+from enfugue.diffusion.constants import *
+from enfugue.diffusion.pipeline import EnfugueStableDiffusionPipeline
+from enfugue.diffusion.util.torch_util import load_state_dict
+
+from enfugue.diffusion.animate.diff.sparse_controlnet import SparseControlNetModel # type: ignore[attr-defined]
 from enfugue.diffusion.animate.diff.unet import UNet3DConditionModel as AnimateDiffUNet # type: ignore[attr-defined]
 from enfugue.diffusion.animate.diffxl.unet import UNet3DConditionModel as AnimateDiffXLUNet # type: ignore[attr-defined]
 from enfugue.diffusion.animate.hotshot.unet import UNet3DConditionModel as HotshotUNet # type: ignore[attr-defined]
@@ -54,12 +58,15 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         "beta_start": 0.00085,
         "beta_end": 0.012,
         "beta_schedule": "linear",
+        "steps_offset": 1
     }
 
     HOTSHOT_XL_PATH = "hotshotco/Hotshot-XL"
-    MOTION_MODULE_V2 = "https://huggingface.co/guoyww/animatediff/resolve/main/mm_sd_v15_v2.ckpt"
     MOTION_MODULE = "https://huggingface.co/guoyww/animatediff/resolve/main/mm_sd_v15.ckpt"
+    MOTION_MODULE_V2 = "https://huggingface.co/guoyww/animatediff/resolve/main/mm_sd_v15_v2.ckpt"
+    MOTION_MODULE_V3 = "https://huggingface.co/guoyww/animatediff/resolve/main/v3_sd15_mm.ckpt"
     MOTION_MODULE_PE_KEY = "down_blocks.0.motion_modules.0.temporal_transformer.transformer_blocks.0.attention_blocks.0.pos_encoder.pe"
+    MOTION_MODULE_MID_KEY = "mid_block.motion_modules.0.temporal_transformer.norm.weight"
 
     MOTION_MODULE_XL = "https://huggingface.co/guoyww/animatediff/resolve/main/mm_sdxl_v10_beta.ckpt"
 
@@ -178,7 +185,6 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
             task_callback=task_callback,
         )
 
-        from enfugue.diffusion.util.torch_util import load_state_dict
         state_dict = load_state_dict(unet_weights)
 
         for key in list(state_dict.keys()):
@@ -192,26 +198,7 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
 
         pipe.unet = unet
 
-        try:
-            vae_scaled_for_pipeline = pipe.vae.config.vae_scaled_for_pipeline
-        except:
-            vae_scaled_for_pipeline = False
-
-        if not vae_scaled_for_pipeline:
-            pipe.vae.register_to_config(
-                scaling_factor=cls.get_vae_scale_factor(pipe.vae.config.scaling_factor),
-                vae_scaled_for_pipeline=True
-            )
-            logger.info(f"Adjusted VAE scaling factor to {pipe.vae.config.scaling_factor}")
-
         return pipe
-
-    @classmethod
-    def get_vae_scale_factor(cls, vae_scale_factor: float) -> float:
-        """
-        Reduce scaling (increase factor) for animation
-        """
-        return vae_scale_factor / 0.8
 
     @classmethod
     def create_unet(
@@ -226,7 +213,7 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         """
         Creates the 3D Unet
         """
-        use_mm_v2: bool = unet_additional_kwargs.pop("use_mm_v2", True)
+        animate_diff_mm_version: bool = unet_additional_kwargs.pop("animate_diff_mm_version", 3)
         use_hotshot: bool = unet_additional_kwargs.pop("use_hotshot", True)
         motion_dir = unet_additional_kwargs.pop("motion_dir", None)
         motion_module: Optional[str] = unet_additional_kwargs.pop("motion_module", None)
@@ -259,7 +246,7 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
             config=config,
             cache_dir=cache_dir,
             motion_dir=motion_dir,
-            use_mm_v2=use_mm_v2,
+            animate_diff_mm_version=animate_diff_mm_version,
             motion_module=motion_module,
             task_callback=task_callback,
             position_encoding_truncate_length=position_encoding_truncate_length,
@@ -374,7 +361,7 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         cls,
         config: Dict[str, Any],
         cache_dir: str,
-        use_mm_v2: bool=True,
+        animate_diff_mm_version:int=3,
         motion_dir: Optional[str]=None,
         motion_module: Optional[str]=None,
         task_callback: Optional[Callable[[str], None]]=None,
@@ -401,18 +388,21 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
 
         if motion_module is not None:
             # Detect MM version
-            from enfugue.diffusion.util import load_state_dict
-            logger.debug(f"Loading motion module {motion_module} to detect MMV1/2")
+            logger.debug(f"Loading motion module {motion_module} to detect MMV1/2/3")
             state_dict = load_state_dict(motion_module)
 
             if cls.MOTION_MODULE_PE_KEY in state_dict:
                 position_tensor: torch.Tensor = state_dict[cls.MOTION_MODULE_PE_KEY] # type: ignore[assignment]
                 if position_tensor.shape[1] == 24:
-                    use_mm_v2 = False
+                    animate_diff_mm_version = 1
                     logger.debug("Detected MMV1")
                 elif position_tensor.shape[1] == 32:
-                    use_mm_v2 = True
-                    logger.debug("Detected MMV2")
+                    if cls.MOTION_MODULE_MID_KEY in state_dict:
+                        animate_diff_mm_version = 2
+                        logger.debug("Detected MMV2")
+                    else:
+                        animate_diff_mm_version = 3
+                        logger.debug("Detected MMV3")
                 else:
                     raise ValueError(f"Position encoder tensor has unsupported length {position_tensor.shape[1]}")
             else:
@@ -421,17 +411,17 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
             motion_module = state_dict # type: ignore[assignment]
 
         config["mid_block_type"] = "UNetMidBlock3DCrossAttn"
-        default_position_encoding_len = 32 if use_mm_v2 else 24
+        default_position_encoding_len = 32 if animate_diff_mm_version >= 2 else 24
         position_encoding_len = default_position_encoding_len
         if position_encoding_scale_length:
             position_encoding_len = position_encoding_scale_length
 
-        unet_additional_kwargs["use_inflated_groupnorm"] = use_mm_v2
+        unet_additional_kwargs["use_inflated_groupnorm"] = animate_diff_mm_version >= 2
         unet_additional_kwargs["unet_use_cross_frame_attention"] = False
         unet_additional_kwargs["unet_use_temporal_attention"] = False
         unet_additional_kwargs["use_motion_module"] = True
         unet_additional_kwargs["motion_module_resolutions"] = [1, 2, 4, 8]
-        unet_additional_kwargs["motion_module_mid_block"] = use_mm_v2
+        unet_additional_kwargs["motion_module_mid_block"] = animate_diff_mm_version == 2
         unet_additional_kwargs["motion_module_decoder_only"] = False
         unet_additional_kwargs["motion_module_type"] = "Vanilla"
         unet_additional_kwargs["motion_module_kwargs"] = {
@@ -450,7 +440,7 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         cls.load_diff_state_dict(
             unet=model,
             cache_dir=cache_dir,
-            use_mm_v2=use_mm_v2,
+            animate_diff_mm_version=animate_diff_mm_version,
             motion_dir=motion_dir,
             motion_module=motion_module,
             task_callback=task_callback,
@@ -464,7 +454,7 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         cls,
         unet: AnimateDiffUNet,
         cache_dir: str,
-        use_mm_v2: bool=True,
+        animate_diff_mm_version: int=3,
         motion_dir: Optional[str]=None,
         motion_module: Optional[Union[str, Dict[str, torch.Tensor]]]=None,
         task_callback: Optional[Callable[[str], None]]=None,
@@ -475,9 +465,16 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         Loads animate diff state dict into an animate diff unet
         """
         if motion_module is None:
-            motion_module = cls.MOTION_MODULE_V2 if use_mm_v2 else cls.MOTION_MODULE
-            motion_cache_dir = cache_dir
+            if animate_diff_mm_version == 3:
+                motion_module = cls.MOTION_MODULE_V3
+            elif animate_diff_mm_version == 2:
+                motion_module = cls.MOTION_MODULE_V2
+            elif animate_diff_mm_version == 1:
+                motion_module = cls.MOTION_MODULE_V1
+            else:
+                raise ValueError(f"Unknown AnimateDiff version {animate_diff_mm_version}")
 
+            motion_cache_dir = cache_dir
             if not os.path.exists(os.path.join(cache_dir, os.path.basename(motion_module))):
                 if motion_dir is not None:
                     motion_cache_dir = motion_dir
@@ -494,7 +491,6 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         else:
             logger.debug(f"Loading AnimateDiff motion module {motion_module} with truncate length '{position_encoding_truncate_length}' and scale length '{position_encoding_scale_length}'")
 
-            from enfugue.diffusion.util.torch_util import load_state_dict
             state_dict = load_state_dict(motion_module) # type: ignore[assignment]
 
         if position_encoding_truncate_length is not None or position_encoding_scale_length is not None:
@@ -510,8 +506,7 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
                         del tensor
 
         num_motion_keys = len(list(state_dict.keys()))
-        unet_version = "V2" if use_mm_v2 else "V1"
-        logger.debug(f"Loading {num_motion_keys} keys into AnimateDiff UNet {unet_version} state dict (non-strict)")
+        logger.debug(f"Loading {num_motion_keys} keys into AnimateDiff UNet v{animate_diff_mm_version} state dict (non-strict)")
         unet.load_state_dict(state_dict, strict=False)
         del state_dict
 
@@ -543,7 +538,6 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
             motion_module = check_download_to_dir(motion_module, motion_cache_dir)
 
         logger.debug(f"Loading AnimateDiff motion module {motion_module} with truncate length '{position_encoding_truncate_length}' and scale length '{position_encoding_scale_length}'")
-        from enfugue.diffusion.util.torch_util import load_state_dict
         state_dict = load_state_dict(motion_module) # type: ignore[assignment,arg-type]
 
         if position_encoding_truncate_length is not None or position_encoding_scale_length is not None:
@@ -623,15 +617,70 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         )
         return model
 
+    def get_sparse_controlnet(
+        self,
+        controlnet: Literal["sparse-rgb", "sparse-scribble"],
+        cache_dir: str,
+        motion_dir: Optional[str]=None,
+        task_callback: Optional[Callable[[str], None]]=None,
+    ) -> SparseControlNetModel:
+        """
+        Loads a sparse controlnet from the UNet
+        """
+        if controlnet == "sparse-rgb":
+            controlnet_path = CONTROLNET_SPARSE_RGB
+        elif controlnet == "sparse-scribble":
+            controlnet_path = CONTROLNET_SPARSE_SCRIBBLE
+        else:
+            raise ValueError(f"Unknown ControlNet {controlnet}")
+
+        use_simplified_embedding = controlnet == "sparse-rgb"
+        sparse_controlnet_config = {
+            "set_noisy_sample_input_to_zero": True,
+            "use_simplified_condition_embedding": use_simplified_embedding,
+            "conditioning_channels": 4 if use_simplified_embedding else 3,
+            "use_motion_module": True,
+            "motion_module_resolutions": [1,2,4,8],
+            "motion_module_mid_block": False,
+            "motion_module_type": "Vanilla",
+            "motion_module_kwargs": {
+                "num_attention_heads": 8,
+                "num_transformer_block": 1,
+                "attention_block_types": ["Temporal_Self"],
+                "temporal_position_encoding": True,
+                "temporal_position_encoding_max_len": 32,
+                "temporal_attention_dim_div": 1
+            }
+        }
+
+        # Prepare UNet
+        self.unet.config.num_attention_heads = 8
+        self.unet.config.projection_class_embeddings_input_dim = None
+        # Create model
+        controlnet_model = SparseControlNetModel.from_unet(
+            self.unet,
+            controlnet_additional_kwargs=sparse_controlnet_config
+        )
+
+        if task_callback is not None and not os.path.exists(os.path.join(cache_dir, os.path.basename(controlnet_path))):
+            task_callback(f"Downloading {controlnet_path}")
+
+        controlnet_module = check_download_to_dir(controlnet_path, cache_dir)
+        controlnet_state_dict = load_state_dict(controlnet_module)
+        if "controlnet" in controlnet_state_dict:
+            controlnet_state_dict = controlnet_state_dict["controlnet"]
+        controlnet_model.load_state_dict(controlnet_state_dict)
+        return controlnet_model
+
     def load_motion_module_weights(
         self,
         cache_dir: str,
-        use_mm_v2: bool=True,
         motion_module: Optional[str]=None,
         motion_dir: Optional[str]=None,
         task_callback: Optional[Callable[[str], None]]=None,
         position_encoding_truncate_length: Optional[int]=None,
         position_encoding_scale_length: Optional[int]=None,
+        animate_diff_mm_version: int=3,
     ) -> None:
         """
         Loads motion module weights after-the-fact
@@ -653,7 +702,7 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
                 motion_dir=motion_dir,
                 cache_dir=cache_dir,
                 task_callback=task_callback,
-                use_mm_v2=use_mm_v2,
+                animate_diff_mm_version=animate_diff_mm_version,
                 position_encoding_truncate_length=position_encoding_truncate_length,
                 position_encoding_scale_length=position_encoding_scale_length
             )
@@ -693,10 +742,12 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         progress_callback: Optional[Callable[[bool], None]]=None,
         scale_latents: bool=True,
         tiling: bool=False,
+        frame_decode_chunk_size: Optional[int]=None,
     ) -> torch.Tensor:
         """
         Decodes each video frame individually.
         """
+        from math import ceil
         animation_frames = latents.shape[2]
         if scale_latents:
             latents = 1 / self.vae.config.scaling_factor * latents # type: ignore[attr-defined]
@@ -707,10 +758,14 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         #self.vae = self.vae.to(torch.float32)
         #latents = latents.to(torch.float32)
         video: List[torch.Tensor] = []
-        for frame_index in range(latents.shape[0]):
+        total_batch_size = latents.shape[0]
+        decode_chunk_size = 1 if not frame_decode_chunk_size else frame_decode_chunk_size
+        decode_chunks = ceil(total_batch_size / decode_chunk_size)
+        for i in range(decode_chunks):
+            start_index = (i * decode_chunk_size)
             video.append(
                 super(EnfugueAnimateStableDiffusionPipeline, self).decode_latents(
-                    latents=latents[frame_index:frame_index+1],
+                    latents=latents[start_index:start_index+decode_chunk_size],
                     device=device,
                     weight_builder=weight_builder,
                     chunker=chunker,
@@ -721,7 +776,7 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
             )
         video = torch.cat(video) # type: ignore
         video = rearrange(video, "(b f) c h w -> b c f h w", f = animation_frames) # type: ignore
-        video = (video / 2 + 0.5).clamp(0, 1) # type: ignore
+        video = (video / 2 + 0.5).clamp(0, 1.0) # type: ignore
         video = video.cpu().float() # type: ignore
         #self.vae.to(dtype)
         return video # type: ignore

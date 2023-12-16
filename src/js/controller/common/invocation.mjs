@@ -1117,20 +1117,37 @@ class InvocationController extends Controller {
     }
 
     /**
-     * @return array<int> interpolation frames
+     * @return int interpolation frames
      */
     get animationInterpolation() {
         return this.kwargs.interpolate_frames || null;
     }
 
     /**
-     * @param array<int> interpolation frames
+     * @param int interpolation frames
      */
     set animationInterpolation(newFrames) {
         if (this.animationInterpolation !== newFrames) {
             this.publish("engineAnimationInterpolationChange", newFrames);
         }
         this.kwargs.interpolate_frames = newFrames;
+    }
+
+    /**
+     * @return int Frames to decode at once
+     */
+    get animationDecodeChunkSize() {
+        return this.kwargs.frame_decode_chunk_size || 1;
+    }
+
+    /**
+     * @param int Frames to decode at once
+     */
+    set animationDecodeChunkSize(newSize) {
+        if (!isEquivalent(this.animationDecodeChunkSize, newSize)) {
+            this.publish("engineAnimationDecodeChunkSizeChange", newSize);
+        }
+        this.kwargs.frame_decode_chunk_size = newSize;
     }
 
     /**

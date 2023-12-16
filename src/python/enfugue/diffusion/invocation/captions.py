@@ -35,6 +35,8 @@ class CaptionInvocation:
         num_results = num_prompts * self.num_results_per_prompt
         all_results: List[List[str]] = []
 
+        pipeline.offload_all() # Send any diffusion pipelines to CPU
+
         with pipeline.caption_upsampler.upsampler(safe=pipeline.safe) as sampler:
             # Call task callback if set
             if task_callback is not None:

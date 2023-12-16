@@ -31,7 +31,7 @@ def interpolate_frames(
         get_multiplier = lambda i: multiplier[i]
         num_interpolations = sum(multiplier)
     else:
-        get_multiplier = lambda i: multiplier
+        get_multiplier = lambda i: multiplier # type: ignore
         num_interpolations = multiplier * (num_frames - 1)
 
     interpolation_step = 0

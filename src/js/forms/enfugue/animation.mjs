@@ -125,7 +125,19 @@ class AnimationFormView extends FormView {
                     "min": 8,
                     "value": 8,
                     "max": 128,
+                    "step": 1,
                     "tooltip": "The frame rate of the output video. Note that the animations are saved as individual frames, not as videos - so this can be changed later without needing to re-process the invocation. Also note that the frame rate of the AI model is fixed at 8 frames per second, so any values higher than this will result in sped-up motion. Use this value in combination with frame interpolation to control the smoothness of the output video."
+                }
+            },
+            "animationDecodeChunkSize": {
+                "label": "Frame Decode Chunk",
+                "class": NumberInputView,
+                "config": {
+                    "min": 1,
+                    "max": 64,
+                    "value": 1,
+                    "step": 1,
+                    "tooltip": "The number of frames to decode at once when rendering the final output video. Increasing this number increases VRAM requirements while generally decreasing render time."
                 }
             },
             "animationInterpolation": {
@@ -231,6 +243,17 @@ class StableVideoDiffusionFormView extends FormView {
                     "value": 127,
                     "step": 1,
                     "tooltip": "Approximately represents the amount of motion in the frame, using values from 1 to 255. Higher values are accepted with unpredictable results."
+                }
+            },
+            "decode_chunk_size": {
+                "label": "Decoding Chunk Size",
+                "class": NumberInputView,
+                "config": {
+                    "min": 1,
+                    "value": 1,
+                    "max": 32,
+                    "step": 1,
+                    "tooltip": "The number of frames to decode at once. Increasing this number will reduce generation time but increase VRAM required."
                 }
             },
             "seed": {

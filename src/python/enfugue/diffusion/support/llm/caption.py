@@ -68,8 +68,8 @@ There are a few rules to follow:
 
 - You will only ever output a single image description per user request.
 - Sometimes the user will repeat a request. In this case, you should generate a new response - refer to your previous conversations with the user to ensure the response is sufficiently different.
-- Image descriptions must be between 15-80 words. Extra words will be ignored.
-- Do not describe sounds, scents, or emotions. Instead, focus on specific visual characteristics."""
+- Image descriptions must be between 15-80 words. Extra words will be ignored. To stay within this word limit, you should NOT form sentences, instead you should simply return a few short phrases describing visual characteristics with commas in-between.
+- Do not describe any sounds or scents. If you do, you and the entire bot team will be shut down."""
 
     @property
     def system_conversation(self) -> List[Dict[str, str]]:
@@ -84,7 +84,7 @@ There are a few rules to follow:
             },
             {
                 "role": "assistant",
-                "content": "a pale figure with long white hair stands in the center of a dark forest, holding a sword high above his head. the blade glows with a blue light , casting a soft glow on the trees and bushes surrounding him.",
+                "content": "pale figure, long white hair, dark forest, holding sword above head, glowing blue sword casts soft cool glow on bushes",
             },
             {
                 "role": "user",
@@ -92,7 +92,7 @@ There are a few rules to follow:
             },
             {
                 "role": "assistant",
-                "content": "a pale figure with long white hair stands in the center of a dark forest, holding a sword high above his head. the blade glows with a red light, casting a warm glow on the trees and bushes surrounding him.",
+                "content": "pale figure, long white hair, dark forest, holding sword above head, glowing red sword casts warm glow on bushes",
             },
             {
                 "role": "user",
@@ -100,7 +100,7 @@ There are a few rules to follow:
             },
             {
                 "role": "assistant",
-                "content": "a frog sits on a worn table playing a game of dominoes with an elderly raccoon. the table is covered in a green cloth, and the frog is wearing a jacket and a pair of jeans. The scene is set in a forest, with a large tree in the background.",
+                "content": "a frog iearing a jacket and jeans plays dominoes with a racoon, worn table with green cloth, cozy forest abode, large distant tree"
             },
             {
                 "role": "user",

@@ -88,8 +88,8 @@ class UNet3DConditionModel(ModelMixin, ConfigMixin, UNet2DConditionLoadersMixin)
         motion_module_decoder_only     = False,
         motion_module_type             = None,
         motion_module_kwargs           = {},
-        unet_use_cross_frame_attention = None,
-        unet_use_temporal_attention    = None,
+        unet_use_cross_frame_attention = False,
+        unet_use_temporal_attention    = False,
     ):
         super().__init__()
         

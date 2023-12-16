@@ -90,6 +90,7 @@ from diffusers.image_processor import VaeImageProcessor
 
 from pibble.util.files import load_json
 
+from enfugue.diffusion.animate.diff.sparse_controlnet import SparseControlNetModel
 from enfugue.diffusion.constants import *
 from enfugue.util import (
     logger,
@@ -141,17 +142,19 @@ class ControlImageArgDict(TypedDict):
     scale: NotRequired[float]
     start: NotRequired[float]
     end: NotRequired[float]
+    frame: NotRequired[float]
 
 ControlImageType = Union[
     ImageArgType, # Image
     Tuple[ImageArgType, float], # Image, Scale
     Tuple[ImageArgType, float, float], # Image, Scale, End Denoising
     Tuple[ImageArgType, float, float, float], # Image, Scale, Start Denoising, End Denoising
+    Tuple[ImageArgType, float, float, float, int], # Image, Scale, Start Denoising, End Denoising, Frame
     ControlImageArgDict
 ]
 
 ControlImageArgType = Optional[Dict[str, Union[ControlImageType, List[ControlImageType]]]]
-PreparedControlImageArgType = Optional[Dict[str, List[Tuple[torch.Tensor, float, Optional[float], Optional[float]]]]]
+PreparedControlImageArgType = Optional[Dict[str, List[Tuple[torch.Tensor, float, Optional[float], Optional[float], Optional[torch.Tensor]]]]]
 
 class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
     """
@@ -295,13 +298,6 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         """
         config_path = check_download_to_dir(url, cache_dir, check_size=False)
         return load_json(config_path)
-
-    @classmethod
-    def get_vae_scale_factor(cls, vae_scale_factor: float) -> float:
-        """
-        Pass-through for base pipeline
-        """
-        return vae_scale_factor
 
     @classmethod
     def create_unet(
@@ -577,7 +573,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         if is_segmind:
             # Remove temporarily added middle blocks
             for key in list(converted_unet_checkpoint.keys()):
-                if "mid_block.resnets.1" in key or "mid_block.attentsion.0" in key:
+                if "mid_block.resnets.1" in key or "mid_block.attentions.0" in key:
                     converted_unet_checkpoint.pop(key)
 
         unet_keys = len(list(converted_unet_checkpoint.keys()))
@@ -601,9 +597,9 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 else:
                     vae_scale_factor = 0.18215  # default SD scaling factor
 
-                vae_config["scaling_factor"] = cls.get_vae_scale_factor(vae_scale_factor)
+                vae_config["scaling_factor"] = vae_scale_factor
+
                 vae = AutoencoderKL(**vae_config)
-                vae.register_to_config(vae_scaled_for_pipeline=True)
                 vae_keys = len(list(converted_vae_checkpoint.keys()))
                 logger.debug(f"Loading {vae_keys} keys into Autoencoder state dict (strict). Autoencoder scale is {vae_config['scaling_factor']}")
                 vae.load_state_dict(converted_vae_checkpoint)
@@ -612,8 +608,6 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 logger.error(f"Malformed VAE state dictionary detected; missing required key '{ex}'. Reverting to default model {default_path}")
                 task_callback(f"Loading VAE {default_path}")
                 vae = AutoencoderKL.from_pretrained(default_path, cache_dir=cache_dir)
-                vae.config.scaling_factor = cls.get_vae_scale_factor(vae.config.scaling_factor)
-                vae.register_to_config(vae_scaled_for_pipeline=True)
         elif os.path.exists(vae_path):
             if model_type in ["SDXL", "SDXL-Refiner"]:
                 vae_config_path = os.path.join(cache_dir, "sdxl-vae-config.json")
@@ -624,10 +618,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 )
                 task_callback("Loading VAE")
                 vae_config = AutoencoderKL._dict_from_json_file(vae_config_path)
-                if "scaling_factor" in vae_config:
-                    vae_config["scaling_factor"] = cls.get_vae_scale_factor(vae_config["scaling_factor"])
                 vae = AutoencoderKL.from_config(vae_config)
-                vae.register_to_config(vae_scaled_for_pipeline=True)
                 vae_state_dict = load_state_dict(vae_path)
                 vae_keys = len(list(vae_state_dict.keys()))
                 logger.debug(f"Loading {vae_keys} keys into Autoencoder state dict (non-strict)")
@@ -640,17 +631,14 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     cache_dir=cache_dir,
                     from_safetensors="safetensors" in vae_path
                 )
-                vae.config.scaling_factor = cls.get_vae_scale_factor(vae.config.scaling_factor)
-                vae.register_to_config(vae_scaled_for_pipeline=True)
                 logger.debug(f"VAE Scaling factor is {vae.config.scaling_factor}")
         else:
             logger.debug(f"Initializing autoencoder from repository {vae_path}")
-            vae = AutoencoderKL.from_pretrained(vae_path, cache_dir=cache_dir)
-            vae.register_to_config(
-                scaling_factor=cls.get_vae_scale_factor(vae.config.scaling_factor),
-                vae_scaled_for_pipeline=True
-            )
-            logger.debug(f"VAE Scaling factor is {vae.config.scaling_factor}")
+            if vae_path == "openai/consistency-decoder":
+                vae_model = ConsistencyDecoderVAE
+            else:
+                vae_model = AutoencoderKL
+            vae = vae_model.from_pretrained(vae_path, cache_dir=cache_dir)
 
         if offload_models:
             logger.debug("Offloading enabled; sending VAE to CPU")
@@ -1997,11 +1985,13 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         device: Union[str, torch.device],
         dtype: torch.dtype,
         do_classifier_free_guidance=False,
-        animation_frames: Optional[int] = None
-    ):
+        animation_frames: Optional[int] = None,
+        conditioning_frame: Optional[int] = None,
+    ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
         """
         Prepares an image for controlnet conditioning.
         """
+        mask: Optional[torch.Tensor] = None
         if not isinstance(image, torch.Tensor):
             if isinstance(image, PIL.Image.Image):
                 image = [image]
@@ -2026,8 +2016,23 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 image = torch.cat(image, dim=0)
 
         if animation_frames:
-            # Expand batch to frames
-            image = rearrange(image, 't c h w -> c t h w').unsqueeze(0)
+            # Move what is normally batch (0) to time (2), then insert batch dim back in
+            image = rearrange(image, 't c h w -> c t h w').unsqueeze(0) # now b c t h w
+            if conditioning_frame is not None:
+                # Get condition length
+                image_length = image.shape[1]
+                # Start from zeros
+                condition_shape = list(image.shape)
+                condition_shape[2] = animation_frames
+                condition = torch.zeros(condition_shape).to(device=device, dtype=dtype)
+                mask_shape = list(condition.shape)
+                mask_shape[1] = 1
+                mask = torch.zeros(mask_shape).to(device=device, dtype=dtype)
+                # Set condition
+                condition[:,:,conditioning_frame:conditioning_frame+image_length] = image
+                image = condition
+                # Set mask
+                mask[:,:,conditioning_frame:conditioning_frame+image_length] = 1
 
         image_batch_size = image.shape[0]
 
@@ -2038,10 +2043,13 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             repeat_by = num_results_per_prompt
 
         image = image.repeat_interleave(repeat_by, dim=0)
-        if do_classifier_free_guidance:
+        if do_classifier_free_guidance and conditioning_frame is None:
             image = torch.cat([image] * 2)
 
-        return image.to(device=device, dtype=dtype)
+        image = image.to(device=device, dtype=dtype)
+        if mask is None:
+            return image
+        return (image, mask)
 
     def prepare_controlnet_inpaint_control_image(
         self,
@@ -2070,7 +2078,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         latents: torch.Tensor,
         timestep: torch.Tensor,
         encoder_hidden_states: torch.Tensor,
-        controlnet_conds: Optional[Dict[str, List[Tuple[torch.Tensor, float]]]],
+        controlnet_conds: Optional[Dict[str, List[Tuple[torch.Tensor, float, Optional[torch.Tensor]]]]],
         added_cond_kwargs: Optional[Dict[str, Any]],
     ) -> Tuple[Optional[List[torch.Tensor]], Optional[torch.Tensor]]:
         """
@@ -2105,19 +2113,38 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         for name in controlnet_conds:
             if self.controlnets.get(name, None) is None:
                 raise RuntimeError(f"Conditioning image requested ControlNet {name}, but it's not loaded.")
-            for controlnet_cond, conditioning_scale in controlnet_conds[name]:
-                if is_animation:
-                    controlnet_cond = rearrange(controlnet_cond, "b c f h w -> (b f) c h w")
+            for controlnet_cond, conditioning_scale, conditioning_mask in controlnet_conds[name]:
+                if conditioning_mask is not None:
+                    # Sparse
+                    down_samples, mid_sample = self.controlnets[name](
+                        latents,
+                        timestep,
+                        encoder_hidden_states=encoder_hidden_states,
+                        controlnet_cond=controlnet_cond,
+                        conditioning_mask=conditioning_mask,
+                        conditioning_scale=conditioning_scale,
+                        added_cond_kwargs=added_cond_input,
+                        return_dict=False,
+                        guess_mode=False
+                    )
+                    down_samples = [
+                        rearrange(down_sample, "b c f h w -> (b f) c h w")
+                        for down_sample in down_samples
+                    ]
+                    mid_sample = rearrange(mid_sample, "b c f h w -> (b f) c h w")
+                else:
+                    if is_animation:
+                        controlnet_cond = rearrange(controlnet_cond, "b c f h w -> (b f) c h w")
 
-                down_samples, mid_sample = self.controlnets[name](
-                    latent_input,
-                    timestep,
-                    encoder_hidden_states=hidden_state_input,
-                    controlnet_cond=controlnet_cond,
-                    conditioning_scale=conditioning_scale,
-                    added_cond_kwargs=added_cond_input,
-                    return_dict=False,
-                )
+                    down_samples, mid_sample = self.controlnets[name](
+                        latent_input,
+                        timestep,
+                        encoder_hidden_states=hidden_state_input,
+                        controlnet_cond=controlnet_cond,
+                        conditioning_scale=conditioning_scale,
+                        added_cond_kwargs=added_cond_input,
+                        return_dict=False,
+                    )
 
                 if down_blocks is None or mid_block is None: # type: ignore[unreachable]
                     down_blocks, mid_block = down_samples, mid_sample
@@ -2222,7 +2249,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                         control_image,
                         conditioning_scale,
                         conditioning_start,
-                        conditioning_end
+                        conditioning_end,
+                        conditioning_mask,
                     ) in control_images[controlnet_name]:
                         if (
                             (conditioning_start is None or conditioning_start <= denoising_ratio) and
@@ -2231,7 +2259,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                             if controlnet_name not in controlnet_conds:
                                 controlnet_conds[controlnet_name] = []
 
-                            controlnet_conds[controlnet_name].append((control_image, conditioning_scale))
+                            controlnet_conds[controlnet_name].append((control_image, conditioning_scale, conditioning_mask))
 
                 if not controlnet_conds:
                     down_block, mid_block = None, None
@@ -2876,6 +2904,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         progress_callback: Optional[Callable[[bool], None]]=None,
         scale_latents: bool=True,
         tiling: bool=False,
+        frame_decode_chunk_size: Optional[int]=None,
     ) -> torch.Tensor:
         """
         Decodes the latents in chunks as necessary.
@@ -3084,8 +3113,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         self,
         overall_steps: int,
         progress_callback: Optional[Callable[[int, int, float], None]] = None,
-        log_interval: int = 10,
-        log_sampling_duration: Union[int, float] = 5,
+        log_interval: int = 5,
+        log_sampling_duration: Union[int, float] = 2,
     ) -> Callable[[bool], None]:
         """
         Creates a scoped callback to trigger during iterations
@@ -3200,7 +3229,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
     ) -> Optional[
         Dict[
             str,
-            List[Tuple[List[PIL.Image.Image], float, Optional[float], Optional[float]]]
+            List[Tuple[List[PIL.Image.Image], float, Optional[float], Optional[float], Optional[int]]]
         ]
     ]:
         """
@@ -3214,53 +3243,64 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         for name in control_images:
             if name not in self.controlnets: # type: ignore[operator]
                 raise RuntimeError(f"Control image mapped to ControlNet {name}, but it is not loaded.")
-
             standardized[name] = []
 
             image_list = control_images[name]
             if not isinstance(image_list, list):
                 image_list = [image_list]
 
+            is_sparse = isinstance(self.controlnets[name], SparseControlNetModel)
+
             for controlnet_image in image_list:
+                conditioning_scale = 1.0
+                conditioning_frame, conditioning_start, conditioning_end = None, None, None
+
                 if isinstance(controlnet_image, tuple):
-                    if len(controlnet_image) == 4:
+                    if len(controlnet_image) == 5:
+                        controlnet_image, conditioning_scale, conditioning_start, conditioning_end, conditioning_frame = controlnet_image
+                    elif len(controlnet_image) == 4:
                         controlnet_image, conditioning_scale, conditioning_start, conditioning_end = controlnet_image
                     elif len(controlnet_image) == 3:
                         controlnet_image, conditioning_scale, conditioning_start = controlnet_image
                         conditioning_end = 1.0
                     elif len(controlnet_image) == 2:
                         controlnet_image, conditioning_scale = controlnet_image
-                        conditioning_start, conditioning_end = None, None
-
                 elif isinstance(controlnet_image, dict):
-                    conditioning_scale = controlnet_image.get("scale", 1.0)
+                    conditioning_scale = controlnet_image.get("scale", conditioning_scale)
                     conditioning_start = controlnet_image.get("start", None)
                     conditioning_end = controlnet_image.get("end", None)
+                    conditioning_frame = controlnet_image.get("frame", None)
                     controlnet_image = controlnet_image["image"]
-                else:
-                    conditioning_scale = 1.0
-                    conditioning_start, conditioning_end = None, None
-
-                if isinstance(controlnet_image, str):
+                elif isinstance(controlnet_image, str):
                     controlnet_image = self.open_image(controlnet_image)
+                elif not isinstance(controlnet_image, PIL.Image.Image):
+                    raise BadRequestError(f"Unhandled control image type {type(controlnet_image)}")
 
                 if not isinstance(controlnet_image, list):
                     controlnet_image = [controlnet_image]
 
                 if animation_frames:
-                    image_len = len(controlnet_image)
-                    if image_len < animation_frames:
-                        controlnet_image += [
-                            controlnet_image[image_len-1]
-                            for i in range(animation_frames - image_len)
-                        ]
+                    if is_sparse:
+                        if conditioning_frame is None:
+                            conditioning_frame = 0
+                    else:
+                        image_len = len(controlnet_image)
+                        if image_len < animation_frames:
+                            controlnet_image += [
+                                controlnet_image[image_len-1]
+                                for i in range(animation_frames - image_len)
+                            ]
+                else:
+                    conditioning_frame = None
 
                 standardized[name].append((
                     controlnet_image,
                     conditioning_scale,
                     conditioning_start,
-                    conditioning_end
+                    conditioning_end,
+                    conditioning_frame
                 ))
+
         return standardized
 
     @torch.no_grad()
@@ -3288,6 +3328,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         tiling_stride: Optional[int]=None,
         frame_window_size: Optional[int]=None,
         frame_window_stride: Optional[int]=None,
+        frame_decode_chunk_size: Optional[int]=None,
         denoising_start: Optional[float]=None,
         denoising_end: Optional[float]=None,
         strength: Optional[float]=0.8,
@@ -3417,6 +3458,9 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             if mask is None:
                 logger.warning("No mask present, but using inpainting model. Adding blank mask.")
                 mask = [PIL.Image.new("RGB", (width, height), (255, 255, 255))]
+            if self.is_sdxl and strength == 1.0:
+                logger.debug("Adjusting strength from 1.0 to 0.99 for SDXL inpainting fix.")
+                strength = 0.99
 
         if device is None:
             device = torch.device("cpu")
@@ -3515,7 +3559,9 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         unet_steps = unet_spatial_chunks * num_temporal_chunks * num_scheduled_inference_steps
 
         vae_chunks = (1 if not tiling_vae else num_chunks)
-        vae_steps = vae_chunks * (encoding_steps + (decoding_steps * num_frames))
+        decode_chunk_size = 1 if not frame_decode_chunk_size else frame_decode_chunk_size
+        frame_decode_steps = ceil(num_frames / decode_chunk_size)
+        vae_steps = vae_chunks * (encoding_steps + (decoding_steps * frame_decode_steps))
         overall_num_steps = image_prompt_probes + unet_steps + vae_steps
 
         logger.debug(
@@ -3523,7 +3569,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 f"Calculated overall steps to be {overall_num_steps}.",
                 f"{image_prompt_probes} image prompt embedding probe(s) +",
                 f"{unet_steps} UNet step(s) ({unet_spatial_chunks} spatial chunk(s) * {num_temporal_chunks} temporal chunk(s) * {num_scheduled_inference_steps} inference step(s)) +",
-                f"{vae_steps} VAE step(s) ({vae_chunks} chunk(s) * ({encoding_steps} encoding step(s) + ({decoding_steps} decoding step(s) * {num_frames} frame(s))))"
+                f"{vae_steps} VAE step(s) ({vae_chunks} chunk(s) * ({encoding_steps} encoding step(s) + ({decoding_steps} decoding step(s) * ({num_frames} frame(s) / {decode_chunk_size} frame(s) per decode))))"
             ])
         )
 
@@ -3785,28 +3831,77 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
                 # Look for controlnet and conditioning image, prepare
                 prepared_control_images: PreparedControlImageArgType = {}
+
                 if control_images is not None:
                     if not self.controlnets:
                         logger.warning("Control image passed, but no controlnet present. Ignoring.")
                         prepared_control_images = None
                     else:
                         for name in control_images:
+                            is_sparse = type(self.controlnets[name]) is SparseControlNetModel
                             prepared_control_images[name] = [] # type: ignore[index]
-                            for controlnet_image, conditioning_scale, conditioning_start, conditioning_end in control_images[name]: # type: ignore
-                                prepared_controlnet_image = self.prepare_control_image(
-                                    image=controlnet_image,
-                                    height=height,
-                                    width=width,
-                                    batch_size=batch_size,
-                                    num_results_per_prompt=num_results_per_prompt,
-                                    device=device,
-                                    dtype=encoded_prompts.dtype,
-                                    do_classifier_free_guidance=do_classifier_free_guidance,
-                                    animation_frames=animation_frames
-                                )
+                            sparse_condition_scale: float = 0
+                            sparse_conditions: List[torch.Tensor] = []
+                            sparse_masks: List[torch.Tensor] = []
 
-                                prepared_control_images[name].append( # type: ignore[index]
-                                    (prepared_controlnet_image, conditioning_scale, conditioning_start, conditioning_end)
+                            for controlnet_image, conditioning_scale, conditioning_start, conditioning_end, conditioning_frame in control_images[name]: # type: ignore
+                                if is_sparse:
+                                    if self.controlnets[name].use_simplified_condition_embedding:
+                                        controlnet_image = self.image_processor.preprocess([
+                                            i.convert("RGB") for i in controlnet_image
+                                        ]).to(dtype=encoded_prompts.dtype, device=device)
+                                        controlnet_image = self.encode_image(
+                                            image=controlnet_image,
+                                            device=device,
+                                            generator=generator,
+                                            dtype=encoded_prompts.dtype,
+                                            chunker=chunker,
+                                            weight_builder=weight_builder,
+                                            progress_callback=progress_callback,
+                                            tiling=tiling_vae
+                                        )
+                                    prepared_controlnet_image, prepared_controlnet_mask = self.prepare_control_image(
+                                        image=controlnet_image,
+                                        height=height,
+                                        width=width,
+                                        batch_size=batch_size,
+                                        num_results_per_prompt=num_results_per_prompt,
+                                        device=device,
+                                        dtype=encoded_prompts.dtype,
+                                        do_classifier_free_guidance=do_classifier_free_guidance,
+                                        animation_frames=animation_frames,
+                                        conditioning_frame=conditioning_frame
+                                    )
+                                    sparse_conditions.append(prepared_controlnet_image)
+                                    sparse_masks.append(prepared_controlnet_mask)
+                                    sparse_condition_scale = max(sparse_condition_scale, conditioning_scale)
+                                else:
+                                    prepared_controlnet_image = self.prepare_control_image(
+                                        image=controlnet_image,
+                                        height=height,
+                                        width=width,
+                                        batch_size=batch_size,
+                                        num_results_per_prompt=num_results_per_prompt,
+                                        device=device,
+                                        dtype=encoded_prompts.dtype,
+                                        do_classifier_free_guidance=do_classifier_free_guidance,
+                                        animation_frames=animation_frames,
+                                        conditioning_frame=conditioning_frame
+                                    )
+
+                                    prepared_control_images[name].append( # type: ignore[index]
+                                        (prepared_controlnet_image, conditioning_scale, conditioning_start, conditioning_end, None)
+                                    )
+
+                            if is_sparse:
+                                # Create single condition
+                                sparse_condition = torch.zeros_like(sparse_conditions[0])
+                                sparse_mask = torch.zeros_like(sparse_masks[0])
+                                for condition, mask in zip(sparse_conditions, sparse_masks):
+                                    sparse_condition += (condition * mask.repeat(condition.shape[0], condition.shape[1], 1, 1, 1))
+                                    sparse_mask += mask
+                                prepared_control_images[name].append(
+                                    (sparse_condition, sparse_condition_scale, 0.0, 0.5, sparse_mask)
                                 )
 
                 # Should no longer be None
@@ -4044,6 +4139,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                         progress_callback=step_complete,
                         weight_builder=weight_builder,
                         tiling=tiling_vae,
+                        frame_decode_chunk_size=frame_decode_chunk_size,
                     )
                     if not animation_frames:
                         output = self.denormalize_latents(prepared_latents)

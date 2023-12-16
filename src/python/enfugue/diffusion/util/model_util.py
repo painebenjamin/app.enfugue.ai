@@ -21,6 +21,10 @@ KEY_2_1 = "model.diffusion_model.input_blocks.2.1.transformer_blocks.0.attn2.to_
 KEY_XL_BASE = "conditioner.embedders.1.model.transformer.resblocks.9.mlp.c_proj.bias"
 KEY_XL_REFINER = "conditioner.embedders.0.model.transformer.resblocks.9.mlp.c_proj.bias"
 KEY_PLAYGROUND_V2 = "conditioner.embedders.0.transformer.text_model.embeddings.position_ids"
+SAFETENSORS_MODEL_NAMES = [
+    "diffusion_pytorch_model{variant}.safetensors",
+    "model{variant}.safetensors"
+]
 
 @dataclass
 class ModelMetadata:

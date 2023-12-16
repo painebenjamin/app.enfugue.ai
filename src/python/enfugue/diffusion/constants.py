@@ -39,6 +39,8 @@ __all__ = [
     "VAE_XL16",
     "VAE_LITERAL",
     "VAE_CONSISTENCY",
+    "CONTROLNET_SPARSE_RGB",
+    "CONTROLNET_SPARSE_SCRIBBLE",
     "CONTROLNET_CANNY",
     "CONTROLNET_CANNY_XL",
     "CONTROLNET_MLSD",
@@ -179,7 +181,8 @@ CONTROLNET_LITERAL = Literal[
     "scribble", "tile", "inpaint",
     "depth", "normal", "pose",
     "pidi", "line", "anime",
-    "temporal", "qr"
+    "temporal", "qr", "sparse-rgb",
+    "sparse-scribble"
 ]
 MOTION_LORA_LITERAL = [
     "pan-left", "pan-right",
@@ -332,6 +335,8 @@ CONTROLNET_POSE_XL = (
     "OpenPoseXL2",
     "controlnet-openpose-sdxl-1.0",
 )
+CONTROLNET_SPARSE_RGB = "https://huggingface.co/guoyww/animatediff/resolve/main/v3_sd15_sparsectrl_rgb.ckpt"
+CONTROLNET_SPARSE_SCRIBBLE = "https://huggingface.co/guoyww/animatediff/resolve/main/v3_sd15_sparsectrl_scribble.ckpt"
 
 MOTION_LORA_PAN_LEFT = "https://huggingface.co/guoyww/animatediff/resolve/main/v2_lora_PanLeft.ckpt"
 MOTION_LORA_PAN_RIGHT = "https://huggingface.co/guoyww/animatediff/resolve/main/v2_lora_PanRight.ckpt"

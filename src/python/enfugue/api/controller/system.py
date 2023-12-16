@@ -91,6 +91,10 @@ class EnfugueAPISystemController(EnfugueAPIControllerBase):
         """
         Gets the settings that can be manipulated from the UI
         """
+        inpainting = self.configuration.get("enfugue.pipeline.inpainter", None)
+        if inpainting == False:
+            inpainting = "never"
+
         settings = {
             "safe": self.configuration.get("enfugue.safe", True),
             "auth": not (self.configuration.get("enfugue.noauth", True)),
@@ -101,7 +105,7 @@ class EnfugueAPISystemController(EnfugueAPIControllerBase):
             "sequential": self.configuration.get("enfugue.pipeline.sequential", False),
             "cache_mode": self.configuration.get("enfugue.pipeline.cache", None),
             "precision": self.configuration.get("enfugue.dtype", None),
-            "inpainting": "never" if self.configuration.get("enfugue.pipeline.inpainter", None) == False else None,
+            "inpainting": inpainting,
             "intermediate_steps": self.configuration.get("enfugue.engine.intermediates", 5),
         }
 
@@ -164,11 +168,20 @@ class EnfugueAPISystemController(EnfugueAPIControllerBase):
             self.manager.stop_engine()
 
         if "inpainting" in request.parsed:
-            if not request.parsed["inpainting"]:
+            value = request.parsed["inpainting"]
+            configuration_value = value
+
+            if value == "never":
+                configuration_value = False
+            elif value not in ["xl", "sd"]:
+                configuration_value = None
+
+            if configuration_value is None:
                 del self.user_config["enfugue.pipeline.inpainter"]
-                self.configuration["enfugue.pipeline.inpainter"] = None
             else:
-                self.user_config["enfugue.pipeline.inpainter"] = False
+                self.user_config["enfugue.pipeline.inpainter"] = configuration_value
+
+            self.configuration["enfugue.pipeline.inpainter"] = configuration_value
 
         if "max_queued_invocations" in request.parsed:
             self.user_config["enfugue.queue"] = request.parsed["max_queued_invocations"]

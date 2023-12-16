@@ -98,7 +98,9 @@ class PipelineInpaintingModeInputView extends SelectInputView {
      * @var object The options for inpainting
      */
     static defaultOptions = {
-        "never": "Never Create Inpainting Checkpoint"
+        "sd": "Create SD v1.5 Inpainting Checkpoints",
+        "xl": "Create SDXL Inpainting Checkpoints",
+        "never": "Never Create Inpainting Checkpoints"
     };
     
     /**
@@ -109,12 +111,12 @@ class PipelineInpaintingModeInputView extends SelectInputView {
     /**
      * @var string The text to show for the null value
      */
-    static placeholder = "Create Inpainting Checkpoint when Available";
-    
+    static placeholder = "Create All Inpainting Checkpoints";
+
     /**
      * @var string The text to show to the user
      */
-    static tooltip = "When <strong>inpainting</strong>, that is, changing only a portion of an image, you <strong>can</strong> directly use a regular model to do so. However, this does not always produce good results, and a more consistent means of inpainting effectively can be employed by creating an inpainting checkpoint from fine-tuned checkpoints.<br /><br />The default setting of Enfugue creates these checkpoints when inpainting is requested. This can use more storage space than desired, so the option is provided to disable this feature.";
+    static tooltip = "When <strong>inpainting</strong>, that is, changing only a portion of an image, you <strong>can</strong> directly use a regular model to do so. However, this does not always produce good results, and a more consistent means of inpainting effectively can be employed by creating an inpainting checkpoint from fine-tuned checkpoints.<br /><br />The default setting of Enfugue creates these checkpoints when inpainting is requested and you do not have an inpainter explicitly set. This can use more storage space than desired, so the option is provided to disable this feature.";
 }
 
 export {
