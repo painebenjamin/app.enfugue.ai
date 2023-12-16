@@ -3901,7 +3901,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                                     sparse_condition += (condition * mask.repeat(condition.shape[0], condition.shape[1], 1, 1, 1))
                                     sparse_mask += mask
                                 prepared_control_images[name].append(
-                                    (sparse_condition, sparse_condition_scale, 0.0, 0.5, sparse_mask)
+                                    (sparse_condition, sparse_condition_scale, 0.0, 1.0, sparse_mask)
                                 )
 
                 # Should no longer be None
