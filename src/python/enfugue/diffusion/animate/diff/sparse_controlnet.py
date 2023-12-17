@@ -1,4 +1,3 @@
-from __future__ import annotations
 # type: ignore
 # Copyright 2023 The HuggingFace Team. All rights reserved.
 #
@@ -15,6 +14,7 @@ from __future__ import annotations
 # limitations under the License.
 # 
 #  Changes were made to this source code by Yuwei Guo.
+from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -27,11 +27,8 @@ from diffusers.utils import BaseOutput, logging
 from diffusers.models.embeddings import TimestepEmbedding, Timesteps
 from diffusers.models.modeling_utils import ModelMixin
 
-from einops import repeat, rearrange
 from enfugue.diffusion.animate.diff.resnet import InflatedConv3d
 from enfugue.diffusion.animate.diff.unet_blocks import (
-    CrossAttnDownBlock3D,
-    DownBlock3D,
     UNetMidBlock3DCrossAttn,
     get_down_block,
 )

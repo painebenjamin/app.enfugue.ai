@@ -72,6 +72,7 @@ __all__ = [
     "MOTION_LORA_LITERAL",
     "LCM_LORA_DEFAULT",
     "LCM_LORA_XL",
+    "SPARSE_CONTROLNET_ADAPTER_LORA",
     "SCHEDULER_LITERAL",
     "DEVICE_LITERAL",
     "PIPELINE_SWITCH_MODE_LITERAL",
@@ -348,6 +349,7 @@ MOTION_LORA_ZOOM_IN = "https://huggingface.co/guoyww/animatediff/resolve/main/v2
 MOTION_LORA_ZOOM_OUT = "https://huggingface.co/guoyww/animatediff/resolve/main/v2_lora_ZoomOut.ckpt"
 LCM_LORA_DEFAULT = "https://huggingface.co/latent-consistency/lcm-lora-sdv1-5/resolve/main/pytorch_lora_weights.safetensors?filename=lcm-lora-sdv1-5.safetensors"
 LCM_LORA_XL = "https://huggingface.co/latent-consistency/lcm-lora-sdxl/resolve/main/pytorch_lora_weights.safetensors?filename=lcm-lora-sdxl.safetensors"
+SPARSE_CONTROLNET_ADAPTER_LORA = "https://huggingface.co/guoyww/animatediff/resolve/main/v3_sd15_adapter.ckpt"
 
 MultiModelType = Union[str, List[str]]
 WeightedMultiModelType = Union[
@@ -362,6 +364,8 @@ class ImageDict(TypedDict):
     image: Union[str, Image, List[Image]]
     skip_frames: NotRequired[Optional[int]]
     divide_frames: NotRequired[Optional[int]]
+    start_frame: NotRequired[Optional[int]]
+    end_frame: NotRequired[Optional[int]]
     fit: NotRequired[Optional[IMAGE_FIT_LITERAL]]
     anchor: NotRequired[Optional[IMAGE_ANCHOR_LITERAL]]
     invert: NotRequired[bool]

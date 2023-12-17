@@ -57,7 +57,7 @@ install_requires = [
     "timm>=0.9.2,<1.0",
     "opensimplex>=0.4.5,<0.5",
     "sentencepiece>=0.1",
-    "tensorflow", # Any version
+    "compel>=2.0"
 ]
 
 extras_require = {
@@ -70,7 +70,7 @@ extras_require = {
         "tensorrt>=8.6.0,<8.7",
     ],
     "source": [ 
-        # These packages should be installed from source, but we'll put them herer too
+        # These packages should be installed from source, but we'll put them here too
         "taming-transformers",
         "clip",
         "latent-diffusion",

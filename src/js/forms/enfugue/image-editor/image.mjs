@@ -100,6 +100,17 @@ class ImageEditorImageNodeOptionsFormView extends FormView {
             "controlnetUnits": {
                 "class": ControlNetUnitsInputView
             }
+        },
+        "Animation Options": {
+            "startFrame": {
+                "label": "Starting Frame",
+                "class": NumberInputView,
+                "config": {
+                    "tooltip": "When using animation, this controls what frame to begin this layer's influence, starting from one.",
+                    "min": 1,
+                    "step": 1
+                }
+            }
         }
     };
 

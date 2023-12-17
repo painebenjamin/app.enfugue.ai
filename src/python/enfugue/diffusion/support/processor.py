@@ -71,7 +71,7 @@ class ControlImageProcessor:
             context = self.edge_detector.pidi
         elif controlnet == "hed":
             context = self.edge_detector.hed
-        elif controlnet == "scribble":
+        elif controlnet in ["scribble", "sparse-scribble"]:
             context = self.edge_detector.scribble
         elif controlnet == "depth":
             context = self.depth_detector.midas

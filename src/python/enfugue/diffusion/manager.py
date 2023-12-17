@@ -3415,11 +3415,30 @@ class DiffusionPipelineManager:
                 for inversion in self.inversion:
                     self.task_callback(f"Adding textual inversion {os.path.basename(inversion)} to pipeline")
                     pipeline.load_textual_inversion(inversion)
-
             # load scheduler
             if self.scheduler is not None:
                 logger.debug(f"Setting scheduler to {self.scheduler.__name__}") # type: ignore[attr-defined]
                 pipeline.scheduler = self.scheduler.from_config({**pipeline.scheduler_config, **self.scheduler_config}) # type: ignore[attr-defined]
+            # Load post-initialization controlnets
+            for controlnet_name in self.controlnet_names:
+                adapter_lora_loaded = os.path.basename(SPARSE_CONTROLNET_ADAPTER_LORA) in [
+                    os.path.basename(lora) for lora, weight in self.lora
+                ]
+                if controlnet_name.startswith("sparse"):
+                    if not adapter_lora_loaded and not self.tensorrt_is_ready:
+                        logger.debug("Sparse ControlNet detected, loading adapter LoRA.")
+                        pipeline.load_lora_weights(
+                            self.check_download_model(
+                                self.engine_lora_dir,
+                                SPARSE_CONTROLNET_ADAPTER_LORA
+                            )
+                        )
+                        adapter_lora_loaded = True
+                    pipeline.controlnets[controlnet_name] = pipeline.get_sparse_controlnet(
+                        controlnet_name,
+                        cache_dir=self.engine_cache_dir,
+                        task_callback=self.task_callback
+                    ).to(self.dtype)
             self._pipeline = pipeline
         return self._pipeline
 
@@ -3550,11 +3569,30 @@ class DiffusionPipelineManager:
                 if self.should_cache_refiner:
                     self.task_callback("Saving pipeline to pretrained.")
                     refiner_pipeline.save_pretrained(self.refiner_diffusers_dir)
-
             # load scheduler
             if self.scheduler is not None:
                 logger.debug(f"Setting refiner scheduler to {self.scheduler.__name__}") # type: ignore[attr-defined]
                 refiner_pipeline.scheduler = self.scheduler.from_config({**refiner_pipeline.scheduler_config, **self.scheduler_config}) # type: ignore[attr-defined]
+            # Load post-initialization controlnets
+            for controlnet_name in self.refiner_controlnet_names:
+                adapter_lora_loaded = os.path.basename(SPARSE_CONTROLNET_ADAPTER_LORA) in [
+                    os.path.basename(lora) for lora, weight in self.lora
+                ]
+                if controlnet_name.startswith("sparse"):
+                    if not adapter_lora_loaded and not self.refiner_tensorrt_is_ready:
+                        logger.debug("Sparse ControlNet detected, loading adapter LoRA.")
+                        refiner_pipeline.load_lora_weights(
+                            self.check_download_model(
+                                self.engine_lora_dir,
+                                SPARSE_CONTROLNET_ADAPTER_LORA
+                            )
+                        )
+                        adapter_lora_loaded = True
+                    refiner_pipeline.controlnets[controlnet_name] = refiner_pipeline.get_sparse_controlnet(
+                        controlnet_name,
+                        cache_dir=self.engine_cache_dir,
+                        task_callback=self.task_callback
+                    ).to(self.dtype)
             self._refiner_pipeline = refiner_pipeline
         return self._refiner_pipeline
 
@@ -3735,11 +3773,30 @@ class DiffusionPipelineManager:
                 for inversion in self.inversion:
                     self.task_callback(f"Adding textual inversion {os.path.basename(inversion)} to inpainter pipeline")
                     inpainter_pipeline.load_textual_inversion(inversion)
-
             # load scheduler
             if self.scheduler is not None:
                 logger.debug(f"Setting inpainter scheduler to {self.scheduler.__name__}") # type: ignore[attr-defined]
                 inpainter_pipeline.scheduler = self.scheduler.from_config({**inpainter_pipeline.scheduler_config, **self.scheduler_config}) # type: ignore[attr-defined]
+            # Load post-initialization controlnets
+            for controlnet_name in self.inpainter_controlnet_names:
+                adapter_lora_loaded = os.path.basename(SPARSE_CONTROLNET_ADAPTER_LORA) in [
+                    os.path.basename(lora) for lora, weight in self.lora
+                ]
+                if controlnet_name.startswith("sparse"):
+                    if not adapter_lora_loaded and not self.inpainter_tensorrt_is_ready:
+                        logger.debug("Sparse ControlNet detected, loading adapter LoRA.")
+                        inpainter_pipeline.load_lora_weights(
+                            self.check_download_model(
+                                self.engine_lora_dir,
+                                SPARSE_CONTROLNET_ADAPTER_LORA
+                            )
+                        )
+                        adapter_lora_loaded = True
+                    inpainter_pipeline.controlnets[controlnet_name] = inpainter_pipeline.get_sparse_controlnet(
+                        controlnet_name,
+                        cache_dir=self.engine_cache_dir,
+                        task_callback=self.task_callback
+                    ).to(self.dtype)
             self._inpainter_pipeline = inpainter_pipeline
         return self._inpainter_pipeline
 
@@ -3893,6 +3950,26 @@ class DiffusionPipelineManager:
             if self.scheduler is not None:
                 logger.debug(f"Setting animator scheduler to {self.scheduler.__name__}") # type: ignore [attr-defined]
                 animator_pipeline.scheduler = self.scheduler.from_config({**animator_pipeline.scheduler_config, **self.scheduler_config}) # type: ignore[attr-defined]
+            # Load post-initialization controlnets
+            for controlnet_name in self.animator_controlnet_names:
+                adapter_lora_loaded = os.path.basename(SPARSE_CONTROLNET_ADAPTER_LORA) in [
+                    os.path.basename(lora) for lora, weight in self.lora
+                ]
+                if controlnet_name.startswith("sparse"):
+                    if not adapter_lora_loaded and not self.animator_tensorrt_is_ready:
+                        logger.debug("Sparse ControlNet detected, loading adapter LoRA.")
+                        animator_pipeline.load_lora_weights(
+                            self.check_download_model(
+                                self.engine_lora_dir,
+                                SPARSE_CONTROLNET_ADAPTER_LORA
+                            )
+                        )
+                        adapter_lora_loaded = True
+                    animator_pipeline.controlnets[controlnet_name] = animator_pipeline.get_sparse_controlnet(
+                        controlnet_name,
+                        cache_dir=self.engine_cache_dir,
+                        task_callback=self.task_callback
+                    ).to(self.dtype)
             self._animator_pipeline = animator_pipeline.to(self.device)
         return self._animator_pipeline
 
@@ -4292,6 +4369,8 @@ class DiffusionPipelineManager:
             self._controlnets = {}
 
             for controlnet_name in self.controlnet_names:
+                if controlnet_name.startswith("sparse"):
+                    continue
                 self._controlnets[controlnet_name] = self.get_controlnet(
                     self.get_controlnet_path_by_name(controlnet_name, self.is_sdxl)
                 )
@@ -4338,12 +4417,21 @@ class DiffusionPipelineManager:
             if controlnet_name not in controlnet_names:
                 self._controlnets.pop(controlnet_name, None)
             elif controlnet_name not in self._controlnets:
+                if controlnet_name.startswith("sparse"):
+                    continue
                 self._controlnets[controlnet_name] = self.get_controlnet(
                     self.get_controlnet_path_by_name(controlnet_name, self.is_sdxl)
                 )
 
         if getattr(self, "_pipeline", None) is not None:
             self._pipeline.controlnets = self.controlnets
+            for controlnet_name in self.controlnet_names:
+                if controlnet_name.startswith("sparse"):
+                    self._pipeline.controlnets[controlnet_name] = self._pipeline.get_sparse_controlnet(
+                        controlnet_name, # type: ignore[arg-type]
+                        cache_dir=self.engine_cache_dir,
+                        task_callback=self.task_callback
+                    )
 
     @property
     def inpainter_controlnets(self) -> Dict[str, ControlNetModel]:
@@ -4354,6 +4442,8 @@ class DiffusionPipelineManager:
             self._inpainter_controlnets = {}
 
             for controlnet_name in self.inpainter_controlnet_names:
+                if controlnet_name.startswith("sparse"):
+                    continue
                 self._inpainter_controlnets[controlnet_name] = self.get_controlnet(
                     self.get_controlnet_path_by_name(controlnet_name, self.inpainter_is_sdxl)
                 )
@@ -4401,12 +4491,21 @@ class DiffusionPipelineManager:
             if controlnet_name not in controlnet_names:
                 self._inpainter_controlnets.pop(controlnet_name, None)
             elif controlnet_name not in self._inpainter_controlnets:
+                if controlnet_name.startswith("sparse"):
+                    continue
                 self._inpainter_controlnets[controlnet_name] = self.get_controlnet(
                     self.get_controlnet_path_by_name(controlnet_name, self.inpainter_is_sdxl)
                 )
 
         if getattr(self, "_inpainter_pipeline", None) is not None:
             self._inpainter_pipeline.controlnets = self.inpainter_controlnets
+            for controlnet_name in self.inpainter_controlnet_names:
+                if controlnet_name.startswith("sparse"):
+                    self._inpainter_pipeline.controlnets[controlnet_name] = self._inpainter_pipeline.get_sparse_controlnet(
+                        controlnet_name, # type: ignore[arg-type]
+                        cache_dir=self.engine_cache_dir,
+                        task_callback=self.task_callback
+                    )
 
     @property
     def animator_controlnets(self) -> Dict[str, ControlNetModel]:
@@ -4417,6 +4516,8 @@ class DiffusionPipelineManager:
             self._animator_controlnets = {}
 
             for controlnet_name in self.animator_controlnet_names:
+                if controlnet_name.startswith("sparse"):
+                    continue
                 self._animator_controlnets[controlnet_name] = self.get_controlnet(
                     self.get_controlnet_path_by_name(controlnet_name, self.animator_is_sdxl)
                 )
@@ -4464,12 +4565,21 @@ class DiffusionPipelineManager:
             if controlnet_name not in controlnet_names:
                 self._animator_controlnets.pop(controlnet_name, None)
             elif controlnet_name not in self._animator_controlnets:
+                if controlnet_name.startswith("sparse"):
+                    continue
                 self._animator_controlnets[controlnet_name] = self.get_controlnet(
                     self.get_controlnet_path_by_name(controlnet_name, self.animator_is_sdxl)
                 )
 
         if getattr(self, "_animator_pipeline", None) is not None:
             self._animator_pipeline.controlnets = self.animator_controlnets
+            for controlnet_name in self.animator_controlnet_names:
+                if controlnet_name.startswith("sparse"):
+                    self._animator_pipeline.controlnets[controlnet_name] = self._animator_pipeline.get_sparse_controlnet(
+                        controlnet_name, # type: ignore[arg-type]
+                        cache_dir=self.engine_cache_dir,
+                        task_callback=self.task_callback
+                    )
 
     @property
     def refiner_controlnets(self) -> Dict[str, ControlNetModel]:
@@ -4527,12 +4637,21 @@ class DiffusionPipelineManager:
             if controlnet_name not in controlnet_names:
                 self._refiner_controlnets.pop(controlnet_name, None)
             elif controlnet_name not in self._refiner_controlnets:
+                if controlnet_name.startswith("sparse"):
+                    continue
                 self._refiner_controlnets[controlnet_name] = self.get_controlnet(
                     self.get_controlnet_path_by_name(controlnet_name, self.refiner_is_sdxl)
                 )
 
         if getattr(self, "_refiner_pipeline", None) is not None:
             self._refiner_pipeline.controlnets = self.refiner_controlnets
+            for controlnet_name in self.refiner_controlnet_names:
+                if controlnet_name.startswith("sparse"):
+                    self._refiner_pipeline.controlnets[controlnet_name] = self._refiner_pipeline.get_sparse_controlnet(
+                        controlnet_name, # type: ignore[arg-type]
+                        cache_dir=self.engine_cache_dir,
+                        task_callback=self.task_callback
+                    )
 
     @property
     def controlnet_names(self) -> Set[CONTROLNET_LITERAL]:

@@ -21,7 +21,6 @@ from enfugue.diffusion.constants import *
 from enfugue.diffusion.pipeline import EnfugueStableDiffusionPipeline
 from enfugue.diffusion.util.torch_util import load_state_dict
 
-from enfugue.diffusion.animate.diff.sparse_controlnet import SparseControlNetModel # type: ignore[attr-defined]
 from enfugue.diffusion.animate.diff.unet import UNet3DConditionModel as AnimateDiffUNet # type: ignore[attr-defined]
 from enfugue.diffusion.animate.diffxl.unet import UNet3DConditionModel as AnimateDiffXLUNet # type: ignore[attr-defined]
 from enfugue.diffusion.animate.hotshot.unet import UNet3DConditionModel as HotshotUNet # type: ignore[attr-defined]
@@ -475,14 +474,14 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
                 raise ValueError(f"Unknown AnimateDiff version {animate_diff_mm_version}")
 
             motion_cache_dir = cache_dir
-            if not os.path.exists(os.path.join(cache_dir, os.path.basename(motion_module))):
+            if not os.path.exists(os.path.join(cache_dir, os.path.basename(motion_module))): # type: ignore[arg-type]
                 if motion_dir is not None:
                     motion_cache_dir = motion_dir
 
-            if task_callback is not None and not os.path.exists(os.path.join(motion_cache_dir, os.path.basename(motion_module))):
+            if task_callback is not None and not os.path.exists(os.path.join(motion_cache_dir, os.path.basename(motion_module))): # type: ignore[arg-type]
                 task_callback(f"Downloading {motion_module}")
 
-            motion_module = check_download_to_dir(motion_module, motion_cache_dir)
+            motion_module = check_download_to_dir(motion_module, motion_cache_dir) # type: ignore[arg-type]
 
         if isinstance(motion_module, dict):
             logger.debug(f"Loading AnimateDiff motion module with truncate length '{position_encoding_truncate_length}' and scale length '{position_encoding_scale_length}'")
@@ -493,6 +492,7 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
 
             state_dict = load_state_dict(motion_module) # type: ignore[assignment]
 
+        state_dict.pop("animatediff_config", "")
         if position_encoding_truncate_length is not None or position_encoding_scale_length is not None:
             for key in state_dict:
                 if key.endswith(".pe"):
@@ -539,7 +539,7 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
 
         logger.debug(f"Loading AnimateDiff motion module {motion_module} with truncate length '{position_encoding_truncate_length}' and scale length '{position_encoding_scale_length}'")
         state_dict = load_state_dict(motion_module) # type: ignore[assignment,arg-type]
-
+        state_dict.pop("animatediff_config", "")
         if position_encoding_truncate_length is not None or position_encoding_scale_length is not None:
             for key in state_dict:
                 if key.endswith(".pe"):
@@ -617,60 +617,30 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         )
         return model
 
-    def get_sparse_controlnet(
-        self,
-        controlnet: Literal["sparse-rgb", "sparse-scribble"],
-        cache_dir: str,
-        motion_dir: Optional[str]=None,
-        task_callback: Optional[Callable[[str], None]]=None,
-    ) -> SparseControlNetModel:
+    @classmethod
+    def get_sparse_controlnet_config(cls, use_simplified_embedding: bool) -> Dict[str, Any]:
         """
-        Loads a sparse controlnet from the UNet
+        Gets configuration for the sparse controlnet.
         """
-        if controlnet == "sparse-rgb":
-            controlnet_path = CONTROLNET_SPARSE_RGB
-        elif controlnet == "sparse-scribble":
-            controlnet_path = CONTROLNET_SPARSE_SCRIBBLE
-        else:
-            raise ValueError(f"Unknown ControlNet {controlnet}")
+        config = EnfugueStableDiffusionPipeline.get_sparse_controlnet_config(use_simplified_embedding)
 
-        use_simplified_embedding = controlnet == "sparse-rgb"
-        sparse_controlnet_config = {
-            "set_noisy_sample_input_to_zero": True,
-            "use_simplified_condition_embedding": use_simplified_embedding,
-            "conditioning_channels": 4 if use_simplified_embedding else 3,
-            "use_motion_module": True,
-            "motion_module_resolutions": [1,2,4,8],
-            "motion_module_mid_block": False,
-            "motion_module_type": "Vanilla",
-            "motion_module_kwargs": {
-                "num_attention_heads": 8,
-                "num_transformer_block": 1,
-                "attention_block_types": ["Temporal_Self"],
-                "temporal_position_encoding": True,
-                "temporal_position_encoding_max_len": 32,
-                "temporal_attention_dim_div": 1
+        return {
+            **config,
+            **{
+                "use_motion_module": True,
+                "motion_module_resolutions": [1,2,4,8],
+                "motion_module_mid_block": False,
+                "motion_module_type": "Vanilla",
+                "motion_module_kwargs": {
+                    "num_attention_heads": 8,
+                    "num_transformer_block": 1,
+                    "attention_block_types": ["Temporal_Self"],
+                    "temporal_position_encoding": True,
+                    "temporal_position_encoding_max_len": 32,
+                    "temporal_attention_dim_div": 1
+                }
             }
         }
-
-        # Prepare UNet
-        self.unet.config.num_attention_heads = 8
-        self.unet.config.projection_class_embeddings_input_dim = None
-        # Create model
-        controlnet_model = SparseControlNetModel.from_unet(
-            self.unet,
-            controlnet_additional_kwargs=sparse_controlnet_config
-        )
-
-        if task_callback is not None and not os.path.exists(os.path.join(cache_dir, os.path.basename(controlnet_path))):
-            task_callback(f"Downloading {controlnet_path}")
-
-        controlnet_module = check_download_to_dir(controlnet_path, cache_dir)
-        controlnet_state_dict = load_state_dict(controlnet_module)
-        if "controlnet" in controlnet_state_dict:
-            controlnet_state_dict = controlnet_state_dict["controlnet"]
-        controlnet_model.load_state_dict(controlnet_state_dict)
-        return controlnet_model
 
     def load_motion_module_weights(
         self,

@@ -327,7 +327,6 @@ class LayeredInvocation:
         Replaces the alpha channel in an image with noise.
         Uses the generator from the pipeline, if one exists.
         """
-        import torch
         from enfugue.diffusion.util import make_noise, tensor_to_image
         if image.mode == "RGBA":
             width, height = image.size
@@ -354,10 +353,9 @@ class LayeredInvocation:
         height: int,
         image: Union[str, Image, List[Image]],
         animation_frames: Optional[int]=None,
+        frame: Optional[int]=None,
         fit: Optional[IMAGE_FIT_LITERAL]=None,
         anchor: Optional[IMAGE_ANCHOR_LITERAL]=None,
-        skip_frames: Optional[int]=None,
-        divide_frames: Optional[int]=None,
         x: Optional[int]=None,
         y: Optional[int]=None,
         w: Optional[int]=None,
@@ -371,14 +369,6 @@ class LayeredInvocation:
 
         if isinstance(image, str):
             image = get_frames_or_image_from_file(image)
-
-        if skip_frames:
-            image = image[skip_frames:]
-        if divide_frames:
-            image = [
-                img for i, img in enumerate(image)
-                if i % divide_frames == 0
-            ]
 
         if w is not None and h is not None:
             fitted_image = fit_image(image, w, h, fit, anchor)
@@ -406,7 +396,10 @@ class LayeredInvocation:
             if not animation_frames:
                 fitted_image = fitted_image[0]
             else:
-                fitted_image = fitted_image[:animation_frames]
+                requested_frames = animation_frames
+                if frame is not None:
+                    requested_frames -= frame
+                fitted_image = fitted_image[:requested_frames]
 
         if not return_mask:
             return fitted_image
@@ -466,6 +459,7 @@ class LayeredInvocation:
                     "ip_adapter_scale": ip_adapter_image.get("scale", 1.0),
                     "fit": ip_adapter_image.get("fit", None),
                     "anchor": ip_adapter_image.get("anchor", None),
+                    "frame": ip_adapter_image.get("frame", None),
                 })
         if control_images:
             for control_image in control_images:
@@ -473,6 +467,7 @@ class LayeredInvocation:
                     "image": control_image["image"],
                     "fit": control_image.get("fit", None),
                     "anchor": control_image.get("anchor", None),
+                    "frame": control_image.get("frame", None),
                     "control_units": [
                         {
                             "controlnet": control_image["controlnet"],
@@ -503,6 +498,7 @@ class LayeredInvocation:
 
             skip_frames = layer.pop("skip_frames", None)
             divide_frames = layer.pop("divide_frames", None)
+            frame = layer.pop("frame", None)
 
             if skip_frames and isinstance(layer["image"], list):
                 layer["image"] = layer["image"][skip_frames:]
@@ -513,9 +509,17 @@ class LayeredInvocation:
                     if i % divide_frames == 0
                 ]
 
+            if animation_frames and frame is not None:
+                layer["frame"] = frame
+
             if isinstance(layer["image"], list):
+                # Minimize the number of images we pass
                 if animation_frames:
-                    layer["image"] = layer["image"][:animation_frames]
+                    layer_frames = animation_frames
+                    if frame is not None:
+                        frame = max(frame, 0)
+                        layer_frames -= frame
+                    layer["image"] = layer["image"][:layer_frames]
                 else:
                     layer["image"] = layer["image"][0]
 
@@ -637,7 +641,9 @@ class LayeredInvocation:
         Gets all preprocessors needed for this invocation
         """
         needs_background_remover = False
+        needs_interpolator = False
         needs_control_processors = []
+        visible_image_frames: List[bool] = [False] * (1 if not self.animation_frames else self.animation_frames)
         to_check: List[Dict[str, Any]] = []
 
         if self.layers is not None:
@@ -647,15 +653,33 @@ class LayeredInvocation:
         for image_dict in to_check:
             if image_dict.get("remove_background", False):
                 needs_background_remover = True
+            if image_dict.get("visibility", None) in ["denoised", "visible"]:
+                layer_frames = 1 if not isinstance(image_dict["image"], list) else len(image_dict["image"])
+                layer_frame_start = image_dict.get("frame", None)
+                layer_frame_start = 0 if not layer_frame_start else layer_frame_start
+                visible_image_frames[layer_frame_start:layer_frame_start+layer_frames] = [True]*layer_frames
             for control_dict in image_dict.get("control_units", []):
                 if control_dict.get("process", True) and control_dict.get("controlnet", None) is not None:
                     needs_control_processors.append(control_dict["controlnet"])
+
+        if len(visible_image_frames) > 1:
+            has_visible_frame = False
+            is_visible = False
+            for frame_is_visible in visible_image_frames:
+                if has_visible_frame and not is_visible and frame_is_visible:
+                    needs_interpolator = True
+                has_visible_frame = has_visible_frame or frame_is_visible
+                is_visible = frame_is_visible
 
         with ExitStack() as stack:
             processors: Dict[str, Callable[[Image], Image]] = {}
             if needs_background_remover:
                 processors["background_remover"] = stack.enter_context(
                     pipeline.background_remover.remover()
+                )
+            if needs_interpolator:
+                processors["interpolator"] = stack.enter_context(
+                    pipeline.interpolator.film()
                 )
             if needs_control_processors:
                 processor_names = list(set(needs_control_processors))
@@ -742,26 +766,25 @@ class LayeredInvocation:
 
             # Get a count of preprocesses required
             images_to_preprocess = 0
+            visible_frames: List[bool] = [False] * (1 if not self.animation_frames else self.animation_frames)
             for i, layer in enumerate(self.layers):
                 layer_image = layer.get("image", None)
-                layer_skip_frames = layer.get("skip_frames", None)
-                layer_divide_frames = layer.get("divide_frames", None)
+                layer_frame = layer.get("frame", 0)
 
                 if isinstance(layer_image, str):
                     layer_image = get_frames_or_image_from_file(layer_image)
                     layer["image"] = layer_image
 
                 image_count = len(layer_image) if isinstance(layer_image, list) else 1
-                if layer_skip_frames:
-                    image_count -= layer_skip_frames
-                if layer_divide_frames:
-                    image_count = image_count // layer_divide_frames
 
                 if self.animation_frames:
-                    image_count = min(image_count, self.animation_frames)
+                    image_count = min(image_count, self.animation_frames - layer_frame)
 
                 if layer.get("remove_background", False):
                     images_to_preprocess += image_count
+
+                if layer.get("visibility", None) in ["visible", "denoised"]:
+                    visible_frames[layer_frame:layer_frame+image_count] = [True] * image_count
 
                 control_units = layer.get("control_units", None)
                 if control_units:
@@ -769,6 +792,18 @@ class LayeredInvocation:
                         if control_unit.get("process", True):
                             images_to_preprocess += image_count
 
+            # Get interpolated frames
+            needs_interpolation = [False] * (1 if not self.animation_frames else self.animation_frames)
+            last_visible_frame: Optional[int] = None
+            for i, frame_is_visible in enumerate(visible_frames):
+                if frame_is_visible:
+                    if last_visible_frame is not None:
+                        interpolated_frames = i - last_visible_frame - 1
+                        if interpolated_frames > 0:
+                            needs_interpolation[last_visible_frame+1:i] = [True] * interpolated_frames
+                    last_visible_frame = i
+
+            images_to_preprocess += sum(needs_interpolation)
             images_preprocessed = 0
             last_frame_time = datetime.now()
             frame_times = []
@@ -810,8 +845,7 @@ class LayeredInvocation:
                     anchor = layer.get("anchor", None)
                     opacity = layer.get("opacity", None)
                     remove_background = layer.get("remove_background", None)
-                    skip_frames = layer.get("skip_frames", None)
-                    divide_frames = layer.get("divide_frames", None)
+                    frame = layer.get("frame", 0)
 
                     # Capabilities of layer
                     visibility = layer.get("visibility", None)
@@ -833,7 +867,8 @@ class LayeredInvocation:
                         if isinstance(layer_image, list):
                             layer_image = [
                                 trigger_preprocess_callback(processors["background_remover"](img))
-                                for img in layer_image
+                                for i, img in enumerate(layer_image)
+                                if i < ((1 if not self.animation_frames else self.animation_frames) - frame)
                             ]
                         else:
                             layer_image = trigger_preprocess_callback(processors["background_remover"](layer_image))
@@ -845,8 +880,7 @@ class LayeredInvocation:
                         fit=fit,
                         anchor=anchor,
                         animation_frames=self.animation_frames,
-                        divide_frames=divide_frames,
-                        skip_frames=skip_frames,
+                        frame=frame,
                         w=w,
                         h=h,
                         x=x,
@@ -880,21 +914,21 @@ class LayeredInvocation:
                                 image_paste_mask = Image.eval(image_paste_mask, lambda a: min(a, int(opacity * 255)))
 
                         if isinstance(fit_layer_image, list):
-                            for i in range(len(invocation_image)): # type: ignore[arg-type]
-                                invocation_image[i].paste( # type: ignore[index]
-                                    fit_layer_image[i] if i < len(fit_layer_image) else fit_layer_image[-1],
-                                    mask=image_paste_mask[i] if i < len(image_paste_mask) else image_paste_mask[-1]
+                            for i in range(len(fit_layer_image)):
+                                invocation_image[i+frame].paste( # type: ignore[index]
+                                    fit_layer_image[i],
+                                    mask=fit_layer_mask[i]
                                 )
                                 if passthrough:
-                                    invocation_mask[i].paste( # type: ignore[index]
+                                    invocation_mask[i+frame].paste( # type: ignore[index]
                                         black,
-                                        mask=fit_layer_mask[i] if i < len(fit_layer_mask) else fit_layer_mask[-1]
+                                        mask=fit_layer_mask[i]
                                     )
                         elif isinstance(invocation_image, list):
-                            for i in range(len(invocation_image)):
-                                invocation_image[i].paste(fit_layer_image, mask=image_paste_mask)
-                                if passthrough:
-                                    invocation_mask[i].paste(black, mask=fit_layer_mask) # type: ignore[index]
+                            logger.info(f"PASTE IMG AT {frame}")
+                            invocation_image[frame].paste(fit_layer_image, mask=image_paste_mask)
+                            if passthrough:
+                                invocation_mask[frame].paste(black, mask=fit_layer_mask) # type: ignore[index]
                         else:
                             invocation_image.paste(fit_layer_image, mask=image_paste_mask) # type: ignore[attr-defined]
                             if passthrough:
@@ -937,8 +971,47 @@ class LayeredInvocation:
                                 "start": control_unit.get("start", 0.0),
                                 "end": control_unit.get("end", 1.0),
                                 "scale": control_unit.get("scale", 1.0),
-                                "image": control_image
+                                "frame": frame,
+                                "image": control_image,
                             })
+
+                # Perform any interpolation any copy/paste
+                if has_invocation_image and isinstance(invocation_image, list):
+                    from enfugue.diffusion.util import interpolate_frames
+                    visible_frame_indices = [i for i, is_visible in enumerate(visible_frames) if is_visible]
+                    first_visible_frame = min(visible_frame_indices)
+                    last_visible_frame = max(visible_frame_indices)
+                    total_frames = len(invocation_image)
+
+                    # Copy beginning
+                    for i in range(first_visible_frame):
+                        invocation_image[i].paste(invocation_image[first_visible_frame])
+
+                    # Copy ending
+                    for i in range(last_visible_frame+1, total_frames):
+                        invocation_image[i].paste(invocation_image[last_visible_frame])
+
+                    # Interpolate middles
+                    def interpolator_progress_callback(step: int, total: int, rate: float) -> None:
+                        if progress_callback is not None:
+                            progress_callback(images_preprocessed + step, images_preprocessed + total, rate)
+
+                    interpolate_start = None
+                    for i, is_interpolated in enumerate(needs_interpolation):
+                        if is_interpolated:
+                            if interpolate_start is None:
+                                interpolate_start = i
+                        elif interpolate_start is not None:
+                            multiplier = i - interpolate_start - 2
+                            interpolated = list(interpolate_frames(
+                                [invocation_image[interpolate_start-1], invocation_image[i]],
+                                multiplier=multiplier,
+                                interpolate=processors["interpolator"], # type: ignore[arg-type]
+                                progress_callback=interpolator_progress_callback
+                            ))
+                            invocation_image[interpolate_start:i] = interpolated
+                            images_preprocessed += multiplier
+                            interpolate_start = None
 
             if not has_invocation_image:
                 invocation_image = None

@@ -31,7 +31,6 @@ import numpy as np
 import safetensors.torch
 
 from contextlib import contextmanager
-from collections import defaultdict
 from omegaconf import OmegaConf
 from compel import ReturnedEmbeddingsType
 from einops import rearrange
@@ -90,7 +89,7 @@ from diffusers.image_processor import VaeImageProcessor
 
 from pibble.util.files import load_json
 
-from enfugue.diffusion.animate.diff.sparse_controlnet import SparseControlNetModel
+from enfugue.diffusion.animate.diff.sparse_controlnet import SparseControlNetModel # type: ignore[attr-defined]
 from enfugue.diffusion.constants import *
 from enfugue.util import (
     logger,
@@ -900,6 +899,58 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         """
         return self.unet.config.in_channels == 9 # type: ignore[attr-defined]
 
+    @classmethod
+    def get_sparse_controlnet_config(cls, use_simplified_embedding: bool) -> Dict[str, Any]:
+        """
+        Gets configuration for the sparse controlnet.
+        """
+        return {
+            "set_noisy_sample_input_to_zero": True,
+            "use_simplified_condition_embedding": use_simplified_embedding,
+            "conditioning_channels": 4 if use_simplified_embedding else 3,
+            "use_motion_module": False,
+        }
+
+    def get_sparse_controlnet(
+        self,
+        controlnet: Literal["sparse-rgb", "sparse-scribble"],
+        cache_dir: str,
+        task_callback: Optional[Callable[[str], None]]=None,
+    ) -> SparseControlNetModel:
+        """
+        Loads a sparse controlnet from the UNet
+        """
+        if controlnet == "sparse-rgb":
+            controlnet_path = CONTROLNET_SPARSE_RGB
+        elif controlnet == "sparse-scribble":
+            controlnet_path = CONTROLNET_SPARSE_SCRIBBLE
+        else:
+            raise ValueError(f"Unknown ControlNet {controlnet}")
+
+        use_simplified_embedding = controlnet == "sparse-rgb"
+        sparse_controlnet_config = self.get_sparse_controlnet_config(use_simplified_embedding)
+
+        # Prepare UNet
+        self.unet.config.num_attention_heads = 8 # type: ignore[attr-defined]
+        self.unet.config.projection_class_embeddings_input_dim = None # type: ignore[attr-defined]
+
+        # Create model
+        controlnet_model = SparseControlNetModel.from_unet(
+            self.unet,
+            controlnet_additional_kwargs=sparse_controlnet_config
+        )
+
+        if task_callback is not None and not os.path.exists(os.path.join(cache_dir, os.path.basename(controlnet_path))):
+            task_callback(f"Downloading {controlnet_path}")
+
+        controlnet_module = check_download_to_dir(controlnet_path, cache_dir)
+        controlnet_state_dict = load_state_dict(controlnet_module)
+        if "controlnet" in controlnet_state_dict:
+            controlnet_state_dict = controlnet_state_dict["controlnet"] # type: ignore[assignment]
+        controlnet_state_dict.pop("animatediff_config", "")
+        controlnet_model.load_state_dict(controlnet_state_dict)
+        return controlnet_model
+
     def revert_scheduler(self) -> None:
         """
         Reverts the scheduler back to whatever the original was.
@@ -1337,7 +1388,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         state_dict = load_state_dict(pretrained_model_name_or_path_or_dict) # type: ignore[arg-type]
         while "state_dict" in state_dict:
             state_dict = state_dict["state_dict"] # type: ignore[assignment]
-
+        state_dict.pop("animatediff_config", "")
         if any(["motion_module" in key for key in state_dict.keys()]):
             return self.load_motion_lora_weights(
                 state_dict, # type: ignore[arg-type]
@@ -1355,63 +1406,6 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             multiplier=multiplier,
             dtype=dtype
         )
-        # TODO: See if the below can be removed
-        updates: Mapping[str, Any] = defaultdict(dict) # type: ignore[unreachable]
-        for key, value in state_dict.items():
-            # it is suggested to print out the key, it usually will be something like below
-            # "lora_te_text_model_encoder_layers_0_self_attn_k_proj.lora_down.weight"
-            layer, elem = key.split(".", 1)
-            updates[layer][elem] = value
-
-        index = 0
-        # directly update weight in diffusers model
-        for layer, elems in updates.items():
-            index += 1
-
-            if "text" in layer:
-                layer_infos = layer.split(LORA_PREFIX_TEXT_ENCODER + "_")[-1].split("_")
-                curr_layer = self.text_encoder
-                if not curr_layer:
-                    raise ValueError("No text encoder, cannot load LoRA weights.")
-            else:
-                layer_infos = layer.split(LORA_PREFIX_UNET + "_")[-1].split("_")
-                curr_layer = self.unet
-            
-            # find the target layer
-            temp_name = layer_infos.pop(0)
-            while len(layer_infos) > -1:
-                try:
-                    curr_layer = curr_layer.__getattr__(temp_name)
-                    if len(layer_infos) > 0:
-                        temp_name = layer_infos.pop(0)
-                    elif len(layer_infos) == 0:
-                        break
-                except Exception:
-                    if len(temp_name) > 0:
-                        temp_name += "_" + layer_infos.pop(0)
-                    else:
-                        temp_name = layer_infos.pop(0)
-
-            # get elements for this layer
-            weight_up = elems["lora_up.weight"].to(dtype)
-            weight_down = elems["lora_down.weight"].to(dtype)
-            alpha = elems["alpha"]
-            if alpha:
-                alpha = alpha.item() / weight_up.shape[1]
-            else:
-                alpha = 1.0
-
-            # update weight
-            if len(weight_up.shape) == 4:
-                curr_layer.weight.data += (
-                    multiplier
-                    * alpha
-                    * torch.mm(weight_up.squeeze(3).squeeze(2), weight_down.squeeze(3).squeeze(2))
-                    .unsqueeze(2)
-                    .unsqueeze(3)
-                )
-            else:
-                curr_layer.weight.data += multiplier * alpha * torch.mm(weight_up, weight_down)
 
     def load_textual_inversion(self, inversion_path: str, **kwargs: Any) -> None:
         """
@@ -2020,7 +2014,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             image = rearrange(image, 't c h w -> c t h w').unsqueeze(0) # now b c t h w
             if conditioning_frame is not None:
                 # Get condition length
-                image_length = image.shape[1]
+                image_length = image.shape[2]
                 # Start from zeros
                 condition_shape = list(image.shape)
                 condition_shape[2] = animation_frames
@@ -2243,7 +2237,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             # Get controlnet input(s) if configured
             if control_images is not None:
                 # Find which control image(s) to use
-                controlnet_conds: Dict[str, List[Tuple[torch.Tensor, float]]] = {}
+                controlnet_conds: Dict[str, List[Tuple[torch.Tensor, float, Optional[torch.Tensor]]]] = {}
                 for controlnet_name in control_images:
                     for (
                         control_image,
@@ -2639,13 +2633,14 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     # Get controlnet input(s) if configured
                     if control_images is not None:
                         # Find which control image(s) to use
-                        controlnet_conds: Dict[str, List[Tuple[torch.Tensor, float]]] = {}
+                        controlnet_conds: Dict[str, List[Tuple[torch.Tensor, float, Optional[torch.Tensor]]]] = {}
                         for controlnet_name in control_images:
                             for (
                                 control_image,
                                 conditioning_scale,
                                 conditioning_start,
-                                conditioning_end
+                                conditioning_end,
+                                conditioning_mask
                             ) in control_images[controlnet_name]:
                                 if (
                                     (conditioning_start is None or conditioning_start <= denoising_ratio) and
@@ -2655,7 +2650,11 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                                         controlnet_conds[controlnet_name] = []
                                     controlnet_conds[controlnet_name].append((
                                         slice_for_view(control_image, self.vae_scale_factor),
-                                        conditioning_scale
+                                        conditioning_scale,
+                                        None if conditioning_mask is None else slice_for_view(
+                                            conditioning_mask,
+                                            1 if self.controlnets[controlnet_name].use_simplified_embedding else self.vae_scale_factor # type: ignore[index]
+                                        )
                                     ))
 
                         if not controlnet_conds:
@@ -3238,7 +3237,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         if control_images is None:
             return None
 
-        standardized: Dict[str, List[Tuple[List[PIL.Image.Image], float, Optional[float], Optional[float]]]] = {}
+        standardized: Dict[str, List[Tuple[List[PIL.Image.Image], float, Optional[float], Optional[float], Optional[int]]]] = {}
 
         for name in control_images:
             if name not in self.controlnets: # type: ignore[operator]
@@ -3249,7 +3248,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             if not isinstance(image_list, list):
                 image_list = [image_list]
 
-            is_sparse = isinstance(self.controlnets[name], SparseControlNetModel)
+            is_sparse = isinstance(self.controlnets[name], SparseControlNetModel) # type: ignore[index]
 
             for controlnet_image in image_list:
                 conditioning_scale = 1.0
@@ -3274,7 +3273,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 elif isinstance(controlnet_image, str):
                     controlnet_image = self.open_image(controlnet_image)
                 elif not isinstance(controlnet_image, PIL.Image.Image):
-                    raise BadRequestError(f"Unhandled control image type {type(controlnet_image)}")
+                    raise IOError(f"Unhandled control image type {type(controlnet_image)}")
 
                 if not isinstance(controlnet_image, list):
                     controlnet_image = [controlnet_image]
@@ -3553,6 +3552,15 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             ])
         else:
             image_prompt_probes = 0
+        if control_images:
+            for controlnet_name in control_images:
+                if getattr(self.controlnets[controlnet_name], "use_simplified_condition_embedding", False): # type: ignore[index]
+                    for control_image_tuple in control_images[controlnet_name]:
+                        control_image = control_image_tuple[0] # type: ignore
+                        if isinstance(control_image, list):
+                            encoding_steps += len(control_image)
+                        else:
+                            encoding_steps += 1
 
         num_frames = 1 if not animation_frames else animation_frames
         unet_spatial_chunks = (1 if not tiling_unet else num_chunks)
@@ -3840,7 +3848,9 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                         for name in control_images:
                             is_sparse = type(self.controlnets[name]) is SparseControlNetModel
                             prepared_control_images[name] = [] # type: ignore[index]
-                            sparse_condition_scale: float = 0
+                            sparse_condition_scale = 0.0
+                            sparse_conditioning_start: Optional[float] = None
+                            sparse_conditioning_end: Optional[float] = None
                             sparse_conditions: List[torch.Tensor] = []
                             sparse_masks: List[torch.Tensor] = []
 
@@ -3848,7 +3858,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                                 if is_sparse:
                                     if self.controlnets[name].use_simplified_condition_embedding:
                                         controlnet_image = self.image_processor.preprocess([
-                                            i.convert("RGB") for i in controlnet_image
+                                            i.convert("RGB") for i in controlnet_image # type: ignore
                                         ]).to(dtype=encoded_prompts.dtype, device=device)
                                         controlnet_image = self.encode_image(
                                             image=controlnet_image,
@@ -3857,7 +3867,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                                             dtype=encoded_prompts.dtype,
                                             chunker=chunker,
                                             weight_builder=weight_builder,
-                                            progress_callback=progress_callback,
+                                            progress_callback=step_complete,
                                             tiling=tiling_vae
                                         )
                                     prepared_controlnet_image, prepared_controlnet_mask = self.prepare_control_image(
@@ -3875,6 +3885,16 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                                     sparse_conditions.append(prepared_controlnet_image)
                                     sparse_masks.append(prepared_controlnet_mask)
                                     sparse_condition_scale = max(sparse_condition_scale, conditioning_scale)
+                                    if conditioning_start is not None:
+                                        if sparse_conditioning_start is None:
+                                            sparse_conditioning_start = conditioning_start
+                                        else:
+                                            sparse_conditioning_start = min(sparse_conditioning_start, conditioning_start)
+                                    if conditioning_end is not None:
+                                        if sparse_conditioning_end is None:
+                                            sparse_conditioning_end = conditioning_end
+                                        else:
+                                            sparse_conditioning_end = min(sparse_conditioning_end, conditioning_end)
                                 else:
                                     prepared_controlnet_image = self.prepare_control_image(
                                         image=controlnet_image,
@@ -3890,7 +3910,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                                     )
 
                                     prepared_control_images[name].append( # type: ignore[index]
-                                        (prepared_controlnet_image, conditioning_scale, conditioning_start, conditioning_end, None)
+                                        (prepared_controlnet_image, conditioning_scale, conditioning_start, conditioning_end, None) # type: ignore[arg-type]
                                     )
 
                             if is_sparse:
@@ -3898,10 +3918,10 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                                 sparse_condition = torch.zeros_like(sparse_conditions[0])
                                 sparse_mask = torch.zeros_like(sparse_masks[0])
                                 for condition, mask in zip(sparse_conditions, sparse_masks):
-                                    sparse_condition += (condition * mask.repeat(condition.shape[0], condition.shape[1], 1, 1, 1))
+                                    sparse_condition += condition
                                     sparse_mask += mask
-                                prepared_control_images[name].append(
-                                    (sparse_condition, sparse_condition_scale, 0.0, 1.0, sparse_mask)
+                                prepared_control_images[name].append( # type: ignore[index]
+                                    (sparse_condition, sparse_condition_scale, sparse_conditioning_start, sparse_conditioning_end, sparse_mask)
                                 )
 
                 # Should no longer be None

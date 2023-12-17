@@ -69,6 +69,8 @@ class InvokeButtonController extends Controller {
                         formattedState["anchor"] = datum.anchor;
                         formattedState["opacity"] = datum.opacity;
                         formattedState["visibility"] = datum.visibility;
+                        formattedState["frame"] = isEmpty(datum.startFrame) ? 0 : datum.startFrame - 1;
+
                         if (datum.imagePrompt) {
                             formattedState["ip_adapter_scale"] = datum.imagePromptScale;
                         }
