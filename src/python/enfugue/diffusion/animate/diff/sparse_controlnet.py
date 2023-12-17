@@ -19,12 +19,15 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import torch
+
+from einops import rearrange
 from torch import nn
 from torch.nn import functional as F
 
 from diffusers.configuration_utils import ConfigMixin, register_to_config
 from diffusers.utils import BaseOutput, logging
 from diffusers.models.embeddings import TimestepEmbedding, Timesteps
+from diffusers.models.unet_2d_blocks import CrossAttnDownBlock2D, DownBlock2D
 from diffusers.models.modeling_utils import ModelMixin
 
 from enfugue.diffusion.animate.diff.resnet import InflatedConv3d
@@ -518,9 +521,15 @@ class SparseControlNetModel(ModelMixin, ConfigMixin):
         controlnet_cond = self.controlnet_cond_embedding(controlnet_cond)
         
         sample = sample + controlnet_cond
+        num_frames = sample.shape[2]
+
+        down_block_res_samples = (sample,)
 
         # 3. down
-        down_block_res_samples = (sample,)
+        # 3a. check 2d vs 3d
+        if isinstance(self.down_blocks[0], (CrossAttnDownBlock2D, DownBlock2D)):
+            sample = rearrange(sample, "b c f h w -> (b f) c h w")
+        # 3b. execute
         for downsample_block in self.down_blocks:
             if hasattr(downsample_block, "has_cross_attention") and downsample_block.has_cross_attention:
                 sample, res_samples = downsample_block(
@@ -530,11 +539,24 @@ class SparseControlNetModel(ModelMixin, ConfigMixin):
                     attention_mask=attention_mask,
                     # cross_attention_kwargs=cross_attention_kwargs,
                 )
-            else: sample, res_samples = downsample_block(hidden_states=sample, temb=emb)
+            else:
+                sample, res_samples = downsample_block(hidden_states=sample, temb=emb)
 
-            down_block_res_samples += res_samples
+            if len(res_samples[0].shape) == 4:
+                down_block_res_samples += tuple([
+                    rearrange(res_sample, "(b f) c h w -> b c f h w", f=num_frames)
+                    for res_sample in res_samples
+                ])
+            else:
+                down_block_res_samples += res_samples
 
         # 4. mid
+        # 4a. check 2d vs 3d
+        if isinstance(self.mid_block, (UNetMidBlock3DCrossAttn)):
+            if len(sample.shape) == 4:
+                sample = rearrange(sample, "(b f) c h w -> b c f h w", f=num_frames)
+
+        # 4b. execute
         if self.mid_block is not None:
             sample = self.mid_block(
                 sample,
@@ -543,6 +565,10 @@ class SparseControlNetModel(ModelMixin, ConfigMixin):
                 attention_mask=attention_mask,
                 # cross_attention_kwargs=cross_attention_kwargs,
             )
+
+        # 5a. check 2d vs 3d
+        if len(sample.shape) == 4:
+            sample = rearrange(sample, "(b f) c h w -> b c f h w", f=num_frames)
 
         # 5. controlnet blocks
         controlnet_down_block_res_samples = ()
@@ -578,7 +604,6 @@ class SparseControlNetModel(ModelMixin, ConfigMixin):
         return SparseControlNetOutput(
             down_block_res_samples=down_block_res_samples, mid_block_res_sample=mid_block_res_sample
         )
-
 
 def zero_module(module):
     for p in module.parameters():

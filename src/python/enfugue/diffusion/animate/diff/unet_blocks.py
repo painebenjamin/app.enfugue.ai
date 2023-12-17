@@ -39,6 +39,27 @@ def get_down_block(
     motion_module_kwargs=None,
 ):
     down_block_type = down_block_type[7:] if down_block_type.startswith("UNetRes") else down_block_type
+    if down_block_type.endswith("2D"):
+        from diffusers.models.unet_2d_blocks import get_down_block as get_down_block_2d
+        return get_down_block_2d(
+            down_block_type,
+            num_layers=num_layers,
+            in_channels=in_channels,
+            out_channels=out_channels,
+            temb_channels=temb_channels,
+            add_downsample=add_downsample,
+            resnet_eps=resnet_eps,
+            resnet_act_fn=resnet_act_fn,
+            resnet_groups=resnet_groups,
+            downsample_padding=downsample_padding,
+            cross_attention_dim=cross_attention_dim,
+            num_attention_heads=attn_num_head_channels,
+            dual_cross_attention=dual_cross_attention,
+            use_linear_projection=use_linear_projection,
+            only_cross_attention=only_cross_attention,
+            upcast_attention=upcast_attention,
+            resnet_time_scale_shift=resnet_time_scale_shift,
+        )
     if down_block_type == "DownBlock3D":
         return DownBlock3D(
             num_layers=num_layers,

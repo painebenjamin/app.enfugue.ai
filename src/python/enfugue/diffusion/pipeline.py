@@ -948,6 +948,10 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         if "controlnet" in controlnet_state_dict:
             controlnet_state_dict = controlnet_state_dict["controlnet"] # type: ignore[assignment]
         controlnet_state_dict.pop("animatediff_config", "")
+        if not sparse_controlnet_config.get("use_motion_module", False):
+            for key in list (controlnet_state_dict.keys()):
+                if "motion" in key or "temporal" in key:
+                    controlnet_state_dict.pop(key)
         controlnet_model.load_state_dict(controlnet_state_dict)
         return controlnet_model
 
@@ -2109,9 +2113,13 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 raise RuntimeError(f"Conditioning image requested ControlNet {name}, but it's not loaded.")
             for controlnet_cond, conditioning_scale, conditioning_mask in controlnet_conds[name]:
                 if conditioning_mask is not None:
+                    if is_animation:
+                        sparse_latent_input = latents
+                    else:
+                        sparse_latent_input = rearrange(latents.unsqueeze(0), "f b c h w -> b c f h w")
                     # Sparse
                     down_samples, mid_sample = self.controlnets[name](
-                        latents,
+                        sparse_latent_input,
                         timestep,
                         encoder_hidden_states=encoder_hidden_states,
                         controlnet_cond=controlnet_cond,
@@ -3879,8 +3887,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                                         device=device,
                                         dtype=encoded_prompts.dtype,
                                         do_classifier_free_guidance=do_classifier_free_guidance,
-                                        animation_frames=animation_frames,
-                                        conditioning_frame=conditioning_frame
+                                        animation_frames=1 if not animation_frames else animation_frames,
+                                        conditioning_frame=0 if not conditioning_frame else conditioning_frame
                                     )
                                     sparse_conditions.append(prepared_controlnet_image)
                                     sparse_masks.append(prepared_controlnet_mask)
