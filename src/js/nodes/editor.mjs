@@ -61,6 +61,12 @@ class NodeEditorView extends View {
     static zoomPerScroll = 0.125;
 
     /**
+     * @var int When zooming enabled, this is the minimum number of milliseconds
+     *          between zoom events.
+     */
+    static minimumZoomInterval = 125;
+
+    /**
      * @var bool Whether or not the entire canvas can panned in-place.
      */
     static canMove = true;
@@ -814,6 +820,7 @@ class NodeEditorView extends View {
                         node.removeClass("zoom-out");
                     }
                 };
+                let lastZoom;
                 canvas.on('wheel', (e) => {
                     if (e.target.tagName !== 'ENFUGUE-NODE-CANVAS') {
                         // Figure out if anything scrolled
@@ -841,6 +848,14 @@ class NodeEditorView extends View {
 
                     e.preventDefault();
                     e.stopPropagation();
+                    // If another zoom happened too recently, ignore this event
+                    if (!isEmpty(lastZoom)) {
+                        let thisZoom = (new Date()).getTime();
+                        if (thisZoom - lastZoom < this.constructor.minimumZoomInterval) {
+                            return;
+                        }
+                        lastZoom = thisZoom;
+                    }
                     let nextZoom, zoomMultiplier = 1;
                     
                     if (this.zoom >= 5.0) {

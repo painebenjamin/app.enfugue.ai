@@ -3,7 +3,8 @@ import {
     downloadAsDataURL,
     isEmpty,
     waitFor,
-    sleep
+    sleep,
+    isEquivalent
 } from "../../base/helpers.mjs";
 import { ElementBuilder } from "../../base/builder.mjs";
 import { Controller } from "../base.mjs";
@@ -285,8 +286,6 @@ class SamplesController extends Controller {
             this.publish("quickUpscale", values);
             // Remove window
             this.imageUpscaleWindow.remove();
-            // Show the canvas
-            this.showCanvas();
             // Wait a tick then trigger invoke
             setTimeout(() => {
                 this.application.publish("tryInvoke");
@@ -333,8 +332,6 @@ class SamplesController extends Controller {
             this.publish("quickUpscale", values);
             // Remove window
             this.videoUpscaleWindow.remove();
-            // Show the canvas
-            this.showCanvas();
             // Wait a tick then trigger invoke
             setTimeout(() => {
                 this.application.publish("tryInvoke");
@@ -613,12 +610,14 @@ class SamplesController extends Controller {
      */
     setSamples(sampleImages, isAnimation) {
         // Get IDs from samples
-        if (isEmpty(sampleImages)) {
-            this.samples = null;
-            this.images.removeClass("has-sample");
-        } else {
-            this.samples = sampleImages.map((v) => v.split("/").slice(-1)[0].split(".")[0]);
+        let samples = isEmpty(sampleImages) ? null : sampleImages.map((v) => v.split("/").slice(-1)[0].split(".")[0]);
+        if (isEquivalent(this.samples, samples)) {
+            return;
         }
+        if (isEmpty(samples)) {
+            this.images.removeClass("has-sample");
+        }
+        this.samples = samples;
 
         this.isIntermediate = !isEmpty(this.samples) && sampleImages[0].indexOf("intermediate") !== -1;
         this.isAnimation = isAnimation;
@@ -631,7 +630,7 @@ class SamplesController extends Controller {
         if (this.isAnimation) {
             this.sampleViewer.setFrame(this.activeIndex);
         }
-        if (!isEmpty(this.activeIndex)) {
+        if (!isEmpty(this.activeIndex) && !isEmpty(this.samples)) {
             if (this.isAnimation) {
                 this.imageToolsMenu.hide();
                 if (!isEmpty(this.video)) {
@@ -641,19 +640,22 @@ class SamplesController extends Controller {
                 this.imageToolsMenu.show();
                 this.videoToolsMenu.hide();
             }
-            sleep(100).then(() => {
+            this.application.layout.showSamples();
+            sleep(250).then(() => {
                 waitFor(() => !isEmpty(this.sampleViewer.width)).then(() => {
                     this.images.setDimension(this.sampleViewer.width, this.sampleViewer.height, false);
                     this.images.addClass("has-sample");
                 });
             });
+        } else {
+            this.application.layout.checkHideSamples();
         }
     }
 
     /**
      * Sets the active index when looking at images
      */
-    setActive(activeIndex) {
+    setActive(activeIndex, showSamples = true) {
         this.activeIndex = activeIndex;
         if (this.isAnimation) {
             this.sampleChooser.setActiveIndex(activeIndex, false);
@@ -673,11 +675,14 @@ class SamplesController extends Controller {
         }
 
         if (isEmpty(activeIndex)) {
+            this.application.layout.checkHideSamples();
             this.images.removeClass("has-sample");
-            this.images.setDimension(this.engine.width, this.engine.height);
             this.sampleViewer.hide();
         } else {
-            sleep(100).then(() => {
+            if (showSamples) {
+                this.application.layout.showSamples();
+            }
+            sleep(250).then(() => {
                 waitFor(() => !isEmpty(this.sampleViewer.width)).then(() => {
                     this.images.setDimension(this.sampleViewer.width, this.sampleViewer.height, false);
                     this.images.addClass("has-sample");
@@ -699,9 +704,9 @@ class SamplesController extends Controller {
 
             if (this.isPlaying) {
                 if (nextIndex < frameLength) {
-                    this.setActive(nextIndex);
+                    this.setActive(nextIndex, false);
                 } else if(this.isLooping) {
-                    this.setActive(0);
+                    this.setActive(0, false);
                 } else {
                     this.sampleChooser.setPlayAnimation(false);
                     return;
@@ -741,6 +746,7 @@ class SamplesController extends Controller {
                 () => this.tickAnimation(),
                 this.frameTime
             );
+            this.application.layout.showSamples();
         } else {
             clearTimeout(this.tick);
         }
@@ -788,21 +794,6 @@ class SamplesController extends Controller {
     }
 
     /**
-     * Shows the canvas, hiding samples
-     */
-    async showCanvas(updateChooser = true) {
-        this.setPlay(false);
-        this.sampleViewer.hide();
-        this.imageToolsMenu.hide();
-        this.videoToolsMenu.hide();
-        if (updateChooser) {
-            this.sampleChooser.setActiveIndex(null);
-        }
-        this.images.setDimension(this.engine.width, this.engine.height, false);
-        setTimeout(() => { this.images.removeClass("has-sample"); }, 250);
-    }
-
-    /**
      * On initialize, add DOM nodes
      */
     async initialize() {
@@ -811,12 +802,9 @@ class SamplesController extends Controller {
         this.sampleViewer = new SampleView(this.config);
 
         // Bind chooser events
-        this.sampleChooser.onShowCanvas(() => this.showCanvas(false));
         this.sampleChooser.onLoopAnimation((loop) => this.setLoop(loop, false));
         this.sampleChooser.onPlayAnimation((play) => this.setPlay(play, false));
-        this.sampleChooser.onTileHorizontal((tile) => this.setTileHorizontal(tile, false));
-        this.sampleChooser.onTileVertical((tile) => this.setTileVertical(tile, false));
-        this.sampleChooser.onSetActive((active) => this.setActive(active, false));
+        this.sampleChooser.onSetActive((active) => this.setActive(active));
         this.sampleChooser.onSetPlaybackRate((rate) => this.setPlaybackRate(rate, false));
 
         // Create toolbars
@@ -835,7 +823,7 @@ class SamplesController extends Controller {
         // Get image editor in DOM
         let imageEditor = await this.images.getNode();
 
-        // Add sample viewer and toolbars to canvas
+        // Add sample viewer and toolbars to sample canvas
         imageEditor.find("enfugue-node-canvas").append(
             await this.sampleViewer.getNode(),
             E.div().class("sample-tools-container").content(

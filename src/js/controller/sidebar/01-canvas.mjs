@@ -49,9 +49,7 @@ class CanvasController extends Controller {
         // Create form
         this.canvasForm = new CanvasFormView(this.config);
         this.canvasForm.onSubmit(async (values) => {
-            if (!this.images.hasClass("has-sample")) {
-                this.images.setDimension(values.width, values.height);
-            }
+            this.canvas.setDimension(values.width, values.height);
             this.engine.width = values.width;
             this.engine.height = values.height;
             this.engine.tileHorizontal = values.tileHorizontal;
@@ -71,7 +69,7 @@ class CanvasController extends Controller {
         this.application.sidebar.addChild(this.canvasForm);
 
         // Add a callback when the image dimension is manually set
-        this.images.onSetDimension((newWidth, newHeight) => {
+        this.canvas.onSetDimension((newWidth, newHeight) => {
             let currentState = this.canvasForm.values;
             currentState.width = newWidth;
             currentState.height = newHeight;

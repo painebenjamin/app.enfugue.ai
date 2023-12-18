@@ -19,7 +19,7 @@ class RegionPromptController extends MenuController {
      * On click, add prompt node to canvas
      */
     async onClick() {
-        this.images.addPromptNode();
+        this.canvas.addPromptNode();
     }
 }
 

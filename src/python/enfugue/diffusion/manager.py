@@ -4107,7 +4107,7 @@ class DiffusionPipelineManager:
             else:
                 import torch
                 logger.debug("Offloading animator to CPU")
-                self._animator_pipeline = self._animator_pipeline.to("cpu", torch_dtype=torch.float32) # type: ignore[attr-defined]
+                self._animator_pipeline = self._animator_pipeline.to("cpu") # type: ignore[attr-defined]
             self.clear_memory()
 
     def offload_all(self) -> None:

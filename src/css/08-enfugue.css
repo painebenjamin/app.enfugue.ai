@@ -25,9 +25,29 @@ enfugue-application > enfugue-node-editor.image-editor {
     background-color: var(--darkest-color);
 }
 
+enfugue-application > enfugue-node-editor.image-editor.samples {
+    z-index: 4;
+}
+
 enfugue-application > enfugue-node-editor.windows {
-    z-index: 5;
+    z-index: 10;
     top: 35px;
+}
+
+enfugue-application > .current-view-input-view {
+    position: fixed;
+    top: 125px;
+    left: 254px;
+    z-index: 5;
+}
+
+enfugue-application.inpainting > .current-view-input-view {
+    top: 157px;
+}
+
+enfugue-application.enfugue-layout-horizontal > .current-view-input-view,
+enfugue-application.enfugue-layout-vertical > .current-view-input-view {
+    display: none;
 }
 
 enfugue-application.enfugue-layout-horizontal > enfugue-node-editor.image-editor {
@@ -52,7 +72,7 @@ enfugue-application.enfugue-layout-vertical > enfugue-node-editor.image-editor.s
 
 enfugue-menu {
     display: flex;
-    flex-flow:   row nowrap;
+    flex-flow: row nowrap;
     align-items: stretch;
     background-color: var(--dark-color);
     position: absolute;
@@ -62,7 +82,7 @@ enfugue-menu {
     top: 0;
     right: 0;
     border-bottom: 1px solid rgba(0,0,0,0.2);
-    z-index: 6;
+    z-index: 7;
     text-shadow: 1px 1px 0px rgba(0,0,0,0.2);
 }
 
@@ -478,7 +498,7 @@ enfugue-notification-center {
     display: flex;
     flex-flow: column-reverse nowrap;
     justify-content: flex-start;
-    z-index: 6;
+    z-index: 9;
 }
 
 enfugue-notification {
@@ -2136,7 +2156,7 @@ enfugue-engine-stop {
     font-size: 11px;
     background-color: var(--theme-color-primary);
     background-image: linear-gradient(to top, rgba(0,0,0,0.3) 10%, rgba(255,255,255,0.1) 90%);
-    z-index: 6;
+    z-index: 7;
     opacity: 0;
     pointer-events: none;
     cursor: not-allowed;
@@ -2167,13 +2187,18 @@ enfugue-invocation-loading {
     bottom: 82px;
     border-radius: 10px;
     border: 1px solid var(--dark-color);
+    background-color: var(--dark-color);
     transition: all 0.25s ease-in-out;
     height: 20px;
     line-height: 18px;
-    z-index: 3;
+    z-index: 8;
     flex-flow: row nowrap;
     align-items: center;
     justify-content: space-between;
+}
+
+enfugue-application.enfugue-layout-horizontal enfugue-invocation-loading {
+    bottom: 105px;
 }
 
 enfugue-invocation-loading enfugue-invocation-loaded {
@@ -2242,7 +2267,7 @@ enfugue-prompt-travel-view {
     flex-flow: row nowrap;
     align-items: stretch;
     justify-content: stretch;
-    z-index: 3;
+    z-index: 4;
 }
 
 enfugue-prompt-travel-view div.prompts-track {
@@ -2252,7 +2277,7 @@ enfugue-prompt-travel-view div.prompts-track {
 
 enfugue-prompt-travel-view div.prompts-track .prompts-container {
     position: absolute;
-    left: 73px;
+    left: 0;
     right: 0;
     top: 0;
     bottom: 0;
@@ -2345,7 +2370,7 @@ enfugue-prompt-travel-view div.prompts-track .prompt-view .weight::before {
 
 enfugue-prompt-travel-view div.prompts-track .notches {
     position: absolute;
-    left: 73px;
+    left: -1px;
     right: 14px;
     top: 0;
     bottom: 0;
@@ -2516,4 +2541,27 @@ enfugue-message-view.agent div::after {
     left: auto;
     right: 0;
     bottom: 5px;
+}
+
+enfugue-drag-layout {
+    position: fixed;
+    top: 120px;
+    bottom: 80px;
+    left: calc(50% - 3px);
+    width: 6px;
+    background-image: linear-gradient(to right, transparent 0px, transparent 2px, var(--dark-color) 2px, var(--dark-color) 4px, transparent 4px, transparent 6px);
+    cursor: ew-resize;
+    z-index: 7;
+}
+
+enfugue-application.enfugue-layout-vertical enfugue-drag-layout {
+    position: fixed;
+    left: 250px;
+    right: 250px;
+    top: calc(50% - 2px);
+    height: 6px;
+    width: auto;
+    bottom: auto;
+    background-image: linear-gradient(to bottom, transparent 0px, transparent 2px, var(--dark-color) 2px, var(--dark-color) 4px, transparent 4px, transparent 6px);
+    cursor: ns-resize;
 }

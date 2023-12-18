@@ -1203,12 +1203,15 @@ class LayeredInvocation:
         # Set up the pipeline
         pipeline._task_callback = task_callback
         self.prepare_pipeline(pipeline)
-
+        original_image_callback: Optional[Callable] = None
         cropped_inpaint_position = None
         background = None
         has_post_processing = bool(self.upscale)
+
         if self.animation_frames:
             has_post_processing = has_post_processing or bool(self.interpolate_frames) or self.reflect
+
+        inference_image_callback = image_callback
 
         invocation_kwargs = self.preprocess(
             pipeline,
@@ -1264,8 +1267,6 @@ class LayeredInvocation:
                 # First wrap callbacks if needed
                 if image_callback is not None:
                     # Hijack image callback to paste onto background
-                    original_image_callback = image_callback
-
                     def pasted_image_callback(images: List[Image]) -> None:
                         """
                         Paste the images then callback.
@@ -1281,9 +1282,9 @@ class LayeredInvocation:
                                 for image in images
                             ]
 
-                        original_image_callback(images)
+                        image_callback(images) # type: ignore
 
-                    image_callback = pasted_image_callback
+                    inference_image_callback = pasted_image_callback
 
                 # Now crop images
                 if isinstance(invocation_kwargs["image"], list):
@@ -1315,7 +1316,7 @@ class LayeredInvocation:
                 pipeline,
                 task_callback=task_callback,
                 progress_callback=progress_callback,
-                image_callback=image_callback,
+                image_callback=inference_image_callback,
                 image_callback_steps=image_callback_steps,
                 invocation_kwargs=invocation_kwargs
             )

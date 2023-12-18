@@ -3847,7 +3847,6 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
                 # Look for controlnet and conditioning image, prepare
                 prepared_control_images: PreparedControlImageArgType = {}
-
                 if control_images is not None:
                     if not self.controlnets:
                         logger.warning("Control image passed, but no controlnet present. Ignoring.")
@@ -3855,7 +3854,9 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     else:
                         for name in control_images:
                             is_sparse = type(self.controlnets[name]) is SparseControlNetModel
+
                             prepared_control_images[name] = [] # type: ignore[index]
+
                             sparse_condition_scale = 0.0
                             sparse_conditioning_start: Optional[float] = None
                             sparse_conditioning_end: Optional[float] = None
@@ -3914,13 +3915,11 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                                         dtype=encoded_prompts.dtype,
                                         do_classifier_free_guidance=do_classifier_free_guidance,
                                         animation_frames=animation_frames,
-                                        conditioning_frame=conditioning_frame
+                                        conditioning_frame=None
                                     )
-
                                     prepared_control_images[name].append( # type: ignore[index]
                                         (prepared_controlnet_image, conditioning_scale, conditioning_start, conditioning_end, None) # type: ignore[arg-type]
                                     )
-
                             if is_sparse:
                                 # Create single condition
                                 sparse_condition = torch.zeros_like(sparse_conditions[0])

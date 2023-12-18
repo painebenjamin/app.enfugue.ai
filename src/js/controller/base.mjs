@@ -38,10 +38,17 @@ class Controller {
     }
 
     /**
-     * @return nodes/image-editor.ImageEditorView A getter for the canvas
+     * @return nodes/image-editor.ImageEditorView A getter for the samples
      */
     get images() {
         return this.application.images;
+    }
+
+    /**
+     * @return nodes/image-editor.ImageEditorFor a getter for the canvas
+     */
+    get canvas() {
+        return this.application.canvas;
     }
 
     /**

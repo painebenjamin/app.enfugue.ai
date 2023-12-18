@@ -166,8 +166,8 @@ class LayerView extends View {
      * Gets the layer image
      */
     async getLayerImage() {
-        let width = this.controller.images.width,
-            height = this.controller.images.height,
+        let width = this.controller.canvas.width,
+            height = this.controller.canvas.height,
             maxDimension = Math.max(width, height),
             scale = this.constructor.previewWidth / maxDimension,
             widthRatio = width / maxDimension,
@@ -339,8 +339,8 @@ class LayerView extends View {
      * Triggers re-rendering of preview image if needed
      */
     async resized() {
-        let width = this.controller.images.width,
-            height = this.controller.images.height,
+        let width = this.controller.canvas.width,
+            height = this.controller.canvas.height,
             nodeState = this.editorNode.getState();
 
         if (width !== this.lastCanvasWidth ||
@@ -596,7 +596,7 @@ class LayersController extends Controller {
 
             if (targetIndex !== layerIndex) {
                 // Re-order on canvas (inverse)
-                this.images.reorderNode(targetIndex, this.draggedLayer.editorNode);
+                this.canvas.reorderNode(targetIndex, this.draggedLayer.editorNode);
 
                 // Re-order in memory
                 this.layers = this.layers.filter(
@@ -683,7 +683,7 @@ class LayersController extends Controller {
      */
     async emptyLayers() {
         for (let layer of this.layers) {
-            this.images.removeNode(layer.editorNode);
+            this.canvas.removeNode(layer.editorNode);
         }
         this.layers = [];
         this.layersView.emptyLayers();
@@ -740,7 +740,7 @@ class LayersController extends Controller {
      */
     async addVideoLayer(videoData, activate = true, videoNode = null, name = "Video") {
         if (isEmpty(videoNode)) {
-            videoNode = await this.images.addVideoNode(videoData, name);
+            videoNode = await this.canvas.addVideoNode(videoData, name);
         }
 
         let videoForm = new ImageEditorVideoNodeOptionsFormView(this.config),
@@ -778,7 +778,7 @@ class LayersController extends Controller {
             imageData = imageData.src;
         }
         if (isEmpty(imageNode)) {
-            imageNode = await this.images.addImageNode(imageData, name);
+            imageNode = await this.canvas.addImageNode(imageData, name);
         }
 
         let imageForm = new ImageEditorImageNodeOptionsFormView(this.config),
@@ -815,7 +815,7 @@ class LayersController extends Controller {
      */
     async addScribbleLayer(activate = true, scribbleNode = null, name = "Scribble") {
         if (isEmpty(scribbleNode)) {
-            scribbleNode = await this.images.addScribbleNode(name);
+            scribbleNode = await this.canvas.addScribbleNode(name);
         }
 
         let scribbleForm = new ImageEditorScribbleNodeOptionsFormView(this.config),
@@ -835,7 +835,7 @@ class LayersController extends Controller {
      */
     async addPromptLayer(activate = true, promptNode = null, name = "Prompt") {
         if (isEmpty(promptNode)) {
-            promptNode = await this.images.addPromptNode(name);
+            promptNode = await this.canvas.addPromptNode(name);
         }
 
         let promptForm = new ImageEditorPromptNodeOptionsFormView(this.config),
@@ -912,10 +912,10 @@ class LayersController extends Controller {
         this.application.container.appendChild(await this.layersView.render());
 
         // Register callbacks for image editor
-        this.images.onNodeFocus((node) => {
+        this.canvas.onNodeFocus((node) => {
             this.activate(this.getLayerByEditorNode(node));
         });
-        this.images.onNodeCopy((newNode, previousNode) => {
+        this.canvas.onNodeCopy((newNode, previousNode) => {
             this.addCopiedNode(newNode, previousNode);
         });
     }

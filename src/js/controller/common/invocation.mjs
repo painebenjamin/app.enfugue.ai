@@ -1488,7 +1488,6 @@ class InvocationController extends Controller {
             } else {
                 this.startSample = true;
                 this.application.samples.resetState();
-                this.application.samples.showCanvas();
                 await this.canvasInvocation(result.uuid, result.animation);
             }
         }

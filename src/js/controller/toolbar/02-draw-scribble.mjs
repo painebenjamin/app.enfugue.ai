@@ -3,7 +3,7 @@ import { MenuController } from "../menu.mjs";
 import { promptFiles, isEmpty } from "../../base/helpers.mjs";
 
 /**
- * Adds a scriblle node to the canvas
+ * Adds a scribble node to the canvas
  */
 class DrawScribbleController extends MenuController {
     /**
@@ -20,7 +20,7 @@ class DrawScribbleController extends MenuController {
      * On click, add scribble node
      */
     async onClick() {
-        this.images.addScribbleNode();
+        this.canvas.addScribbleNode();
     }
 }
 

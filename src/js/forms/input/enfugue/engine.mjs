@@ -241,7 +241,8 @@ class ControlNetInputView extends SelectInputView {
         "<strong>Normal</strong>: Normal maps are similar to depth maps, but instead of using a greyscale depth, three sets of distance data is encoded into red, green and blue channels.<br />" +
         "<strong>DWPose/OpenPose</strong>: OpenPose is an AI model from the Carnegie Mellon University's Perceptual Computing Lab detects human limb, face and digit poses from an image, and DWPose is a faster and more accurate model built on top of OpenPose. Using this data, you can generate different people in the same pose.<br />" +
         "<strong>QR Code</strong> is a specialized control network designed to generate images from QR codes that are scannable QR codes themselves.<br />" + 
-        "<strong>Sparse RGB</strong> is a ControlNet designed for generating videos given one or more images as frames along a timeline. However it can also be used for image generation as a general-purpose reference ControlNet.";
+        "<strong>Sparse RGB</strong> is a ControlNet designed for generating videos given one or more images as frames along a timeline. However it can also be used for image generation as a general-purpose reference ControlNet.<br />" +
+        "<strong>Sparse Scribble</strong> is a ControlNet designed for generating videos given one or more white-on-black scribbled images as frames along a timeline. However it can also be used for image generation as a general-purpose scribble ControlNet.";
 
 };
 

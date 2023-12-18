@@ -160,11 +160,13 @@ class InpaintingController extends Controller {
             // Show/hide parts
             if (values.inpaint) {
                 this.publish("inpaintEnabled");
+                this.application.container.classList.add("inpainting");
                 this.scribbleView.show();
                 this.scribbleToolbar.show();
                 this.engine.mask = this.scribbleView.src;
             } else {
                 this.publish("inpaintDisabled");
+                this.application.container.classList.remove("inpainting");
                 this.scribbleView.hide();
                 this.scribbleToolbar.hide();
                 this.engine.mask = null;
@@ -200,7 +202,7 @@ class InpaintingController extends Controller {
 
         this.application.sidebar.addChild(this.inpaintForm);
         this.application.container.appendChild(await this.scribbleToolbar.render());
-        (await this.application.images.getNode()).find("enfugue-image-editor-overlay").append(await this.scribbleView.getNode());
+        (await this.canvas.getNode()).find("enfugue-image-editor-overlay").append(await this.scribbleView.getNode());
     }
 }
 

@@ -688,8 +688,8 @@ class Application {
                 }
                 await this.setState(existingAutosave);
                 this.notifications.push("info", "Session Restored", "Your last autosaved session was successfully loaded.");
-                if (!isEmpty(this.images.node)) {
-                    let reset = this.images.node.find("enfugue-node-editor-zoom-reset");
+                if (!isEmpty(this.canvas.node)) {
+                    let reset = this.canvas.node.find("enfugue-node-editor-zoom-reset");
                     if (!isEmpty(reset)) {
                         reset.trigger("click");
                     }
@@ -956,7 +956,7 @@ class Application {
                     if (isEmpty(imageView)) {
                         imageView = new BackgroundImageView(this.config, reader.result, false);
                     }
-                    this.samples.showCanvas();
+                    this.layout.checkHideSamples(false);
                     this.layers.addImageLayer(imageView);
                     break;
                 case "video/mp4":
@@ -966,7 +966,7 @@ class Application {
                 case "video/x-msvideo": // avi
                 case "video/x-ms-wmv": // wmv
                 case "video/quicktime": // mov
-                    this.samples.showCanvas();
+                    this.layout.checkHideSamples(false);
                     this.layers.addVideoLayer(reader.result);
                     break;
                 default:
@@ -1040,7 +1040,7 @@ class Application {
         }
         let controllerArray = this.getStatefulControllers();
         if (!isEmpty(newState.canvas)) {
-            this.images.setDimension(newState.canvas.width, newState.canvas.height);
+            this.canvas.setDimension(newState.canvas.width, newState.canvas.height);
         }
         for (let controller of controllerArray) {
             await controller.setState(newState);
@@ -1058,7 +1058,7 @@ class Application {
         }
         await this.setState(state, saveHistory);
         // Also reset image editor
-        this.images.resetCanvasPosition();
+        this.canvas.resetCanvasPosition();
     }
 
     /**
@@ -1109,7 +1109,7 @@ class Application {
                 }
             }
 
-            this.samples.showCanvas();
+            this.layout.checkHideSamples(false);
             await sleep(1); // Sleep 1 frame
             await this.setState(baseState, saveHistory);
             await sleep(1); // Sleep 1 frame
@@ -1153,10 +1153,14 @@ class Application {
             if (!isEmpty(nodeEditor.node)) {
                 let nodeCanvas = nodeEditor.node.find("enfugue-node-canvas");
                 if (!isEmpty(nodeCanvas) && !isEmpty(nodeCanvas.element) && nodeCanvas.element.checkVisibility()) {
-                    let canvasPosition = nodeCanvas.element.getBoundingClientRect();
+                    let canvasPosition = nodeCanvas.element.getBoundingClientRect(),
+                        nodeEditorPosition = nodeEditor.node.element.getBoundingClientRect();
+
                     if (
                         (canvasPosition.x < this.mouseX && this.mouseX < canvasPosition.x + canvasPosition.width) &&
-                        (canvasPosition.y < this.mouseY && this.mouseY < canvasPosition.y + canvasPosition.height)
+                        (canvasPosition.y < this.mouseY && this.mouseY < canvasPosition.y + canvasPosition.height) &&
+                        (nodeEditorPosition.x < this.mouseX && this.mouseX < nodeEditorPosition.x + nodeEditorPosition.width) &&
+                        (nodeEditorPosition.y < this.mouseY && this.mouseY < nodeEditorPosition.y + nodeEditorPosition.height)
                     ) {
                         if (returnEditor) {
                             return nodeEditor;

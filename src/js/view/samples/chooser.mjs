@@ -14,16 +14,6 @@ class SampleChooserView extends View {
     static tagName = "enfugue-sample-chooser";
 
     /**
-     * @var string Show canvas icon
-     */
-    static showCanvasIcon = "fa-solid fa-table-cells";
-
-    /**
-     * @var string Show canvas tooltip
-     */
-    static showCanvasTooltip = "Show the canvas, hiding any sample currently visible on-screen and revealing the grid and any nodes you've placed on it.";
-
-    /**
      * @var string Loop video icon
      */
     static loopIcon = "fa-solid fa-rotate-left";
@@ -42,26 +32,6 @@ class SampleChooserView extends View {
      * @var string Play video tooltip
      */
     static playTooltip = "Play the animation.";
-
-    /**
-     * @var string Tile vertical icon
-     */
-    static tileVerticalIcon = "fa-solid fa-ellipsis-vertical";
-
-    /**
-     * @var string Tile vertical tooltip
-     */
-    static tileVerticalTooltip = "Show the image tiled vertically.";
-
-    /**
-     * @var string Tile horizontal icon
-     */
-    static tileHorizontalIcon = "fa-solid fa-ellipsis";
-
-    /**
-     * @var string Tile horizontal tooltip
-     */
-    static tileHorizontalTooltip = "Show the image tiled horizontally.";
 
     /**
      * @var int default playback rate
@@ -83,11 +53,8 @@ class SampleChooserView extends View {
      */
     constructor(config, samples = [], isAnimation = false) {
         super(config);
-        this.showCanvasCallbacks = [];
         this.loopAnimationCallbacks = [];
         this.playAnimationCallbacks = [];
-        this.tileHorizontalCallbacks = [];
-        this.tileVerticalCallbacks = [];
         this.setActiveCallbacks = [];
         this.setPlaybackRateCallbacks = [];
         this.imageViews = [];
@@ -110,13 +77,6 @@ class SampleChooserView extends View {
     // ADD CALLBACK FUNCTIONS
 
     /**
-     * Adds a callback to the show canvas button
-     */
-    onShowCanvas(callback){
-        this.showCanvasCallbacks.push(callback);
-    }
-
-    /**
      * Adds a callback to the loop animation button
      */
     onLoopAnimation(callback) {
@@ -128,20 +88,6 @@ class SampleChooserView extends View {
      */
     onPlayAnimation(callback) {
         this.playAnimationCallbacks.push(callback);
-    }
-
-    /**
-     * Adds a callback to the tile horizontal button
-     */
-    onTileHorizontal(callback) {
-        this.tileHorizontalCallbacks.push(callback);
-    }
-
-    /**
-     * Adds a callback to the tile vertical button
-     */
-    onTileVertical(callback) {
-        this.tileVerticalCallbacks.push(callback);
     }
 
     /**
@@ -161,16 +107,6 @@ class SampleChooserView extends View {
     // EXECUTE CALLBACK FUNCTIONS
 
     /**
-     * Calls show canvas callbacks
-     */
-    showCanvas() {
-        this.setActiveIndex(null);
-        for (let callback of this.showCanvasCallbacks) {
-            callback();
-        }
-    }
-
-    /**
      * Sets whether or not the samples should be controlled as an animation
      */
     setIsAnimation(isAnimation) {
@@ -180,40 +116,6 @@ class SampleChooserView extends View {
                 this.node.addClass("animation");
             } else {
                 this.node.removeClass("animation");
-            }
-        }
-    }
-
-    /**
-     * Calls tile horizontal callbacks
-     */
-    setHorizontalTile(tileHorizontal, updateDom = true) {
-        for (let callback of this.tileHorizontalCallbacks) {
-            callback(tileHorizontal);
-        }
-        if (!isEmpty(this.node) && updateDom) {
-            let tileButton = this.node.find(".tile-horizontal");
-            if (tileHorizontal) {
-                tileButton.addClass("active");
-            } else {
-                tileButton.removeClass("active");
-            }
-        }
-    }
-
-    /**
-     * Calls tile vertical callbacks
-     */
-    setVerticalTile(tileVertical, updateDom = true) {
-        for (let callback of this.tileVerticalCallbacks) {
-            callback(tileVertical);
-        }
-        if (!isEmpty(this.node) && updateDom) {
-            let tileButton = this.node.find(".tile-vertical");
-            if (tileVertical) {
-                tileButton.addClass("active");
-            } else {
-                tileButton.removeClass("active");
             }
         }
     }
@@ -309,6 +211,7 @@ class SampleChooserView extends View {
                     samplesContainer.empty();
                     render = true;
                 }
+
                 for (let i in this.samples) {
                     let imageView,
                         imageViewNode,
@@ -356,32 +259,6 @@ class SampleChooserView extends View {
      */
     async build() {
         let node = await super.build(),
-            showCanvas = E.i()
-                .addClass("show-canvas")
-                .addClass(this.constructor.showCanvasIcon)
-                .data("tooltip", this.constructor.showCanvasTooltip)
-                .on("click", () => {
-                    this.showCanvas();
-                    setTimeout(() => {
-                        this.showCanvas();
-                    },50); // Temporary workaround
-                 }),
-            tileHorizontal = E.i()
-                .addClass("tile-horizontal")
-                .addClass(this.constructor.tileHorizontalIcon)
-                .data("tooltip", this.constructor.tileHorizontalTooltip)
-                .on("click", () => {
-                    tileHorizontal.toggleClass("active");
-                    this.setHorizontalTile(tileHorizontal.hasClass("active"), false);
-                }),
-            tileVertical = E.i()
-                .addClass("tile-vertical")
-                .addClass(this.constructor.tileVerticalIcon)
-                .data("tooltip", this.constructor.tileVerticalTooltip)
-                .on("click", () => {
-                    tileVertical.toggleClass("active");
-                    this.setVerticalTile(tileVertical.hasClass("active"), false);
-                }),
             loopAnimation = E.i()
                 .addClass("loop")
                 .addClass(this.constructor.loopIcon)
@@ -491,11 +368,6 @@ class SampleChooserView extends View {
         }
 
         node.content(
-            showCanvas,
-            E.div().class("tile-buttons").content(
-                tileHorizontal,
-                tileVertical
-            ),
             samplesContainer,
             E.div().class("playback-rate").content(
                 await this.playbackRateInput.getNode(),

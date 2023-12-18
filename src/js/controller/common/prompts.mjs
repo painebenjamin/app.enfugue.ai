@@ -328,6 +328,7 @@ class PromptView extends View {
         }).on("mousemove", (e) => {
             updatePosition(e);
         }).on("mousedown", (e) => {
+            if (e.which !== 1) return;
             if (canDragLeft) {
                 activeLeft = true;
             } else if (canDragRight) {
