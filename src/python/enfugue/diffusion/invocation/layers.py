@@ -925,7 +925,6 @@ class LayeredInvocation:
                                         mask=fit_layer_mask[i]
                                     )
                         elif isinstance(invocation_image, list):
-                            logger.info(f"PASTE IMG AT {frame}")
                             invocation_image[frame].paste(fit_layer_image, mask=image_paste_mask)
                             if passthrough:
                                 invocation_mask[frame].paste(black, mask=fit_layer_mask) # type: ignore[index]
