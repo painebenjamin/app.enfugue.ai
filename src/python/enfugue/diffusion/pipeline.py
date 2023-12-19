@@ -103,6 +103,8 @@ from enfugue.diffusion.util import (
     empty_cache,
     make_noise,
     blend_latents,
+    freq_mix_3d,
+    get_freq_filter,
     LatentScaler,
     MaskWeightBuilder,
     PromptEncoder,
@@ -178,6 +180,10 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
     safety_checker: Optional[StableDiffusionSafetyChecker]
     config: OmegaConf
     safety_checking_disabled: bool = False
+    frequency_filter_type: Literal["gaussian", "ideal", "box", "butterworth"] = "butterworth"
+    frequency_filter_order = 4
+    frequency_filter_spatial_stop = 0.25
+    frequency_filter_temporal_stop = 0.25
 
     def __init__(
         self,
@@ -3386,6 +3392,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         noise_offset: Optional[float]=None,
         noise_method: NOISE_METHOD_LITERAL="perlin",
         noise_blend_method: LATENT_BLEND_METHOD_LITERAL="inject",
+        num_denoising_iterations: Optional[int]=None,
     ) -> Union[
         StableDiffusionPipelineOutput,
         Tuple[Union[torch.Tensor, np.ndarray, List[PIL.Image.Image]], Optional[List[bool]]],
@@ -3459,6 +3466,10 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             latent_callback_steps = None
         if animation_frames == 0:
             animation_frames = None
+
+        # Check denoising iterations
+        if num_denoising_iterations is None or not animation_frames:
+            num_denoising_iterations = 1
 
         # Convenient bool for later
         decode_intermediates = latent_callback_steps is not None and latent_callback is not None
@@ -3542,9 +3553,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     - (denoising_end * self.scheduler.config.num_train_timesteps) # type: ignore[attr-defined]
                 )
             )
-            num_inference_steps = len(list(filter(lambda ts: ts >= discrete_timestep_cutoff, timesteps)))
-            timesteps = timesteps[:num_inference_steps]
-            num_scheduled_inference_steps = len(timesteps)
+            num_scheduled_inference_steps = len(list(filter(lambda ts: ts >= discrete_timestep_cutoff, timesteps)))
+            timesteps = timesteps[:num_scheduled_inference_steps]
 
         # Calculate total steps including all unet and vae calls
         encoding_steps = 0
@@ -3589,7 +3599,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
         num_frames = 1 if not animation_frames else animation_frames
         unet_spatial_chunks = (1 if not tiling_unet else num_chunks)
-        unet_steps = unet_spatial_chunks * num_temporal_chunks * num_scheduled_inference_steps
+        unet_steps = unet_spatial_chunks * num_temporal_chunks * num_scheduled_inference_steps * num_denoising_iterations
 
         vae_chunks = (1 if not tiling_vae else num_chunks)
         decode_chunk_size = 1 if not frame_decode_chunk_size else frame_decode_chunk_size
@@ -3601,7 +3611,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             " ".join([
                 f"Calculated overall steps to be {overall_num_steps}.",
                 f"{image_prompt_probes} image prompt embedding probe(s) +",
-                f"{unet_steps} UNet step(s) ({unet_spatial_chunks} spatial chunk(s) * {num_temporal_chunks} temporal chunk(s) * {num_scheduled_inference_steps} inference step(s)) +",
+                f"{unet_steps} UNet step(s) ({unet_spatial_chunks} spatial chunk(s) * {num_temporal_chunks} temporal chunk(s) * {num_scheduled_inference_steps} inference step(s) * {num_denoising_iterations} denoising iteration(s)) +",
                 f"{vae_steps} VAE step(s) ({vae_chunks} chunk(s) * ({encoding_steps} encoding step(s) + ({decoding_steps} decoding step(s) * ({num_frames} frame(s) / {decode_chunk_size} frame(s) per decode))))"
             ])
         )
@@ -4108,33 +4118,94 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     offload_models=offload_models
                 ) # May be overridden by RT
 
-                # Denoising loop
-                prepared_latents = self.denoise(
-                    height=height,
-                    width=width,
-                    device=device,
-                    num_inference_steps=num_inference_steps,
-                    chunker=chunker,
-                    weight_builder=weight_builder,
-                    timesteps=timesteps,
-                    latents=prepared_latents,
-                    encoded_prompts=encoded_prompts,
-                    guidance_scale=guidance_scale,
-                    timestep_cond=timestep_cond,
-                    do_classifier_free_guidance=do_classifier_free_guidance,
-                    mask=prepared_mask,
-                    mask_image=prepared_image_latents,
-                    image=init_image,
-                    control_images=prepared_control_images,
-                    progress_callback=step_complete,
-                    latent_callback=latent_callback,
-                    latent_callback_steps=latent_callback_steps,
-                    latent_callback_type=latent_callback_type,
-                    extra_step_kwargs=extra_step_kwargs,
-                    cross_attention_kwargs=cross_attention_kwargs,
-                    added_cond_kwargs=added_cond_kwargs,
-                    tiling=tiling_unet,
-                )
+                initial_noisy_latents = None
+                freq_filter = None
+                for i in range(num_denoising_iterations):
+                    if i == 0 and num_denoising_iterations > 1:
+                        initial_noisy_latents = prepared_latents.detach().clone()
+                        freq_filter = get_freq_filter(
+                            prepared_latents.shape,
+                            device=device,
+                            filter_type=self.frequency_filter_type
+                        )
+                    elif i > 0:
+                        # Invoke callback if requested
+                        if latent_callback is not None:
+                            latent_callback_value = prepared_latents
+
+                            if latent_callback_type != "latent":
+                                latent_callback_value = self.decode_latent_preview(
+                                    latent_callback_value,
+                                    weight_builder=weight_builder,
+                                    device=device,
+                                )
+                                latent_callback_value = self.denormalize_latents(latent_callback_value)
+                                if animation_frames:
+                                    output = [] # type: ignore[assignment]
+                                    for frame in self.decode_animation_frames(latent_callback_value):
+                                        output.extend(self.image_processor.numpy_to_pil(frame)) # type: ignore[attr-defined]
+                                    latent_callback_value = output # type: ignore[assignment]
+                                else:
+                                    if latent_callback_type != "pt":
+                                        latent_callback_value = self.image_processor.pt_to_numpy(latent_callback_value)
+                                        if latent_callback_type == "pil":
+                                            latent_callback_value = self.image_processor.numpy_to_pil(latent_callback_value)
+
+                            latent_callback(latent_callback_value)
+
+                        # 1. DDPM Forward with initial noise
+                        current_diffuse_timestep = self.scheduler.config.num_train_timesteps - 1 # type: ignore[attr-defined]
+                        diffuse_timesteps = torch.full((1,), int(current_diffuse_timestep))
+                        diffuse_timesteps = diffuse_timesteps.long()
+                        z_T = self.scheduler.add_noise( # type: ignore[attr-defined]
+                            original_samples=prepared_latents,
+                            noise=initial_noisy_latents.to(device), # type: ignore[union-attr]
+                            timesteps=diffuse_timesteps
+                        )
+
+                        # 2. create random noise z_rand for high-frequency
+                        z_rand = randn_tensor(
+                            prepared_latents.shape,
+                            generator=generator,
+                            device=device,
+                            dtype=torch.float32
+                        )
+
+                        # 3. Noise Reinitialization
+                        prepared_latents = freq_mix_3d(
+                            z_T.to(dtype=torch.float32),
+                            z_rand,
+                            low_pass_filter=freq_filter # type: ignore[arg-type]
+                        )
+                        prepared_latents = prepared_latents.to(initial_noisy_latents.dtype) # type: ignore[union-attr]
+
+                    # Denoising loop
+                    prepared_latents = self.denoise(
+                        height=height,
+                        width=width,
+                        device=device,
+                        num_inference_steps=num_scheduled_inference_steps,
+                        chunker=chunker,
+                        weight_builder=weight_builder,
+                        timesteps=timesteps,
+                        latents=prepared_latents,
+                        encoded_prompts=encoded_prompts,
+                        guidance_scale=guidance_scale,
+                        timestep_cond=timestep_cond,
+                        do_classifier_free_guidance=do_classifier_free_guidance,
+                        mask=prepared_mask,
+                        mask_image=prepared_image_latents,
+                        image=init_image,
+                        control_images=prepared_control_images,
+                        progress_callback=step_complete,
+                        latent_callback=latent_callback,
+                        latent_callback_steps=latent_callback_steps,
+                        latent_callback_type=latent_callback_type,
+                        extra_step_kwargs=extra_step_kwargs,
+                        cross_attention_kwargs=cross_attention_kwargs,
+                        added_cond_kwargs=added_cond_kwargs,
+                        tiling=tiling_unet,
+                    )
 
                 # Clear no longer needed tensors
                 del prepared_mask
@@ -4174,7 +4245,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                             prepared_latents = prepared_latents.float()
 
                 if output_type == "latent":
-                    output = prepared_latents
+                    output = prepared_latents # type: ignore[assignment]
                 else:
                     prepared_latents = self.decode_latents(
                         prepared_latents,
@@ -4186,7 +4257,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                         frame_decode_chunk_size=frame_decode_chunk_size,
                     )
                     if not animation_frames:
-                        output = self.denormalize_latents(prepared_latents)
+                        output = self.denormalize_latents(prepared_latents) # type: ignore[assignment]
                         if output_type != "pt":
                             output = self.image_processor.pt_to_numpy(output)
                             output_nsfw = self.run_safety_checker(output, device, encoded_prompts.dtype)[1] # type: ignore[arg-type]
