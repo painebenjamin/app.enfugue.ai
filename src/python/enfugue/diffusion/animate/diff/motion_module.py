@@ -292,7 +292,7 @@ class VersatileAttention(Attention):
     def set_scale_multiplier(self, multiplier: float = 1.0) -> None:
         if not hasattr(self, "_default_scale"):
             self._default_scale = self.scale
-        self.scale = math.sqrt((math.log(24) / math.log(24//4)) / (self.inner_dim // self.heads)) * multiplier
+        self.scale = math.sqrt(multiplier / (self.inner_dim // self.heads))
 
     def reset_scale_multiplier(self) -> None:
         if hasattr(self, "_default_scale"):

@@ -1205,7 +1205,7 @@ class LayeredInvocation:
         original_image_callback: Optional[Callable] = None
         cropped_inpaint_position = None
         background = None
-        has_post_processing = bool(self.upscale)
+        has_post_processing = bool(self.upscale) or self.detailer_face_restore or ((self.detailer_face_inpaint or self.detailer_hand_inpaint) and self.detailer_denoising_strength)
 
         if self.animation_frames:
             has_post_processing = has_post_processing or bool(self.interpolate_frames) or self.reflect

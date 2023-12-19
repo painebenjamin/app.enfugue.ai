@@ -38,9 +38,39 @@ class EnfugueButton extends ButtonInputView {
 }
 
 /**
+ * This is just the button itself
+ */
+class RealTimeButton extends ButtonInputView {
+    /**
+     * @var string The class name of the view.
+     */
+    static className = "real-time";
+
+    /**
+     * @var string the value passed to the 'value' property, in this case the text.
+     */
+    static defaultValue = "";
+}
+
+/**
  * The Invoke controller reads the canvas and sends the data to the invocation engine.
  */
 class InvokeButtonController extends Controller {
+    /**
+     * Gets if real-time is enabled from the session store
+     */
+    get realTime() {
+        let stored = this.application.session.getItem("realTime");
+        return isEmpty(stored) ? false : stored;
+    }
+
+    /**
+     * Sets if real-time is eanbled in the session store
+     */
+    set realTime(isEnabled) {
+        this.application.session.setItem("realTime", isEnabled);
+    }
+
     /**
      * Gets the step data from the canvas for invocation.
      */
@@ -60,7 +90,13 @@ class InvokeButtonController extends Controller {
                 switch (datum.classname) {
                     case "ImageEditorScribbleNodeView":
                         formattedState["control_units"] = [
-                            {"process": false, "controlnet": "scribble"}
+                            {
+                                "process": false,
+                                "controlnet": "scribble",
+                                "start": datum.conditioningStart,
+                                "end": datum.conditioningEnd,
+                                "scale": datum.conditioningScale
+                            }
                         ];
                         break;
                     case "ImageEditorImageNodeView":
@@ -158,20 +194,43 @@ class InvokeButtonController extends Controller {
         this.loadingBar.doneLoading();
         this.application.autosave();
         this.isInvoking = false;
+        if (this.invokeAgain) {
+            this.invokeAgain = false;
+            await this.tryInvoke();
+        }
     }
 
     /**
      * On initialize, build button and bind actions.
      */
     async initialize() {
+        this.realTimeButton = new RealTimeButton(this.config);
+        this.realTimeButton.onChange(() => {
+            this.realTime = !this.realTimeButton.hasClass("active");
+            this.engine.realTime = this.realTime;
+            this.realTimeButton.toggleClass("active");
+        });
+        if (this.realTime) {
+            this.realTimeButton.addClass("active");
+            // Wait a second in case we're loading a session
+            setTimeout(() => {
+                this.engine.realTime = true;
+            }, 1000);
+        }
         this.invokeButton = new EnfugueButton(this.config);
         this.invokeButton.onChange(() => this.tryInvoke());
+
         this.loadingBar = new InvokeLoadingBarView();
+
+        await this.application.sidebar.addChild(this.realTimeButton);
         await this.application.sidebar.addChild(this.invokeButton);
         await this.application.sidebar.addChild(this.loadingBar);
+
         this.subscribe("tryInvoke", () => {
             if (this.isInvoking !== true) {
                 this.tryInvoke();
+            } else if (this.realTime) {
+                this.invokeAgain = true;
             }
         });
     }

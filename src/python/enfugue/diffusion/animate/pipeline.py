@@ -384,7 +384,6 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
             "CrossAttnUpBlock3D",
             "CrossAttnUpBlock3D"
         ]
-
         if motion_module is not None:
             # Detect MM version
             logger.debug(f"Loading motion module {motion_module} to detect MMV1/2/3")
@@ -403,7 +402,14 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
                         animate_diff_mm_version = 3
                         logger.debug("Detected MMV3")
                 else:
-                    raise ValueError(f"Position encoder tensor has unsupported length {position_tensor.shape[1]}")
+                    if position_tensor.shape[1] > 32:
+                        # Long AnimateDiff
+                        if position_encoding_scale_length:
+                            position_encoding_scale_length = min(position_encoding_scale_length, position_tensor.shape[1])
+                        else:
+                            position_encoding_scale_length = position_tensor.shape[1]
+                    else:
+                        raise ValueError(f"Position encoder tensor has unsupported length {position_tensor.shape[1]}")
             else:
                 raise ValueError(f"Couldn't detect motion module version from {motion_module}. It may be an unsupported format.")
 
@@ -436,6 +442,8 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         }
 
         model = AnimateDiffUNet.from_config(config, **unet_additional_kwargs)
+        model.position_encoding_truncate_length = position_encoding_truncate_length
+        model.position_encoding_scale_length = position_encoding_scale_length
         cls.load_diff_state_dict(
             unet=model,
             cache_dir=cache_dir,
@@ -617,13 +625,14 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         )
         return model
 
-    @classmethod
-    def get_sparse_controlnet_config(cls, use_simplified_embedding: bool) -> Dict[str, Any]:
+    def get_sparse_controlnet_config(self, use_simplified_embedding: bool) -> Dict[str, Any]:
         """
         Gets configuration for the sparse controlnet.
         """
-        config = EnfugueStableDiffusionPipeline.get_sparse_controlnet_config(use_simplified_embedding)
-
+        config = super(EnfugueAnimateStableDiffusionPipeline, self).get_sparse_controlnet_config(use_simplified_embedding)
+        encoding_length = getattr(self.unet, "position_encoding_scale_length", None)
+        if encoding_length is None:
+            encoding_length = 32
         return {
             **config,
             **{
@@ -636,7 +645,7 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
                     "num_transformer_block": 1,
                     "attention_block_types": ["Temporal_Self"],
                     "temporal_position_encoding": True,
-                    "temporal_position_encoding_max_len": 32,
+                    "temporal_position_encoding_max_len": encoding_length,
                     "temporal_attention_dim_div": 1
                 }
             }
@@ -655,6 +664,8 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         """
         Loads motion module weights after-the-fact
         """
+        self.unet.position_encoding_truncate_length = position_encoding_truncate_length # type: ignore[assignment]
+        self.unet.position_encoding_scale_length = position_encoding_scale_length # type: ignore[assignment]
         if self.is_sdxl:
             self.load_hotshot_state_dict(
                 unet=self.unet,

@@ -122,6 +122,16 @@ class ImageEditorScribbleNodeView extends ImageEditorNodeView {
     }
 
     /**
+     * Wait a tick after calling this then redraw
+     */
+    async scaleToCanvasSize() {
+        await super.scaleToCanvasSize();
+        window.requestAnimationFrame(() => {
+            this.resized();
+        });
+    }
+
+    /**
      * Calls clear memory on content
      */
     clearMemory() {
@@ -184,7 +194,7 @@ class ImageEditorScribbleNodeView extends ImageEditorNodeView {
      * When resized, pass to the scribble node to resize itself too
      */
     async resized() {
-        super.resized();
+        await super.resized();
         this.content.resizeCanvas(
             this.visibleWidth - this.constructor.padding * 2,
             this.visibleHeight - this.constructor.padding * 2

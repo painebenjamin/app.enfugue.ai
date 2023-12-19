@@ -899,15 +899,14 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         """
         return self.unet.config.in_channels == 9 # type: ignore[attr-defined]
 
-    @classmethod
-    def get_sparse_controlnet_config(cls, use_simplified_embedding: bool) -> Dict[str, Any]:
+    def get_sparse_controlnet_config(self, use_simplified_condition_embedding: bool) -> Dict[str, Any]:
         """
         Gets configuration for the sparse controlnet.
         """
         return {
             "set_noisy_sample_input_to_zero": True,
-            "use_simplified_condition_embedding": use_simplified_embedding,
-            "conditioning_channels": 4 if use_simplified_embedding else 3,
+            "use_simplified_condition_embedding": use_simplified_condition_embedding,
+            "conditioning_channels": 4 if use_simplified_condition_embedding else 3,
             "use_motion_module": False,
         }
 
@@ -927,8 +926,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         else:
             raise ValueError(f"Unknown ControlNet {controlnet}")
 
-        use_simplified_embedding = controlnet == "sparse-rgb"
-        sparse_controlnet_config = self.get_sparse_controlnet_config(use_simplified_embedding)
+        use_simplified_condition_embedding = controlnet == "sparse-rgb"
+        sparse_controlnet_config = self.get_sparse_controlnet_config(use_simplified_condition_embedding)
 
         # Prepare UNet
         self.unet.config.num_attention_heads = 8 # type: ignore[attr-defined]
@@ -952,6 +951,24 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             for key in list (controlnet_state_dict.keys()):
                 if "motion" in key or "temporal" in key:
                     controlnet_state_dict.pop(key)
+        else:
+            # Check if we need to adjust PE tensors
+            scale_length = getattr(self.unet, "position_encoding_scale_length")
+            truncate_length = getattr(self.unet, "position_encoding_truncate_length")
+
+            if scale_length or truncate_length:
+                logger.info(f"Adjusting ControlNet position encoder tensors, will truncate to length '{truncate_length}' and/or scale to length '{scale_length}'")
+                for key in controlnet_state_dict:
+                    if key.endswith(".pe"):
+                        if truncate_length:
+                            controlnet_state_dict[key] = controlnet_state_dict[key][:, :truncate_length] # type: ignore[index]
+                        if scale_length:
+                            shape = controlnet_state_dict[key].shape # type: ignore[union-attr]
+                            tensor = rearrange(controlnet_state_dict[key], "(t b) f d -> t b f d", t=1)
+                            tensor = torch.nn.functional.interpolate(tensor, size=(scale_length, shape[-1]), mode="bilinear")
+                            controlnet_state_dict[key] = rearrange(tensor, "t b f d -> (t b) f d") # type: ignore[assignment]
+                            del tensor
+
         controlnet_model.load_state_dict(controlnet_state_dict)
         return controlnet_model
 
@@ -2661,7 +2678,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                                         conditioning_scale,
                                         None if conditioning_mask is None else slice_for_view(
                                             conditioning_mask,
-                                            1 if self.controlnets[controlnet_name].use_simplified_embedding else self.vae_scale_factor # type: ignore[index]
+                                            1 if self.controlnets[controlnet_name].use_simplified_condition_embedding else self.vae_scale_factor # type: ignore[index]
                                         )
                                     ))
 

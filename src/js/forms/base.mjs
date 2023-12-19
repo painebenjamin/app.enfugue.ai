@@ -334,7 +334,7 @@ class FormView extends View {
     /**
      * Submits the form.
      */
-    async submit() {
+    async submit(triggerCallbacks = true) {
         if (this.disabled) {
             throw 'Form is disabled.';
         }
@@ -397,14 +397,16 @@ class FormView extends View {
             this.disable();
         }
 
-        this.submitResults = [];
-        for (let callback of this.submitCallbacks) {
-            try {
-                this.submitResults.push(await callback(this.values));
-            } catch (e) {
-                this.setError(e);
-                this.enable();
-                break;
+        if (triggerCallbacks) {
+            this.submitResults = [];
+            for (let callback of this.submitCallbacks) {
+                try {
+                    this.submitResults.push(await callback(this.values));
+                } catch (e) {
+                    this.setError(e);
+                    this.enable();
+                    break;
+                }
             }
         }
         this.removeClass('loading');

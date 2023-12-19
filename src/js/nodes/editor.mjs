@@ -147,6 +147,8 @@ class NodeEditorView extends View {
         this.nodeClasses = [].concat(this.constructor.nodeClasses);
         this.nodeFocusCallbacks = [];
         this.nodeCopyCallbacks = [];
+        this.nodeMoveCallbacks = [];
+        this.nodePlaceCallbacks = [];
         this.setDimensionCallbacks = [];
 
         this.decorations = new NodeEditorDecorationsView(
@@ -195,6 +197,20 @@ class NodeEditorView extends View {
      */
     onNodeCopy(callback) {
         this.nodeCopyCallbacks.push(callback);
+    }
+
+    /**
+     * @param callable $callback A callback to perform when a node is moved
+     */
+    onNodeMove(callback) {
+        this.nodeMoveCallbacks.push(callback);
+    }
+
+    /**
+     * @param callable $callback A callback to perform when a node is placed
+     */
+    onNodePlace(callback) {
+        this.nodePlaceCallbacks.push(callback);
     }
 
     /**
@@ -358,7 +374,9 @@ class NodeEditorView extends View {
      * @param Node $movedNode The node that was moved.
      */
     nodeMoved(movedNode) {
-        // TODO
+        for (let callback of this.nodeMoveCallbacks) {
+            callback(movedNode);
+        }
     }
 
     /**
@@ -366,8 +384,9 @@ class NodeEditorView extends View {
      * @param Node $movedNode The node that was placed.
      */
     nodePlaced(node) {
-        this.nodeMoved(node);
-        // TODO
+        for (let callback of this.nodePlaceCallbacks) {
+            callback(node);
+        }
     }
 
     /**

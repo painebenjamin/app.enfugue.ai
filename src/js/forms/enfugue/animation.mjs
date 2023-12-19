@@ -60,7 +60,7 @@ class AnimationFormView extends FormView {
                 "class": NumberInputView,
                 "config": {
                     "min": 8,
-                    "max": 64,
+                    "max": 512,
                     "value": 16,
                     "tooltip": "This is the number of frames to render at once when used sliced animation diffusion. Higher values will require more VRAM, but reduce the overall number of slices needed to render the final animation."
                 }
@@ -70,7 +70,7 @@ class AnimationFormView extends FormView {
                 "class": NumberInputView,
                 "config": {
                     "min": 1,
-                    "max": 32,
+                    "max": 256,
                     "value": 8,
                     "tooltip": "This is the numbers of frames to move the frame window by when using sliced animation diffusion. It is recommended to keep this value at least two fewer than the animation engine size, as that will leave at least two frames of overlap between slices and ease the transition between them."
                 }
@@ -104,7 +104,7 @@ class AnimationFormView extends FormView {
                 "class": NumberInputView,
                 "config": {
                     "min": 8,
-                    "max": 24,
+                    "max": 512,
                     "value": 16,
                     "tooltip": "Where to end position encoding data. Position tensors are generally 24 frames long, so a value of 16 will remove the final 8 frames of data."
                 }
@@ -134,7 +134,7 @@ class AnimationFormView extends FormView {
                 "class": NumberInputView,
                 "config": {
                     "min": 1,
-                    "max": 64,
+                    "max": 512,
                     "value": 1,
                     "step": 1,
                     "tooltip": "The number of frames to decode at once when rendering the final output video. Increasing this number increases VRAM requirements while generally decreasing render time."

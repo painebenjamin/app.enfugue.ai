@@ -1,3 +1,42 @@
+@keyframes rotateZ {
+    0% {
+        transform: rotateZ(0deg);
+    }
+    100% {
+        transform: rotateZ(360deg);
+    }
+}
+
+@keyframes loadingBar {
+    0% {
+        left: 10px;
+        right: calc(100% - 20px);
+    }
+    50% {
+        left: 10px;
+        right: 10px;
+    }
+    100% {
+        left: calc(100% - 20px);
+        right: 10px;
+    }
+}
+
+@keyframes loadingBarFull {
+    0% {
+        left: 0;
+        right: 100%;
+    }
+    50% {
+        left: 0;
+        right: 0;
+    }
+    100% {
+        left: 100%;
+        right: 0;
+    }
+}
+
 *:not(i),
 *:not(i)::before,
 *:not(i)::after {
@@ -95,7 +134,7 @@ footer {
     justify-content: center;
     gap: 4px;
     z-index: 4;
-    height: 31px;
+    height: 29px;
     background-color: var(--darker-color);
 }
 
@@ -435,36 +474,6 @@ form.inset-form {
 form.inset-form fieldset legend {
     color: var(--lightest-color);
     border-color: var(--lightest-color);
-}
-
-@keyframes loadingBar {
-    0% {
-        left: 10px;
-        right: calc(100% - 20px);
-    }
-    50% {
-        left: 10px;
-        right: 10px;
-    }
-    100% {
-        left: calc(100% - 20px);
-        right: 10px;
-    }
-}
-
-@keyframes loadingBarFull {
-    0% {
-        left: 0;
-        right: 100%;
-    }
-    50% {
-        left: 0;
-        right: 0;
-    }
-    100% {
-        left: 100%;
-        right: 0;
-    }
 }
 
 .loading-bar {

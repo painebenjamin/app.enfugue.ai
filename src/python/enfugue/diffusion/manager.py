@@ -4900,6 +4900,7 @@ class DiffusionPipelineManager:
                                 self.unload_animator("enabling IP adapter")
                             elif self.ip_adapter.model != self._ip_adapter_model:
                                 self.unload_animator("changing IP adapter model")
+
                     if self.reload_motion_module:
                         pipe = self.animator_pipeline
                         if task_callback is not None:

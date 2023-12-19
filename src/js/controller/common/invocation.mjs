@@ -29,6 +29,35 @@ class InvocationController extends Controller {
     constructor(application) {
         super(application);
         this.kwargs = {};
+        this.realTime = false;
+    }
+
+    /**
+     * Intercept publish to determine if we should try invoking
+     */
+    publish() {
+        let publishArguments = Array.from(arguments);
+        super.publish(...publishArguments);
+        this.debounceRealtimeInvoke();
+    }
+
+    /**
+     * Invokes if real-time only
+     */
+    debounceRealtimeInvoke() {
+        if (this.realTime) {
+            this.debounceInvoke();
+        }
+    }
+
+    /**
+     * Debounces a tryInvoke call
+     */
+    debounceInvoke() {
+        clearTimeout(this.invokeTimeout);
+        this.invokeTimeout = setTimeout(() => {
+            super.publish("tryInvoke");
+        }, 100);
     }
 
     /**
@@ -1432,6 +1461,9 @@ class InvocationController extends Controller {
         this.subscribe("engineIdle", () => {
             this.disableStop();
         });
+        this.subscribe("layersChanged", () => {
+            this.debounceRealtimeInvoke();
+        });
     }
 
     /**
@@ -1463,6 +1495,9 @@ class InvocationController extends Controller {
                 delete invocationPayload[key];
             }
         }
+        if (this.realTime) {
+            invocationPayload.synchronous = true;
+        }
         if (this.config.debug) {
             console.log("Invoking with payload", invocationPayload);
         }
@@ -1487,7 +1522,7 @@ class InvocationController extends Controller {
                 );
             } else {
                 this.startSample = true;
-                this.application.samples.resetState();
+                this.application.samples.resetSampleChooser();
                 await this.canvasInvocation(result.uuid, result.animation);
             }
         }

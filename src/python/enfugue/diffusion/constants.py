@@ -33,6 +33,9 @@ __all__ = [
     "DEFAULT_SDXL_MODEL",
     "DEFAULT_SDXL_REFINER",
     "DEFAULT_SDXL_INPAINTING_MODEL",
+    "SDXL_TURBO_MODEL",
+    "PLAYGROUND_V2_MODEL",
+    "SEGMIND_VEGA_MODEL",
     "VAE_EMA",
     "VAE_MSE",
     "VAE_XL",
@@ -72,6 +75,7 @@ __all__ = [
     "MOTION_LORA_LITERAL",
     "LCM_LORA_DEFAULT",
     "LCM_LORA_XL",
+    "LCM_LORA_VEGA",
     "SPARSE_CONTROLNET_ADAPTER_LORA",
     "SCHEDULER_LITERAL",
     "DEVICE_LITERAL",
@@ -121,6 +125,11 @@ DEFAULT_INPAINTING_MODEL = "https://huggingface.co/runwayml/stable-diffusion-inp
 DEFAULT_SDXL_MODEL = "https://huggingface.co/benjamin-paine/sd-xl-alternative-bases/resolve/main/sd_xl_base_1.0_fp16_vae.safetensors"
 DEFAULT_SDXL_REFINER = "https://huggingface.co/stabilityai/stable-diffusion-xl-refiner-1.0/resolve/main/sd_xl_refiner_1.0.safetensors"
 DEFAULT_SDXL_INPAINTING_MODEL = "https://huggingface.co/benjamin-paine/sd-xl-alternative-bases/resolve/main/sd_xl_base_1.0_inpainting_0.1.safetensors"
+
+# Other Featured Open-Source Models
+PLAYGROUND_V2_MODEL = "https://huggingface.co/playgroundai/playground-v2-1024px-aesthetic/resolve/main/playground-v2.fp16.safetensors"
+SEGMIND_VEGA_MODEL = "https://huggingface.co/segmind/Segmind-Vega/resolve/main/segmind-vega.safetensors"
+SDXL_TURBO_MODEL = "https://huggingface.co/stabilityai/sdxl-turbo/resolve/main/sd_xl_turbo_1.0_fp16.safetensors"
 
 DEFAULT_CHECKPOINT_DIR = os.path.expanduser("~/.cache/enfugue/checkpoint")
 DEFAULT_INVERSION_DIR = os.path.expanduser("~/.cache/enfugue/inversion")
@@ -347,6 +356,8 @@ MOTION_LORA_TILT_UP = "https://huggingface.co/guoyww/animatediff/resolve/main/v2
 MOTION_LORA_TILT_DOWN = "https://huggingface.co/guoyww/animatediff/resolve/main/v2_lora_TiltDown.ckpt"
 MOTION_LORA_ZOOM_IN = "https://huggingface.co/guoyww/animatediff/resolve/main/v2_lora_ZoomIn.ckpt"
 MOTION_LORA_ZOOM_OUT = "https://huggingface.co/guoyww/animatediff/resolve/main/v2_lora_ZoomOut.ckpt"
+
+LCM_LORA_VEGA = "https://huggingface.co/segmind/Segmind-VegaRT/resolve/main/pytorch_lora_weights.safetensors?filename=lcm-lora-segmind-vega-rt.safetensors"
 LCM_LORA_DEFAULT = "https://huggingface.co/latent-consistency/lcm-lora-sdv1-5/resolve/main/pytorch_lora_weights.safetensors?filename=lcm-lora-sdv1-5.safetensors"
 LCM_LORA_XL = "https://huggingface.co/latent-consistency/lcm-lora-sdxl/resolve/main/pytorch_lora_weights.safetensors?filename=lcm-lora-sdxl.safetensors"
 SPARSE_CONTROLNET_ADAPTER_LORA = "https://huggingface.co/guoyww/animatediff/resolve/main/v3_sd15_adapter.ckpt"

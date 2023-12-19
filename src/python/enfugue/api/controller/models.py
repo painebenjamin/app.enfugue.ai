@@ -750,6 +750,7 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         all_checkpoint_paths = self.get_models_in_directory(checkpoints_dir)
 
         # Get diffusers models
+        diffusers_dir = self.get_configured_directory("diffusers")
         diffusers_models = self.get_diffusers_models()
 
         # Filter out inpainting/refiner checkpoints
@@ -771,6 +772,8 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
 
         # Add any default checkpoints that haven't been downloaded yet
         for checkpoint in self.default_checkpoints.keys():
+            if "refiner" in checkpoint or "inpaint" in checkpoint:
+                continue
             if checkpoint not in [cp["name"] for cp in checkpoints]:
                 checkpoints.append({
                     "name": checkpoint,
@@ -788,6 +791,8 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
                     found = True
                     break
             if not found:
+                if "refiner" in model or "inpaint" in model:
+                    continue
                 diffusers_caches.append(
                     {
                         "name": model,

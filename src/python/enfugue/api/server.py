@@ -97,7 +97,10 @@ class EnfugueAPIServerBase(JSONWebServiceAPIServer, UserRESTExtensionServerBase)
                 DEFAULT_INPAINTING_MODEL,
                 DEFAULT_SDXL_MODEL,
                 DEFAULT_SDXL_REFINER,
-                DEFAULT_SDXL_INPAINTING_MODEL
+                DEFAULT_SDXL_INPAINTING_MODEL,
+                SDXL_TURBO_MODEL,
+                PLAYGROUND_V2_MODEL,
+                SEGMIND_VEGA_MODEL,
             ]
         ])
 
@@ -118,7 +121,8 @@ class EnfugueAPIServerBase(JSONWebServiceAPIServer, UserRESTExtensionServerBase)
                 MOTION_LORA_ROLL_CLOCKWISE,
                 MOTION_LORA_ROLL_ANTI_CLOCKWISE,
                 LCM_LORA_DEFAULT,
-                LCM_LORA_XL
+                LCM_LORA_XL,
+                LCM_LORA_VEGA,
             ]
         ])
 
@@ -303,6 +307,7 @@ class EnfugueAPIServerBase(JSONWebServiceAPIServer, UserRESTExtensionServerBase)
                 for dirname in os.listdir(diffusers_dir)
                 if os.path.exists(os.path.join(diffusers_dir, dirname, "model_index.json"))
                 and not dirname.endswith("-animator")
+                and not dirname.endswith("-inpainting")
             ]
         return diffusers_models
 

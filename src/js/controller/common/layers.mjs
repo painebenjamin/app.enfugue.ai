@@ -824,6 +824,7 @@ class LayersController extends Controller {
         scribbleNode.content.onDraw(() => { 
             this.activate(scribbleLayer);
             scribbleLayer.debounceDrawPreviewImage();
+            this.layersChanged();
         });
         await this.addLayer(scribbleLayer, activate);
         
@@ -917,6 +918,9 @@ class LayersController extends Controller {
         });
         this.canvas.onNodeCopy((newNode, previousNode) => {
             this.addCopiedNode(newNode, previousNode);
+        });
+        this.canvas.onNodePlace(() => {
+            this.layersChanged();
         });
     }
 };

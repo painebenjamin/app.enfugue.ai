@@ -280,6 +280,27 @@ enfugue-log-glance-view .logs {
     word-break: break-all;
 }
 
+enfugue-sidebar input.real-time {
+    font-family: "Font Awesome 6 Free";
+    position: fixed;
+    z-index: 7;
+    border-radius: 40px;
+    padding: 5px;
+    bottom: 37px;
+}
+
+enfugue-sidebar input.real-time.active {
+    animation-name: rotateZ !important;
+    animation-fill-mode: forwards;
+    animation-duration: 2s;
+    animation-iteration-count: infinite;
+    animation-timing-function: linear;
+}
+
+enfugue-sidebar input.real-time:hover {
+    background-color: var(--dark-color) !important;
+}
+
 enfugue-sidebar input.invoke {
     position: fixed;
     left: 0;

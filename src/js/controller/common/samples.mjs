@@ -606,6 +606,15 @@ class SamplesController extends Controller {
     }
 
     /**
+     * Resets the sample chooser only
+     */
+    resetSampleChooser() {
+        this.sampleChooser.setIsAnimation(false);
+        this.sampleChooser.setSamples([]);
+        this.setPlay(false);
+    }
+
+    /**
      * Sets samples
      */
     setSamples(sampleImages, isAnimation) {
