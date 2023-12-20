@@ -140,6 +140,17 @@ class AnimationFormView extends FormView {
                     "tooltip": "The number of frames to decode at once when rendering the final output video. Increasing this number increases VRAM requirements while generally decreasing render time."
                 }
             },
+            "animationDenoisingIterations": {
+                "label": "Denoising Iterations",
+                "class": NumberInputView,
+                "config": {
+                    "min": 1,
+                    "max": 32,
+                    "value": 1,
+                    "step": 1,
+                    "tooltip": "The number of times to perform denoising. If this number is greater than one, a process called ablation occurs, whereby the animation is re-noised and then calculated again using position data from the first generation. This can greatly improve consistency of the final animation at a large cost to inference time.<br/><br/><strong>Note:</strong> not all schedulers are supported when this is enabled. DDIM is recommended."
+                }
+            },
             "animationInterpolation": {
                 "label": "Frame Interpolation",
                 "class": AnimationInterpolationStepsInputView

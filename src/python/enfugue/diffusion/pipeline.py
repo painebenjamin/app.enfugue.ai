@@ -180,10 +180,15 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
     safety_checker: Optional[StableDiffusionSafetyChecker]
     config: OmegaConf
     safety_checking_disabled: bool = False
+
+    frame_window_size: Optional[int]
+    frame_window_stride: Optional[int]
+    tiling_stride: Optional[int]
+    tiling_mask_type: MASK_TYPE_LITERAL
     frequency_filter_type: Literal["gaussian", "ideal", "box", "butterworth"] = "butterworth"
     frequency_filter_order = 4
-    frequency_filter_spatial_stop = 0.25
-    frequency_filter_temporal_stop = 0.25
+    frequency_filter_stop_spatial = 0.25
+    frequency_filter_stop_temporal = 0.25
 
     def __init__(
         self,
@@ -4126,7 +4131,10 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                         freq_filter = get_freq_filter(
                             prepared_latents.shape,
                             device=device,
-                            filter_type=self.frequency_filter_type
+                            filter_type=self.frequency_filter_type,
+                            n=self.frequency_filter_order,
+                            d_s=self.frequency_filter_stop_spatial,
+                            d_t=self.frequency_filter_stop_temporal,
                         )
                     elif i > 0:
                         # Invoke callback if requested
@@ -4175,7 +4183,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                         prepared_latents = freq_mix_3d(
                             z_T.to(dtype=torch.float32),
                             z_rand,
-                            low_pass_filter=freq_filter # type: ignore[arg-type]
+                            low_pass_filter=freq_filter, # type: ignore[arg-type]
                         )
                         prepared_latents = prepared_latents.to(initial_noisy_latents.dtype) # type: ignore[union-attr]
 

@@ -173,7 +173,7 @@ class CaptionUpsamplerController extends MenuController {
     /**
      * @var string The class of the icon in the UI
      */
-    static menuIcon = "fa-solid fa-cloud-arrow-down";
+    static menuIcon = "fa-solid fa-comments";
     
     /**
      * @var string The keyboard shortcut

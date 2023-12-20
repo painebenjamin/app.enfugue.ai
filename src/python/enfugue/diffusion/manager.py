@@ -182,6 +182,19 @@ class DiffusionPipelineManager:
         else:
             logger.debug(message)
 
+    def set_task_callback(self, callback: Callable[[str], None]) -> None:
+        """
+        Sets the task callback.
+        """
+        self._task_callback = callback
+
+    def clear_task_callback(self) -> None:
+        """
+        Clears the task callback.
+        """
+        if hasattr(self, "_task_callback"):
+            del self._task_callback
+
     def apply_patches(self) -> None:
         """
         Injects various modifications of global packages.

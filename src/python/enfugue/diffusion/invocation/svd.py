@@ -74,7 +74,7 @@ class StableVideoDiffusionInvocation:
 
     def execute(
         self,
-        pipeline: DiffusionPipelineManager,
+        pipeline: Optional[DiffusionPipelineManager] = None,
         task_callback: Optional[Callable[[str], None]] = None,
         progress_callback: Optional[Callable[[int, int, float], None]] = None,
         image_callback: Optional[Callable[[List[Image.Image]], None]] = None,
@@ -83,6 +83,9 @@ class StableVideoDiffusionInvocation:
         """
         This is the main interface for execution.
         """
+        if pipeline is None:
+            from enfugue.diffusion.manager import DiffusionPipelineManager
+            pipeline = DiffusionPipelineManager()
         if self.seed is not None:
             pipeline.seed = self.seed
 

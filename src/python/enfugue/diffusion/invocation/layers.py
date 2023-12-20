@@ -41,7 +41,7 @@ from pibble.api.exceptions import BadRequestError
 
 if TYPE_CHECKING:
     from PIL.Image import Image
-    from enfugue.diffusers.manager import DiffusionPipelineManager
+    from enfugue.diffusion.manager import DiffusionPipelineManager
     from enfugue.util import IMAGE_FIT_LITERAL, IMAGE_ANCHOR_LITERAL
 
 __all__ = ["LayeredInvocation"]
@@ -65,6 +65,7 @@ class LayeredInvocation:
     lycoris: Optional[Union[str, List[str], Tuple[str, float], List[Union[str, Tuple[str, float]]]]]=None
     inversion: Optional[Union[str, List[str]]]=None
     ip_adapter_model: Optional[IP_ADAPTER_LITERAL]=None
+    safe: Optional[bool]=None
     scheduler: Optional[SCHEDULER_LITERAL]=None
     scheduler_beta_start: Optional[float]=None
     scheduler_beta_end: Optional[float]=None
@@ -112,6 +113,7 @@ class LayeredInvocation:
     motion_scale: Optional[float]=None
     position_encoding_truncate_length: Optional[int]=None
     position_encoding_scale_length: Optional[int]=None
+    num_denoising_iterations: Optional[int]=None
     # img2img
     strength: Optional[float]=None
     # Inpainting
@@ -303,6 +305,7 @@ class LayeredInvocation:
             "frame_window_size": self.frame_window_size,
             "frame_window_stride": self.frame_window_stride,
             "frame_decode_chunk_size": self.frame_decode_chunk_size,
+            "num_denoising_iterations": self.num_denoising_iterations,
             "guidance_scale": self.guidance_scale,
             "refiner_start": self.refiner_start,
             "refiner_strength": self.refiner_strength,
@@ -609,8 +612,7 @@ class LayeredInvocation:
                     "temporal" in key or
                     "animation" in key or
                     "frame" in key or
-                    "loop" in key or
-                    "reflect" in key
+                    key in ["loop", "reflect", "num_denoising_iterations"]
                 )
                 and not will_animate
             ):
@@ -678,7 +680,7 @@ class LayeredInvocation:
                     pipeline.background_remover.remover()
                 )
             if needs_interpolator:
-                processors["interpolator"] = stack.enter_context(
+                processors["interpolator"] = stack.enter_context( # type: ignore[assignment]
                     pipeline.interpolator.film()
                 )
             if needs_control_processors:
@@ -1180,7 +1182,7 @@ class LayeredInvocation:
 
     def execute(
         self,
-        pipeline: DiffusionPipelineManager,
+        pipeline: Optional[DiffusionPipelineManager] = None,
         task_callback: Optional[Callable[[str], None]] = None,
         progress_callback: Optional[Callable[[int, int, float], None]] = None,
         image_callback: Optional[Callable[[List[Image]], None]] = None,
@@ -1193,177 +1195,186 @@ class LayeredInvocation:
         and then each subsequent step will be performed on the number of outputs from the
         first step.
         """
+        if pipeline is None:
+            from enfugue.diffusion.manager import DiffusionPipelineManager
+            pipeline = DiffusionPipelineManager()
         # We import here so this file can be imported by processes without initializing torch
         from diffusers.utils.pil_utils import PIL_INTERPOLATION
 
         if task_callback is None:
             task_callback = lambda arg: None
-        
+
         # Set up the pipeline
-        pipeline._task_callback = task_callback
+        safe_status = pipeline.safe # Store this in case we override
+        pipeline.set_task_callback(task_callback)
+
         self.prepare_pipeline(pipeline)
-        original_image_callback: Optional[Callable] = None
-        cropped_inpaint_position = None
-        background = None
-        has_post_processing = bool(self.upscale) or self.detailer_face_restore or ((self.detailer_face_inpaint or self.detailer_hand_inpaint) and self.detailer_denoising_strength)
 
-        if self.animation_frames:
-            has_post_processing = has_post_processing or bool(self.interpolate_frames) or self.reflect
+        try:
+            original_image_callback: Optional[Callable] = None
+            cropped_inpaint_position = None
+            background = None
+            has_post_processing = bool(self.upscale) or self.detailer_face_restore or ((self.detailer_face_inpaint or self.detailer_hand_inpaint) and self.detailer_denoising_strength)
 
-        inference_image_callback = image_callback
+            if self.animation_frames:
+                has_post_processing = has_post_processing or bool(self.interpolate_frames) or self.reflect
 
-        invocation_kwargs = self.preprocess(
-            pipeline,
-            raise_when_unused=not has_post_processing,
-            task_callback=task_callback,
-            progress_callback=progress_callback,
-        )
+            inference_image_callback = image_callback
 
-        if invocation_kwargs.pop("no_inference", False):
-            if "image" not in invocation_kwargs:
-                raise BadRequestError("No inference and no images.")
-            images = invocation_kwargs["image"]
-            if not isinstance(images, list):
-                images = [images]
-            nsfw = [False] * len(images)
-        else:
-            # Determine if we're doing cropped inpainting
-            if "mask" in invocation_kwargs and self.crop_inpaint:
-                (x0, y0), (x1, y1) = self.get_inpaint_bounding_box(
-                    invocation_kwargs["mask"],
-                    size=self.tiling_size if self.tiling_size else 1024 if pipeline.inpainter_is_sdxl else 512,
-                    feather=self.inpaint_feather
-                )
-
-                if isinstance(invocation_kwargs["mask"], list):
-                    mask_width, mask_height = invocation_kwargs["mask"][0].size
-                else:
-                    mask_width, mask_height = invocation_kwargs["mask"].size
-
-                bbox_width = x1 - x0
-                bbox_height = y1 - y0
-                pixel_ratio = (bbox_height * bbox_width) / (mask_width * mask_height)
-                pixel_savings = (1.0 - pixel_ratio) * 100
-
-                if pixel_ratio < 0.75:
-                    logger.debug(f"Calculated pixel area savings of {pixel_savings:.1f}% by cropping to ({x0}, {y0}), ({x1}, {y1}) ({bbox_width}px by {bbox_height}px)")
-                    cropped_inpaint_position = (x0, y0, x1, y1)
-                else:
-                    logger.debug(
-                        f"Calculated pixel area savings of {pixel_savings:.1f}% are insufficient, will not crop"
-                    )
-
-            if cropped_inpaint_position is not None:
-                # Get copies prior to crop
-                if isinstance(invocation_kwargs["image"], list):
-                    background = [
-                        img.copy()
-                        for img in invocation_kwargs["image"]
-                    ]
-                else:
-                    background = invocation_kwargs["image"].copy()
-                    
-                # First wrap callbacks if needed
-                if image_callback is not None:
-                    # Hijack image callback to paste onto background
-                    def pasted_image_callback(images: List[Image]) -> None:
-                        """
-                        Paste the images then callback.
-                        """
-                        if isinstance(background, list):
-                            images = [
-                                self.paste_inpaint_image((background[i] if i < len(background) else background[-1]), image, cropped_inpaint_position) # type: ignore
-                                for i, image in enumerate(images)
-                            ]
-                        else:
-                            images = [
-                                self.paste_inpaint_image(background, image, cropped_inpaint_position) # type: ignore
-                                for image in images
-                            ]
-
-                        image_callback(images) # type: ignore
-
-                    inference_image_callback = pasted_image_callback
-
-                # Now crop images
-                if isinstance(invocation_kwargs["image"], list):
-                    invocation_kwargs["image"] = [
-                        img.crop(cropped_inpaint_position)
-                        for img in invocation_kwargs["image"]
-                    ]
-                    invocation_kwargs["mask"] = [
-                        img.crop(cropped_inpaint_position)
-                        for img in invocation_kwargs["mask"]
-                    ]
-                else:
-                    invocation_kwargs["image"] = invocation_kwargs["image"].crop(cropped_inpaint_position)
-                    invocation_kwargs["mask"] = invocation_kwargs["mask"].crop(cropped_inpaint_position)
-
-                # Also crop control images
-                if "control_images" in invocation_kwargs:
-                    for controlnet in invocation_kwargs["control_images"]:
-                        for image_dict in invocation_kwargs[controlnet]:
-                            image_dict["image"] = image_dict["image"].crop(cropped_inpaint_position)
-
-                # Assign height and width
-                x0, y0, x1, y1 = cropped_inpaint_position
-                invocation_kwargs["width"] = x1 - x0
-                invocation_kwargs["height"] = y1 - y0
-
-            # Execute primary inference
-            images, nsfw = self.execute_inference(
+            invocation_kwargs = self.preprocess(
                 pipeline,
+                raise_when_unused=not has_post_processing,
                 task_callback=task_callback,
                 progress_callback=progress_callback,
-                image_callback=inference_image_callback,
-                image_callback_steps=image_callback_steps,
+            )
+
+            if invocation_kwargs.pop("no_inference", False):
+                if "image" not in invocation_kwargs:
+                    raise BadRequestError("No inference and no images.")
+                images = invocation_kwargs["image"]
+                if not isinstance(images, list):
+                    images = [images]
+                nsfw = [False] * len(images)
+            else:
+                # Determine if we're doing cropped inpainting
+                if "mask" in invocation_kwargs and self.crop_inpaint:
+                    (x0, y0), (x1, y1) = self.get_inpaint_bounding_box(
+                        invocation_kwargs["mask"],
+                        size=self.tiling_size if self.tiling_size else 1024 if pipeline.inpainter_is_sdxl else 512,
+                        feather=self.inpaint_feather
+                    )
+
+                    if isinstance(invocation_kwargs["mask"], list):
+                        mask_width, mask_height = invocation_kwargs["mask"][0].size
+                    else:
+                        mask_width, mask_height = invocation_kwargs["mask"].size
+
+                    bbox_width = x1 - x0
+                    bbox_height = y1 - y0
+                    pixel_ratio = (bbox_height * bbox_width) / (mask_width * mask_height)
+                    pixel_savings = (1.0 - pixel_ratio) * 100
+
+                    if pixel_ratio < 0.75:
+                        logger.debug(f"Calculated pixel area savings of {pixel_savings:.1f}% by cropping to ({x0}, {y0}), ({x1}, {y1}) ({bbox_width}px by {bbox_height}px)")
+                        cropped_inpaint_position = (x0, y0, x1, y1)
+                    else:
+                        logger.debug(
+                            f"Calculated pixel area savings of {pixel_savings:.1f}% are insufficient, will not crop"
+                        )
+
+                if cropped_inpaint_position is not None:
+                    # Get copies prior to crop
+                    if isinstance(invocation_kwargs["image"], list):
+                        background = [
+                            img.copy()
+                            for img in invocation_kwargs["image"]
+                        ]
+                    else:
+                        background = invocation_kwargs["image"].copy()
+
+                    # First wrap callbacks if needed
+                    if image_callback is not None:
+                        # Hijack image callback to paste onto background
+                        def pasted_image_callback(images: List[Image]) -> None:
+                            """
+                            Paste the images then callback.
+                            """
+                            if isinstance(background, list):
+                                images = [
+                                    self.paste_inpaint_image((background[i] if i < len(background) else background[-1]), image, cropped_inpaint_position) # type: ignore
+                                    for i, image in enumerate(images)
+                                ]
+                            else:
+                                images = [
+                                    self.paste_inpaint_image(background, image, cropped_inpaint_position) # type: ignore
+                                    for image in images
+                                ]
+
+                            image_callback(images) # type: ignore
+
+                        inference_image_callback = pasted_image_callback
+
+                    # Now crop images
+                    if isinstance(invocation_kwargs["image"], list):
+                        invocation_kwargs["image"] = [
+                            img.crop(cropped_inpaint_position)
+                            for img in invocation_kwargs["image"]
+                        ]
+                        invocation_kwargs["mask"] = [
+                            img.crop(cropped_inpaint_position)
+                            for img in invocation_kwargs["mask"]
+                        ]
+                    else:
+                        invocation_kwargs["image"] = invocation_kwargs["image"].crop(cropped_inpaint_position)
+                        invocation_kwargs["mask"] = invocation_kwargs["mask"].crop(cropped_inpaint_position)
+
+                    # Also crop control images
+                    if "control_images" in invocation_kwargs:
+                        for controlnet in invocation_kwargs["control_images"]:
+                            for image_dict in invocation_kwargs[controlnet]:
+                                image_dict["image"] = image_dict["image"].crop(cropped_inpaint_position)
+
+                    # Assign height and width
+                    x0, y0, x1, y1 = cropped_inpaint_position
+                    invocation_kwargs["width"] = x1 - x0
+                    invocation_kwargs["height"] = y1 - y0
+
+                # Execute primary inference
+                images, nsfw = self.execute_inference(
+                    pipeline,
+                    task_callback=task_callback,
+                    progress_callback=progress_callback,
+                    image_callback=inference_image_callback,
+                    image_callback_steps=image_callback_steps,
+                    invocation_kwargs=invocation_kwargs
+                )
+
+            if background is not None and cropped_inpaint_position is not None:
+                # Paste the image back onto the background
+                for i, image in enumerate(images):
+                    images[i] = self.paste_inpaint_image(
+                        background[i] if isinstance(background, list) else background,
+                        image,
+                        cropped_inpaint_position[:2]
+                    )
+
+            # Execute detailer, if requested
+            images, nsfw = self.execute_detailer(
+                pipeline,
+                images=images,
+                nsfw=nsfw,
+                task_callback=task_callback,
+                progress_callback=progress_callback,
+                image_callback=image_callback,
                 invocation_kwargs=invocation_kwargs
             )
 
-        if background is not None and cropped_inpaint_position is not None:
-            # Paste the image back onto the background
-            for i, image in enumerate(images):
-                images[i] = self.paste_inpaint_image(
-                    background[i] if isinstance(background, list) else background,
-                    image,
-                    cropped_inpaint_position[:2]
-                )
+            # Execute upscale, if requested
+            images, nsfw = self.execute_upscale(
+                pipeline,
+                images=images,
+                nsfw=nsfw,
+                task_callback=task_callback,
+                progress_callback=progress_callback,
+                image_callback=image_callback,
+                invocation_kwargs=invocation_kwargs
+            )
 
-        # Execute detailer, if requested
-        images, nsfw = self.execute_detailer(
-            pipeline,
-            images=images,
-            nsfw=nsfw,
-            task_callback=task_callback,
-            progress_callback=progress_callback,
-            image_callback=image_callback,
-            invocation_kwargs=invocation_kwargs
-        )
-
-        # Execute upscale, if requested
-        images, nsfw = self.execute_upscale(
-            pipeline,
-            images=images,
-            nsfw=nsfw,
-            task_callback=task_callback,
-            progress_callback=progress_callback,
-            image_callback=image_callback,
-            invocation_kwargs=invocation_kwargs
-        )
-
-        # Execute interpolation/reflect, if requested
-        result = self.execute_interpolate(
-            pipeline,
-            images=images,
-            nsfw=nsfw,
-            task_callback=task_callback,
-            progress_callback=progress_callback,
-            image_callback=image_callback,
-        )
-
-        pipeline.stop_keepalive() # Make sure this is stopped
-        pipeline.clear_memory()
-        return result
+            # Execute interpolation/reflect, if requested
+            result = self.execute_interpolate(
+                pipeline,
+                images=images,
+                nsfw=nsfw,
+                task_callback=task_callback,
+                progress_callback=progress_callback,
+                image_callback=image_callback,
+            )
+            return result
+        finally:
+            pipeline.safe = safe_status # Restore safety if it was set
+            pipeline.clear_task_callback() # Unregister this callback
+            pipeline.stop_keepalive() # Make sure this is stopped
+            pipeline.clear_memory() # Clear memory
 
     def prepare_pipeline(self, pipeline: DiffusionPipelineManager) -> None:
         """
@@ -1373,29 +1384,29 @@ class LayeredInvocation:
 
         if self.animation_frames is not None and self.animation_frames > 0:
             pipeline.animator = self.model
-            pipeline.animator_vae = self.vae
-            pipeline.frame_window_size = self.frame_window_size
+            pipeline.animator_vae = self.vae # type: ignore[assignment]
+            pipeline.frame_window_size = self.frame_window_size # type: ignore[assignment]
             pipeline.frame_window_stride = self.frame_window_stride
             pipeline.position_encoding_truncate_length = self.position_encoding_truncate_length
             pipeline.position_encoding_scale_length = self.position_encoding_scale_length
             pipeline.motion_module = self.motion_module
         else:
-            pipeline.model = self.model
-            pipeline.vae = self.vae
+            pipeline.model = self.model # type: ignore[assignment]
+            pipeline.vae = self.vae # type: ignore[assignment]
 
         pipeline.tiling_size = self.tiling_size
-        pipeline.tiling_stride = self.tiling_stride
-        pipeline.tiling_mask_type = self.tiling_mask_type
+        pipeline.tiling_stride = self.tiling_stride # type: ignore[assignment]
+        pipeline.tiling_mask_type = self.tiling_mask_type # type: ignore[attr-defined,assignment]
 
         pipeline.refiner = self.refiner
-        pipeline.refiner_vae = self.refiner_vae
+        pipeline.refiner_vae = self.refiner_vae # type: ignore[assignment]
 
         pipeline.inpainter = self.inpainter
-        pipeline.inpainter_vae = self.inpainter_vae
+        pipeline.inpainter_vae = self.inpainter_vae # type: ignore[assignment]
 
-        pipeline.lora = self.lora
-        pipeline.lycoris = self.lycoris
-        pipeline.inversion = self.inversion
+        pipeline.lora = self.lora # type: ignore[assignment]
+        pipeline.lycoris = self.lycoris # type: ignore[assignment]
+        pipeline.inversion = self.inversion # type: ignore[assignment]
         
         if (
             self.scheduler_beta_start is not None or
@@ -1411,10 +1422,13 @@ class LayeredInvocation:
                 scheduler_config["beta_schedule"] = self.scheduler_beta_schedule
             pipeline.scheduler_config = scheduler_config
 
-        pipeline.scheduler = self.scheduler
+        pipeline.scheduler = self.scheduler # type: ignore[assignment]
 
         if self.build_tensorrt:
             pipeline.build_tensorrt = True
+
+        if self.safe is not None:
+            pipeline.safe = self.safe # safety checking override
 
     def execute_inference(
         self,
@@ -1502,16 +1516,16 @@ class LayeredInvocation:
                 iteration_image_callback = None  # type: ignore
 
             if invocation_kwargs.get("animation_frames", None):
-                pipeline.animator_controlnets = controlnets
+                pipeline.animator_controlnets = controlnets # type: ignore[assignment]
             elif invocation_kwargs.get("mask", None):
-                pipeline.inpainter_controlnets = controlnets
+                pipeline.inpainter_controlnets = controlnets # type: ignore[assignment]
             else:
-                pipeline.controlnets = controlnets
+                pipeline.controlnets = controlnets # type: ignore[assignment]
 
             result = pipeline(
                 latent_callback=iteration_image_callback,
                 **invocation_kwargs,
-                **callback_kwargs
+                **callback_kwargs # type: ignore[arg-type]
             )
 
             for j, image in enumerate(result["images"]):
@@ -1595,7 +1609,7 @@ class LayeredInvocation:
         with pipeline.control_image_processor.pose_detector.best() as pose_detector:
             for i, image in enumerate(images):
                 detail_masks.append(
-                    pose_detector.detail_mask(
+                    pose_detector.detail_mask( # type: ignore[attr-defined]
                         image,
                         include_hands=self.detailer_hand_inpaint,
                         include_face=self.detailer_face_inpaint or self.detailer_face_restore
@@ -1629,22 +1643,22 @@ class LayeredInvocation:
 
         if self.animation_frames:
             if self.detailer_controlnet:
-                pipeline.animator_controlnets = self.detailer_controlnet
+                pipeline.animator_controlnets = self.detailer_controlnet # type: ignore[assignment]
             else:
-                pipeline.animator_controlnets = None
-            detail_pipeline = pipeline.animator_pipeline
+                pipeline.animator_controlnets = None # type: ignore[assignment]
+            detail_pipeline = pipeline.animator_pipeline # type: ignore[assignment]
         elif use_inpainter:
             if self.detailer_controlnet:
-                pipeline.inpainter_controlnets = self.detailer_controlnet
+                pipeline.inpainter_controlnets = self.detailer_controlnet # type: ignore[assignment]
             else:
-                pipeline.inpainter_controlnets = None
-            detail_pipeline = pipeline.inpainter_pipeline
+                pipeline.inpainter_controlnets = None # type: ignore[assignment]
+            detail_pipeline = pipeline.inpainter_pipeline # type: ignore[assignment]
         else:
             if self.detailer_controlnet:
-                pipeline.controlnets = self.detailer_controlnet
+                pipeline.controlnets = self.detailer_controlnet # type: ignore[assignment]
             else:
-                pipeline.controlnets = None
-            detail_pipeline = pipeline.pipeline
+                pipeline.controlnets = None # type: ignore[assignment]
+            detail_pipeline = pipeline.pipeline # type: ignore[assignment]
 
         control_images = []
 
@@ -1718,12 +1732,12 @@ class LayeredInvocation:
 
                 logger.debug(f"Detailing sample {i} with arguments {detail_kwargs}")
 
-                result = detail_pipeline(**detail_kwargs)["images"]
+                result = detail_pipeline(**detail_kwargs)["images"] # type: ignore
 
                 if self.animation_frames:
-                    images = result
+                    images = result # type: ignore[assignment]
                 else:
-                    images[i] = result[0]
+                    images[i] = result[0] # type: ignore[index]
 
                 if image_callback is not None:
                     image_callback(images)
@@ -1887,12 +1901,12 @@ class LayeredInvocation:
                     if method == "gfpgan":
                         with pipeline.upscaler.gfpgan(tile=512) as upscale:
                             def execute_upscale(image: Image) -> Image:
-                                return upscale(image, outscale=amount)
+                                return upscale(image, outscale=amount) # type: ignore[call-arg]
                             yield execute_upscale
                     else:
                         with pipeline.upscaler.esrgan(tile=512, anime=method=="esrganime") as upscale:
                             def execute_upscale(image: Image) -> Image:
-                                return upscale(image, outscale=amount)
+                                return upscale(image, outscale=amount) # type: ignore[call-arg]
                             yield execute_upscale
                 elif method in PIL_INTERPOLATION:
                     def pil_resize(image: Image) -> Image:
@@ -1937,23 +1951,23 @@ class LayeredInvocation:
                     # Refiners have safety disabled from the jump
                     logger.debug("Using refiner for upscaling.")
                     re_enable_safety = False
-                    tiling_size = max(tiling_size, pipeline.refiner_size)
-                    tiling_stride = min(tiling_stride, pipeline.refiner_size // 2)
+                    tiling_size = max(tiling_size, pipeline.refiner_size) # type: ignore
+                    tiling_stride = min(tiling_stride, pipeline.refiner_size // 2) # type: ignore
                 else:
                     # Disable pipeline safety here, it gives many false positives when upscaling.
                     # We'll re-enable it after.
                     logger.debug("Using base pipeline for upscaling.")
                     re_enable_safety = pipeline.safe
                     if animation_frames:
-                        tiling_size = max(tiling_size, pipeline.animator_size)
-                        tiling_stride = min(tiling_stride, pipeline.animator_size // 2)
+                        tiling_size = max(tiling_size, pipeline.animator_size) # type: ignore
+                        tiling_stride = min(tiling_stride, pipeline.animator_size // 2) # type: ignore
                     else:
-                        tiling_size = max(tiling_size, pipeline.size)
-                        tiling_stride = min(tiling_stride, pipeline.size // 2)
+                        tiling_size = max(tiling_size, pipeline.size) # type: ignore
+                        tiling_stride = min(tiling_stride, pipeline.size // 2) # type: ignore
                     pipeline.safe = False
 
                 if scheduler is not None:
-                    pipeline.scheduler = scheduler
+                    pipeline.scheduler = scheduler # type: ignore[assignment]
 
                 if animation_frames:
                     upscaled_images = [images]
@@ -2007,30 +2021,30 @@ class LayeredInvocation:
                         logger.debug(f"Enabling controlnet {controlnet} for upscaling")
 
                         if refiner:
-                            pipeline.refiner_controlnets = controlnet
+                            pipeline.refiner_controlnets = controlnet # type: ignore[assignment]
                             upscale_pipline = pipeline.refiner_pipeline
                             is_sdxl = pipeline.refiner_is_sdxl
                         elif animation_frames:
-                            pipeline.animator_controlnets = controlnet
+                            pipeline.animator_controlnets = controlnet # type: ignore[assignment]
                             upscale_pipeline = pipeline.animator_pipeline
                             is_sdxl = pipeline.animator_is_sdxl
                         else:
-                            pipeline.controlnets = controlnet
-                            upscale_pipeline = pipeline.pipeline
+                            pipeline.controlnets = controlnet # type: ignore[assignment]
+                            upscale_pipeline = pipeline.pipeline # type: ignore[assignment]
                             is_sdxl = pipeline.is_sdxl
 
                         with pipeline.control_image_processor.processor(controlnet) as process:
                             kwargs["control_images"] = dict([(controlnet, [(process(image), controlnet_scale)])])
 
                     elif refiner:
-                        pipeline.refiner_controlnets = None
-                        upscale_pipeline = pipeline.refiner_pipeline
+                        pipeline.refiner_controlnets = None # type: ignore[assignment]
+                        upscale_pipeline = pipeline.refiner_pipeline # type: ignore[assignment]
                     elif animation_frames:
-                        pipeline.animator_controlnets = None
+                        pipeline.animator_controlnets = None # type: ignore[assignment]
                         upscale_pipeline = pipeline.animator_pipeline
                     else:
-                        pipeline.controlnets = None
-                        upscale_pipeline = pipeline.pipeline
+                        pipeline.controlnets = None # type: ignore[assignment]
+                        upscale_pipeline = pipeline.pipeline # type: ignore[assignment]
 
                     if upscale_pipeline.ip_adapter_loaded:
                         logger.debug(f"Upscale pipeline has IP adapter loaded, adding image to adapter input.")
@@ -2041,7 +2055,7 @@ class LayeredInvocation:
                     if task_callback:
                         task_callback(f"Re-diffusing Upscaled Sample {i+1}")
 
-                    image = upscale_pipeline(
+                    image = upscale_pipeline( # type: ignore[union-attr]
                         generator=pipeline.generator,
                         device=pipeline.device,
                         offload_models=pipeline.pipeline_sequential_onload,
@@ -2059,12 +2073,12 @@ class LayeredInvocation:
                     pipeline.safe = True
                 if refiner:
                     logger.debug("Offloading refiner for next inference.")
-                    pipeline.refiner_controlnets = None
+                    pipeline.refiner_controlnets = None # type: ignore[assignment]
                     pipeline.offload_refiner()
                 elif animation_frames:
-                    pipeline.animator_controlnets = None # Make sure we reset controlnets
+                    pipeline.animator_controlnets = None # type: ignore[assignment]
                 else:
-                    pipeline.controlnets = None # Make sure we reset controlnets
+                    pipeline.controlnets = None # type: ignore[assignment]
 
         return images, nsfw
 

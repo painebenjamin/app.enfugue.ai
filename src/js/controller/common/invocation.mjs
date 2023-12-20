@@ -1180,6 +1180,23 @@ class InvocationController extends Controller {
     }
 
     /**
+     * @return int Frames to decode at once
+     */
+    get animationDenoisingIterations() {
+        return this.kwargs.num_denoising_iterations || 1;
+    }
+
+    /**
+     * @param int Frames to decode at once
+     */
+    set animationDenoisingIterations(newIterations) {
+        if (!isEquivalent(this.animationDenoisingIterations, newIterations)) {
+            this.publish("engineAnimationDenoisingIterationsChange", newIterations);
+        }
+        this.kwargs.num_denoising_iterations = newIterations;
+    }
+
+    /**
      * @return int Animation frame rate
      */
     get animationRate() {

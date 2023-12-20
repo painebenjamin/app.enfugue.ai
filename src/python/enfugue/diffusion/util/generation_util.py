@@ -108,7 +108,7 @@ class GridMaker:
 
     def collage(
         self,
-        results: List[Tuple[Dict[str, Any], Optional[str], List[Image], float]]
+        results: List[Tuple[Dict[str, Any], Optional[str], List[Image], Optional[float]]]
     ) -> Union[Image, List[Image]]:
         """
         Builds the results into a collage.
@@ -175,7 +175,8 @@ class GridMaker:
                 else:
                     image_label = label
 
-                image_label = f"{image_label} ({duration:0.2f} sec)"
+                if duration:
+                    image_label = f"{image_label} ({duration:0.2f} sec)"
 
                 target_draw.text(
                     (column * self.grid_size + 5, row * (self.grid_size + self.caption_height) + self.grid_size + 2),
@@ -208,7 +209,7 @@ class GridMaker:
         """
         Executes each parameter set and pastes on the grid.
         """
-        results: List[Tuple[Dict[str, Any], Optional[str], List[Image], float]] = []
+        results: List[Tuple[Dict[str, Any], Optional[str], List[Image], Optional[float]]] = []
 
         for parameter_set in parameter_sets:
             manager.seed = self.seed

@@ -224,6 +224,7 @@ class ControlNetInputView extends SelectInputView {
         "pose": "Pose Detection (DWPose/OpenPose)",
         "qr": "QR Code",
         "sparse-rgb": "Sparse RGB",
+        "sparse-scribble": "Sparse Scribble",
     };
 
     /**

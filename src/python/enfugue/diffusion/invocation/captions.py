@@ -20,7 +20,7 @@ class CaptionInvocation:
 
     def execute(
         self,
-        pipeline: DiffusionPipelineManager,
+        pipeline: Optional[DiffusionPipelineManager] = None,
         task_callback: Optional[Callable[[str], None]] = None,
         progress_callback: Optional[Callable[[int, int, float], None]] = None,
         result_callback: Optional[Callable[[List[str]], None]] = None,
@@ -28,6 +28,9 @@ class CaptionInvocation:
         """
         This is the main interface for execution.
         """
+        if pipeline is None:
+            from enfugue.diffusion.manager import DiffusionPipelineManager
+            pipeline = DiffusionPipelineManager()
         if task_callback is not None:
             task_callback("Preparing language pipeline")
 

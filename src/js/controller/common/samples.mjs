@@ -104,6 +104,9 @@ class SamplesController extends Controller {
 
         let downscaleImage = await menu.addItem("Downscale Image", "fa-solid fa-down-left-and-up-right-to-center", "w");
         downscaleImage.onClick(() => this.startImageDownscale());
+
+        let sendToSVD = await menu.addItem("Send to SVD", "fa-solid fa-video", "v");
+        sendToSVD.onClick(() => this.sendToSVD());
     }
 
     /**
@@ -614,6 +617,14 @@ class SamplesController extends Controller {
         this.setPlay(false);
     }
 
+    removeResultMenu() { 
+        this.application.menu.removeCategory("Result");
+    }
+
+    async prepareResultMenu() { 
+        let resultMenu = await this.application.menu.addCategory("Result");
+    }
+
     /**
      * Sets samples
      */
@@ -625,6 +636,7 @@ class SamplesController extends Controller {
         }
         if (isEmpty(samples)) {
             this.images.removeClass("has-sample");
+            this.removeResultMenu();
         }
         this.samples = samples;
 
@@ -687,9 +699,11 @@ class SamplesController extends Controller {
             this.application.layout.checkHideSamples();
             this.images.removeClass("has-sample");
             this.sampleViewer.hide();
+            this.removeResultMenu();
         } else {
             if (showSamples) {
                 this.application.layout.showSamples();
+                this.prepareResultMenu();
             }
             sleep(250).then(() => {
                 waitFor(() => !isEmpty(this.sampleViewer.width)).then(() => {

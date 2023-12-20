@@ -1,7 +1,6 @@
-
 # adapted from https://github.com/TianxingWu/FreeInit/blob/master/freeinit_utils.py
 from __future__ import annotations
-from typing import Union, Any, Literal, Tuple, List, TYPE_CHECKING
+from typing import Union, Literal, Tuple, List, TYPE_CHECKING
 import math
 
 if TYPE_CHECKING:
