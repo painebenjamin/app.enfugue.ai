@@ -220,7 +220,7 @@ NOISE_METHOD_LITERAL = Literal[
     "velvet", "violet", "random_mix"
 ]
 IP_ADAPTER_LITERAL = Literal[
-    "default", "plus", "plus-face"
+    "default", "plus", "plus-face", "full-face"
 ]
 
 # VAE repos/files

@@ -708,12 +708,12 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
             curr_layer = self.unet
             while len(layer_infos) > 0:
                 temp_name = layer_infos.pop(0)
-                curr_layer = getattr(curr_layer, temp_name, None)
+                curr_layer = getattr(curr_layer, temp_name, None) # type: ignore[assignment]
                 if curr_layer is None:
-                    break
+                    break # type: ignore[unreachable]
 
             if curr_layer is None:
-                logger.warning(f"Couldn't find layer to load LoRA state key {key}, skipping.")
+                logger.warning(f"Couldn't find layer to load LoRA state key {key}, skipping.") # type: ignore[unreachable]
                 continue
 
             weight_down = state_dict[key].to(dtype)

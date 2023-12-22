@@ -4441,14 +4441,10 @@ class DiffusionPipelineManager:
                 )
 
         if getattr(self, "_pipeline", None) is not None:
-            self._pipeline.controlnets = self.controlnets
-            for controlnet_name in self.controlnet_names:
-                if controlnet_name.startswith("sparse"):
-                    self._pipeline.controlnets[controlnet_name] = self._pipeline.get_sparse_controlnet(
-                        controlnet_name, # type: ignore[arg-type]
-                        cache_dir=self.engine_cache_dir,
-                        task_callback=self.task_callback
-                    )
+            if any([name.startswith("sparse") for name in (controlnet_names - existing_controlnet_names)]):
+                self.unload_pipeline("Adding sparse ControlNet")
+            else:
+                self._pipeline.controlnets = self.controlnets
 
     @property
     def inpainter_controlnets(self) -> Dict[str, ControlNetModel]:
@@ -4515,14 +4511,10 @@ class DiffusionPipelineManager:
                 )
 
         if getattr(self, "_inpainter_pipeline", None) is not None:
-            self._inpainter_pipeline.controlnets = self.inpainter_controlnets
-            for controlnet_name in self.inpainter_controlnet_names:
-                if controlnet_name.startswith("sparse"):
-                    self._inpainter_pipeline.controlnets[controlnet_name] = self._inpainter_pipeline.get_sparse_controlnet(
-                        controlnet_name, # type: ignore[arg-type]
-                        cache_dir=self.engine_cache_dir,
-                        task_callback=self.task_callback
-                    )
+            if any([name.startswith("sparse") for name in (controlnet_names - existing_controlnet_names)]):
+                self.unload_inpainter("Adding sparse ControlNet")
+            else:
+                self._inpainter_pipeline.controlnets = self.inpainter_controlnets
 
     @property
     def animator_controlnets(self) -> Dict[str, ControlNetModel]:
@@ -4589,14 +4581,10 @@ class DiffusionPipelineManager:
                 )
 
         if getattr(self, "_animator_pipeline", None) is not None:
-            self._animator_pipeline.controlnets = self.animator_controlnets
-            for controlnet_name in self.animator_controlnet_names:
-                if controlnet_name.startswith("sparse"):
-                    self._animator_pipeline.controlnets[controlnet_name] = self._animator_pipeline.get_sparse_controlnet(
-                        controlnet_name, # type: ignore[arg-type]
-                        cache_dir=self.engine_cache_dir,
-                        task_callback=self.task_callback
-                    )
+            if any([name.startswith("sparse") for name in (controlnet_names - existing_controlnet_names)]):
+                self.unload_animator("Adding sparse ControlNet")
+            else:
+                self._animator_pipeline.controlnets = self.animator_controlnets
 
     @property
     def refiner_controlnets(self) -> Dict[str, ControlNetModel]:
@@ -4661,14 +4649,10 @@ class DiffusionPipelineManager:
                 )
 
         if getattr(self, "_refiner_pipeline", None) is not None:
-            self._refiner_pipeline.controlnets = self.refiner_controlnets
-            for controlnet_name in self.refiner_controlnet_names:
-                if controlnet_name.startswith("sparse"):
-                    self._refiner_pipeline.controlnets[controlnet_name] = self._refiner_pipeline.get_sparse_controlnet(
-                        controlnet_name, # type: ignore[arg-type]
-                        cache_dir=self.engine_cache_dir,
-                        task_callback=self.task_callback
-                    )
+            if any([name.startswith("sparse") for name in (controlnet_names - existing_controlnet_names)]):
+                self.unload_refiner("Adding sparse ControlNet")
+            else:
+                self._refiner_pipeline.controlnets = self.refiner_controlnets
 
     @property
     def controlnet_names(self) -> Set[CONTROLNET_LITERAL]:

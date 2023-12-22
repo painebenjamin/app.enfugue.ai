@@ -39,6 +39,7 @@ class IPAdapter(SupportModel):
 
     FINE_GRAINED_ADAPTER_PATH = "https://huggingface.co/h94/IP-Adapter/resolve/main/models/ip-adapter-plus_sd15.bin"
     FACE_ADAPTER_PATH = "https://huggingface.co/h94/IP-Adapter/resolve/main/models/ip-adapter-plus-face_sd15.bin"
+    FACE_FULL_ADAPTER_PATH = "https://huggingface.co/h94/IP-Adapter/resolve/main/models/ip-adapter-full-face_sd15.bin"
     
     XL_ENCODER_CONFIG_PATH = "https://huggingface.co/h94/IP-Adapter/resolve/main/sdxl_models/image_encoder/config.json"
     XL_ENCODER_PATH = "https://huggingface.co/h94/IP-Adapter/resolve/main/sdxl_models/image_encoder/pytorch_model.bin"
@@ -74,6 +75,8 @@ class IPAdapter(SupportModel):
             IPAttentionProcessor2_0,
             AttentionProcessor,
             AttentionProcessor2_0,
+            LoRAAttentionProcessor,
+            LoRAIPAttentionProcessor
         )
         from enfugue.diffusion.animate.diff.sparse_controlnet import SparseControlNetModel # type: ignore[attr-defined]
 
@@ -91,6 +94,7 @@ class IPAdapter(SupportModel):
         self.is_sdxl = is_sdxl
         self.model = model
         self.cross_attention_dim = unet.config.cross_attention_dim # type: ignore[attr-defined]
+
         new_attention_processors: Dict[str, Any] = {}
 
         for name in unet.attn_processors.keys():
@@ -156,7 +160,14 @@ class IPAdapter(SupportModel):
         """
         Returns true if using a plus model
         """
-        return self.model == "plus" or self.model == "plus-face"
+        return self.model in ["plus", "plus-face", "full-face"]
+
+    @property
+    def use_mlp(self) -> bool:
+        """
+        Returns true if using a full model
+        """
+        return self.model == "full-face" and not self.is_sdxl
 
     def check_download(
         self,
@@ -244,7 +255,10 @@ class IPAdapter(SupportModel):
         Gets the path to the IP checkpoint for 1.5
         Downloads if needed
         """
-        if self.model == "plus-face":
+        if self.model == "full-face":
+            model_url = self.FACE_FULL_ADAPTER_PATH
+            filename = "ip-adapter-full-face_sd15.pth"
+        elif self.model == "plus-face":
             model_url = self.FACE_ADAPTER_PATH
             filename = "ip-adapter-plus-face_sd15.pth"
         elif self.model == "plus":
@@ -295,7 +309,7 @@ class IPAdapter(SupportModel):
         Gets the path to the IP checkpoint for XL
         Downloads if needed
         """
-        if self.model == "plus-face":
+        if self.model in ["plus-face", "full-face"]:
             model_url = self.FACE_XL_ADAPTER_PATH
             filename = "ip-adapter-plus-face_sdxl_vit-h.pth"
         elif self.model == "plus":
@@ -312,11 +326,22 @@ class IPAdapter(SupportModel):
         )
 
     @property
+    def default_tokens(self) -> int:
+        """
+        Gets the default number of tokens based on the model.
+        """
+        if self.model == "full-face" and not self.is_sdxl:
+            return 257
+        elif self.model in ["plus", "plus-face", "full-face"]:
+            return 16
+        return 4
+
+    @property
     def tokens(self) -> int:
         """
         Gets the number of tokens for extra clip context
         """
-        return getattr(self, "_tokens", 16 if self.use_fine_grained else 4)
+        return getattr(self, "_tokens", self.default_tokens)
 
     @tokens.setter
     def tokens(self, amount: int) -> None:
@@ -384,7 +409,13 @@ class IPAdapter(SupportModel):
         """
         if not hasattr(self, "_projector"):
             logger.debug(f"Initializing ImageProjectionModel with cross-attention dimensions of {self.cross_attention_dim}")
-            if self.use_fine_grained:
+            if self.use_mlp:
+                from enfugue.diffusion.support.ip.projection import MLPProjectionModel
+                self._projector = MLPProjectionModel(
+                    cross_attention_dim=self.cross_attention_dim,
+                    clip_embeddings_dim=self.encoder.config.hidden_size,
+                )
+            elif self.use_fine_grained:
                 from enfugue.diffusion.support.ip.resampler import Resampler # type: ignore[attr-defined]
                 self._projector = Resampler(
                     dim=1280 if self.is_sdxl else self.cross_attention_dim,
@@ -398,7 +429,7 @@ class IPAdapter(SupportModel):
                 )
             else:
                 from enfugue.diffusion.support.ip.projection import ImageProjectionModel
-                self._projector = ImageProjectionModel(
+                self._projector = ImageProjectionModel( # type: ignore[assignment]
                     clip_embeddings_dim=self.encoder.config.projection_dim,
                     cross_attention_dim=self.cross_attention_dim,
                     clip_extra_context_tokens=self.tokens

@@ -956,7 +956,7 @@ class LayeredInvocation:
                         if face_only:
                             face_mask = processors["pose"].detail_mask(layer_image, include_face=True, include_hands=False) # type: ignore[attr-defined]
                             (x0, y0), (x1, y1) = self.get_inpaint_bounding_box(face_mask, size=512, feather=64)
-                            ip_image = Image.new("RGBA", (x1-x0, y1-y0))
+                            ip_image = Image.new("RGB", (x1-x0, y1-y0), (255,255,255)) # Full white
                             ip_image.paste(layer_image, (-x0, -y0), mask=face_mask.convert("L"))
                         else:
                             ip_image = layer_image
