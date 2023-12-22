@@ -75,6 +75,7 @@ class IPAdapter(SupportModel):
             AttentionProcessor,
             AttentionProcessor2_0,
         )
+        from enfugue.diffusion.animate.diff.sparse_controlnet import SparseControlNetModel # type: ignore[attr-defined]
 
         if model is None:
             model = "default"
@@ -139,6 +140,8 @@ class IPAdapter(SupportModel):
         if controlnets is not None:
             keepalive_callback()
             for controlnet in controlnets:
+                if isinstance(controlnets[controlnet], SparseControlNetModel):
+                    continue
                 new_processors: Dict[str, Any] = {}
                 current_processors = controlnets[controlnet].attn_processors
                 for key in current_processors:

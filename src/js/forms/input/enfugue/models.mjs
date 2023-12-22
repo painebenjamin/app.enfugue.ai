@@ -41,6 +41,45 @@ class ModelPickerStringInputView extends StringInputView {
         }
         return super.setValue(newValue, triggerChange);
     }
+
+    /**
+     * Shows metadata in a separate window
+     */
+    async showMetadata() {
+        this.showingMetadata = true;
+        await this.constructor.showModelMetadata(this.value);
+        this.showingMetadata = false;
+    }
+
+    /**
+     * On build, append introspection button
+     */
+    async build() {
+        let node = await super.build(),
+            icon = E.i().class("fa-solid fa-magnifying-glass show-metadata")
+                    .data("tooltip", "View Model Metadata")
+                    .on("click", (e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        if (this.showingMetadata !== true) {
+                            this.showMetadata();
+                        }
+                    });
+
+        node.append(icon);
+
+        this.onChange(() => {
+            if (isEmpty(this.value)) {
+                icon.hide();
+            } else {
+                icon.show();
+            }
+        });
+        if (isEmpty(this.value)) {
+            icon.hide();
+        }
+        return node;
+    }
 };
 
 /**

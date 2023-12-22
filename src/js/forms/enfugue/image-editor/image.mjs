@@ -95,6 +95,14 @@ class ImageEditorImageNodeOptionsFormView extends FormView {
                     "value": 0.5
                 }
             },
+            "faceOnly": {
+                "label": "Isolate to Face",
+                "class": CheckboxInputView,
+                "config": {
+                    "value": false,
+                    "tooltip": "When checked, the image will be cropped and isolated to the face only prior to being used for IP adapter."
+                }
+            }
         },
         "ControlNet Units": {
             "controlnetUnits": {

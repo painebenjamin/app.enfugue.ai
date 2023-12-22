@@ -109,6 +109,7 @@ class InvokeButtonController extends Controller {
 
                         if (datum.imagePrompt) {
                             formattedState["ip_adapter_scale"] = datum.imagePromptScale;
+                            formattedState["face_only"] = datum.faceOnly;
                         }
                         if (datum.control) {
                             formattedState["control_units"] = datum.controlnetUnits.map((unit) => {

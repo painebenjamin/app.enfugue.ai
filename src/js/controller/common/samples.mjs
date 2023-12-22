@@ -622,7 +622,7 @@ class SamplesController extends Controller {
     }
 
     async prepareResultMenu() { 
-        let resultMenu = await this.application.menu.addCategory("Result");
+        // let resultMenu = await this.application.menu.addCategory("Result");
     }
 
     /**

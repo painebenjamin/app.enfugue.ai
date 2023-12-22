@@ -3408,6 +3408,14 @@ class DiffusionPipelineManager:
                 if self.should_cache:
                     self.task_callback("Saving pipeline to pretrained cache")
                     pipeline.save_pretrained(self.model_diffusers_dir)
+            # Load post-initialization controlnets
+            for controlnet_name in self.controlnet_names:
+                if controlnet_name.startswith("sparse"):
+                    pipeline.controlnets[controlnet_name] = pipeline.get_sparse_controlnet(
+                        controlnet_name,
+                        cache_dir=self.engine_cache_dir,
+                        task_callback=self.task_callback
+                    ).to(self.dtype)
             if not self.tensorrt_is_ready:
                 if self._ip_adapter_model is not None:
                     self.ip_adapter.check_download(
@@ -3432,26 +3440,19 @@ class DiffusionPipelineManager:
             if self.scheduler is not None:
                 logger.debug(f"Setting scheduler to {self.scheduler.__name__}") # type: ignore[attr-defined]
                 pipeline.scheduler = self.scheduler.from_config({**pipeline.scheduler_config, **self.scheduler_config}) # type: ignore[attr-defined]
-            # Load post-initialization controlnets
-            for controlnet_name in self.controlnet_names:
+            # Check for adapter LoRA
+            if any([name.startswith("sparse") for name in self.controlnet_names]):
                 adapter_lora_loaded = os.path.basename(SPARSE_CONTROLNET_ADAPTER_LORA) in [
                     os.path.basename(lora) for lora, weight in self.lora
                 ]
-                if controlnet_name.startswith("sparse"):
-                    if not adapter_lora_loaded and not self.tensorrt_is_ready:
-                        logger.debug("Sparse ControlNet detected, loading adapter LoRA.")
-                        pipeline.load_lora_weights(
-                            self.check_download_model(
-                                self.engine_lora_dir,
-                                SPARSE_CONTROLNET_ADAPTER_LORA
-                            )
+                if not adapter_lora_loaded and not self.tensorrt_is_ready:
+                    logger.debug("Sparse ControlNet detected, loading adapter LoRA.")
+                    pipeline.load_lora_weights(
+                        self.check_download_model(
+                            self.engine_lora_dir,
+                            SPARSE_CONTROLNET_ADAPTER_LORA
                         )
-                        adapter_lora_loaded = True
-                    pipeline.controlnets[controlnet_name] = pipeline.get_sparse_controlnet(
-                        controlnet_name,
-                        cache_dir=self.engine_cache_dir,
-                        task_callback=self.task_callback
-                    ).to(self.dtype)
+                    )
             self._pipeline = pipeline
         return self._pipeline
 
@@ -3766,6 +3767,14 @@ class DiffusionPipelineManager:
                 if self.should_cache_inpainter:
                     self.task_callback("Saving inpainter pipeline to pretrained cache")
                     inpainter_pipeline.save_pretrained(self.inpainter_diffusers_dir)
+            # Load post-initialization controlnets
+            for controlnet_name in self.inpainter_controlnet_names:
+                if controlnet_name.startswith("sparse"):
+                    inpainter_pipeline.controlnets[controlnet_name] = inpainter_pipeline.get_sparse_controlnet(
+                        controlnet_name,
+                        cache_dir=self.engine_cache_dir,
+                        task_callback=self.task_callback
+                    ).to(self.dtype)
             if not self.inpainter_tensorrt_is_ready:
                 if self._ip_adapter_model is not None:
                     self.ip_adapter.check_download(
@@ -3790,26 +3799,19 @@ class DiffusionPipelineManager:
             if self.scheduler is not None:
                 logger.debug(f"Setting inpainter scheduler to {self.scheduler.__name__}") # type: ignore[attr-defined]
                 inpainter_pipeline.scheduler = self.scheduler.from_config({**inpainter_pipeline.scheduler_config, **self.scheduler_config}) # type: ignore[attr-defined]
-            # Load post-initialization controlnets
-            for controlnet_name in self.inpainter_controlnet_names:
+            # Check for adapter LoRA
+            if any([name.startswith("sparse") for name in self.controlnet_names]):
                 adapter_lora_loaded = os.path.basename(SPARSE_CONTROLNET_ADAPTER_LORA) in [
                     os.path.basename(lora) for lora, weight in self.lora
                 ]
-                if controlnet_name.startswith("sparse"):
-                    if not adapter_lora_loaded and not self.inpainter_tensorrt_is_ready:
-                        logger.debug("Sparse ControlNet detected, loading adapter LoRA.")
-                        inpainter_pipeline.load_lora_weights(
-                            self.check_download_model(
-                                self.engine_lora_dir,
-                                SPARSE_CONTROLNET_ADAPTER_LORA
-                            )
+                if not adapter_lora_loaded and not self.inpainter_tensorrt_is_ready:
+                    logger.debug("Sparse ControlNet detected, loading adapter LoRA.")
+                    inpainter_pipeline.load_lora_weights(
+                        self.check_download_model(
+                            self.engine_lora_dir,
+                            SPARSE_CONTROLNET_ADAPTER_LORA
                         )
-                        adapter_lora_loaded = True
-                    inpainter_pipeline.controlnets[controlnet_name] = inpainter_pipeline.get_sparse_controlnet(
-                        controlnet_name,
-                        cache_dir=self.engine_cache_dir,
-                        task_callback=self.task_callback
-                    ).to(self.dtype)
+                    )
             self._inpainter_pipeline = inpainter_pipeline
         return self._inpainter_pipeline
 
@@ -3939,6 +3941,14 @@ class DiffusionPipelineManager:
                 if self.should_cache_animator:
                     self.task_callback("Saving animator pipeline to pretrained cache")
                     animator_pipeline.save_pretrained(self.animator_diffusers_dir)
+            # Load post-initialization controlnets
+            for controlnet_name in self.animator_controlnet_names:
+                if controlnet_name.startswith("sparse"):
+                    animator_pipeline.controlnets[controlnet_name] = animator_pipeline.get_sparse_controlnet(
+                        controlnet_name,
+                        cache_dir=self.engine_cache_dir,
+                        task_callback=self.task_callback
+                    ).to(self.dtype)
             if not self.animator_tensorrt_is_ready:
                 if self._ip_adapter_model is not None:
                     self.ip_adapter.check_download(
@@ -3963,26 +3973,19 @@ class DiffusionPipelineManager:
             if self.scheduler is not None:
                 logger.debug(f"Setting animator scheduler to {self.scheduler.__name__}") # type: ignore [attr-defined]
                 animator_pipeline.scheduler = self.scheduler.from_config({**animator_pipeline.scheduler_config, **self.scheduler_config}) # type: ignore[attr-defined]
-            # Load post-initialization controlnets
-            for controlnet_name in self.animator_controlnet_names:
+            # Check for adapter LoRA
+            if any([name.startswith("sparse") for name in self.controlnet_names]):
                 adapter_lora_loaded = os.path.basename(SPARSE_CONTROLNET_ADAPTER_LORA) in [
                     os.path.basename(lora) for lora, weight in self.lora
                 ]
-                if controlnet_name.startswith("sparse"):
-                    if not adapter_lora_loaded and not self.animator_tensorrt_is_ready:
-                        logger.debug("Sparse ControlNet detected, loading adapter LoRA.")
-                        animator_pipeline.load_lora_weights(
-                            self.check_download_model(
-                                self.engine_lora_dir,
-                                SPARSE_CONTROLNET_ADAPTER_LORA
-                            )
+                if not adapter_lora_loaded and not self.animator_tensorrt_is_ready:
+                    logger.debug("Sparse ControlNet detected, loading adapter LoRA.")
+                    animator_pipeline.load_lora_weights(
+                        self.check_download_model(
+                            self.engine_lora_dir,
+                            SPARSE_CONTROLNET_ADAPTER_LORA
                         )
-                        adapter_lora_loaded = True
-                    animator_pipeline.controlnets[controlnet_name] = animator_pipeline.get_sparse_controlnet(
-                        controlnet_name,
-                        cache_dir=self.engine_cache_dir,
-                        task_callback=self.task_callback
-                    ).to(self.dtype)
+                    )
             self._animator_pipeline = animator_pipeline.to(self.device)
         return self._animator_pipeline
 
@@ -3995,6 +3998,7 @@ class DiffusionPipelineManager:
             logger.debug("Deleting animator pipeline.")
             del self._animator_pipeline
             self.clear_memory()
+            self.reload_motion_module = False
 
     def unload_pipeline(self, reason: str = "None") -> None:
         """
@@ -4914,8 +4918,8 @@ class DiffusionPipelineManager:
                             elif self.ip_adapter.model != self._ip_adapter_model:
                                 self.unload_animator("changing IP adapter model")
 
+                    pipe = self.animator_pipeline
                     if self.reload_motion_module:
-                        pipe = self.animator_pipeline
                         if task_callback is not None:
                             task_callback("Reloading motion module")
                         try:
@@ -4932,8 +4936,6 @@ class DiffusionPipelineManager:
                             self.reload_motion_module = False
                             self.unload_animator("Re-initializing Pipeline")
                             pipe = self.animator_pipeline # Will raise
-                    else:
-                        pipe = self.animator_pipeline
 
                 elif inpainting and (self.has_inpainter or self.create_inpainter):
                     self.offload_pipeline(intention) # type: ignore

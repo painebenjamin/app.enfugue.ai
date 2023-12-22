@@ -460,6 +460,7 @@ class LayeredInvocation:
                 added_layers.append({
                     "image": ip_adapter_image["image"],
                     "ip_adapter_scale": ip_adapter_image.get("scale", 1.0),
+                    "face_only": ip_adapter_image.get("face_only", False),
                     "fit": ip_adapter_image.get("fit", None),
                     "anchor": ip_adapter_image.get("anchor", None),
                     "frame": ip_adapter_image.get("frame", None),
@@ -642,6 +643,7 @@ class LayeredInvocation:
         """
         Gets all preprocessors needed for this invocation
         """
+        needs_pose_detector = False
         needs_background_remover = False
         needs_interpolator = False
         needs_control_processors = []
@@ -652,9 +654,12 @@ class LayeredInvocation:
             for layer in self.layers:
                 if layer.get("image", None) is not None:
                     to_check.append(layer)
+
         for image_dict in to_check:
             if image_dict.get("remove_background", False):
                 needs_background_remover = True
+            if image_dict.get("face_only", False):
+                needs_pose_detector = True
             if image_dict.get("visibility", None) in ["denoised", "visible"]:
                 layer_frames = 1 if not isinstance(image_dict["image"], list) else len(image_dict["image"])
                 layer_frame_start = image_dict.get("frame", None)
@@ -662,7 +667,10 @@ class LayeredInvocation:
                 visible_image_frames[layer_frame_start:layer_frame_start+layer_frames] = [True]*layer_frames
             for control_dict in image_dict.get("control_units", []):
                 if control_dict.get("process", True) and control_dict.get("controlnet", None) is not None:
-                    needs_control_processors.append(control_dict["controlnet"])
+                    if control_dict["controlnet"] == "pose":
+                        needs_pose_detector = True
+                    else:
+                        needs_control_processors.append(control_dict["controlnet"])
 
         if len(visible_image_frames) > 1:
             has_visible_frame = False
@@ -682,6 +690,10 @@ class LayeredInvocation:
             if needs_interpolator:
                 processors["interpolator"] = stack.enter_context( # type: ignore[assignment]
                     pipeline.interpolator.film()
+                )
+            if needs_pose_detector:
+                processors["pose"] = stack.enter_context(
+                    pipeline.control_image_processor.pose_detector.best()
                 )
             if needs_control_processors:
                 processor_names = list(set(needs_control_processors))
@@ -783,6 +795,9 @@ class LayeredInvocation:
                     image_count = min(image_count, self.animation_frames - layer_frame)
 
                 if layer.get("remove_background", False):
+                    images_to_preprocess += image_count
+
+                if layer.get("face_only", False):
                     images_to_preprocess += image_count
 
                 if layer.get("visibility", None) in ["visible", "denoised"]:
@@ -937,8 +952,17 @@ class LayeredInvocation:
 
                     if prompt_scale:
                         # ip adapter
+                        face_only = layer.get("face_only", False)
+                        if face_only:
+                            face_mask = processors["pose"].detail_mask(layer_image, include_face=True, include_hands=False) # type: ignore[attr-defined]
+                            (x0, y0), (x1, y1) = self.get_inpaint_bounding_box(face_mask, size=512, feather=64)
+                            ip_image = Image.new("RGBA", (x1-x0, y1-y0))
+                            ip_image.paste(layer_image, (-x0, -y0), mask=face_mask.convert("L"))
+                        else:
+                            ip_image = layer_image
+
                         ip_adapter_images.append({
-                            "image": layer_image,
+                            "image": ip_image,
                             "scale": float(prompt_scale)
                         })
 
@@ -1418,7 +1442,7 @@ class LayeredInvocation:
                 scheduler_config["beta_start"] = self.scheduler_beta_start
             if self.scheduler_beta_end is not None:
                 scheduler_config["beta_end"] = self.scheduler_beta_end
-            if self.scheduler_beta_schedule is not None:
+            if self.scheduler_beta_schedule:
                 scheduler_config["beta_schedule"] = self.scheduler_beta_schedule
             pipeline.scheduler_config = scheduler_config
 
