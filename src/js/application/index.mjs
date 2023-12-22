@@ -630,7 +630,7 @@ class Application {
             } else {
                 // Monitor it
                 this.notifications.push("info", "Active Invocation Found", "You have an image currently being generated, beginning monitoring process.");
-                this.engine.canvasInvocation(activeInvocation.uuid);
+                this.engine.canvasInvocation(activeInvocation.uuid, activeInvocation.animation);
            }
            this.publish("invocationBegin", activeInvocation);
         }
@@ -1053,6 +1053,7 @@ class Application {
     async resetState(saveHistory = true) {
         let state = {"layers": []},
             controllerArray = this.getStatefulControllers();
+
         for (let controller of controllerArray) {
             state = {...state, ...controller.getDefaultState()};
         }

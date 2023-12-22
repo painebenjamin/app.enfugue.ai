@@ -276,6 +276,7 @@ class CivitAICategoryBrowserView extends ParentView {
         this.options = new CivitAISearchOptionsFormView(config);
         this.options.onSubmit(async (query) => {
             try {
+                this.page = 1;
                 await this.runQuery(query);
             } catch(e) {
                 SimpleNotification.notify("Couldn't communicate with Enfugue or CivitAI. Please try again.");

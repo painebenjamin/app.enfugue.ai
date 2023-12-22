@@ -175,7 +175,11 @@ class LayeredInvocation:
         Gets the feathered bounding box for an image
         """
         width, height = mask.size
-        x0, y0, x1, y1 = mask.getbbox()
+        bbox = mask.getbbox()
+        if bbox is None:
+            return [(0, 0), (width, height)]
+
+        x0, y0, x1, y1 = bbox
 
         # Add feather
         x0 = max(0, x0 - feather)
@@ -1261,7 +1265,7 @@ class LayeredInvocation:
                 nsfw = [False] * len(images)
             else:
                 # Determine if we're doing cropped inpainting
-                if "mask" in invocation_kwargs and self.crop_inpaint:
+                if invocation_kwargs.get("mask", None) is not None and self.crop_inpaint:
                     (x0, y0), (x1, y1) = self.get_inpaint_bounding_box(
                         invocation_kwargs["mask"],
                         size=self.tiling_size if self.tiling_size else 1024 if pipeline.inpainter_is_sdxl else 512,
@@ -1335,7 +1339,7 @@ class LayeredInvocation:
                     # Also crop control images
                     if "control_images" in invocation_kwargs:
                         for controlnet in invocation_kwargs["control_images"]:
-                            for image_dict in invocation_kwargs[controlnet]:
+                            for image_dict in invocation_kwargs["control_images"][controlnet]:
                                 image_dict["image"] = image_dict["image"].crop(cropped_inpaint_position)
 
                     # Assign height and width

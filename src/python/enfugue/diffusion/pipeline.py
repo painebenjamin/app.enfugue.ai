@@ -1286,6 +1286,9 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         if device.type == "cpu":
             with torch.autocast("cpu"):
                 yield
+        elif ip_adapter_scale is not None:
+            with self.ip_adapter.context(): # type: ignore[union-attr]
+                yield
         else:
             yield
 

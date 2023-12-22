@@ -117,6 +117,26 @@ class PromptTravelFormView extends FormView {
                     "tooltip": "The weight of this prompt. It is recommended to keep your highest-weight prompt at 1.0 and scale others relative to that, but this is unconstrained."
                 }
             }
+        },
+        "Frame Timing": {
+            "start": {
+                "class": NumberInputView,
+                "config": {
+                    "min": 1,
+                    "value": 1,
+                    "step": 1,
+                    "tooltip": "The starting frame for this prompt."
+                }
+            },
+            "end": {
+                "class": NumberInputView,
+                "config": {
+                    "min": 1,
+                    "value": 16,
+                    "step": 1,
+                    "tooltip": "The ending frame for this prompt."
+                }
+            }
         }
     };
 }

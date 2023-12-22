@@ -5,7 +5,7 @@ from polygraphy.backend.onnx.loader import fold_constants
 from onnx_graphsurgeon import import_onnx, export_onnx
 
 from onnx_graphsurgeon.ir.graph import Graph
-from onnx.onnx_ml_pb2 import ModelProto as ONNXModel
+from onnx.onnx_ml_pb2 import ModelProto as ONNXModel # type: ignore
 from onnx.shape_inference import infer_shapes
 
 

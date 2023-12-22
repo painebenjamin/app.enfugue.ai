@@ -2,7 +2,7 @@ import torch
 
 from typing import List, Dict, Tuple
 
-from onnx.onnx_ml_pb2 import ModelProto as ONNXModel
+from onnx.onnx_ml_pb2 import ModelProto as ONNXModel # type: ignore
 
 from enfugue.diffusion.rt.model.base import BaseModel
 from enfugue.diffusion.rt.optimizer import Optimizer

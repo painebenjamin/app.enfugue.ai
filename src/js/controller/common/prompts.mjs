@@ -165,12 +165,16 @@ class PromptView extends View {
     }
 
     /**
-     * Sets daata that will be handled by an external form
+     * Sets data that will be handled by an external form
      */
-    setFormData(newData) {
+    setFormData(newData, zeroIndexed = true) {
+        console.log(newData);
+        console.trace();
         this.positive = newData.positive;
         this.negative = newData.negative;
-        this.weight = isEmpty(newData.weight) ? 1.0 : newData.weight;
+        this.start = isEmpty(newData.start) ? this.start : newData.start - (zeroIndexed ? 0 : 1);
+        this.end = isEmpty(newData.end) ? this.end : newData.end;
+        this.weight = isEmpty(newData.weight) ? 1.0 : parseFloat(newData.weight);
 
         if (!isEmpty(this.node)) {
             let positive = this.node.find(".positive"),
@@ -190,6 +194,8 @@ class PromptView extends View {
                 }
             }
         }
+
+        this.resetPosition();
     }
 
     /**
@@ -197,9 +203,6 @@ class PromptView extends View {
      */
     setState(newData) {
         if (isEmpty(newData)) newData = {};
-        this.start = newData.start;
-        this.end = newData.end;
-        this.resetPosition();
         this.setFormData(newData);
     }
 
@@ -260,7 +263,7 @@ class PromptView extends View {
                 } else if(activeSlide) {
                     let difference = slideStartFrame - closestFrame,
                         [initialStart, initialEnd] = slideStartRange;
-                    
+
                     this.start = Math.max(initialStart - difference, 0);
                     this.end = Math.min(initialEnd - difference, this.total);
                     this.setPosition(node);
@@ -375,12 +378,17 @@ class PromptTravelView extends View {
     /**
      * @var int Height of the prompt change form
      */
-    static promptFormWindowHeight = 450;
+    static promptFormWindowHeight = 500;
 
     /**
      * @var int Minimum number of frames
      */
     static minimumFrames = 2;
+
+    /**
+     * @var int The maximum number of divisions (notches)
+     */
+    static maximumDivisions = 64;
 
     /**
      * Constructor has callback to spawn a window
@@ -394,14 +402,39 @@ class PromptTravelView extends View {
     }
 
     /**
+     * @return int how many frames per notch
+     */
+    get framesPerNotch() {
+        let frameCount = this.length,
+            framesPerNotch = 1;
+
+        while (frameCount > this.constructor.maximumDivisions) {
+            frameCount /= 2;
+            framesPerNotch *= 2;
+        }
+
+        return framesPerNotch;
+    }
+
+    /**
+     * @return int The count of frame notches
+     */
+    get frameNotches() {
+        return Math.ceil(this.length / this.framesPerNotch);
+    }
+
+    /**
      * Sets the length of all frames, re-scaling notches and prompts
      */
     setLength(newLength) {
         this.length = newLength;
+        let framesPerNotch = this.framesPerNotch,
+            frameNotches = this.frameNotches;
+
         if (this.node !== undefined) {
             let notchNode = this.node.find(".notches"),
-                newPromptNotches = new Array(this.length).fill(null).map(
-                    (_, i) => E.span().class("notch").content(`${i+1}`)
+                newPromptNotches = new Array(frameNotches).fill(null).map(
+                    (_, i) => E.span().class("notch").content(`${(i*framesPerNotch)+1}`)
                 );
 
             notchNode.content(...newPromptNotches);
@@ -468,10 +501,14 @@ class PromptTravelView extends View {
             promptWindow;
 
         promptFormView.onSubmit((values) => {
-            promptView.setFormData(values);
+            promptView.setFormData(values, false);
+            promptView.resetPosition();
             this.changed();
         });
-        promptView.onChange(() => this.changed());
+        promptView.onChange(() => {
+            this.changed();
+            promptFormView.setValues({"start": promptView.start + 1, "end": promptView.end}, false);
+        });
         promptView.onRemove(() => {
             this.removePrompt(promptView);
         });
@@ -527,11 +564,13 @@ class PromptTravelView extends View {
      */
     async build() {
         let node = await super.build(),
+            framesPerNotch = this.framesPerNotch,
+            frameNotches = this.frameNotches,
             addPrompt = E.button().content("Add Prompt").on("click", () => {
                 this.addPrompt();
             }),
-            promptNotches = new Array(this.length).fill(null).map(
-                (_, i) => E.span().class("notch").content(`${i+1}`)
+            promptNotches = new Array(frameNotches).fill(null).map(
+                (_, i) => E.span().class("notch").content(`${(i*framesPerNotch)+1}`)
             ),
             promptNotchContainer = E.div().class("notches").content(...promptNotches),
             promptContainer = E.div().class("prompts-container"),
@@ -555,7 +594,9 @@ class PromptTravelController extends Controller {
      */
     getDefaultState() {
         return {
-            "travel": []
+            "travel": {
+                "prompts": []
+            }
         }
     }
 
@@ -564,7 +605,9 @@ class PromptTravelController extends Controller {
      */
     getState() {
         return {
-            "travel": this.promptView.getState()
+            "travel": {
+                "prompts": this.promptView.getState()
+            }
         };
     }
 
@@ -573,7 +616,10 @@ class PromptTravelController extends Controller {
      */
     async setState(newState) {
         if (!isEmpty(newState.travel)) {
-            await this.promptView.setState(newState.travel);
+            if (isEmpty(newState.travel.prompts)) {
+                newState.travel.prompts = [];
+            }
+            await this.promptView.setState(newState.travel.prompts);
         }
     }
 
