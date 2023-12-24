@@ -2976,6 +2976,8 @@ class DiffusionPipelineManager:
             )
         ):
             self.reload_motion_module = True
+        if new_module is not None and new_module.startswith("http"):
+            new_module = self.check_download_model(self.engine_motion_dir, new_module)
         if new_module is not None and not os.path.isabs(new_module):
             new_module = os.path.join(self.engine_motion_dir, new_module)
         if new_module is not None and not os.path.exists(new_module):
