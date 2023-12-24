@@ -1060,6 +1060,8 @@ class Application {
         await this.setState(state, saveHistory);
         // Also reset image editor
         this.canvas.resetCanvasPosition();
+        // Trigger model chooser change to re-trigger defaults
+        this.publish("reInitializeModel");
     }
 
     /**

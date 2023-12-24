@@ -36,6 +36,7 @@ __all__ = [
     "SDXL_TURBO_MODEL",
     "PLAYGROUND_V2_MODEL",
     "SEGMIND_VEGA_MODEL",
+    "OPEN_DALLE_MODEL",
     "VAE_EMA",
     "VAE_MSE",
     "VAE_XL",
@@ -77,6 +78,8 @@ __all__ = [
     "LCM_LORA_XL",
     "LCM_LORA_VEGA",
     "SPARSE_CONTROLNET_ADAPTER_LORA",
+    "DPO_OFFSET_XL",
+    "DPO_OFFSET",
     "SCHEDULER_LITERAL",
     "DEVICE_LITERAL",
     "PIPELINE_SWITCH_MODE_LITERAL",
@@ -127,6 +130,7 @@ DEFAULT_SDXL_REFINER = "https://huggingface.co/stabilityai/stable-diffusion-xl-r
 DEFAULT_SDXL_INPAINTING_MODEL = "https://huggingface.co/benjamin-paine/sd-xl-alternative-bases/resolve/main/sd_xl_base_1.0_inpainting_0.1.safetensors"
 
 # Other Featured Open-Source Models
+OPEN_DALLE_MODEL = "https://huggingface.co/dataautogpt3/OpenDalleV1.1/resolve/main/OpenDalleV1.1.safetensors"
 PLAYGROUND_V2_MODEL = "https://huggingface.co/playgroundai/playground-v2-1024px-aesthetic/resolve/main/playground-v2.fp16.safetensors"
 SEGMIND_VEGA_MODEL = "https://huggingface.co/segmind/Segmind-Vega/resolve/main/segmind-vega.safetensors"
 SDXL_TURBO_MODEL = "https://huggingface.co/stabilityai/sdxl-turbo/resolve/main/sd_xl_turbo_1.0_fp16.safetensors"
@@ -179,7 +183,7 @@ SCHEDULER_LITERAL = Literal[
     "dpmd", "dpmdk", "adpmd",
     "adpmdk", "dpmsde", "unipc",
     "lmsd", "lmsdk", "pndm",
-    "eds", "eads", "lcm"
+    "eds", "edsk", "eads", "lcm"
 ]
 UPSCALE_LITERAL = Literal[
     "esrgan", "esrganime", "gfpgan",
@@ -361,6 +365,9 @@ LCM_LORA_VEGA = "https://huggingface.co/segmind/Segmind-VegaRT/resolve/main/pyto
 LCM_LORA_DEFAULT = "https://huggingface.co/latent-consistency/lcm-lora-sdv1-5/resolve/main/pytorch_lora_weights.safetensors?filename=lcm-lora-sdv1-5.safetensors"
 LCM_LORA_XL = "https://huggingface.co/latent-consistency/lcm-lora-sdxl/resolve/main/pytorch_lora_weights.safetensors?filename=lcm-lora-sdxl.safetensors"
 SPARSE_CONTROLNET_ADAPTER_LORA = "https://huggingface.co/guoyww/animatediff/resolve/main/v3_sd15_adapter.ckpt"
+
+DPO_OFFSET = "https://huggingface.co/benjamin-paine/sd-xl-alternative-bases/resolve/main/sd_v15_unet_dpo_offset.safetensors"
+DPO_OFFSET_XL = "https://huggingface.co/benjamin-paine/sd-xl-alternative-bases/resolve/main/sd_xl_unet_dpo_offset.safetensors"
 
 MultiModelType = Union[str, List[str]]
 WeightedMultiModelType = Union[

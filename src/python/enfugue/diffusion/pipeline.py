@@ -99,6 +99,7 @@ from enfugue.util import (
 )
 
 from enfugue.diffusion.util import (
+    iterate_state_dict,
     load_state_dict,
     empty_cache,
     make_noise,
@@ -1487,6 +1488,28 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             else:
                 message = "Are you trying to use a Stable Diffusion XL textual inversion with this Stable Diffusion 1.5 pipeline?"
             raise IOError(f"Received {type(ex).__name__} loading textual inversion. {message}")
+
+    def inject_unet(self, checkpoint_path: str, strict: bool=False) -> None:
+        """
+        Injects weights into the UNet.
+        """
+        for key, tensor in iterate_state_dict(checkpoint_path):
+            key_parts = key.split(".")
+            current_layer = self.unet
+            for key_part in key_parts[:-1]:
+                current_layer = getattr(current_layer, key_part, None) # type: ignore[assignment]
+                if current_layer is None:
+                    break # type: ignore[unreachable]
+            if current_layer is None:
+                if strict: # type: ignore[unreachable]
+                    raise IOError(f"Couldn't find a layer to inject key {key} in.")
+                continue
+            layer_param = getattr(current_layer, key_parts[-1], None)
+            if layer_param is None:
+                if strict:
+                    raise IOError(f"Couldn't get current weight for {key}")
+                continue
+            layer_param.data += tensor
 
     def denormalize_latents(self, latents: torch.Tensor) -> torch.Tensor:
         """

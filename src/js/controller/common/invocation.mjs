@@ -976,6 +976,23 @@ class InvocationController extends Controller {
     }
 
     /**
+     * @return ?bool whether or not to inject DPO
+     */
+    get injectDpo() {
+        return this.kwargs.inject_dpo || null;
+    }
+
+    /**
+     * @param ?bool whether or not to inject DPO
+     */
+    set injectDpo(newDpo) {
+        if (this.injectDpo !== newDpo) {
+            this.publish("engineInjectDpoChange");
+        }
+        this.kwargs.inject_dpo = newDpo;
+    }
+
+    /**
      * @return float Offset noise
      */
     get noiseOffset() {

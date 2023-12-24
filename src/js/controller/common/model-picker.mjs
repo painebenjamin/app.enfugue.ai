@@ -548,6 +548,10 @@ class ModelPickerController extends Controller {
             }
         });
 
+        this.subscribe("reInitializeModel", () => {
+            this.modelPickerFormView.submit();
+        });
+
         this.subscribe("invocationComplete", (payload) => {
             if (!isEmpty(payload.metadata) && !isEmpty(payload.metadata.tensorrt_build)) {
                 let network = payload.metadata.tensorrt_build.network,

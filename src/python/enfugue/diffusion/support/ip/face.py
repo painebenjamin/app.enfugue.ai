@@ -6,7 +6,6 @@ import numpy as np
 from typing import Tuple, Any, Dict, Iterable
 
 from glob import glob
-from numpy.linalg import norm
 
 from insightface.model_zoo import model_zoo as ModelZoo
 from insightface.app.common import Face

@@ -98,6 +98,12 @@ class InvocationTableView extends ModelTableView {
                                     .loop(true),
                                 E.div().class("buttons").content(
                                     E.button()
+                                        .content(E.i().class("fa-solid fa-arrow-up-right-from-square"))
+                                        .on("click", (e) => {
+                                            window.open(videoSource, "_blank");
+                                        })
+                                        .data("tooltip", "Click to View in Separate Tab"),
+                                    E.button()
                                         .content(E.i().class("fa-solid fa-film"))
                                         .on("click", (e) => {
                                             e.stopPropagation();
@@ -128,7 +134,7 @@ class InvocationTableView extends ModelTableView {
                             )
                             .data("tooltip", "Click to View")
                             .on("click", () => {
-                                window.open(videoSource, "_blank");
+                                InvocationTableView.spawnVideoPlayer(videoSource);
                             });
 
                      outputContainer.append(imageContainer);
@@ -143,20 +149,26 @@ class InvocationTableView extends ModelTableView {
                                     await imageView.getNode(),
                                     E.div().class("buttons").content(
                                         E.button()
-                                        .content(E.i().class("fa-solid fa-edit"))
-                                        .on("click", async (e) => {
-                                            e.stopPropagation();
-                                            InvocationTableView.initializeStateFromImage(
-                                                await downloadAsDataURL(imageSource),
-                                                false
-                                            );
-                                        })
-                                        .data("tooltip", "Click to Edit")
+                                            .content(E.i().class("fa-solid fa-arrow-up-right-from-square"))
+                                            .on("click", (e) => {
+                                                window.open(imageSource, "_blank");
+                                            })
+                                            .data("tooltip", "Click to View in Separate Tab"),
+                                        E.button()
+                                            .content(E.i().class("fa-solid fa-edit"))
+                                            .on("click", async (e) => {
+                                                e.stopPropagation();
+                                                InvocationTableView.initializeStateFromImage(
+                                                    await downloadAsDataURL(imageSource),
+                                                    false
+                                                );
+                                            })
+                                            .data("tooltip", "Click to Edit")
                                     )
                                 )
                                 .data("tooltip", "Click to View")
                                 .on("click", async () => {
-                                    window.open(imageSource, "_blank");
+                                    InvocationTableView.showImage(imageSource);
                                 });
 
                         outputContainer.append(imageContainer);
@@ -220,6 +232,8 @@ class ResultsController extends MenuController {
         await super.initialize();
         InvocationTableView.deleteInvocation = (id) => { this.model.delete(`/invocation/${id}`); };
         InvocationTableView.initializeStateFromImage = (image, isVideo) => this.application.initializeStateFromImage(image, true, null, null, isVideo);
+        InvocationTableView.spawnVideoPlayer = (video) => { this.application.spawnVideoPlayer(video); };
+        InvocationTableView.showImage = (image) => { this.application.samples.setSamples([image], false); };
         InvocationTableView.showAnimationFrames = async (frames) => {
             await this.application.samples.setSamples(frames, true);
             setTimeout(() => this.application.samples.setPlay(true), 250);

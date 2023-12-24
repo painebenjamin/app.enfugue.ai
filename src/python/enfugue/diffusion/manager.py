@@ -26,6 +26,7 @@ from enfugue.util import (
     check_make_directory,
     find_file_in_directory,
     get_file_name_from_url,
+    get_domain_from_url,
 )
 
 __all__ = ["DiffusionPipelineManager"]
@@ -244,7 +245,11 @@ class DiffusionPipelineManager:
         if self.offline:
             raise ValueError(f"File {output_file} does not exist in {local_dir} and offline mode is enabled, refusing to download from {remote_url}")
 
-        self.task_callback(f"Downloading {remote_url}")
+        file_label = "{0} from {1}".format(
+            output_file,
+            get_domain_from_url(remote_url)
+        )
+        self.task_callback(f"Downloading {file_label}")
         last_callback = datetime.datetime.now()
 
         def progress_callback(written_bytes: int, total_bytes: int) -> None:
@@ -252,7 +257,7 @@ class DiffusionPipelineManager:
             this_callback = datetime.datetime.now()
             if (this_callback - last_callback).total_seconds() > 5:
                 percentage = (written_bytes / total_bytes) * 100.0
-                self.task_callback(f"Downloading {remote_url}: {percentage:0.1f}% ({human_size(written_bytes)}/{human_size(total_bytes)})")
+                self.task_callback(f"Downloading {file_label}: {percentage:0.1f}% ({human_size(written_bytes)}/{human_size(total_bytes)})")
                 last_callback = this_callback
 
         check_download(
@@ -530,9 +535,11 @@ class DiffusionPipelineManager:
         elif scheduler == "pndm":
             from diffusers.schedulers import PNDMScheduler
             return PNDMScheduler
-        elif scheduler == "eds":
+        elif scheduler in ["eds", "edsk"]:
             from diffusers.schedulers import EulerDiscreteScheduler
-            return EulerDiscreteScheduler
+            if scheduler == "edsk":
+                kwargs["use_karras_sigmas"] = True
+            return (EulerDiscreteScheduler, kwargs)
         elif scheduler == "eads":
             from diffusers.schedulers import EulerAncestralDiscreteScheduler
             return EulerAncestralDiscreteScheduler
@@ -3024,9 +3031,27 @@ class DiffusionPipelineManager:
         self._position_encoding_scale_length = new_length
 
     @property
+    def inject_dpo(self) -> bool:
+        """
+        Whether or not to inject DPO (direct preference optimization)
+        """
+        return getattr(self, "_inject_dpo", False)
+
+    @inject_dpo.setter
+    def inject_dpo(self, new_inject: bool) -> None:
+        """
+        Adds or removes DPO injection
+        """
+        if self.inject_dpo != new_inject:
+            self._inject_dpo = new_inject
+            # Only main pipeline or animator
+            self.unload_pipeline("DPO injection changed")
+            self.unload_animator("DPO injection changed")
+
+    @property
     def model_diffusers_cache_dir(self) -> Optional[str]:
         """
-        Ggets where the diffusers cache directory is saved for this model, if there is any.
+        Gets where the diffusers cache directory is saved for this model, if there is any.
         """
         if os.path.exists(os.path.join(self.model_diffusers_dir, "model_index.json")):
             return self.model_diffusers_dir
@@ -3417,6 +3442,14 @@ class DiffusionPipelineManager:
                         task_callback=self.task_callback
                     ).to(self.dtype)
             if not self.tensorrt_is_ready:
+                if self.inject_dpo:
+                    self.task_callback("Injecting DPO (Direct Preference Optimization)")
+                    dpo_model = DPO_OFFSET_XL if self.is_sdxl else DPO_OFFSET
+                    dpo_model = self.check_download_model(
+                        self.engine_other_dir,
+                        dpo_model
+                    )
+                    pipeline.inject_unet(dpo_model)
                 if self._ip_adapter_model is not None:
                     self.ip_adapter.check_download(
                         is_sdxl=self.is_sdxl,

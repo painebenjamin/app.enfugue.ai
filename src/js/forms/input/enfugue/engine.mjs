@@ -121,6 +121,7 @@ class SchedulerInputView extends SelectInputView {
         "lmsdk": "LMS: Linear Multi-Step Discrete Scheduler Karras",
         "pndm": "PNDM: Pseudo Numerical Methods for Diffusion Models",
         "eds": "Euler Discrete Scheduler",
+        "edsk": "Euler Discrete Scheduler Karras",
         "eads": "Euler Ancestral Discrete Scheduler",
         "lcm": "LCM Scheduler"
     };

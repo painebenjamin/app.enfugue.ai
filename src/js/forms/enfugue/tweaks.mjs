@@ -146,6 +146,14 @@ class TweaksFormView extends FormView {
                     "step": 0.01,
                     "tooltip": "Adjusts the weight of secondary skipped features. The recommended starting value for this field is <strong>0.2</strong>."
                 }
+            },
+            "injectDpo": {
+                "label": "Inject DPO",
+                "class": CheckboxInputView,
+                "config": {
+                    "value": false,
+                    "tooltip": "When checked, DPO (Direct Preference Optimization) weight offsets will be injected into the UNet. DPO was trained by using a large dataset of images that were selected by humans for prompt alignment and overall quality. By adding their training to your active model, it can improve overall adherence to your text."
+                }
             }
         }
     };

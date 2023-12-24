@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Dict, Union, Optional, TYPE_CHECKING
+from typing import Dict, Union, Optional, Iterable, Tuple, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from torch import Tensor
@@ -9,6 +9,7 @@ __all__ = [
     "load_ckpt_state_dict",
     "load_safetensor_state_dict",
     "load_state_dict",
+    "iterate_state_dict",
 ]
 
 def load_ckpt_state_dict(path: str) -> Dict[str, Union[Tensor, Dict[str, Tensor]]]:
@@ -51,3 +52,19 @@ def load_state_dict(path: str) -> Dict[str, Union[Tensor, Dict[str, Tensor]]]:
     if first_error is not None:
         raise IOError(f"Recevied exception reading checkpoint {path}, please ensure file integrity.\n{type(first_error).__name__}: {first_error}")
     raise IOError(f"No data read from path {path}")
+
+def iterate_state_dict(path: str) -> Iterable[Tuple[str, Tensor]]:
+    """
+    Loads a state dict one tensor at a time.
+    """
+    if "safetensor" not in path:
+        import warnings
+        warnings.warn(f"Can't iterate over type {path} without loading all; trying to do so")
+        sd = load_state_dict(path)
+        for key in sd:
+            yield (key, sd[key]) # type: ignore[misc]
+    else:
+        from safetensors import safe_open
+        with safe_open(path, framework="pt", device="cpu") as f:
+            for key in f.keys():
+                yield (key, f.get_tensor(key))

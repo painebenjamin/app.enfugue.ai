@@ -101,6 +101,7 @@ class EnfugueAPIServerBase(JSONWebServiceAPIServer, UserRESTExtensionServerBase)
                 SDXL_TURBO_MODEL,
                 PLAYGROUND_V2_MODEL,
                 SEGMIND_VEGA_MODEL,
+                OPEN_DALLE_MODEL,
             ]
         ])
 

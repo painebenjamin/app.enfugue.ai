@@ -96,6 +96,7 @@ class LayeredInvocation:
     seed: Optional[int]=None
     tile: Union[bool, Tuple[bool, bool], List[bool]]=False
     # Tweaks
+    inject_dpo: Optional[bool]=None
     freeu_factors: Optional[Tuple[float, float, float, float]]=None
     guidance_scale: Optional[float]=None
     num_inference_steps: Optional[int]=None
@@ -349,7 +350,7 @@ class LayeredInvocation:
                 scale=2
             )
             noise_image = tensor_to_image(noise)
-            noise_image.paste(image, mask=image.split()[-1])
+            noise_image.paste(image, mask=dilate_erode(image.split()[-1], -4))
             return noise_image
         return image
 
@@ -1458,6 +1459,9 @@ class LayeredInvocation:
         if self.safe is not None:
             pipeline.safe = self.safe # safety checking override
 
+        if self.inject_dpo is not None:
+            pipeline.inject_dpo = self.inject_dpo
+
     def execute_inference(
         self,
         pipeline: DiffusionPipelineManager,
@@ -2137,9 +2141,9 @@ class LayeredInvocation:
             if self.interpolate_frames:
                 if task_callback is not None:
                     task_callback("Interpolating")
-                if invocation_kwargs.get("loop", False):
+                if self.loop:
                     # Add copy of first frame to end
-                    result["images"].append(result["images"][-1])
+                    result["images"].append(result["images"][0])
                 result["frames"] = [
                     frame for frame in interpolate_frames(
                         frames=result["images"],
@@ -2148,7 +2152,7 @@ class LayeredInvocation:
                         progress_callback=progress_callback
                     )
                 ]
-                if invocation_kwargs.get("loop", False):
+                if self.loop:
                     # remove copy of first frame from end
                     result["frames"] = result["frames"][:-1]
                     result["images"] = result["images"][:-1]

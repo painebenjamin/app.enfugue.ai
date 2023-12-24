@@ -8,8 +8,17 @@ from enfugue.util.log import logger
 __all__ = [
     "check_download",
     "check_download_to_dir",
-    "get_file_name_from_url"
+    "get_file_name_from_url",
+    "get_domain_from_url",
 ]
+
+def get_domain_from_url(url: str) -> str:
+    """
+    Gets a domain from a URL.
+    """
+    from urllib.parse import urlparse
+    parsed_url = urlparse(url)
+    return parsed_url.netloc
 
 def get_file_name_from_url(url: str) -> str:
     """

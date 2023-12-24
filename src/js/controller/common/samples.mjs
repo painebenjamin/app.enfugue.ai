@@ -22,6 +22,7 @@ import {
     UpscaleFormView,
     DownscaleFormView
 } from "../../forms/enfugue/upscale.mjs";
+import { QuickStableVideoDiffusionFormView } from "../../forms/enfugue/animation.mjs";
 
 const E = new ElementBuilder();
 
@@ -66,14 +67,24 @@ class SamplesController extends Controller {
     static imageUpscaleWindowHeight = 320;
 
     /**
-     * @Xvar int The width of the upscale window in pixels
+     * @var int The width of the downscale window in pixels
      */
     static imageDownscaleWindowWidth = 260;
 
     /**
-     * @var int The height of the upscale window in pixels
+     * @var int The height of the downscale window in pixels
      */
     static imageDownscaleWindowHeight = 210;
+
+    /**
+     * @var int The width of the stable video window in pixels
+     */
+    static stableVideoWindowWidth = 400;
+
+    /**
+     * @var int The height of the stable video window in pixels
+     */
+    static stableVideoWindowHeight = 520;
 
     /**
      * Adds the image menu to the passed menu
@@ -270,8 +281,11 @@ class SamplesController extends Controller {
         });
         this.imageUpscaleForm.onCancel(() => this.imageUpscaleWindow.remove());
         this.imageUpscaleForm.onSubmit(async (values) => {
+            console.log(values);
+            console.log(this.sampleViewer.width);
+            console.log(this.sampleViewer.height);
             await this.application.layers.emptyLayers();
-            await this.application.images.setDimension(
+            await this.application.canvas.setDimension(
                 this.sampleViewer.width,
                 this.sampleViewer.height,
                 false,
@@ -317,7 +331,7 @@ class SamplesController extends Controller {
         });
         this.videoUpscaleForm.onCancel(() => this.videoUpscaleWindow.remove());
         this.videoUpscaleForm.onSubmit(async (values) => {
-            await this.application.images.setDimension(
+            await this.application.canvas.setDimension(
                 this.sampleViewer.width,
                 this.sampleViewer.height,
                 false,
@@ -495,6 +509,39 @@ class SamplesController extends Controller {
      */
     async sendVideoToWindow() {
         window.open(this.video, "_blank");
+    }
+
+    /**
+     * Opens the image in the SVD dialog
+     */
+    async sendToSVD() {
+        let stableVideoForm = new QuickStableVideoDiffusionFormView(this.config),
+            stableVideoWindow = await this.spawnWindow(
+                "Stable Video Diffusion",
+                stableVideoForm,
+                this.constructor.stableVideoWindowWidth,
+                this.constructor.stableVideoWindowHeight
+            );
+
+        stableVideoForm.onSubmit(async (values) => {
+            stableVideoForm.clearError();
+            try {
+                let payload = {...values};
+                payload.image = this.sampleViewer.getDataURL();
+                let result = await this.model.post("/invoke/svd", null, null, payload);
+                if (isEmpty(result.uuid)) {
+                    throw "Response did not contain a result.";
+                }
+                this.engine.enableStop();
+                this.engine.startSample = true;
+                this.engine.canvasInvocation(result.uuid, true);
+                this.notify("info", "Success", "Invocation queued, it will begin shortly.");
+                stableVideoWindow.remove();
+            } catch(e) {
+                stableVideoForm.setError(e);
+                stableVideoForm.enable();
+            }
+        });
     }
 
     /**

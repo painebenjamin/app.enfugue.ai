@@ -118,6 +118,7 @@ class TweaksController extends Controller {
                 "scheduler": null,
                 "clipSkip": 0,
                 "enableFreeU": false,
+                "injectDpo": false,
                 "freeUBackbone1": 1.5,
                 "freeUBackbone2": 1.6,
                 "freeUSkip1": 0.9,
@@ -150,6 +151,8 @@ class TweaksController extends Controller {
             this.engine.noiseOffset = values.noiseOffset;
             this.engine.noiseMethod = values.noiseMethod;
             this.engine.noiseBlendMethod = values.noiseBlendMethod;
+
+            this.engine.injectDpo = values.injectDpo;
 
             this.engine.betaStart = values.betaStart;
             this.engine.betaEnd = values.betaEnd;

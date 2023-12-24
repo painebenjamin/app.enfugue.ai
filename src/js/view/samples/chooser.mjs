@@ -292,10 +292,28 @@ class SampleChooserView extends View {
                 );
             };
 
+        let touchStart, touchScrollStart;
         samplesContainer
             .on("wheel", (e) => {
                 e.preventDefault();
                 samplesContainer.element.scrollLeft += e.deltaY / 10;
+            })
+            .on("touchstart", (e) => {
+                touchStart = {x: e.touches[0].clientX, y: e.touches[0].clientY};
+                touchScrollStart = samplesContainer.element.scrollLeft;
+            })
+            .on("touchmove", (e) => {
+                let touchPosition = {x: e.touches[0].clientX, y: e.touches[0].clientY};
+                if (isEmpty(touchStart)) {
+                    touchStart = touchPosition;
+                    touchScrollStart = samplesContainer.element.scrollLeft;
+                } else {
+                    let touchDelta = {
+                        x: touchPosition.x - touchStart.x,
+                        y: touchPosition.y - touchStart.y
+                    };
+                    samplesContainer.element.scrollLeft = touchScrollStart - touchDelta.x;
+                }
             })
             .on("mousedown", (e) => {
                 if (this.isAnimation) {
