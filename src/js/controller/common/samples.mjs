@@ -664,12 +664,30 @@ class SamplesController extends Controller {
         this.setPlay(false);
     }
 
-    removeResultMenu() { 
-        this.application.menu.removeCategory("Result");
+    /**
+     * Removes the result menu from the header menu
+     */
+    removeResultMenu() {
+        if (!isEmpty(this.activeResultMenu)) {
+            this.application.menu.removeCategory("Result");
+        }
     }
 
+    /**
+     * Re-initializes the result menu in the header menu
+     */
     async prepareResultMenu() { 
-        // let resultMenu = await this.application.menu.addCategory("Result");
+        let newResultMenu = this.isAnimation ? "animation" : "image";
+        if (this.activeResultMenu !== newResultMenu) {
+            this.removeResultMenu();
+            let resultMenu = await this.application.menu.addCategory("Result");
+            if (this.isAnimation) {
+                this.prepareVideoMenu(resultMenu);
+            } else {
+                this.prepareImageMenu(resultMenu);
+            }
+            this.activeResultMenu = newResultMenu;
+        }
     }
 
     /**
@@ -708,6 +726,7 @@ class SamplesController extends Controller {
                 this.imageToolsMenu.show();
                 this.videoToolsMenu.hide();
             }
+            this.prepareResultMenu();
             this.application.layout.showSamples();
             sleep(250).then(() => {
                 waitFor(() => !isEmpty(this.sampleViewer.width)).then(() => {
@@ -838,13 +857,10 @@ class SamplesController extends Controller {
     /**
      * Sets horizontal tiling
      */
-    async setTileHorizontal(tile, updateChooser = true) {
+    async setTileHorizontal(tile) {
         this.tileHorizontal = tile;
         this.sampleViewer.tileHorizontal = tile;
         requestAnimationFrame(() => {
-            if (updateChooser) {
-                this.sampleChooser.setHorizontalTile(tile);
-            }
             this.sampleViewer.checkVisibility();
         });
     }
@@ -852,13 +868,10 @@ class SamplesController extends Controller {
     /**
      * Sets vertical tiling
      */
-    async setTileVertical(tile, updateChooser = true) {
+    async setTileVertical(tile) {
         this.tileVertical = tile;
         this.sampleViewer.tileVertical = tile;
         requestAnimationFrame(() => {
-            if (updateChooser) {
-                this.sampleChooser.setVerticalTile(tile);
-            }
             this.sampleViewer.checkVisibility();
         });
     }

@@ -41,45 +41,6 @@ class ModelPickerStringInputView extends StringInputView {
         }
         return super.setValue(newValue, triggerChange);
     }
-
-    /**
-     * Shows metadata in a separate window
-     */
-    async showMetadata() {
-        this.showingMetadata = true;
-        await this.constructor.showModelMetadata(this.value);
-        this.showingMetadata = false;
-    }
-
-    /**
-     * On build, append introspection button
-     */
-    async build() {
-        let node = await super.build(),
-            icon = E.i().class("fa-solid fa-magnifying-glass show-metadata")
-                    .data("tooltip", "View Model Metadata")
-                    .on("click", (e) => {
-                        e.stopPropagation();
-                        e.preventDefault();
-                        if (this.showingMetadata !== true) {
-                            this.showMetadata();
-                        }
-                    });
-
-        node.append(icon);
-
-        this.onChange(() => {
-            if (isEmpty(this.value)) {
-                icon.hide();
-            } else {
-                icon.show();
-            }
-        });
-        if (isEmpty(this.value)) {
-            icon.hide();
-        }
-        return node;
-    }
 };
 
 /**
@@ -100,6 +61,62 @@ class ModelPickerInputView extends SearchListInputView {
      * @var class The class of the list input, override so we can add css classes
      */
     static listInputClass = ModelPickerListInputView;
+
+    /**
+     * Shows metadata in a separate window
+     */
+    async showMetadata() {
+        this.showingMetadata = true;
+        await this.constructor.showModelMetadata(this.value);
+        this.showingMetadata = false;
+    }
+
+    /**
+     * Sets the value and shows/hides the icon
+     */
+    setValue(newValue, triggerChange) {
+        super.setValue(newValue, triggerChange);
+        if (!triggerChange) {
+            if (this.node !== undefined) {
+                let icon = this.node.find("i.show-metadata");
+                if (isEmpty(newValue) || !newValue.startsWith("checkpoint")) {
+                    icon.hide();
+                } else {
+                    icon.show();
+                }
+            }
+        }
+    }
+
+    /**
+     * On build, append introspection button
+     */
+    async build() {
+        let node = await super.build(),
+            icon = E.i().class("fa-solid fa-magnifying-glass show-metadata")
+                    .data("tooltip", "View Model Metadata")
+                    .on("click", (e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        if (this.showingMetadata !== true) {
+                            this.showMetadata();
+                        }
+                    });
+
+        node.append(icon);
+
+        this.onChange(() => {
+            if (isEmpty(this.value) || !this.value.startsWith("checkpoint")) {
+                icon.hide();
+            } else {
+                icon.show();
+            }
+        });
+        if (isEmpty(this.value)) {
+            icon.hide();
+        }
+        return node;
+    }
 };
 
 /**

@@ -147,7 +147,7 @@ enfugue-menu-item:hover {
 }
 
 enfugue-menu-item.active {
-    border-bottom-color: var(--theme-color-tertiary);
+    color: var(--theme-color-primary);
 }
 
 enfugue-menu-item i {

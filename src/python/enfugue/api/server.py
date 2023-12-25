@@ -124,6 +124,8 @@ class EnfugueAPIServerBase(JSONWebServiceAPIServer, UserRESTExtensionServerBase)
                 LCM_LORA_DEFAULT,
                 LCM_LORA_XL,
                 LCM_LORA_VEGA,
+                DPO_LORA,
+                DPO_LORA_XL,
             ]
         ])
 

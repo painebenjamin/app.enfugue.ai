@@ -167,13 +167,12 @@ class MenuView extends ParentView {
      * @return bool True if removed, false if not
      */
     removeCategory(name) {
-        for (let child of this.children) {
-            if (child instanceof MenuCategoryView && child.name === name){
-                this.removeChild(child);
-                return true;
-            }
+        let category = this.getCategory(name);
+        if (isEmpty(category)) {
+            return false;
         }
-        return false;
+        this.removeChild(category);
+        return true;
     }
     
     /**

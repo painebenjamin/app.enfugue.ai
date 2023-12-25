@@ -233,7 +233,10 @@ class ResultsController extends MenuController {
         InvocationTableView.deleteInvocation = (id) => { this.model.delete(`/invocation/${id}`); };
         InvocationTableView.initializeStateFromImage = (image, isVideo) => this.application.initializeStateFromImage(image, true, null, null, isVideo);
         InvocationTableView.spawnVideoPlayer = (video) => { this.application.spawnVideoPlayer(video); };
-        InvocationTableView.showImage = (image) => { this.application.samples.setSamples([image], false); };
+        InvocationTableView.showImage = async (image) => { 
+            this.application.samples.activeIndex = 0;
+            await this.application.samples.setSamples([image], false);
+        };
         InvocationTableView.showAnimationFrames = async (frames) => {
             await this.application.samples.setSamples(frames, true);
             setTimeout(() => this.application.samples.setPlay(true), 250);

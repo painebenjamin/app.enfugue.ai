@@ -33,6 +33,10 @@ class ModelMetadataView extends View {
                 E.p().class("placeholder").content(this.constructor.noMetadataText)
             );
         } else {
+            let description = cleanHTML(isEmpty(metadata.description) ? "" : metadata.description);
+            if (isEmpty(description)) {
+                description = "<em>No description provided.</em>";
+            }
             this.node.empty();
             this.node.append(
                 E.h2().content(
@@ -41,7 +45,7 @@ class ModelMetadataView extends View {
                          .href(`https://civitai.com/models/${metadata.modelId}`)
                 ),
                 E.h4().content(`${metadata.model.name} (${metadata.baseModel} ${metadata.model.type})`),
-                E.p().content(cleanHTML(`${metadata.description}`))
+                E.p().content(description)
             );
             if (!isEmpty(metadata.trainedWords)) {
                 this.node.append(

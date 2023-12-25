@@ -359,7 +359,6 @@ class VersatileAttention(Attention):
         #    else:
         #        hidden_states = self._sliced_attention(query, key, value, sequence_length, dim, attention_mask)
 
-        
         attention_probs = self.get_attention_scores(query, key, attention_mask)
         hidden_states = torch.bmm(attention_probs, value)
         hidden_states = self.batch_to_head_dim(hidden_states)

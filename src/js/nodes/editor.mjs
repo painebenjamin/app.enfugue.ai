@@ -64,7 +64,7 @@ class NodeEditorView extends View {
      * @var int When zooming enabled, this is the minimum number of milliseconds
      *          between zoom events.
      */
-    static minimumZoomInterval = 125;
+    static minimumZoomInterval = 50;
 
     /**
      * @var bool Whether or not the entire canvas can panned in-place.
@@ -529,7 +529,7 @@ class NodeEditorView extends View {
         if (index > currentNodeIndex) {
             nodeCanvas.insert(index + 4, node.node);
         } else {
-            nodeCanvas.insert(index + 3, node.node);
+            nodeCanvas.insert(index + 2, node.node);
         }
     }
 
@@ -868,13 +868,13 @@ class NodeEditorView extends View {
                     e.preventDefault();
                     e.stopPropagation();
                     // If another zoom happened too recently, ignore this event
+                    let thisZoom = (new Date()).getTime();
                     if (!isEmpty(lastZoom)) {
-                        let thisZoom = (new Date()).getTime();
                         if (thisZoom - lastZoom < this.constructor.minimumZoomInterval) {
                             return;
                         }
-                        lastZoom = thisZoom;
                     }
+                    lastZoom = thisZoom;
                     let nextZoom, zoomMultiplier = 1;
                     
                     if (this.zoom >= 5.0) {

@@ -198,16 +198,21 @@ class CanvasFormView extends FormView {
     async submit() {
         await super.submit();
         // Check tile/tiling
-        let chunkInput = await this.getInputView("tilingUnet"),
+        let chunkInputUnet = await this.getInputView("tilingUnet"),
+            chunkInputVae = await this.getInputView("tilingVae"),
             widthInput = await this.getInputView("width"),
             heightInput = await this.getInputView("height");
 
         if (this.values.tileHorizontal || this.values.tileVertical) {
             this.removeClass("no-tiling");
-            chunkInput.setValue(true, false);
-            chunkInput.disable();
+            for (let chunkInput of [chunkInputUnet, chunkInputVae]) {
+                chunkInput.setValue(true, false);
+                chunkInput.disable();
+            }
         } else {
-            chunkInput.enable();
+            for (let chunkInput of [chunkInputUnet, chunkInputVae]) {
+                chunkInput.enable();
+            }
             if (this.values.tilingUnet || this.values.tilingVae) {
                 this.removeClass("no-tiling");
             } else {

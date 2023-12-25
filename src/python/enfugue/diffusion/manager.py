@@ -3985,6 +3985,14 @@ class DiffusionPipelineManager:
                         task_callback=self.task_callback
                     ).to(self.dtype)
             if not self.animator_tensorrt_is_ready:
+                if self.inject_dpo:
+                    self.task_callback("Injecting DPO (Direct Preference Optimization)")
+                    dpo_model = DPO_OFFSET_XL if self.is_sdxl else DPO_OFFSET
+                    dpo_model = self.check_download_model(
+                        self.engine_other_dir,
+                        dpo_model
+                    )
+                    animator_pipeline.inject_unet(dpo_model)
                 if self._ip_adapter_model is not None:
                     self.ip_adapter.check_download(
                         is_sdxl=self.animator_is_sdxl,

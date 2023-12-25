@@ -64,10 +64,12 @@ class TemporalAttention(Attention):
         )
 
     def set_scale_multiplier(self, multiplier: float = 1.0) -> None:
-        self.scale = math.sqrt((math.log(24) / math.log(24//4)) / (self.inner_dim // self.heads)) * multiplier
+        if not hasattr(self, "_default_scale"):
+            self._default_scale = self.scale
+        self.scale = multiplier / (self.inner_dim // self.heads)
 
     def reset_scale_multiplier(self) -> None:
-        self.scale = (self.inner_dim // self.heads) ** -0.5
+        self.scale = self._default_scale
 
     def forward(self, hidden_states, encoder_hidden_states=None, attention_mask=None, number_of_frames=8):
         sequence_length = hidden_states.shape[1]
@@ -79,7 +81,7 @@ class TemporalAttention(Attention):
 
         hidden_states = super().forward(hidden_states, encoder_hidden_states, attention_mask=attention_mask)
 
-        return rearrange(hidden_states, "(b s) f c -> (b f) s c", s=sequence_length)
+        return rearrange(hidden_states, "(b s) f c -> (b f) s c", s=sequence_length) * self.scale
 
 
 @dataclass

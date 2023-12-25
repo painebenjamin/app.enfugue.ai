@@ -390,6 +390,19 @@ class Application {
                 return carry;
             }, {});
         };
+        ModelPickerInputView.showModelMetadata = async (model) => {
+            let checkpoint = model.split("/")[1],
+                metadataView = new ModelMetadataView(this.config),
+                metadataWindow = await this.windows.spawnWindow(
+                    `Metadata for ${checkpoint}`,
+                    metadataView,
+                    this.constructor.metadataWindowWidth,
+                    this.constructor.metadataWindowHeight
+                ),
+                metadata = await this.model.get(`/checkpoints/${checkpoint}`);
+            metadataView.setMetadata(metadata);
+        };
+
     }
 
     /**
@@ -1070,7 +1083,7 @@ class Application {
     async initializeStateFromImage(
         image,
         saveHistory = true,
-        keepState = null,
+        keepState = true,
         overrideState = null,
         isVideo = false,
     ) {
@@ -1079,7 +1092,7 @@ class Application {
                 controllerArray = this.getStatefulControllers();
 
             if (keepState === null) {
-                keepState = await this.yesNo("Would you like to keep settings?<br /><br />This will maintain things like prompts and other global settings the same while only changing the dimensions to match the image.");
+                keepState = true;
             }
 
             for (let controller of controllerArray) {
@@ -1091,12 +1104,6 @@ class Application {
             }
 
             baseState.layers = [];
-            baseState.samples = {
-                "urls": null,
-                "video": null,
-                "active": null,
-                "animation": false
-            };
 
             if (!isEmpty(overrideState)) {
                 for (let overrideKey in overrideState) {

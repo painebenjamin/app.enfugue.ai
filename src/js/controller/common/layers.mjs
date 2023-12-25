@@ -593,7 +593,6 @@ class LayersController extends Controller {
             if (!this.dropBelow) {
                 targetIndex++;
             }
-            console.log(layerIndex, targetIndex);
             if (targetIndex !== layerIndex) {
                 // Re-order on canvas (inverse)
                 this.canvas.reorderNode(targetIndex, this.draggedLayer.editorNode);

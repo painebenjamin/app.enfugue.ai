@@ -335,11 +335,23 @@ class LayoutController extends Controller {
         let layoutMenu = this.application.menu.getCategory("Layout"),
             dynamic = await layoutMenu.addItem("Dynamic", "fa-solid fa-arrows-rotate"),
             horizontal = await layoutMenu.addItem("Split Horizontally", "fa-solid fa-arrows-left-right"),
-            vertical = await layoutMenu.addItem("Split Vertically", "fa-solid fa-arrows-up-down");
+            vertical = await layoutMenu.addItem("Split Vertically", "fa-solid fa-arrows-up-down"),
+            tileHorizontal = await layoutMenu.addItem("Tile Horizontally", "fa-solid fa-ellipsis"),
+            tileVertical = await layoutMenu.addItem("Tile Vertically", "fa-solid fa-ellipsis-vertical");
 
         dynamic.onClick(() => { this.layout = "dynamic"; });
         horizontal.onClick(() => { this.layout = "horizontal"; });
         vertical.onClick(() => { this.layout = "vertical"; });
+        tileHorizontal.onClick(() => {
+            let isActive = tileHorizontal.hasClass("active");
+            this.application.samples.setTileHorizontal(!isActive);
+            tileHorizontal.toggleClass("active");
+        });
+        tileVertical.onClick(() => {
+            let isActive = tileVertical.hasClass("active");
+            this.application.samples.setTileVertical(!isActive);
+            tileVertical.toggleClass("active");
+        });
 
         // Add view selector
         this.currentViewInput = new CurrentViewInputView(this.config);
@@ -370,6 +382,7 @@ class LayoutController extends Controller {
         this.setLayout(this.layout);
         this.application.images.addClass("samples");
         this.checkHideSamples();
+
         window.addEventListener("resize", () => {
             currentHeight = window.innerHeight - (topMargin + bottomMargin);
             currentWidth = window.innerWidth - (leftMargin + rightMargin);

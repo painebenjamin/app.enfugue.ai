@@ -95,6 +95,7 @@ class AnimationView extends View {
      */
     setFrame(index) {
         if (isEmpty(index)) index = 0;
+        if (index >= this.imageViews.length) index = this.imageViews.length-1;
         this.frame = index;
         if (this.loaded) {
             let context = this.canvas.getContext("2d");
