@@ -190,6 +190,9 @@ class EnfugueAPIServerBase(JSONWebServiceAPIServer, UserRESTExtensionServerBase)
         file_directory = os.path.dirname(file)
         file_name, ext = os.path.splitext(os.path.basename(file))
         file_sum = os.path.join(file_directory, f"{file_name}.sha256")
+        if os.path.exists(file_sum) and os.path.getmtime(file_sum) < os.path.getmtime(file):
+            # File was modified since last sum
+            os.remove(file_sum)
         if not os.path.exists(file_sum):
             cls.write_checksum(file, file_sum)
         return open(file_sum, "r").read()

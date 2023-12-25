@@ -67,8 +67,11 @@ class ModelPickerInputView extends SearchListInputView {
      */
     async showMetadata() {
         this.showingMetadata = true;
-        await this.constructor.showModelMetadata(this.value);
-        this.showingMetadata = false;
+        try {
+            await this.constructor.showModelMetadata(this.value);
+        } finally {
+            this.showingMetadata = false;
+        }
     }
 
     /**
@@ -280,8 +283,11 @@ class ModelInputView extends SearchListInputView {
      */
     async showMetadata() {
         this.showingMetadata = true;
-        await this.constructor.showModelMetadata(this.value);
-        this.showingMetadata = false;
+        try {
+            await this.constructor.showModelMetadata(this.value);
+        } finally {
+            this.showingMetadata = false;
+        }
     }
 
     /**
