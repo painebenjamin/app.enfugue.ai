@@ -20,7 +20,7 @@ jobs:
           - os: windows-latest
             api: cuda
           - os: macos-13
-            api: mps-latest
+            api: mps
     uses: ./.github/workflows/compile.yml
     with:
       os: ${{ matrix.os }}
