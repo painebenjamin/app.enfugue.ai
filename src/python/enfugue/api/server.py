@@ -233,7 +233,7 @@ class EnfugueAPIServerBase(JSONWebServiceAPIServer, UserRESTExtensionServerBase)
         model_directory = os.path.dirname(model)
         model_name, ext = os.path.splitext(os.path.basename(model))
         model_metadata = os.path.join(model_directory, f"{model_name}.civitai.json")
-        if os.path.getmtime(model_metadata) < os.path.getmtime(model):
+        if os.path.exists(model_metadata) and os.path.getmtime(model_metadata) < os.path.getmtime(model):
             # Model was modified since metadata was loaded
             os.remove(model_metadata)
         if not os.path.exists(model_metadata):
