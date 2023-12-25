@@ -368,10 +368,10 @@ LCM_LORA_DEFAULT = "https://huggingface.co/latent-consistency/lcm-lora-sdv1-5/re
 LCM_LORA_XL = "https://huggingface.co/latent-consistency/lcm-lora-sdxl/resolve/main/pytorch_lora_weights.safetensors?filename=lcm-lora-sdxl.safetensors"
 SPARSE_CONTROLNET_ADAPTER_LORA = "https://huggingface.co/guoyww/animatediff/resolve/main/v3_sd15_adapter.ckpt"
 
-DPO_LORA = "https://huggingface.co/benjamin-paine/sd-xl-alternative-bases/resolve/main/sd_v15_dpo_lora_v1.safetensors"
-DPO_LORA_XL = "https://huggingface.co/benjamin-paine/sd-xl-alternative-bases/resolve/main/sd_xl_dpo_lora_v1.safetensors"
-DPO_OFFSET = "https://huggingface.co/benjamin-paine/sd-xl-alternative-bases/resolve/main/sd_v15_unet_dpo_offset_v1.safetensors"
-DPO_OFFSET_XL = "https://huggingface.co/benjamin-paine/sd-xl-alternative-bases/resolve/main/sd_xl_unet_dpo_offset_v1.safetensors"
+DPO_LORA = "https://huggingface.co/benjamin-paine/sd-dpo-offsets/resolve/main/sd_v15_dpo_lora_v1.safetensors"
+DPO_LORA_XL = "https://huggingface.co/benjamin-paine/sd-dpo-offsets/resolve/main/sd_xl_dpo_lora_v1.safetensors"
+DPO_OFFSET = "https://huggingface.co/benjamin-paine/sd-dpo-offsets/resolve/main/sd_v15_unet_dpo_offset_v1.safetensors"
+DPO_OFFSET_XL = "https://huggingface.co/benjamin-paine/sd-dpo-offsets/resolve/main/sd_xl_unet_dpo_offset_v1.safetensors"
 
 MultiModelType = Union[str, List[str]]
 WeightedMultiModelType = Union[
