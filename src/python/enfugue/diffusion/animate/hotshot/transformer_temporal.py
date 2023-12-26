@@ -81,7 +81,7 @@ class TemporalAttention(Attention):
 
         hidden_states = super().forward(hidden_states, encoder_hidden_states, attention_mask=attention_mask)
 
-        return rearrange(hidden_states, "(b s) f c -> (b f) s c", s=sequence_length) * self.scale
+        return rearrange(hidden_states, "(b s) f c -> (b f) s c", s=sequence_length)
 
 
 @dataclass
