@@ -55,8 +55,8 @@ if TYPE_CHECKING:
         Upscaler,
         IPAdapter,
         BackgroundRemover,
-        CaptionUpsampler,
         Interpolator,
+        Conversation
     )
     from torch import Tensor
 
@@ -152,12 +152,15 @@ class DiffusionPipelineManager:
 
     def __init__(
         self,
-        configuration: Optional[APIConfiguration] = None,
+        configuration: Optional[Union[Dict[str, Any], APIConfiguration]] = None,
         optimize: bool = True
     ) -> None:
         self.configuration = APIConfiguration()
-        if configuration:
-            self.configuration = configuration
+        if configuration is not None:
+            if isinstance(configuration, APIConfiguration):
+                self.configuration = configuration
+            else:
+                self.configuration = APIConfiguration(**configuration)
         if optimize:
             self.optimize_configuration()
         self.apply_patches()
@@ -4198,7 +4201,7 @@ class DiffusionPipelineManager:
                 dtype=self.dtype,
                 offline=self.offline
             )
-            self._upscaler.task_callback = self._task_callback
+            self._upscaler.task_callback = self.task_callback
         return self._upscaler
 
     @property
@@ -4214,7 +4217,7 @@ class DiffusionPipelineManager:
                 dtype=self.dtype,
                 offline=self.offline
             )
-            self._control_image_processor.task_callback = self._task_callback
+            self._control_image_processor.task_callback = self.task_callback
         return self._control_image_processor
 
     @property
@@ -4230,7 +4233,7 @@ class DiffusionPipelineManager:
                 dtype=self.dtype,
                 offline=self.offline
             )
-            self._background_remover.task_callback = self._task_callback
+            self._background_remover.task_callback = self.task_callback
         return self._background_remover
 
     @property
@@ -4246,24 +4249,24 @@ class DiffusionPipelineManager:
                 dtype=self.dtype,
                 offline=self.offline
             )
-            self._ip_adapter.task_callback = self._task_callback
+            self._ip_adapter.task_callback = self.task_callback
         return self._ip_adapter
 
     @property
-    def caption_upsampler(self) -> CaptionUpsampler:
+    def conversation(self) -> Conversation:
         """
-        Gets the caption upsampler.
+        Gets an LLM conversation.
         """
-        if not hasattr(self, "_caption_upsampler"):
-            from enfugue.diffusion.support import CaptionUpsampler
-            self._caption_upsampler = CaptionUpsampler(
+        if not hasattr(self, "_conversation"):
+            from enfugue.diffusion.support import Conversation
+            self._conversation = Conversation(
                 self.engine_language_dir,
                 device=self.device,
                 dtype=self.dtype,
                 offline=self.offline
             )
-            self._caption_upsampler.task_callback = self._task_callback
-        return self._caption_upsampler
+            self._conversation.task_callback = self.task_callback
+        return self._conversation
 
     @property
     def interpolator(self) -> Interpolator:
@@ -4278,7 +4281,7 @@ class DiffusionPipelineManager:
                 dtype=self.dtype,
                 offline=self.offline
             )
-            self._interpolator.task_callback = self._task_callback
+            self._interpolator.task_callback = self.task_callback
         return self._interpolator
 
     def get_svd_pipeline(self, use_xt: bool = True) -> StableVideoDiffusionPipeline:

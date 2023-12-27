@@ -1,3 +1,3 @@
-from enfugue.diffusion.support.llm.caption import CaptionUpsampler
-CaptionUpsampler # Silence importchecker
-__all__ = ["CaptionUpsampler"]
+from enfugue.diffusion.support.llm.conversation import Conversation
+Conversation # Silence importchecker
+__all__ = ["Conversation"]

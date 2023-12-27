@@ -18,7 +18,7 @@ NUM_CAPTIONS_PER_PROMPT = 4
 def main() -> None:
     with DebugUnifiedLoggingContext():
         manager = DiffusionPipelineManager()
-        with manager.caption_upsampler.upsampler() as upsample:
+        with manager.conversation.upsampler() as upsample:
             for caption in CAPTIONS:
                 for i in range(NUM_CAPTIONS_PER_PROMPT):
                     upsampled = upsample(caption)

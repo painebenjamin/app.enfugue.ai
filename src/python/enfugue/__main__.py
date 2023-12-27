@@ -7,8 +7,9 @@ import termcolor
 import logging
 import traceback
 
-from typing import Optional, Any, List
+from typing import Optional, Any, List, Union, Dict, Iterator
 
+from contextlib import contextmanager
 from PIL import Image
 from copy import deepcopy
 
@@ -19,6 +20,63 @@ from pibble.api.configuration import APIConfiguration
 from pibble.api.exceptions import ConfigurationError
 
 from enfugue.util import logger, merge_into, get_local_configuration
+
+@contextmanager
+def get_context(debug: bool=False) -> Iterator:
+    """
+    Either blank or debug context manager
+    """
+    if debug:
+        from pibble.util.log import DebugUnifiedLoggingContext
+        with DebugUnifiedLoggingContext():
+            yield
+    else:
+        yield
+
+def get_configuration(
+    config: Optional[str]=None,
+    overrides: Optional[Union[str,Dict[str, Any]]]=None,
+    merge: bool=False,
+    debug: bool=False,
+) -> Dict[str, Any]:
+    """
+    Gets the configuration to use based on passed arguments.
+    """
+    if config is not None:
+        if config.endswith("json"):
+            configuration = load_json(config)
+        elif config.endswith("yml") or config.endswith("yaml"):
+            from pibble.util.files import load_yaml
+            configuration = load_yaml(config)
+        else:
+            raise IOError(f"Unknown format for configuration file {config}")
+
+        if merge:
+            configuration = merge_into(configuration, get_local_configuration())
+    else:
+        configuration = get_local_configuration()
+
+    while "configuration" in configuration:
+        configuration = configuration["configuration"]
+
+
+    if overrides:
+        if isinstance(overrides, str):
+            overrides = json.loads(overrides)
+        merge_into(overrides, configuration)
+
+    if debug:
+        log_overrides = {
+            "logging": {
+                "level": "debug",
+                "handler": "stream",
+                "stream": "stdout",
+                "colored": True
+             }
+        }
+        merge_into(log_overrides, configuration)
+
+    return configuration
 
 @click.group(name="enfugue")
 def main() -> None:
@@ -115,6 +173,69 @@ def dump_config(filename: Optional[str] = None, json: bool = False) -> None:
 
         click.echo(yaml.dump(configuration))
 
+@click.option("-c", "--config", help="An optional path to a configuration file to use instead of the default.")
+@click.option("-r", "--role", help="An optional role of the conversation to use instead of the default.")
+@click.option("-s", "--system", help="An optional system message to send instead of the default for the chosen role (or default.)")
+@click.option("-m", "--merge", is_flag=True, default=False, help="When set, merge the passed configuration with the default configuration instead of replacing it.")
+@click.option("-d", "--debug", help="Enable debug logging.", is_flag=True, default=False)
+@click.option("-u", "--unsafe", help="Disable safety.", is_flag=True, default=False)
+@click.option("-t", "--temperature", help="The temperature (randomness) of the responses.", default=0.7, show_default=True)
+@click.option("-k", "--top-k", help="The number of tokens to limit to when selecting the next token in a response.", default=50, show_default=True)
+@click.option("-p", "--top-p", help="The p-value of tokens to limit from when selecting the next token in a response.", default=0.95, show_default=True)
+@click.option("-f", "--forgetful", help="Enable 'forgetful' mode - i.e. refresh the conversation after each response.", is_flag=True, default=False)
+@main.command(short_help="Starts a chat with an LLM.")
+def chat(
+    config: Optional[str] = None,
+    role: Optional[str] = None,
+    system: Optional[str] = None,
+    merge: bool = False,
+    overrides: str = None,
+    debug: bool = False,
+    unsafe: bool = False,
+    temperature: float=0.7,
+    top_k: int=50,
+    top_p: float=0.95,
+    forgetful: bool = False
+) -> None:
+    """
+    Runs an interactive chat in the command line.
+    """
+    configuration = get_configuration(
+        config,
+        overrides=overrides,
+        merge=merge,
+        debug=debug
+    )
+    from enfugue.diffusion.manager import DiffusionPipelineManager
+    manager = DiffusionPipelineManager(configuration)
+
+    with get_context(debug):
+        click.echo(termcolor.colored("Loading language model. Say 'reset' at any time to start the conversation over. Use Ctrl+D to exit or say 'exit.'", "yellow"))
+        if unsafe:
+            click.echo(termcolor.colored("Safety is disengaged. Responses may be inappropriate or offensive, user discretion is advised.", "red"))
+        with manager.conversation.converse(
+            role=role,
+            system=system,
+            safe=not unsafe,
+            temperature=temperature,
+            top_k=top_k,
+            top_p=top_p
+        ) as chat:
+            try:
+                click.echo(termcolor.colored("[assistant] {0}".format(chat()), "cyan")) # First message
+                while True:
+                    click.echo(
+                        termcolor.colored(
+                            "[assistant] {0}".format(
+                                chat(input(termcolor.colored("[user] ", "green")))
+                            ),
+                            "cyan"
+                        )
+                    )
+                    if forgetful:
+                        chat("RESET")
+            finally:
+                click.echo("Goodbye!")
 
 @click.option("-c", "--config", help="An optional path to a configuration file to use instead of the default.")
 @click.option("-m", "--merge", is_flag=True, default=False, help="When set, merge the passed configuration with the default configuration instead of replacing it.")
@@ -122,52 +243,23 @@ def dump_config(filename: Optional[str] = None, json: bool = False) -> None:
 @click.option("-d", "--debug", help="Enable debug logging.", is_flag=True, default=False)
 @main.command(short_help="Runs the server.")
 def run(
-    config: str = None,
+    config: Optional[str] = None,
     merge: bool = False,
     overrides: str = None,
-    debug: bool = False
+    debug: bool = False,
 ) -> None:
     """
     Runs the server synchronously using cherrypy.
     """
-    from enfugue.server import EnfugueServer
-
-    if config is not None:
-        if config.endswith("json"):
-
-            configuration = json_file(config)
-        elif config.endswith("yml") or config.endswith("yaml"):
-            from pibble.util.files import load_yaml
-
-            configuration = load_yaml(config)
-        else:
-            raise IOError(f"Unknown format for configuration file {config}")
-
-        if merge:
-            configuration = merge_into(configuration, get_local_configuration())
-    else:
-        configuration = get_local_configuration()
-
-    while "configuration" in configuration:
-        configuration = configuration["configuration"]
-
-    if overrides:
-        overrides = json.loads(overrides)
-        merge_into(overrides, configuration)
-    if debug:
-        log_overrides = {
-            "logging": {
-                "level": "debug",
-                "handler": "stream",
-                "stream": "stdout",
-                "colored": True
-             }
-        }
-        merge_into(log_overrides, configuration)
+    configuration = get_configuration(
+        config,
+        overrides=overrides,
+        merge=merge,
+        debug=debug
+    )
 
     # Determine how many servers we need to run
     try:
-
         all_host = configuration["server"]["host"]
         all_port = configuration["server"]["port"]
         all_domain = configuration["server"].get("domain", None)
@@ -243,4 +335,7 @@ try:
     main()
     sys.exit(0)
 except Exception as ex:
+    sys.stderr.write(f"{ex}\r\n")
+    sys.stderr.write(traceback.format_exc())
+    sys.stderr.flush()
     sys.exit(5)
