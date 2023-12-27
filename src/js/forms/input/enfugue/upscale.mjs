@@ -157,7 +157,7 @@ class UpscaleDiffusionStepsInputView extends NumberInputView {
     /**
      * @var int The default value
      */
-    static defaultValue = 100;
+    static defaultValue = 40;
     
     /**
      * @var string The tooltip to show
@@ -187,7 +187,7 @@ class UpscaleDiffusionGuidanceScaleInputView extends FloatInputView {
     /**
      * @var float The default value
      */
-    static defaultValue = 12.0;
+    static defaultValue = 10.0;
 
     /**
      * @var string The tooltip to show

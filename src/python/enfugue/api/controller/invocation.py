@@ -49,6 +49,7 @@ class EnfugueAPIInvocationController(EnfugueAPIControllerBase):
             nonlocal rate
             import cv2
             rate = capture.get(cv2.CAP_PROP_FPS)
+            logger.debug(f"Captured rate {rate} from video file.")
 
         from enfugue.diffusion.util import Video
         frames = [

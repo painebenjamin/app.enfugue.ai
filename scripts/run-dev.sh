@@ -21,4 +21,4 @@ if [ "${CUDNN_PATH}" != "" ]; then
     export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$CUDNN_PATH/lib
 fi
 
-python -m pibble server ../../config/development/$CONFIG.yml --debug $@
+python -m enfugue run --config ../../config/development/$CONFIG.yml --debug $@

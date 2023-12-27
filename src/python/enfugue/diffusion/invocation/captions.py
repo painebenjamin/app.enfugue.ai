@@ -31,6 +31,7 @@ class CaptionInvocation:
         if pipeline is None:
             from enfugue.diffusion.manager import DiffusionPipelineManager
             pipeline = DiffusionPipelineManager()
+
         if task_callback is not None:
             task_callback("Preparing language pipeline")
 
@@ -39,33 +40,39 @@ class CaptionInvocation:
         all_results: List[List[str]] = []
 
         pipeline.offload_all() # Send any diffusion pipelines to CPU
-
-        with pipeline.caption_upsampler.upsampler(safe=pipeline.safe) as sampler:
-            # Call task callback if set
-            if task_callback is not None:
-                task_callback("Upsampling captions")
-            # Iterate over prompts
-            for i, prompt in enumerate(self.prompts):
-                prompt_results: List[str] = []
-                result_times: List[float] = []
-                # Iterate over captions per prompt
-                for j in range(self.num_results_per_prompt):
-                    start = datetime.now()
-                    prompt_results.append(sampler(prompt)) # type: ignore[arg-type]
-                    result_times.append((datetime.now() - start).total_seconds())
-                    # Call progress callback if set
-                    if progress_callback is not None:
-                        progress_callback(
-                            (i * self.num_results_per_prompt) + j + 1,
-                            num_results,
-                            sum(result_times) / len(result_times)
-                        )
-                # If result callback exists, call it
-                if result_callback is not None and i < num_prompts - 1:
-                    result_callback(prompt_results)
-                # Add these results to the list of overall results
-                all_results.append(prompt_results)
-        return all_results
+        if task_callback is not None:
+            pipeline.set_task_callback(task_callback)
+        pipeline.start_keepalive()
+        try:
+            with pipeline.caption_upsampler.upsampler(safe=pipeline.safe) as sampler:
+                # Call task callback if set
+                if task_callback is not None:
+                    task_callback("Upsampling captions")
+                # Iterate over prompts
+                for i, prompt in enumerate(self.prompts):
+                    prompt_results: List[str] = []
+                    result_times: List[float] = []
+                    # Iterate over captions per prompt
+                    for j in range(self.num_results_per_prompt):
+                        start = datetime.now()
+                        prompt_results.append(sampler(prompt)) # type: ignore[arg-type]
+                        result_times.append((datetime.now() - start).total_seconds())
+                        # Call progress callback if set
+                        if progress_callback is not None:
+                            progress_callback(
+                                (i * self.num_results_per_prompt) + j + 1,
+                                num_results,
+                                sum(result_times) / len(result_times)
+                            )
+                    # If result callback exists, call it
+                    if result_callback is not None and i < num_prompts - 1:
+                        result_callback(prompt_results)
+                    # Add these results to the list of overall results
+                    all_results.append(prompt_results)
+            return all_results
+        finally:
+            pipeline.clear_task_callback()
+            pipeline.stop_keepalive()
 
     def serialize(self) -> Dict[str, Any]:
         """

@@ -1032,14 +1032,15 @@ class LayeredInvocation:
                             if interpolate_start is None:
                                 interpolate_start = i
                         elif interpolate_start is not None:
-                            multiplier = i - interpolate_start - 2
+                            multiplier = i - interpolate_start
+                            logger.debug(f"Interpolating between frames {interpolate_start} and {i}.")
                             interpolated = list(interpolate_frames(
                                 [invocation_image[interpolate_start-1], invocation_image[i]],
                                 multiplier=multiplier,
                                 interpolate=processors["interpolator"], # type: ignore[arg-type]
                                 progress_callback=interpolator_progress_callback
                             ))
-                            invocation_image[interpolate_start:i] = interpolated
+                            invocation_image[interpolate_start-1:i+1] = interpolated
                             images_preprocessed += multiplier
                             interpolate_start = None
 

@@ -541,8 +541,6 @@ class NodeEditorView extends View {
         let data = node.getState(),
             newNode = await this.addNode(node.constructor);
         data.name += " (copy)";
-        data.x += node.constructor.padding;
-        data.y += node.constructor.padding;
         await newNode.setState(data);
         for (let copyCallback of this.nodeCopyCallbacks) {
             await copyCallback(newNode, node);

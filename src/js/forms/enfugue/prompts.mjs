@@ -164,7 +164,7 @@ class CaptionUpsampleFormView extends FormView {
     /**
      * @var string The text to show in the form
      */
-    static description = "Use this tool to transform a prompt into a more descriptive one using a large language model.<br /><br />At present, the only available model is <a href='https://huggingface.co/HuggingFaceH4/zephyr-7b-alpha' target='_blank'>HuggingFace's 7-billion parameter Zephyr model</a>. This requires approximately 10Gb of hard-drive space and 12Gb of VRAM. Other open-source models will be available in the future.";
+    static description = "Use this tool to transform a prompt into a more descriptive one using a large language model.<br /><br />At present, the only available model is <a href='https://huggingface.co/HuggingFaceH4/zephyr-7b-alpha' target='_blank'>HuggingFace's 7-billion parameter Zephyr model</a>, licensed under the <a href='https://choosealicense.com/licenses/mit/' target='_blank'>MIT License.</a> This requires approximately 10Gb of hard-drive space and 12Gb of VRAM. Other open-source models will be available in the future.<br /><br />This tool follows your safety checker settings. When safety checking is disabled, this model can produce problematic outputs when prompted to do so; user discretion is advised.";
 
     /**
      * @var object The field sets

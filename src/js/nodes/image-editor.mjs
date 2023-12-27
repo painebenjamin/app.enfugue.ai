@@ -102,13 +102,7 @@ class ImageEditorView extends NodeEditorView {
      * Gets the next unoccupied [x, y]
      */
     getNextNodePoint() {
-        let nodeX = this.nodes.map((node) => node.left + ImageEditorNodeView.padding),
-            nodeY = this.nodes.map((node) => node.top + ImageEditorNodeView.padding),
-            [x, y] = [0, 0];
-        
-        while (nodeX.indexOf(x) !== -1) x += ImageEditorNodeView.snapSize;
-        while (nodeY.indexOf(y) !== -1) y += ImageEditorNodeView.snapSize;
-        return [x, y];
+        return [0, 0];
     }
 
     /**

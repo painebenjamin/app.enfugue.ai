@@ -1,17 +1,22 @@
 import os
 import sys
+import time
 import json
 import click
 import termcolor
 import logging
 import traceback
 
-from typing import Optional
+from typing import Optional, Any, List
+
 from PIL import Image
+from copy import deepcopy
+
 from pibble.util.strings import Serializer
 from pibble.util.log import LevelUnifiedLoggingContext
 from pibble.util.files import load_json, load_yaml
 from pibble.api.configuration import APIConfiguration
+from pibble.api.exceptions import ConfigurationError
 
 from enfugue.util import logger, merge_into, get_local_configuration
 
@@ -113,12 +118,14 @@ def dump_config(filename: Optional[str] = None, json: bool = False) -> None:
 
 @click.option("-c", "--config", help="An optional path to a configuration file to use instead of the default.")
 @click.option("-m", "--merge", is_flag=True, default=False, help="When set, merge the passed configuration with the default configuration instead of replacing it.")
-@click.option("-o", "--overrides", help="An optional JSON object containing override configuration.")
+@click.option("-o", "--overrides", help="an optional json object containing override configuration.")
+@click.option("-d", "--debug", help="Enable debug logging.", is_flag=True, default=False)
 @main.command(short_help="Runs the server.")
 def run(
     config: str = None,
     merge: bool = False,
-    overrides: str = None
+    overrides: str = None,
+    debug: bool = False
 ) -> None:
     """
     Runs the server synchronously using cherrypy.
@@ -141,29 +148,99 @@ def run(
     else:
         configuration = get_local_configuration()
 
+    while "configuration" in configuration:
+        configuration = configuration["configuration"]
+
     if overrides:
         overrides = json.loads(overrides)
         merge_into(overrides, configuration)
+    if debug:
+        log_overrides = {
+            "logging": {
+                "level": "debug",
+                "handler": "stream",
+                "stream": "stdout",
+                "colored": True
+             }
+        }
+        merge_into(log_overrides, configuration)
 
-    server = EnfugueServer()
-    server.configure(**configuration)
+    # Determine how many servers we need to run
+    try:
 
-    secure = server.configuration["server.secure"]
-    domain = server.configuration["server.domain"]
-    port = server.configuration["server.port"]
+        all_host = configuration["server"]["host"]
+        all_port = configuration["server"]["port"]
+        all_domain = configuration["server"].get("domain", None)
+        all_secure = configuration["server"].get("secure", False)
+        all_cert = configuration["server"].get("cert", None)
+        all_key = configuration["server"].get("key", None)
+    except KeyError as ex:
+        if debug:
+            click.echo(termcolor.colored(json.dumps(configuration, indent=4), "cyan"))
+        raise ConfigurationError(f"Missing required configuration key {ex}")
 
-    scheme = "https" if secure else "http"
-    port_echo = "" if port in [80, 443] else f":{port}"
-    click.echo(f"Running enfugue, visit at {scheme}://{domain}{port_echo}/ (press Ctrl+C to exit)")
-    server.serve()
-    click.echo("Goodbye!")
+    num_servers = 1
+    for var in [all_host, all_secure, all_domain, all_port, all_cert, all_key]:
+        if isinstance(var, list) or isinstance(var, tuple):
+            num_servers = max(num_servers, len(var))
 
+    def get_for_index(index: int, config_value: Any) -> Any:
+        if isinstance(config_value, list) or isinstance(config_value, tuple):
+            if index < len(config_value):
+                return config_value[index]
+            return config_value[-1]
+        return config_value
+
+    servers: List[EnfugueServer] = []
+
+    try:
+        for i in range(num_servers):
+            host = get_for_index(i, all_host)
+            port = get_for_index(i, all_port)
+            secure = get_for_index(i, all_secure)
+            cert = get_for_index(i, all_cert)
+            key = get_for_index(i, all_key)
+            domain = get_for_index(i, all_domain)
+
+            this_configuration = deepcopy(configuration)
+            this_configuration["server"]["host"] = host
+            this_configuration["server"]["port"] = port
+            this_configuration["server"]["domain"] = domain
+            this_configuration["server"]["secure"] = secure
+            this_configuration["server"]["cert"] = cert
+            this_configuration["server"]["key"] = key
+
+            server = EnfugueServer()
+
+            scheme = "https" if secure else "http"
+            port_echo = "" if port in [80, 443] else f":{port}"
+            domain_echo = host if not domain else domain
+            if num_servers == 1:
+                server.configure(**this_configuration)
+                click.echo(f"Running enfugue, visit at {scheme}://{domain_echo}{port_echo}/ (press Ctrl+C to exit)")
+                server.serve()
+                return
+            click.echo(f"Server {(i+1):d} of {num_servers:d} listening on {scheme}://{domain_echo}{port_echo}/ (press Ctrl+C to exit)")
+            server.configure_start(**this_configuration)
+            servers.append(server)
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        pass
+    except Exception as ex:
+        click.echo(termcolor.colored(str(ex), "red"))
+        if debug:
+            click.echo(termcolor.colored(traceback.format_exc(), "red"))
+    finally:
+        for server in servers:
+            try:
+                server.stop()
+            except:
+                pass
+        click.echo("Goodbye!")
 
 try:
     main()
+    sys.exit(0)
 except Exception as ex:
-    print(termcolor.colored(str(ex), "red"))
-    if "--verbose" in sys.argv or "-v" in sys.argv or os.environ.get("ENFUGUE_DEBUG", "0") == "1":
-        print(termcolor.colored(traceback.format_exc(), "red"))
     sys.exit(5)
-sys.exit(0)

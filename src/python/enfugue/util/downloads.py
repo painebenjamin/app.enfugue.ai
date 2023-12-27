@@ -30,8 +30,16 @@ def get_file_name_from_url(url: str) -> str:
     parsed_qs = parse_qs(parsed_url.query)
     if "filename" in parsed_qs:
         return parsed_qs["filename"][0]
-    else:
-        return os.path.basename(url)
+    elif "response-content-disposition" in parsed_qs:
+        disposition_parts = parsed_qs["response-content-disposition"][0].split(";")
+        for part in disposition_parts:
+            part_data = part.strip("'\" ").split("=")
+            if len(part_data) < 2:
+                continue
+            part_key, part_value = part_data[0], "=".join(part_data[1:])
+            if part_key == "filename":
+                return part_value.strip("'\" ")
+    return os.path.basename(url.split("?")[0])
 
 def check_download(
     remote_url: str,

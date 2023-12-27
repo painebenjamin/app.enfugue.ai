@@ -944,7 +944,7 @@ ul.list-input-view li.selected {
     flex-flow: row nowrap;
     align-items: center;
     justify-content: center;
-    z-index: 7;
+    z-index: 20;
     width: 100%;
     opacity: 1;
     transition: opacity 0.5s ease-in-out;

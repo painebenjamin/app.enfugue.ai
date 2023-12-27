@@ -636,6 +636,17 @@ class LayersController extends Controller {
     }
 
     /**
+     * Gets a unique layer name when making one ourselves
+     */
+    getLayerName(name) {
+        let i = 1, currentName = name;
+        while (this.layers.map((layer) => layer.name).indexOf(currentName) !== -1) {
+            currentName = `${name} (${++i})`;
+        }
+        return currentName;
+    }
+
+    /**
      * Sets the state from memory/file
      */
     async setState(newState) {
@@ -655,15 +666,27 @@ class LayersController extends Controller {
         let addedLayer;
         switch (layer.classname) {
             case "ImageEditorPromptNodeView":
+                if (isEmpty(layer.name) || layer.name === layer.classname) {
+                    layer.name = this.getLayerName("Prompt");
+                }
                 addedLayer = await this.addPromptLayer(false, node, layer.name);
                 break;
             case "ImageEditorScribbleNodeView":
+                if (isEmpty(layer.name) || layer.name === layer.classname) {
+                    layer.name = this.getLayerName("Scribble");
+                }
                 addedLayer = await this.addScribbleLayer(false, node, layer.name);
                 break;
             case "ImageEditorImageNodeView":
+                if (isEmpty(layer.name) || layer.name === layer.classname) {
+                    layer.name = this.getLayerName("Image");
+                }
                 addedLayer = await this.addImageLayer(layer.src, false, node, layer.name);
                 break;
             case "ImageEditorVideoNodeView":
+                if (isEmpty(layer.name) || layer.name === layer.classname) {
+                    layer.name = this.getLayerName("Video");
+                }
                 addedLayer = await this.addVideoLayer(layer.src, false, node, layer.name);
                 break;
             default:

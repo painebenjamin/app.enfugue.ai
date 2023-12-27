@@ -6,3 +6,10 @@ level: error
 silenced:
     - sqlalchemy.pool.impl.NullPool
     - http.client
+    - huggingface_hub.utils._http
+    - h5py._conv
+    - tensorflow
+    - diffusers
+    - urllib3.connectionpool
+    - PIL.PngImagePlugin
+    - torch.distributed.nn.jit

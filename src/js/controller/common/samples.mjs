@@ -84,7 +84,7 @@ class SamplesController extends Controller {
     /**
      * @var int The height of the stable video window in pixels
      */
-    static stableVideoWindowHeight = 520;
+    static stableVideoWindowHeight = 1000;
 
     /**
      * Adds the image menu to the passed menu
@@ -197,7 +197,7 @@ class SamplesController extends Controller {
             await downloadAsDataURL(this.video),
             true, // Save history
             null, // Prompt for settings
-            null, // No state overrides
+            {"samples": {"video": null}}, // State overrides
             true, // Video
         );
     }
@@ -515,7 +515,7 @@ class SamplesController extends Controller {
      * Opens the image in the SVD dialog
      */
     async sendToSVD() {
-        let stableVideoForm = new QuickStableVideoDiffusionFormView(this.config),
+        let stableVideoForm = new QuickStableVideoDiffusionFormView(this.config, this.sampleViewer.getDataURL()),
             stableVideoWindow = await this.spawnWindow(
                 "Stable Video Diffusion",
                 stableVideoForm,
@@ -536,7 +536,7 @@ class SamplesController extends Controller {
                 this.engine.startSample = true;
                 this.engine.canvasInvocation(result.uuid, true);
                 this.notify("info", "Success", "Invocation queued, it will begin shortly.");
-                stableVideoWindow.remove();
+                stableVideoForm.enable();
             } catch(e) {
                 stableVideoForm.setError(e);
                 stableVideoForm.enable();
@@ -667,27 +667,42 @@ class SamplesController extends Controller {
     /**
      * Removes the result menu from the header menu
      */
-    removeResultMenu() {
-        if (!isEmpty(this.activeResultMenu)) {
-            this.application.menu.removeCategory("Result");
+    async removeResultMenu(skipAcquire = false) {
+        let release;
+        if (skipAcquire) {
+            release = () => {};
+        } else {
+            release = await this.lock.acquire();
+        }
+        try {
+            if (!isEmpty(this.activeResultMenu)) {
+                this.application.menu.removeCategory("Result");
+            }
+        } finally {
+            release();
         }
     }
 
     /**
      * Re-initializes the result menu in the header menu
      */
-    async prepareResultMenu() { 
-        let newResultMenu = this.isAnimation ? "animation" : "image";
-        if (this.activeResultMenu !== newResultMenu) {
-            this.removeResultMenu();
-            let resultMenu = await this.application.menu.addCategory("Result");
-            if (this.isAnimation) {
-                this.prepareVideoMenu(resultMenu);
-            } else {
-                this.prepareImageMenu(resultMenu);
+    async prepareResultMenu() {
+        let release = await this.lock.acquire();
+        try {
+            let newResultMenu = this.isAnimation ? "animation" : "image";
+            if (this.activeResultMenu !== newResultMenu) {
+                await this.removeResultMenu(true);
+                let resultMenu = await this.application.menu.addCategory("Result");
+                if (this.isAnimation) {
+                    this.prepareVideoMenu(resultMenu);
+                } else {
+                    this.prepareImageMenu(resultMenu);
+                }
+                this.activeResultMenu = newResultMenu;
             }
-            this.activeResultMenu = newResultMenu;
-        }
+         } finally {
+            release();
+         }
     }
 
     /**

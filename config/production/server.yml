@@ -63,10 +63,16 @@ configuration:
               groups:
                 - admin
     server:
-        secure: true
+        secure: 
+            - true
+            - false
         host: 0.0.0.0
-        port: 45554
-        domain: app.enfugue.ai
+        port: 
+            - 45554
+            - 45555
+        domain: 
+            - app.enfugue.ai
+            - null
         driver: cherrypy
         classes:
             - enfugue.server.EnfugueServer

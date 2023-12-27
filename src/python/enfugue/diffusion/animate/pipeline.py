@@ -736,8 +736,9 @@ class EnfugueAnimateStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         """
         from math import ceil
         animation_frames = latents.shape[2]
+
         if scale_latents:
-            latents = 1 / self.vae.config.scaling_factor * latents # type: ignore[attr-defined]
+            latents = latents / self.vae.config.scaling_factor # type: ignore[attr-defined]
 
         latents = rearrange(latents, "b c f h w -> (b f) c h w")
         dtype = latents.dtype

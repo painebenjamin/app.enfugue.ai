@@ -86,7 +86,7 @@ class CaptionUpsamplerConversationView extends View {
                 this.lastCaptions = status.captions;
             }
         }
-        if (!isEmpty(status.step)) {
+        if (!isEmpty(status.step) && !isEmpty(status.total)) {
             let resultsPerPrompt = status.total / this.prompts.length,
                 promptIndex = Math.floor(status.step / resultsPerPrompt);
             if (promptIndex !== this.promptIndex) {
@@ -153,7 +153,7 @@ class CaptionUpsamplerController extends MenuController {
     /**
      * @var int height of the input window
      */
-    static captionUpsampleWindowHeight = 460;
+    static captionUpsampleWindowHeight = 505;
 
     /**
      * @var int width of the conversation window

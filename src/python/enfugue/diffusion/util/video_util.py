@@ -44,10 +44,15 @@ class Video:
         basename, ext = os.path.splitext(os.path.basename(path))
         if ext in [".gif", ".png", ".tiff", ".webp"]:
             frames = [frame for frame in self.frames]
+            if rate > 50:
+                logger.warning(f"Rate {rate} exceeds maximum frame rate (50), clamping.")
+                rate = 50
             frames[0].save(path, loop=0, duration=1000.0/rate, save_all=True, append_images=frames[1:])
             return os.path.getsize(path)
-        elif ext != ".mp4":
+        elif ext not in [".mp4", ".ogg", ".webm"]:
             raise IOError(f"Unknown file extension {ext}")
+        if ext == ".webm":
+            encoder = "vp09"
         fourcc = cv2.VideoWriter_fourcc(*encoder) # type: ignore
         writer = None
 

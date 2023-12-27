@@ -82,7 +82,7 @@ enfugue-menu {
     top: 0;
     right: 0;
     border-bottom: 1px solid rgba(0,0,0,0.2);
-    z-index: 7;
+    z-index: 12;
     text-shadow: 1px 1px 0px rgba(0,0,0,0.2);
 }
 
@@ -2177,7 +2177,7 @@ enfugue-engine-stop {
     font-size: 11px;
     background-color: var(--theme-color-primary);
     background-image: linear-gradient(to top, rgba(0,0,0,0.3) 10%, rgba(255,255,255,0.1) 90%);
-    z-index: 7;
+    z-index: 12;
     opacity: 0;
     pointer-events: none;
     cursor: not-allowed;

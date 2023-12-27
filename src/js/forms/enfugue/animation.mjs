@@ -1,5 +1,6 @@
 /** @module forms/enfugue/animation */
 import { isEmpty } from "../../base/helpers.mjs";
+import { ElementBuilder } from "../../base/builder.mjs";
 import { FormView } from "../base.mjs";
 import {
     NumberInputView,
@@ -9,6 +10,8 @@ import {
     AnimationLoopInputView,
     AnimationInterpolationStepsInputView,
 } from "../input.mjs";
+
+const E = new ElementBuilder();
 
 /**
  * The AnimationFormView gathers inputs for AnimateDiff animation
@@ -220,6 +223,11 @@ class AnimationFormView extends FormView {
  */
 class StableVideoDiffusionFormView extends FormView {
     /**
+     * @var string Text to show in the form
+     */
+    static description = "Use this tool to create a video from an image using Stable Video Diffusion. There is no way to prompt the generation at this time.<br /><br />This model is licensed under <a href='https://huggingface.co/stabilityai/stable-video-diffusion-img2vid/blob/main/LICENSE' target='_blank'>a <strong>non-commercial</strong> license</a>. As such, output of this tool cannot be used for commercial purposes without <a href='https://stability.ai/contact' target='_blank'>first contacting Stability AI and acquiring a commercial license.</a>";
+
+    /**
      * @var object Options for SVD
      */
     static fieldSets = {
@@ -357,14 +365,48 @@ class StableVideoDiffusionFormView extends FormView {
             }
         }
     };
+
+    /**
+     * On build, prepend description
+     */
+    async build() {
+        let node = await super.build();
+        node.prepend(E.p().content(this.constructor.description));
+        return node;
+    };
 };
 
+/**
+ * This form has a static image
+ */
 class QuickStableVideoDiffusionFormView extends StableVideoDiffusionFormView {
+    /**
+     * Initialize with the image instead of values, this form never needs
+     * to be pre-filled with anything but defaults
+     */
+    constructor(config, image) {
+        super(config);
+        this.image = image;
+        if (isEmpty(this.values)) {
+            this.values = {};
+        }
+        this.values.image = image;
+    }
+
     /**
      * @var object Hide the image input
      */
     static fieldSetConditions = {
         "Image": () => false
+    };
+
+    /**
+     * On build, insert image
+     */
+    async build() {
+        let node = await super.build();
+        node.insert(1, E.img().src(this.image));
+        return node;
     }
 };
 

@@ -193,8 +193,10 @@ class DiffusionPipelineManager:
         """
         Clears the task callback.
         """
-        if hasattr(self, "_task_callback"):
-            del self._task_callback
+        try:
+            delattr(self, "_task_callback")
+        except AttributeError:
+            pass
 
     def apply_patches(self) -> None:
         """
@@ -225,9 +227,13 @@ class DiffusionPipelineManager:
             """
             Call the task callback then execute the standard function
             """
+            file_label = "{0} from {1}".format(
+                get_file_name_from_url(url),
+                get_domain_from_url(url)
+            )
             if self.offline:
-                raise ValueError(f"Offline mode enabled, but need to download {url}. Exiting.")
-            self.task_callback(f"Downloading {url}")
+                raise ValueError(f"Offline mode enabled, but need to download {file_label}. Exiting.")
+            self.task_callback(f"Downloading {file_label}")
             return huggingface_http_get(url, *args, **kwargs)
 
         huggingface_hub.file_download.http_get = http_get
@@ -4749,7 +4755,7 @@ class DiffusionPipelineManager:
         if task_callback is None:
             task_callback = lambda arg: None
 
-        self._task_callback = task_callback
+        self.set_task_callback(task_callback)
         self.offload_all() # Send any active diffusion pipelines to CPU
         self.start_keepalive()
         try:
@@ -4801,6 +4807,7 @@ class DiffusionPipelineManager:
             self.clear_memory()
             return frames
         finally:
+            self.clear_task_callback()
             self.stop_keepalive()
 
     def __call__(
@@ -4827,7 +4834,7 @@ class DiffusionPipelineManager:
         if task_callback is None:
             task_callback = lambda arg: None
 
-        self._task_callback = task_callback
+        self.set_task_callback(task_callback)
 
         if kwargs.get("ip_adapter_images", None) is not None:
             requested_ip_adapter = kwargs.get("ip_adapter_model", "default")
@@ -5108,9 +5115,9 @@ class DiffusionPipelineManager:
                 self.offload_refiner(intention if next_intention is None else next_intention) # type: ignore
             return result
         finally:
-            self._task_callback = None
-            self.tensorrt_is_enabled = True
+            self.clear_task_callback()
             self.stop_keepalive()
+            self.tensorrt_is_enabled = True
 
     def write_model_metadata(self, path: str) -> None:
         """

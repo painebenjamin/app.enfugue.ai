@@ -98,7 +98,6 @@ class EnfugueAPIServerBase(JSONWebServiceAPIServer, UserRESTExtensionServerBase)
                 DEFAULT_SDXL_MODEL,
                 DEFAULT_SDXL_REFINER,
                 DEFAULT_SDXL_INPAINTING_MODEL,
-                SDXL_TURBO_MODEL,
                 PLAYGROUND_V2_MODEL,
                 SEGMIND_VEGA_MODEL,
                 OPEN_DALLE_MODEL,

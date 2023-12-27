@@ -1,5 +1,6 @@
 /** @module controller/base */
 import { isEmpty } from "../base/helpers.mjs";
+import { MutexLock } from "../base/mutex.mjs";
 
 /**
  * Allows a number of common operations controllers will want to perform.
@@ -20,6 +21,7 @@ class Controller {
      */
     constructor(application) {
         this.application = application;
+        this.lock = new MutexLock();
     }
 
     /**
