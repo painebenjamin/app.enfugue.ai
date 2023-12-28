@@ -50,6 +50,12 @@ class EngineProcess(Process):
     """
     POLLING_DELAY_MS = 20
     IDLE_SEC = 15
+    ENVIRONMENT_OVERRIDES = {
+        "KMP_DUPLICATE_LIB_OK": "TRUE",
+        "CUDA_MODULE_LOADING": "LAZY",
+        "CRYPTOGRAPHY_OPENSSL_NO_LEGACY": "1",
+        "PYTORCH_ENABLE_MPS_FALLBACK": "1"
+    }
 
     def __init__(
         self,
@@ -118,6 +124,16 @@ class EngineProcess(Process):
         """
         A contextmanager for the main engine process
         """
+        # Inject environment overrides into the process
+        for key, value in self.ENVIRONMENT_OVERRIDES.items():
+            os.environ[key] = value
+
+        # SSL compatibility fixes
+        import certifi
+        os.environ["REQUESTS_CA_BUNDLE"] = certifi.where()
+        os.environ["SSL_CERT_FILE"] = certifi.where()
+
+        # Start importing resources
         from pibble.util.helpers import OutputCatcher
         from pibble.util.log import ConfigurationLoggingContext
 
