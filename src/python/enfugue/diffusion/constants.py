@@ -82,6 +82,7 @@ __all__ = [
     "DPO_OFFSET",
     "DPO_LORA_XL",
     "DPO_LORA",
+    "OFFSET_LORA_XL",
     "SCHEDULER_LITERAL",
     "DEVICE_LITERAL",
     "PIPELINE_SWITCH_MODE_LITERAL",
@@ -372,6 +373,8 @@ DPO_LORA = "https://huggingface.co/benjamin-paine/sd-dpo-offsets/resolve/main/sd
 DPO_LORA_XL = "https://huggingface.co/benjamin-paine/sd-dpo-offsets/resolve/main/sd_xl_dpo_lora_v1.safetensors"
 DPO_OFFSET = "https://huggingface.co/benjamin-paine/sd-dpo-offsets/resolve/main/sd_v15_unet_dpo_offset_v1.safetensors"
 DPO_OFFSET_XL = "https://huggingface.co/benjamin-paine/sd-dpo-offsets/resolve/main/sd_xl_unet_dpo_offset_v1.safetensors"
+
+OFFSET_LORA_XL = "https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_offset_example-lora_1.0.safetensors"
 
 MultiModelType = Union[str, List[str]]
 WeightedMultiModelType = Union[

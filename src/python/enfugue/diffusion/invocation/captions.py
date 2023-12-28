@@ -64,6 +64,8 @@ class CaptionInvocation:
                                 num_results,
                                 sum(result_times) / len(result_times)
                             )
+                        # Reset
+                        sampler("RESET")
                     # If result callback exists, call it
                     if result_callback is not None and i < num_prompts - 1:
                         result_callback(prompt_results)

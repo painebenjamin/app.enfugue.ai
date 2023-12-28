@@ -14,7 +14,7 @@ from PyInstaller.utils.hooks import (
 
 here = os.path.abspath(os.getcwd())
 
-# 
+#
 # Start build configurables
 #
 
@@ -25,7 +25,7 @@ name = 'enfugue-server'
 debug = False
 console = False
 
-all_packages = ['torch', 'jaxlib', 'onnxruntime', 'transformers', 'basicsr', 'gfpgan', 'skimage', 'realesrgan', 'tensorrt', 'tensorrt_libs', 'tensorrt-libs', 'PIL', 'pyarrow', 'huggingface_hub', 'huggingface-hub', 'pyyaml', 'accelerate', 'pydantic', 'safetensors', 'timm', 'diffusers', 'certifi', 'mmengine', 'mmcv', 'mmdet', 'mmpose', 'yapf', 'yapf_third_party', 'sentencepiece', 'enfugue']
+all_packages = ['torch', 'jaxlib', 'onnxruntime', 'transformers', 'basicsr', 'gfpgan', 'skimage', 'realesrgan', 'tensorrt', 'tensorrt_libs', 'tensorrt-libs', 'PIL', 'pyarrow', 'huggingface_hub', 'huggingface-hub', 'pyyaml', 'accelerate', 'pydantic', 'safetensors', 'timm', 'diffusers', 'certifi', 'mmengine', 'mmcv', 'mmdet', 'mmpose', 'yapf', 'yapf_third_party', 'sentencepiece', 'enfugue', 'cv2', 'opencv-python']
 data_packages = []
 submodule_packages = []
 metadata_packages = ['requests', 'tqdm', 'numpy', 'tokenizers', 'importlib_metadata', 'regex', 'packaging', 'filelock', 'cheroot', 'pillow', 'enfugue', 'requests', 'scipy', 'beautifulsoup4']
