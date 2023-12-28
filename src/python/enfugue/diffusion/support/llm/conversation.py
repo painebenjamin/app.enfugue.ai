@@ -39,9 +39,8 @@ class ConversationProcessor:
         """
         Reset the system conversation
         """
+        self.role.introduction = self.system # type: ignore[assignment]
         self.conversation = self.role.system_conversation
-        if self.system:
-            self.conversation[0]["content"] = self.system
         if self.safe:
             self.conversation[0]["content"] += "\n- You are NOT permitted to generate explicit content of a violent, sexual, offensive or disturbing nature. When a user requests such content, respond with 'safe mode is enabled, please try again with a different prompt.'\n- Generating explicit, suggestive, violent, offensive or disturbing content will result in the shutdown of all bots in the team."
         else:

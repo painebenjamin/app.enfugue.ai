@@ -59,7 +59,6 @@ def get_configuration(
     while "configuration" in configuration:
         configuration = configuration["configuration"]
 
-
     if overrides:
         if isinstance(overrides, str):
             overrides = json.loads(overrides)
@@ -251,72 +250,20 @@ def run(
     """
     Runs the server synchronously using cherrypy.
     """
+    from enfugue.util.runner import EnfugueServerRunner
     configuration = get_configuration(
         config,
         overrides=overrides,
         merge=merge,
         debug=debug
     )
-
-    # Determine how many servers we need to run
-    try:
-        all_host = configuration["server"]["host"]
-        all_port = configuration["server"]["port"]
-        all_domain = configuration["server"].get("domain", None)
-        all_secure = configuration["server"].get("secure", False)
-        all_cert = configuration["server"].get("cert", None)
-        all_key = configuration["server"].get("key", None)
-    except KeyError as ex:
-        if debug:
-            click.echo(termcolor.colored(json.dumps(configuration, indent=4), "cyan"))
-        raise ConfigurationError(f"Missing required configuration key {ex}")
-
-    num_servers = 1
-    for var in [all_host, all_secure, all_domain, all_port, all_cert, all_key]:
-        if isinstance(var, list) or isinstance(var, tuple):
-            num_servers = max(num_servers, len(var))
-
-    def get_for_index(index: int, config_value: Any) -> Any:
-        if isinstance(config_value, list) or isinstance(config_value, tuple):
-            if index < len(config_value):
-                return config_value[index]
-            return config_value[-1]
-        return config_value
-
-    servers: List[EnfugueServer] = []
+    runner = EnfugueServerRunner(configuration)
 
     try:
-        for i in range(num_servers):
-            host = get_for_index(i, all_host)
-            port = get_for_index(i, all_port)
-            secure = get_for_index(i, all_secure)
-            cert = get_for_index(i, all_cert)
-            key = get_for_index(i, all_key)
-            domain = get_for_index(i, all_domain)
-
-            this_configuration = deepcopy(configuration)
-            this_configuration["server"]["host"] = host
-            this_configuration["server"]["port"] = port
-            this_configuration["server"]["domain"] = domain
-            this_configuration["server"]["secure"] = secure
-            this_configuration["server"]["cert"] = cert
-            this_configuration["server"]["key"] = key
-
-            server = EnfugueServer()
-
-            scheme = "https" if secure else "http"
-            port_echo = "" if port in [80, 443] else f":{port}"
-            domain_echo = host if not domain else domain
-            if num_servers == 1:
-                server.configure(**this_configuration)
-                click.echo(f"Running enfugue, visit at {scheme}://{domain_echo}{port_echo}/ (press Ctrl+C to exit)")
-                server.serve()
-                return
-            click.echo(f"Server {(i+1):d} of {num_servers:d} listening on {scheme}://{domain_echo}{port_echo}/ (press Ctrl+C to exit)")
-            server.configure_start(**this_configuration)
-            servers.append(server)
-        while True:
-            time.sleep(1)
+        runner.run(
+            url_callback=lambda url: click.echo(f"Running ENFUGUE server accessible at {url}"),
+            open_browser=True
+        )
     except KeyboardInterrupt:
         pass
     except Exception as ex:
@@ -324,11 +271,6 @@ def run(
         if debug:
             click.echo(termcolor.colored(traceback.format_exc(), "red"))
     finally:
-        for server in servers:
-            try:
-                server.stop()
-            except:
-                pass
         click.echo("Goodbye!")
 
 try:

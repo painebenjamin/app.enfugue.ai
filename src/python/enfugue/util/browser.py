@@ -2,23 +2,15 @@ import time
 import threading
 import requests
 
-from pibble.api.configuration import APIConfiguration
-
-
 class OpenBrowserWhenResponsiveThread(threading.Thread):
     """
     This thread will open a browser once it receives a positive response
     """
-
     POLLING_INTERVAL = 1
 
-    def __init__(self, configuration: APIConfiguration) -> None:
+    def __init__(self, url: str) -> None:
         super(OpenBrowserWhenResponsiveThread, self).__init__()
-        server_config = configuration.get("server", {})
-        scheme = "https" if server_config.get("secure", False) else "http"
-        host = server_config.get("domain", "127.0.0.1")
-        port = server_config.get("port", 45554)
-        self.url = f"{scheme}://{host}:{port}/"
+        self.url = url
         self.stop_event = threading.Event()
 
     @property
