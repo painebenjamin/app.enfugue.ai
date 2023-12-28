@@ -240,12 +240,14 @@ def chat(
 @click.option("-m", "--merge", is_flag=True, default=False, help="When set, merge the passed configuration with the default configuration instead of replacing it.")
 @click.option("-o", "--overrides", help="an optional json object containing override configuration.")
 @click.option("-d", "--debug", help="Enable debug logging.", is_flag=True, default=False)
+@click.option("-b", "--browser", help="Open a browser window to the configured address when the server is ready to receive requests.", is_flag=True, default=False)
 @main.command(short_help="Runs the server.")
 def run(
     config: Optional[str] = None,
     merge: bool = False,
     overrides: str = None,
     debug: bool = False,
+    browser: bool = False
 ) -> None:
     """
     Runs the server synchronously using cherrypy.
@@ -262,7 +264,7 @@ def run(
     try:
         runner.run(
             url_callback=lambda url: click.echo(f"Running ENFUGUE server accessible at {url}"),
-            open_browser=True
+            open_browser=browser
         )
     except KeyboardInterrupt:
         pass

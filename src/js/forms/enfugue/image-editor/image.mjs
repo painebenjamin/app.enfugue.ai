@@ -34,6 +34,24 @@ class ImageEditorImageNodeOptionsFormView extends FormView {
                 "label": "Image Anchor",
                 "class": ImageAnchorInputView
             },
+            "offsetX": {
+                "label": "Left/Right Offset",
+                "class": NumberInputView,
+                "config": {
+                    "step": 1,
+                    "value": 0,
+                    "tooltip": "Offset the image to the left (negative) or right (positive) this many pixels."
+                }
+            },
+            "offsetY": {
+                "label": "Top/Bottom Offset",
+                "class": NumberInputView,
+                "config": {
+                    "step": 1,
+                    "value": 0,
+                    "tooltip": "Offset the image to the top (negative) or bottom (positive) this many pixels."
+                }
+            },
             "removeBackground": {
                 "label": "Remove Background",
                 "class": CheckboxInputView,

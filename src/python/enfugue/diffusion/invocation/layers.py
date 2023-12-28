@@ -364,6 +364,8 @@ class LayeredInvocation:
         frame: Optional[int]=None,
         fit: Optional[IMAGE_FIT_LITERAL]=None,
         anchor: Optional[IMAGE_ANCHOR_LITERAL]=None,
+        offset_x: Optional[int]=None,
+        offset_y: Optional[int]=None,
         x: Optional[int]=None,
         y: Optional[int]=None,
         w: Optional[int]=None,
@@ -379,9 +381,25 @@ class LayeredInvocation:
             image = get_frames_or_image_from_file(image)
 
         if w is not None and h is not None:
-            fitted_image = fit_image(image, w, h, fit, anchor)
+            fitted_image = fit_image(
+                image=image,
+                width=w,
+                height=h,
+                fit=fit,
+                anchor=anchor,
+                offset_left=offset_x,
+                offset_top=offset_y
+            )
         else:
-            fitted_image = fit_image(image, width, height, fit, anchor)
+            fitted_image = fit_image(
+                image=image,
+                width=width,
+                height=height,
+                fit=fit,
+                anchor=anchor,
+                offset_left=offset_x,
+                offset_top=offset_y
+            )
 
         if x is not None and y is not None:
             if isinstance(fitted_image, list):
@@ -865,6 +883,8 @@ class LayeredInvocation:
                     layer_image = layer.get("image", None)
                     fit = layer.get("fit", None)
                     anchor = layer.get("anchor", None)
+                    offset_x = layer.get("offset_x", None)
+                    offset_y = layer.get("offset_y", None)
                     opacity = layer.get("opacity", None)
                     remove_background = layer.get("remove_background", None)
                     frame = layer.get("frame", 0)
@@ -901,6 +921,8 @@ class LayeredInvocation:
                         image=layer_image,
                         fit=fit,
                         anchor=anchor,
+                        offset_x=offset_x,
+                        offset_y=offset_y,
                         animation_frames=self.animation_frames,
                         frame=frame,
                         w=w,

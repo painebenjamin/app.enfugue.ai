@@ -182,6 +182,9 @@ class NumberInputView extends InputView {
                 if (e.deltaY > 0) {
                     toAdd *= -1;
                 }
+                if (e.shiftKey) {
+                    toAdd *= 10;
+                }
                 this.setValue(this.value + toAdd);
             });
         }

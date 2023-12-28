@@ -20,6 +20,11 @@ class ImageView extends View {
     static tagName = "img";
 
     /**
+     * @var string css property for position
+     */
+    static positionProperty = "object-position";
+
+    /**
      * @param object $config The base config object
      * @param string $src The image source
      */
@@ -257,6 +262,34 @@ class ImageView extends View {
     }
 
     /**
+     * Sets the fit mode
+     */
+    setFit(newFitMode) {
+        this.fit = newFitMode;
+        for (let fitMode of ["actual", "stretch", "cover", "contain"]) {
+            let fitModeClass = `fit-${fitMode}`;
+            if (fitMode === newFitMode) {
+                this.addClass(fitModeClass);
+            } else {
+                this.removeClass(fitModeClass);
+            }
+        }
+    }
+
+    /**
+     * Sets the anchor position
+     */
+    setAnchor(newAnchorMode, offsetX, offsetY) {
+        let [topPart, leftPart] = newAnchorMode.split("-"),
+            topPercent = topPart == "bottom" ? 100 : topPart == "center" ? 50 : 0,
+            leftPercent = leftPart == "right" ? 100 : leftPart == "center" ? 50 : 0,
+            css = {};
+
+        css[this.constructor.positionProperty] = `calc(${leftPercent}% + ${offsetX}px) calc(${topPercent}% + ${offsetY}px)`;
+        this.css(css);
+    }
+
+    /**
      * On build, simple set image source
      */
     async build() {
@@ -277,7 +310,12 @@ class BackgroundImageView extends ImageView {
      * @var string The custom tag name
      */
     static tagName = "enfugue-background-image-view";
-    
+
+    /**
+     * @var string css property for position
+     */
+    static positionProperty = "background-position";
+
     /**
      * Sets the image source.
      *

@@ -16,8 +16,6 @@ from pibble.ext.user.server.base import UserExtensionHandlerRegistry
 from enfugue.util import find_file_in_directory
 from enfugue.api.controller.base import EnfugueAPIControllerBase
 from enfugue.database.models import DiffusionModel
-from enfugue.diffusion.manager import DiffusionPipelineManager
-from enfugue.diffusion.invocation import LayeredInvocation
 from enfugue.diffusion.constants import *
 
 __all__ = ["EnfugueAPIModelsController"]
@@ -323,6 +321,7 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         """
         Gets status for a particular model or checkpoint
         """
+        from enfugue.diffusion.manager import DiffusionPipelineManager
         diffusers_models = self.get_diffusers_models()
         if "." in model_name_or_ckpt:
             return {
@@ -409,6 +408,7 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         """
         Issues a job to create an engine.
         """
+        from enfugue.diffusion.invocation import LayeredInvocation
         plan = LayeredInvocation.assemble(**self.get_plan_kwargs_from_model(model_name, include_prompts=False))
         if not plan.tiling_size:
             raise ValueError("Tiling must be enabled for TensorRT.")

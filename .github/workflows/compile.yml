@@ -66,6 +66,11 @@ jobs:
     - name: Install dependencies
       run: |
         conda env update --file environments/build/${{ inputs.os }}/${{ inputs.api }}.yml --name base
+    - name: Install additional OpenCV Dependencies (Linux)
+      if: ${{ contains(inputs.os, 'ubuntu') }}
+      run: |
+        sudo apt-get update
+        sudo apt-get install libatlas-base-dev
     - name: Install additional TensorRT Dependencies
       if: ${{ contains(inputs.os, 'ubuntu') && contains(inputs.api, 'tensorrt') }}
       run: |

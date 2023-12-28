@@ -38,6 +38,7 @@ class View {
         this.additionalClasses = deepClone(this.constructor.classList);
         this.hidden = false;
         this.lock = new MutexLock();
+        this.styles = {};
     }
 
     /**
@@ -87,7 +88,7 @@ class View {
         });
         return this;
     }
-    
+
     /**
      * Shows the elements parent on the page.
      */
@@ -101,7 +102,6 @@ class View {
         });
         return this;
     }
-
 
     /**
      * Add a class to memory, reflecting in the DOM if possible.
@@ -165,6 +165,29 @@ class View {
     }
 
     /**
+     * Adds/removes CSS for when the node is made, or adds to the node
+     */
+    css(newKey, newValue) {
+        if (typeof newKey === "string" && newValue !== undefined) {
+            if (newValue === null) {
+                delete this.styles[newKey];
+            } else {
+                this.styles[newKey] = newValue;
+            }
+        } else if (typeof newKey === "object") {
+            for (let subKey of Object.getOwnPropertyNames(newKey)) {
+                this.styles[subKey] = newKey[subKey];
+            }
+        } else {
+            console.error(`Ignoring unexpected argument ${newKey}`);
+        }
+        if (this.node !== undefined) {
+            this.node.css(this.styles);
+        }
+        return this;
+    }
+
+    /**
      * This creates the node, adding classes and doing what is necessary
      * to show/hide the view. Implementing classes should call `await super.build()`,
      * then fill the returned object with its view content.
@@ -178,6 +201,10 @@ class View {
 
             for (let className of this.additionalClasses) {
                 node.addClass(className);
+            }
+
+            if (!isEmpty(this.styles)) {
+                this.node.css(this.styles);
             }
 
             if (this.hidden) {

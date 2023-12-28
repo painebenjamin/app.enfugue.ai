@@ -103,6 +103,8 @@ class InvokeButtonController extends Controller {
                     case "ImageEditorVideoNodeView":
                         formattedState["fit"] = datum.fit;
                         formattedState["anchor"] = datum.anchor;
+                        formattedState["offset_x"] = datum.offsetX;
+                        formattedState["offset_y"] = datum.offsetY;
                         formattedState["opacity"] = datum.opacity;
                         formattedState["visibility"] = datum.visibility;
                         formattedState["frame"] = isEmpty(datum.startFrame) ? 0 : datum.startFrame - 1;
