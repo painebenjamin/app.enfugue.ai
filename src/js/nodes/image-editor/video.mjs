@@ -20,20 +20,6 @@ class ImageEditorVideoNodeView extends ImageEditorNodeView {
     static nodeTypeName = "Video";
 
     /**
-     * @var array<string> All fit modes.
-     */
-    static allFitModes = ["actual", "stretch", "cover", "contain"];
-
-    /**
-     * @var array<string> All anchor modes.
-     */
-    static allAnchorModes = [
-        "top-left", "top-center", "top-right",
-        "center-left", "center-center", "center-right",
-        "bottom-left", "bottom-center", "bottom-right"
-    ];
-    
-    /**
      * @var string Add the classname for CSS
      */
     static className = 'image-editor-video-node-view';
@@ -61,7 +47,7 @@ class ImageEditorVideoNodeView extends ImageEditorNodeView {
     async updateOptions(newOptions) {
         // Reflected in DOM
         this.updateFit(newOptions.fit);
-        this.updateAnchor(newOptions.anchor);
+        this.updateAnchor(newOptions.anchor, newOptions.offsetX, newOptions.offsetY);
         this.updateOpacity(newOptions.opacity);
     };
 
@@ -70,27 +56,17 @@ class ImageEditorVideoNodeView extends ImageEditorNodeView {
      */
     async updateFit(newFit) {
         this.fit = newFit;
-        this.content.fit = newFit;
-        for (let fitMode of this.constructor.allFitModes) {
-            this.content.removeClass(`fit-${fitMode}`);
-        }
-        if (!isEmpty(newFit)) {
-            this.content.addClass(`fit-${newFit}`);
-        }
+        this.content.setFit(newFit);
     };
 
     /**
      * Updates the video anchor
      */
-    async updateAnchor(newAnchor) {
+    async updateAnchor(newAnchor, offsetX, offsetY) {
         this.anchor = newAnchor;
-        this.content.anchor = newAnchor;
-        for (let anchorMode of this.constructor.allAnchorModes) {
-            this.content.removeClass(`anchor-${anchorMode}`);
-        }
-        if (!isEmpty(newAnchor)) {
-            this.content.addClass(`anchor-${newAnchor}`);
-        }
+        this.offsetX = offsetX || 0;
+        this.offsetY = offsetY || 0;
+        this.content.setAnchor(this.anchor, this.offsetX, this.offsetY);
     }
 
     /**
@@ -132,6 +108,8 @@ class ImageEditorVideoNodeView extends ImageEditorNodeView {
         state.src = includeImages ? this.content.src : null;
         state.anchor = this.anchor || null;
         state.fit = this.fit || null;
+        state.offsetX = this.offsetX || null;
+        state.offsetY = this.offsetY || null;
         state.opacity = this.opacity || 1.0;
         return state;
     }
@@ -146,9 +124,9 @@ class ImageEditorVideoNodeView extends ImageEditorNodeView {
         } else {
             await this.setContent(new VideoView(this.config, newState.src));
         }
-        await this.updateAnchor(newState.anchor);
         await this.updateFit(newState.fit);
         await this.updateOpacity(newState.opacity);
+        await this.updateAnchor(newState.anchor, newState.offsetX, newState.offsetY);
     }
 
     /**

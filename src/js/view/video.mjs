@@ -73,6 +73,31 @@ class VideoView extends View {
     }
 
     /**
+     * Sets the fit mode
+     */
+    setFit(newFitMode) {
+        for (let fitMode of ["actual", "stretch", "cover", "contain"]) {
+            let fitModeClass = `fit-${fitMode}`;
+            if (fitMode === newFitMode) {
+                this.addClass(fitModeClass);
+            } else {
+                this.removeClass(fitModeClass);
+            }
+        }
+    }
+
+    /**
+     * Sets the anchor position
+     */
+    setAnchor(newAnchorMode, offsetX, offsetY) {
+        let [topPart, leftPart] = newAnchorMode.split("-"),
+            topPercent = topPart == "bottom" ? 100 : topPart == "center" ? 50 : 0,
+            leftPercent = leftPart == "right" ? 100 : leftPart == "center" ? 50 : 0;
+
+        this.css("object-position", `calc(${leftPercent}% + ${offsetX}px) calc(${topPercent}% + ${offsetY}px)`);
+    }
+
+    /**
      * Build the container and append the DOM node
      */
     async build() {
@@ -82,15 +107,16 @@ class VideoView extends View {
     }
 }
 
+/**
+ * An extension of the above that adds controls
+ */
 class VideoPlayerView extends VideoView {
+    /**
+     * After setting video, set controls
+     */
     setVideo(src) {
         super.setVideo(src);
         this.video.controls = true;
-    }
-
-    async build() {
-        let node = await super.build();
-        return node;
     }
 }
 
