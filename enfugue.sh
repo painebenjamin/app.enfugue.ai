@@ -24,12 +24,9 @@ cat << EOF > $PWD/config.yml
 sandboxed: false                                # true = disable system management in UI
 server:
     host: 0.0.0.0                               # listens on any connection
-    # port: [45554, 45555]                        # ports < 1024 require sudo
-    # domain: [app.enfugue.ai, null]              # this is a loopback domain, null = match request
-    # secure: [true, false]                       # enables SSL for first server, off for second
-    port: 45554                                   # ports < 1024 require sudo
-    domain: app.enfugue.ai                        # this is a loopback domain, null = match request
-    secure: true                                  # enables SSL for first server, off for second
+    port: [45554, 45555]                        # ports < 1024 require sudo
+    domain: [app.enfugue.ai, null]              # this is a loopback domain, null = match request
+    secure: [true, false]                       # enables SSL for first server, off for second
     # If you change the domain, you must provide your own certificates or disable SSL
     # key: /path/to/key.pem
     # cert: /path/to/cert.pem
@@ -156,10 +153,12 @@ compare_versions () {
         if ((10#${ver1[i]} > 10#${ver2[i]}))
         then
             echo "1"
+            return
         fi
         if ((10#${ver1[i]} < 10#${ver2[i]}))
         then
             echo "-1"
+            return
         fi
     done
     echo "0"
@@ -173,13 +172,15 @@ compare_prompt_update() {
     if [ "$COMPARE" == "-1" ]; then
         if [[ "$INSTALL_UPDATE" == "1" ]]; then
             echo "1"
+            return
         else
             # A new version of enfugue is available
             read -p "Version $2 of enfugue is available, you have version $1 installed. Download update? [Yes]: " DOWNLOAD_LATEST
             DOWNLOAD_LATEST=${DOWNLOAD_LATEST:-Yes}
             DOWNLOAD_LATEST=${DOWNLOAD_LATEST:0:1}
-            if [[ "${DOWNLOAD_LATEST,,}" == "t" || "${download_latest,,}" == "y" || "${DOWNLOAD_LATEST,,}" == "1" ]]; then
+            if [[ "${DOWNLOAD_LATEST,,}" == "t" || "${DOWNLOAD_LATEST,,}" == "y" || "${DOWNLOAD_LATEST,,}" == "1" ]]; then
                 echo "1"
+                return
             fi
         fi
     fi
