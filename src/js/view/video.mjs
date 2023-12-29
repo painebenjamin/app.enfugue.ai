@@ -90,11 +90,15 @@ class VideoView extends View {
      * Sets the anchor position
      */
     setAnchor(newAnchorMode, offsetX, offsetY) {
-        let [topPart, leftPart] = newAnchorMode.split("-"),
-            topPercent = topPart == "bottom" ? 100 : topPart == "center" ? 50 : 0,
-            leftPercent = leftPart == "right" ? 100 : leftPart == "center" ? 50 : 0;
+        if (isEmpty(newAnchorMode)) {
+            this.css("object-position", null);
+        } else {
+            let [topPart, leftPart] = newAnchorMode.split("-"),
+                topPercent = topPart == "bottom" ? 100 : topPart == "center" ? 50 : 0,
+                leftPercent = leftPart == "right" ? 100 : leftPart == "center" ? 50 : 0;
 
-        this.css("object-position", `calc(${leftPercent}% + ${offsetX}px) calc(${topPercent}% + ${offsetY}px)`);
+            this.css("object-position", `calc(${leftPercent}% + ${offsetX}px) calc(${topPercent}% + ${offsetY}px)`);
+        }
     }
 
     /**

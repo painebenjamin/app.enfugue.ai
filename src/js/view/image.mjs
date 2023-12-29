@@ -280,13 +280,17 @@ class ImageView extends View {
      * Sets the anchor position
      */
     setAnchor(newAnchorMode, offsetX, offsetY) {
-        let [topPart, leftPart] = newAnchorMode.split("-"),
-            topPercent = topPart == "bottom" ? 100 : topPart == "center" ? 50 : 0,
-            leftPercent = leftPart == "right" ? 100 : leftPart == "center" ? 50 : 0,
-            css = {};
+        if (isEmpty(newAnchorMode)) {
+            this.css(this.constructor.positionProperty, null);
+        } else {
+            let [topPart, leftPart] = newAnchorMode.split("-"),
+                topPercent = topPart == "bottom" ? 100 : topPart == "center" ? 50 : 0,
+                leftPercent = leftPart == "right" ? 100 : leftPart == "center" ? 50 : 0,
+                css = {};
 
-        css[this.constructor.positionProperty] = `calc(${leftPercent}% + ${offsetX}px) calc(${topPercent}% + ${offsetY}px)`;
-        this.css(css);
+            css[this.constructor.positionProperty] = `calc(${leftPercent}% + ${offsetX}px) calc(${topPercent}% + ${offsetY}px)`;
+            this.css(css);
+        }
     }
 
     /**
