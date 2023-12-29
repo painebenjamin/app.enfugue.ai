@@ -15,7 +15,7 @@ dependencies:
   - torchvision=0.14.1
   - pytorch=1.13.1
   - nodejs=18.16.
-  - opencv=4.6.0
+  - opencv
   - openh264
   - git
   - pip:
