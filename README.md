@@ -1,5 +1,5 @@
 <p align="center">
-    <img src="https://github.com/painebenjamin/app.enfugue.ai/assets/57536852/5953edad-0150-4271-ac56-e86a94495ef1" alt="ENFUGUE is now available on rundiffusion.com">
+    <img src="https://github.com/painebenjamin/app.enfugue.ai/assets/57536852/2af58adc-6921-4ee9-b668-e741eba80e7f" alt="ENFUGUE Web UI v0.3.2">
 </p>
 <h3 align="center">ENFUGUE is an open-source app for making studio-grade AI-generated images and video.</h3>
 <p align="center"><i>For server or desktop, beginners or pros.</i></p><hr />
@@ -13,9 +13,6 @@
     <a href="https://pypi.org/project/enfugue"><img alt="PyPI - Version" src="https://img.shields.io/pypi/v/enfugue?color=ff3366"></a>
     <a href="https://github.com/painebenjamin/app.enfugue.ai/releases/"><img alt="GitHub all releases" src="https://img.shields.io/github/downloads/painebenjamin/app.enfugue.ai/total?logo=github&color=ff3366"></a>
     <a href="https://pypi.org/project/enfugue"><img alt="PyPI - Downloads" src="https://img.shields.io/pypi/dm/enfugue?logo=python&logoColor=white&color=ff3366"></a>
-</p>
-<p align="center">
-<strong>Now available in the cloud at <a href="https://www.rundiffusion.com/">RunDiffusion.com!</a></strong>
 </p>
 <div align="center">
 <img src="https://github.com/painebenjamin/app.enfugue.ai/assets/57536852/28b4bc57-ab6c-4c83-b1cb-b8c16332779d" width="260" />
