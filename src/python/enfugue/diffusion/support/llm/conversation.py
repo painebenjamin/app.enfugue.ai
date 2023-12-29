@@ -129,10 +129,14 @@ class Conversation(SupportModel):
         from enfugue.diffusion.support.llm.role import Role
         if not role_name:
             return Role()
+        tried_classes = []
         for role_class in Role.__subclasses__():
-            if getattr(role_class, "role_name", None) == role_name:
+            role_class_name = getattr(role_class, "role_name", None)
+            if role_class_name == role_name:
                 return role_class()
-        raise ValueError(f"Could not find role by name {role_name}")
+            tried_classes.append(role_class_name)
+        tried_classes_string = ", ".join([str(cls) for cls in tried_classes])
+        raise ValueError(f"Could not find role by name {role_name} (found {tried_classes_string})")
 
     @contextmanager
     def converse(

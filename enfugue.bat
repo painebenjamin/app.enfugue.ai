@@ -9,13 +9,16 @@ SET ENFUGUE_CONFIG=%CD%\.enfugue.config.yml
 ::
 :: AN IMPORTANT NOTE ABOUT NETWORKING
 :: 
-:: By default enfugue uses a domain-based networking scheme with the domain `app.enfugue.ai`.
-:: This is a registered domain name that resolves to `127.0.0.1`, the loopback domain.
-:: If you're running enfugue on a local machine with internet access, this should be fine, and you shouldn't need to change any configuration.
-:: If you're running enfugue on a remote machine, you will want to change the following:
+:: Enfugue runs two servers, one with SSL that only listens to `https://app.enfugue.ai:45554`, and a second without
+:: SSL that does not require a domain name be configured.
+:: `app.enfugue.ai` is a registered domain name that resolves to `127.0.0.1`, the loopback domain.
+:: If you're running enfugue on a local machine with internet access, you should be able to access the secure endpoint this way.
+:: If you're running enfugue on a remote machine and want to enable SSL, you will want to change the following:
 :: - `server.domain` should be changed to the domain you want to access the interface through _unless_ you're using a proxy. This can be an IP address.
 :: - `server.secure` should be set to false _unless_ you also configure an SSL certificate. See the commented-out (#) lines in the configuration below.
-:: If you're additionally using a proxy like ngrok, you should configure `server.cms.path.root` to be the proxied URL. See the commented-out (#) lines in the configuration below.
+:: - If you're additionally using a proxy like ngrok, you should configure `server.cms.path.root` to be the proxied URL. See the commented-out (#) lines below.
+:: - Remember, the above only applies if you want to enable SSL. If you don't, leave secure as `false` and `domain` as null, and enfugue will set the
+::   domain in responses as the same as the request came in on.
 
 @ECHO --- ^
 
@@ -25,11 +28,11 @@ server: ^
 
     host: 0.0.0.0                               # listens on any connection ^
 
-    port: 45554                                 # ports less than 1024 require sudo ^
+    port: [45554, 45555]                        # ports less than 1024 require sudo ^
 
-    domain: app.enfugue.ai                      # this is a loopback domain ^
+    domain: [app.enfugue.ai, null]              # this is a loopback domain, null means match the request ^
 
-    secure: true                                # enables SSL ^
+    secure: [true, false]                       # enables SSL ^
 
     # If you change the domain, you must provide your own certificates or disable SSL ^
 
