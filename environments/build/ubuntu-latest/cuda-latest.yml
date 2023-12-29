@@ -13,7 +13,7 @@ dependencies:
   - make=4.3
   - nodejs=18.16.0
   - ffmpeg=4.2.2
-  - opencv=4.8.1
+  - opencv
   - openh264
   - git
   - pip:
