@@ -417,7 +417,7 @@ elif [[ "$ENFUGUE_SERVER" != "" && "$INSTALL_TYPE" != "conda" ]]; then
     # Allow lazy CUDA loading
     export CUDA_MODULA_LOADING=LAZY
     # Disable unsafe legacy crytography suites (MacOS requires this)
-    export CRYTOGRAPHY_OPENSSL_NO_LEGACY=1
+    export CRYPTOGRAPHY_OPENSSL_NO_LEGACY=1
     # Enable MPS fallback (MacOS)
     export PYTORCH_ENABLE_MPS_FALLBACK=1
     # Allow enfugue to spawn unlimited processes
