@@ -359,6 +359,7 @@ IF "!INSTALL_TYPE!" NEQ "portable" where enfugue.exe 2>NUL >NUL && (
     )
     :: Execute (synchronous)
     python -m enfugue run -c %ENFUGUE_CONFIG% -m
+    EXIT /b 0
 )
 IF "!INSTALL_TYPE!" NEQ "conda" where enfugue-server.exe 2>NUL >NUL && (
     :: Execute (asynchronous)
@@ -456,6 +457,9 @@ FOR /f "delims=" %%I IN ('curl %CURL_FLAGS% -s %GITHUB_API_RELEASE_URL%') DO (
             )
         )
     )
+)
+FOR /f "tokens=1" %%I IN ('where enfugue-server.exe') DO (
+    RMDIR /s /q %%~dpI
 )
 IF NOT "!ARCHIVE_NAME!"=="" (
     IF "!ZIP_AVAILABLE!"=="1" (
