@@ -76,7 +76,7 @@ Options:
 
 ## Manual Installation
 
-If you want to install without using the installation scripts, see this [Wiki page](https://github.com/painebenjamin/app.enfugue.ai/wiki/Manual-Installation).
+If you want to install without using the installation scripts, see this [Wiki page](https://github.com/painebenjamin/app.enfugue.ai/wiki/Installation-and-Running#manual-installation).
 
 ## Configuration
 
