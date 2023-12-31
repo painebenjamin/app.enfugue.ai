@@ -335,6 +335,8 @@ class LayeredInvocation:
         Replaces the alpha channel in an image with noise.
         Uses the generator from the pipeline, if one exists.
         """
+        if pipeline is not None and not pipeline.inpainter_is_sdxl:
+            return image.convert("RGB")
         from enfugue.diffusion.util import make_noise, tensor_to_image
         if image.mode == "RGBA":
             width, height = image.size
