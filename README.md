@@ -2,9 +2,12 @@
     <img src="https://github.com/painebenjamin/app.enfugue.ai/assets/57536852/2af58adc-6921-4ee9-b668-e741eba80e7f" alt="ENFUGUE Web UI v0.3.2">
 </p>
 <h3 align="center">ENFUGUE is an open-source app for making studio-grade AI-generated images and video.</h3>
-<p align="center"><i>For server or desktop, beginners or pros.</i></p><hr />
+<p align="center"><i>For server or desktop, beginners or pros.</i></p>
+<p align="center"><b>New - Come visit the <a href="https://discord.gg/TT7RTnhfed" target="_blank">Discord!</a></b></p>
+<hr />
 <p align="center">
-  <img src="https://img.shields.io/static/v1?label=painebenjamin&message=app.enfugue.ai&color=ff3366&logo=github" alt="painebenjamin - app.enfugue.ai">
+    <img src="https://img.shields.io/static/v1?label=painebenjamin&message=app.enfugue.ai&color=ff3366&logo=github" alt="painebenjamin - app.enfugue.ai">
+    <a href="https://discord.gg/TT7RTnhfed" target="_blank"><img src="https://img.shields.io/discord/1182768218079772672?style=flat&color=ff3366&logo=discord&logoColor=ffffff&label=Discord" alt="discord"></a>
     <img src="https://img.shields.io/github/stars/painebenjamin/app.enfugue.ai?style=social" alt="stars - app.enfugue.ai">
     <img src="https://img.shields.io/github/forks/painebenjamin/app.enfugue.ai?style=social" alt="forks - app.enfugue.ai"><br />
     <a href="https://github.com/painebenjamin/app.enfugue.ai/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-AGPL3-ff3366" alt="License"></a>
