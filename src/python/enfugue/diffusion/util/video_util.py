@@ -1,11 +1,11 @@
 from __future__ import annotations
 import os
-from typing import TYPE_CHECKING, Optional, Iterator, Callable, Iterable
+from typing import TYPE_CHECKING, Optional, Iterator, Callable, Iterable, Tuple
 from enfugue.util import logger
 
 if TYPE_CHECKING:
     from PIL.Image import Image
-    import cv2
+    from moviepy.editor import VideoFileClip
 
 __all__ = ["Video"]
 
@@ -19,22 +19,29 @@ class Video:
     """
     Provides helper methods for video
     """
-    def __init__(self, frames: Iterable[Image]) -> None:
+    def __init__(
+        self,
+        frames: Iterable[Image],
+        frame_rate: Optional[float]=None,
+        audio_frames: Optional[Iterable[Tuple[float]]]=None,
+        audio_rate: Optional[int]=None,
+    ) -> None:
         self.frames = frames
+        self.frame_rate = frame_rate
+        self.audio_frames = audio_frames
+        self.audio_rate = audio_rate
 
     def save(
         self,
         path: str,
         overwrite: bool = False,
-        rate: float = 20.0,
-        encoder: str = "avc1",
+        rate: float=20.0,
+        encoder: str="avc1",
     ) -> int:
         """
         Saves PIL image frames to a video.
         Returns the total size of the video in bytes.
         """
-        import cv2
-        from enfugue.diffusion.util import ComputerVision
         if path.startswith("~"):
             path = os.path.expanduser(path)
         if os.path.exists(path):
@@ -51,20 +58,17 @@ class Video:
             return os.path.getsize(path)
         elif ext not in [".mp4", ".ogg", ".webm"]:
             raise IOError(f"Unknown file extension {ext}")
-        if ext == ".webm":
-            encoder = "vp09"
-        fourcc = cv2.VideoWriter_fourcc(*encoder) # type: ignore
-        writer = None
 
-        for frame in self.frames:
-            if writer is None:
-                writer = cv2.VideoWriter(path, fourcc, rate, frame.size) # type: ignore[union-attr]
-            writer.write(ComputerVision.convert_image(frame))
+        from moviepy.editor import ImageSequenceClip
+        import numpy as np
 
-        if writer is None:
-            raise IOError(f"No frames written to {path}")
+        clip = ImageSequenceClip([np.array(frame) for frame in self.frames], fps=rate)
 
-        writer.release()
+        if self.audio_frames is not None:
+            from enfugue.diffusion.util.audio_util import Audio
+            clip.audio = Audio(self.audio_frames, self.audio_rate).get_composite_clip()
+
+        clip.write_videofile(path, fps=rate)
 
         if not os.path.exists(path):
             raise IOError(f"Nothing was written to {path}")
@@ -77,14 +81,11 @@ class Video:
         skip_frames: Optional[int] = None,
         maximum_frames: Optional[int] = None,
         resolution: Optional[int] = None,
-        on_open: Optional[Callable[[cv2.VideoCapture], None]] = None,
-    ) -> Iterator[Image.Image]:
+        on_open: Optional[Callable[[VideoFileClip], None]] = None,
+    ) -> Iterator[Image]:
         """
         Starts a video capture and yields PIL images for each frame.
         """
-        import cv2
-        from enfugue.diffusion.util import ComputerVision
-
         if path.startswith("~"):
             path = os.path.expanduser(path)
         if not os.path.exists(path):
@@ -109,9 +110,12 @@ class Video:
         frame_string = "end-of-video" if frame_end is None else f"frame {frame_end}"
         logger.debug(f"Reading video file at {path} starting from frame {frame_start} until {frame_string}")
 
-        capture = cv2.VideoCapture(path)
+        from moviepy.editor import VideoFileClip
+        from PIL import Image
+
+        clip = VideoFileClip(path)
         if on_open is not None:
-            on_open(capture)
+            on_open(clip)
 
         def resize_image(image: Image.Image) -> Image.Image:
             """
@@ -126,23 +130,19 @@ class Video:
             width = round(width * ratio)
             return image.resize((width, height))
 
-        while capture.isOpened():
-            success, image = capture.read()
-            if not success:
-                break
-            elif frames == 0:
+        for frame in clip.iter_frames():
+            if frames == 0:
                 logger.debug("First frame captured, iterating.")
 
             frames += 1
             if frame_start > frames:
                 continue
 
-            yield resize_image(ComputerVision.revert_image(image))
+            yield resize_image(Image.fromarray(frame))
 
             if frame_end is not None and frames >= frame_end:
                 break
 
-        capture.release()
         if frames == 0:
             raise IOError(f"No frames were read from video at {path}")
 
@@ -153,7 +153,7 @@ class Video:
         skip_frames: Optional[int] = None,
         maximum_frames: Optional[int] = None,
         resolution: Optional[int] = None,
-        on_open: Optional[Callable[[cv2.VideoCapture], None]] = None,
+        on_open: Optional[Callable[[VideoFileClip], None]] = None,
     ) -> Video:
         """
         Uses Video.frames_from_file and instantiates a Video object.

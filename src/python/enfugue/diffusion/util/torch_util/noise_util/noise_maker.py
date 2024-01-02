@@ -221,7 +221,7 @@ class NoiseMaker:
         perlin = PerlinPowerFractal(self.width, self.height)
 
         for i in range(frames):
-            for j in range(3):
+            for j in range(self.channels):
                 noise[i, j, :, :, :] = perlin(
                     batch_size=self.batch_size,
                     X=0,

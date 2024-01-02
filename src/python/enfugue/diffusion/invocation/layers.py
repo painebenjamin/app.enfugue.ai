@@ -22,6 +22,7 @@ from typing import (
     Iterator,
     Callable,
     Optional,
+    Literal,
     TYPE_CHECKING,
 )
 from random import randint
@@ -122,7 +123,7 @@ class LayeredInvocation:
     crop_inpaint: bool=True
     inpaint_feather: int=32
     outpaint: bool=True
-    outpaint_dilate: int=2
+    outpaint_dilate: int=4
     # Refining
     refiner_start: Optional[float]=None
     refiner_strength: Optional[float]=None
@@ -325,34 +326,60 @@ class LayeredInvocation:
             "clip_skip": self.clip_skip
         }
 
-    @classmethod
     def remove_alpha(
-        cls,
+        self,
         image: Image,
-        pipeline: Optional[DiffusionPipelineManager]=None
+        pipeline: Optional[DiffusionPipelineManager]=None,
+        mode: Optional[Literal["none", "noise", "shuffle"]]="noise",
+        noise_method: Optional[NOISE_METHOD_LITERAL]="default",
+        contrast: float=0.8
     ) -> Image:
         """
         Replaces the alpha channel in an image with noise.
         Uses the generator from the pipeline, if one exists.
         """
         if pipeline is not None and not pipeline.inpainter_is_sdxl:
+            mode = None
+
+        width, height = image.size
+
+        if mode is None or mode == "none":
+            # Strip alpha (fill with black)
             return image.convert("RGB")
-        from enfugue.diffusion.util import make_noise, tensor_to_image
-        if image.mode == "RGBA":
-            width, height = image.size
-            noise = make_noise(
-                method="perlin",
-                width=width,
-                height=height,
-                channels=3,
-                batch_size=1,
-                generator=None if pipeline is None else pipeline.noise_generator,
-                min_clamp=0.1,
-                max_clamp=0.9,
-                scale=2
-            )
-            noise_image = tensor_to_image(noise)
-            noise_image.paste(image, mask=dilate_erode(image.split()[-1], -4))
+        elif mode == "noise":
+            # Fill alpha with noise
+            from enfugue.diffusion.util import make_noise, tensor_to_image
+            from PIL import Image, ImageStat
+            # Get stats for image
+            stat = ImageStat.Stat(image)
+            extrema = list(image.getextrema())
+            # Build noise channel-by-channel
+            channels: List[Image] = []
+            for i in range(3):
+                # Find range for this channel in source image
+                (c_min, c_max) = extrema[i]
+                noise = make_noise(
+                    method=noise_method, # type: ignore[arg-type]
+                    width=width,
+                    height=height,
+                    channels=1,
+                    batch_size=1,
+                    generator=None if pipeline is None else pipeline.noise_generator,
+                )
+                # Scale noise based on image range
+                noise = ((
+                    (c_min/255.0 * noise) +
+                    ((c_max-c_min)/255.0 * noise)
+                ))
+                # Scale noise based on passed contrast
+                noise = (noise * contrast) + (1.0 - contrast)
+                # Scale noise based on image mean
+                noise *= stat.mean[i] / 255.0
+                # Add to channel list
+                channels.append(tensor_to_image(noise).convert("L"))
+            # Merge channels
+            noise_image = Image.merge("RGB", tuple(channels))
+            noise_image.paste(image, mask=dilate_erode(image.split()[-1], -self.outpaint_dilate))
             return noise_image
         return image
 

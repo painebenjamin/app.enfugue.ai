@@ -29,7 +29,7 @@ from enfugue.diffusion.constants import *
 from enfugue.util import logger
 
 if TYPE_CHECKING:
-    import cv2
+    from moviepy.editor import VideoFileClip
 
 __all__ = ["EnfugueAPIInvocationController"]
 
@@ -45,10 +45,9 @@ class EnfugueAPIInvocationController(EnfugueAPIControllerBase):
         """
         Converts animation file formats
         """
-        def on_open(capture: cv2.VideoCapture) -> None:
+        def on_open(clip: VideoFileClip) -> None:
             nonlocal rate
-            import cv2
-            rate = capture.get(cv2.CAP_PROP_FPS)
+            rate = clip.fps
             logger.debug(f"Captured rate {rate} from video file.")
 
         from enfugue.diffusion.util import Video
@@ -413,10 +412,9 @@ class EnfugueAPIInvocationController(EnfugueAPIControllerBase):
                 rate=rate,
             )
 
-            def on_open(capture: cv2.VideoCapture) -> None:
+            def on_open(clip: VideoFileClip) -> None:
                 nonlocal rate
-                import cv2
-                rate = capture.get(cv2.CAP_PROP_FPS)
+                rate = clip.fps
 
             from enfugue.diffusion.util import Video
             frames = [

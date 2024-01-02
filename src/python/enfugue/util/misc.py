@@ -1,4 +1,4 @@
-from typing import Dict, Any, Iterator
+from typing import Dict, Any, Iterator, List, Iterable, Optional
 from contextlib import contextmanager
 
 __all__ = [
@@ -6,7 +6,8 @@ __all__ = [
     "merge_into",
     "replace_images",
     "redact_for_log",
-    "profiler"
+    "profiler",
+    "reiterator"
 ]
 
 def noop(*args: Any, **kwargs: Any) -> None:
@@ -85,3 +86,44 @@ def profiler() -> Iterator:
     with Profile() as profile:
         yield
         Stats(profile).strip_dirs().sort_stats(SortKey.TIME).print_stats()
+
+class reiterator:
+    """
+    Transparently memoized any iterator
+    """
+    memoized: List[Any]
+
+    def __init__(self, iterable: Iterable[Any]) -> None:
+        self.iterable = iterable
+        self.memoized = []
+        self.started = False
+        self.finished = False
+
+    def __iter__(self) -> Iterable[Any]:
+        if not self.started:
+            self.started = True
+            last_index: Optional[int] = None
+            for i, value in enumerate(self.iterable):
+                yield value
+                self.memoized.append(value)
+                last_index = i
+                if self.finished:
+                    # Completed somewhere else
+                    break
+            if self.finished:
+                if last_index is None:
+                    last_index = 0
+                for value in self.memoized[last_index+1:]:
+                    yield value
+            self.finished = True
+            del self.iterable
+        elif not self.finished:
+            # Complete iterator
+            self.memoized += [item for item in self.iterable]
+            self.finished = True
+            del self.iterable
+            for item in self.memoized:
+                yield item
+        else:
+            for item in self.memoized:
+                yield item

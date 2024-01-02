@@ -3,6 +3,7 @@ from enfugue.diffusion.util.cuda_util import *
 from enfugue.diffusion.util.torch_util import *
 from enfugue.diffusion.util.model_util import *
 from enfugue.diffusion.util.morph_util import *
+from enfugue.diffusion.util.audio_util import *
 from enfugue.diffusion.util.video_util import *
 from enfugue.diffusion.util.chunk_util import *
 from enfugue.diffusion.util.prompt_util import *

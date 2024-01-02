@@ -551,13 +551,16 @@ class SystemManager:
         """
         reclaimed_bytes = 0
         for file_name in os.listdir(self.engine_intermediate_dir):
-            file_path = os.path.join(self.engine_intermediate_dir, file_name)
-            file_mod_time = datetime.datetime.fromtimestamp(os.path.getmtime(file_path))
-            file_age = (datetime.datetime.now() - file_mod_time).total_seconds()
-            if file_age > self.max_intermediate_age:
-                logger.info(f"Removing intermediate {file_path}")
-                reclaimed_bytes += os.path.getsize(file_path)
-                os.remove(file_path)
+            try:
+                file_path = os.path.join(self.engine_intermediate_dir, file_name)
+                file_mod_time = datetime.datetime.fromtimestamp(os.path.getmtime(file_path))
+                file_age = (datetime.datetime.now() - file_mod_time).total_seconds()
+                if file_age > self.max_intermediate_age:
+                    logger.info(f"Removing intermediate {file_path}")
+                    os.remove(file_path)
+                    reclaimed_bytes += os.path.getsize(file_path)
+            except:
+                pass
         if reclaimed_bytes > 0:
             logger.info(f"Reclaimed {human_size(reclaimed_bytes)} from intermediates")
 
