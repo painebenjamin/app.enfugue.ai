@@ -1,4 +1,6 @@
-from typing import Any
+from typing import Any, Dict
+
+from copy import deepcopy
 
 from pibble.util.strings import Serializer, decode
 from pibble.util.helpers import url_join
@@ -12,23 +14,23 @@ __all__ = [
     "HTMLPropertiesHelperFunction",
     "SerializeHelperFunction",
     "SerializeHelperFilter",
-    "CheckResolveURLHelperFilter",
+    "CheckResolveURLHelperFunction",
 ]
 
 
-def check_url(configuration: APIConfiguration, value: Any) -> Any:
+def check_url(configuration: APIConfiguration, value: Any, paths: Dict[str, str]) -> Any:
     """
     For configuration values that start with '/', prepend the CMS root.
     For configuration values that start with '/static', prepend the static root.
     """
     if isinstance(value, str) and value.startswith("/"):
         if value.startswith("/static/"):
-            static_path = str(configuration.get("server.cms.path.static", configuration["server.cms.path.root"]))
+            static_path = paths.get("static", paths["root"])
             if static_path.endswith("static") or static_path.endswith("static/"):
                 value = value[len("/static") :]
             return url_join(static_path, value)
         else:
-            return url_join(str(configuration["server.cms.path.root"]), decode(value))
+            return url_join(str(paths["root"]), decode(value))
     return value
 
 
@@ -50,9 +52,10 @@ class HTMLPropertiesHelperFunction(FunctionExtensionBase):
 
     name = "html_properties"
 
-    def __call__(self, property_dict: dict) -> str:
+    def __call__(self, property_dict: dict, paths: dict) -> str:
+        property_dict = deepcopy(property_dict)
         for property_name in property_dict:
-            property_dict[property_name] = check_url(self.getConfiguration(), property_dict[property_name])
+            property_dict[property_name] = check_url(self.getConfiguration(), property_dict[property_name], paths)
 
         return " ".join(
             [
@@ -81,28 +84,17 @@ class SerializeHelperFunction(FunctionExtensionBase):
         return Serializer.serialize(var, **kwargs)
 
 
-class CheckResolveURLHelperFilter(FilterExtensionBase):
+class CheckResolveURLHelperFunction(FunctionExtensionBase):
     """
     Allows calling check_resolve_url() in the template layer.
 
-    Example usage is {{ img | check_resolve_url }}.
-
-    >>> from enfugue.interface.helpers import CheckResolveURLHelperFilter
-    >>> from pibble.api.configuration import APIConfiguration
-    >>> config = APIConfiguration(server = {'cms':{'path':{'root':'http://www.example.com'}}})
-    >>> self = type('', (object,), {'getConfiguration': lambda: config})
-    >>> CheckResolveURLHelperFilter.__call__(self, "something")
-    'something'
-    >>> CheckResolveURLHelperFilter.__call__(self, 4)
-    4
-    >>> CheckResolveURLHelperFilter.__call__(self, "/static/img.jpg")
-    'http://www.example.com/static/img.jpg'
+    Example usage is {{ check_resolve_url(img, paths) }}.
     """
 
     name = "check_resolve_url"
 
-    def __call__(self, var):
-        return check_url(self.getConfiguration(), var)
+    def __call__(self, var, paths):
+        return check_url(self.getConfiguration(), var, paths)
 
 
 class SerializeHelperFilter(FilterExtensionBase):
@@ -120,7 +112,7 @@ class SerializeHelperFilter(FilterExtensionBase):
 
 __all__ = [
     "HTMLPropertiesHelperFunction",
-    "CheckResolveURLHelperFilter",
+    "CheckResolveURLHelperFunction",
     "SerializeHelperFunction",
     "SerializeHelperFilter",
 ]
