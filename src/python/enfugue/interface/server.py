@@ -39,7 +39,7 @@ from enfugue.interface.helpers import (
     HTMLPropertiesHelperFunction,
     SerializeHelperFunction,
     SerializeHelperFilter,
-    CheckResolveURLHelperFilter,
+    CheckResolveURLHelperFunction,
 )
 from enfugue.database import *
 
@@ -170,7 +170,7 @@ class EnfugueInterfaceServer(
             CMSExtensionResolveStatementExtension,
             CMSExtensionResolveFunctionExtension,
             HTMLPropertiesHelperFunction,
-            CheckResolveURLHelperFilter,
+            CheckResolveURLHelperFunction,
             SerializeHelperFunction,
             SerializeHelperFilter,
         )
@@ -183,17 +183,13 @@ class EnfugueInterfaceServer(
         ui_config = self.configuration.get("enfugue.ui.app", {})
         if not isinstance(ui_config, dict):
             ui_config = {}
-
+        logger.critical(self.configuration.get("server.secure", False))
         paths = self.configuration["server.cms.path"]
-        if not self.configuration.get("server.secure", False):
-            configured_domain = self.configuration.get("server.domain", "127.0.0.1")
-            configured_port = self.configuration["server.port"]
-            configured_root = f"http://{configured_domain}" if configured_port == 80 else f"http://{configured_domain}:{configured_port}"
-            replace_root = f"http://{request.host}"
-            # Replace domains as needed in paths
-            for path_key in ["root", "static", "api"]:
-                if paths[path_key].startswith(configured_root):
-                    paths[path_key] = replace_root + paths[path_key][len(configured_root):]
+        if not self.configuration.get("server.secure", False) and self.configuration.get("server.domain", None) is None:
+            root = f"http://{request.host}/"
+            paths["root"] = root
+            paths["static"] = f"{root}static/"
+            paths["api"] = f"{root}api/"
 
         context = {
             "current_path": request.path,

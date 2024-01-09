@@ -1,23 +1,24 @@
 {% block head %}
+    <!-- {{ paths }} -->
     <title>{{ title }} | {{ site }}</title>
 
     {%- for rel in links -%}{%- if rel not in ["canonical"] -%}
     {%- for property_set in links[rel] %}
-    <link rel="{{ rel }}" {{ html_properties(property_set) }} />
+    <link rel="{{ rel }}" {{ html_properties(property_set, paths) }} />
     {%- endfor %}
     {%- endif -%}{%- endfor %}
     <link rel="canonical" href="{{ canonical_url }}" />
 
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     {%- for name in meta %}{%- if name not in ["description", "twitter:description", "twitter:title"] %}
-    <meta name="{{ name }}" content="{{ meta[name] | check_resolve_url }}" />
+    <meta name="{{ name }}" content="{{ check_resolve_url(meta[name], paths) }}" />
     {%- endif %}{%- endfor %}
     <meta name="description" content="{{ description }}" />
     <meta name="twitter:description" content="{{ description }}" />
     <meta name="twitter:title" content="{{ title }}" />
 
     {%- for property in opengraph %}{%- if property not in ["title", "site", "url", "description", "locale"] %}
-    <meta property="og:{{ property }}" content="{{ opengraph[property] | check_resolve_url }}" />
+    <meta property="og:{{ property }}" content="{{ check_resolve_url(opengraph[property], paths) }}" />
     {%- endif %}{%- endfor %}
     <meta property="og:locale" content="{{ locale }}" />
     <meta property="og:site_name" content="{{ site }}" />
@@ -30,7 +31,7 @@
     {%- endif %}
     {%- endfor %}
     
-    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Organization","url":"{{ canonical_url }}","sameAs":{{ social | serialize }},"@id":"#organization","name":"{{ site }}","logo":"{{ logo | check_resolve_url }}"}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Organization","url":"{{ canonical_url }}","sameAs":{{ social | serialize }},"@id":"#organization","name":"{{ site }}","logo":"{{ check_resolve_url(logo, paths) }}"}</script>
     <script>
         window.enfugue = window.enfugue || {};
         window.enfugue.url = {{ paths | serialize }};
@@ -42,6 +43,6 @@
         {% endif %}
     </script>
     {%- for script in scripts %}
-    <script {{ html_properties(script) }}></script>
+    <script {{ html_properties(script, paths) }}></script>
     {%- endfor %}
 {% endblock %}
