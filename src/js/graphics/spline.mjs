@@ -1,10 +1,24 @@
+/** @module graphics/spline */
 import { Point, Drawable } from './geometry.mjs';
 import { roundTo, shiftingFrameIterator } from '../base/helpers.mjs';
 
+/**
+ * Represents a point on a spline, with option control points for bezier
+ */
 class SplinePoint {
+    /**
+     * @var int constant for linear type
+     */
     static TYPE_LINEAR = 0;
+
+    /**
+     * @var int constant for bezier type
+     */
     static TYPE_BEZIER = 1;
 
+    /**
+     * Construct requires anchor and type
+     */
     constructor(anchorPoint, pointType, controlPoint1, controlPoint2) {
         this.anchorPoint = anchorPoint;
         this.pointType = pointType;
@@ -12,6 +26,9 @@ class SplinePoint {
         this.controlPoint2 = controlPoint2;
     }
 
+    /**
+     * Create a clone of this point
+     */
     clone() {
         return new SplinePoint(
             this.anchorPoint.clone(),
@@ -25,6 +42,9 @@ class SplinePoint {
         );
     }
 
+    /**
+     * Make this point copy another
+     */
     copy(otherPoint) {
         if (otherPoint instanceof SplinePoint) {
             this.anchorPoint.x = otherPoint.x;
@@ -54,57 +74,103 @@ class SplinePoint {
         }
     }
 
+    /**
+     * @param int anchor point X
+     */
     set x(x) {
         this.anchorPoint.x = x;
     }
 
+    /**
+     * @return int anchor point X
+     */
     get x() {
         return this.anchorPoint.x;
     }
 
+    /**
+     * @param int anchor point Y
+     */
     set y(y) {
         this.anchorPoint.y = y;
     }
 
+    /**
+     * @return int anchor point Y
+     */
     get y() {
         return this.anchorPoint.y;
     }
 
+    /**
+     * @return int control point 1 X
+     */
     get cp1x() {
         return this.controlPoint1.x;
     }
 
+    /**
+     * @param int control point 1 X
+     */
     set cp1x(x) {
         this.controlPoint1.x = x;
     }
 
+    /**
+     * @return int control point 1 Y
+     */
     get cp1y() {
         return this.controlPoint1.y;
     }
 
+    /**
+     * @param int control point 1 Y
+     */
     set cp1y(y) {
         this.controlPoint1.y = y;
     }
 
+    /**
+     * @return int control point 2 x
+     */
     get cp2x() {
         return this.controlPoint2.x;
     }
 
+    /**
+     * @param int control point 2 x
+     */
     set cp2x(x) {
         this.controlPoint2.x = x;
     }
 
+    /**
+     * @return int control point 2 y
+     */
     get cp2y() {
         return this.controlPoint2.y;
     }
 
+    /**
+     * @param int control point 2 y
+     */
     set cp2y(y) {
         this.controlPoint2.y = y;
     }
 }
 
+/**
+ * Spline collects many SplinePoints
+ */
 class Spline extends Drawable {
+    /**
+     * Given a point and tolerance, determine if the passed point
+     * is along this spline. If it is, return the index of the point
+     * before where the passed point would be inserted were it to be
+     * added to this spline.
+     */
     pointAlongSpline(point, tolerance) {
+        let startIndex = 0;
         for (let [startPoint, endPoint] of shiftingFrameIterator(
             this.points,
             2
@@ -119,10 +185,13 @@ class Spline extends Drawable {
                             (endPoint.x - startPoint.x)) *
                             (point.x - startPoint.x) +
                         startPoint.y;
-                    return (
+
+                    if (
                         yValue - tolerance <= point.y &&
                         yValue + tolerance >= point.y
-                    );
+                    ) {
+                        return startIndex;
+                    }
                 }
             } else if (
                 startPoint.pointType === SplinePoint.TYPE_BEZIER &&
@@ -151,7 +220,7 @@ class Spline extends Drawable {
                         By - tolerance <= point.y &&
                         By + tolerance >= point.y
                     ) {
-                        return true;
+                        return startIndex;
                     }
                 }
             } else {
@@ -177,14 +246,17 @@ class Spline extends Drawable {
                         By - tolerance <= point.y &&
                         By + tolerance >= point.y
                     ) {
-                        return true;
+                        return startIndex;
                     }
                 }
             }
+            startIndex++;
         }
-        return false;
     }
 
+    /**
+     * Draw the path on the canvas
+     */
     drawPath(context) {
         context.beginPath();
         context.moveTo(this.points[0].x, this.points[0].y);

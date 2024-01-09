@@ -163,6 +163,14 @@ class Vector {
         return this.end.y - this.start.y;
     }
 
+    get slope() {
+        return this.deltaY/this.deltaX;
+    }
+
+    get rad() {
+        return Math.atan2(this.deltaY, this.deltaX);
+    }
+
     get magnitude() {
         return this.start.distanceTo(this.end);
     }
@@ -212,9 +220,11 @@ class Vector {
 }
 
 class Drawable {
-    constructor(points) {
+    constructor(points, sort=false) {
         this.points = points;
-        this.points.sort((a, b) => a.x - b.x);
+        if (sort) {
+            this.points.sort((a, b) => a.x - b.x);
+        }
         this.center = points.slice(1).reduce((carry, point) => {
             carry.x += point.x;
             carry.y += point.y;
