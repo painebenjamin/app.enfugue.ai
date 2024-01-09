@@ -171,20 +171,17 @@ class Spline extends Drawable {
      */
     pointAlongSpline(point, tolerance) {
         let startIndex = 0;
-        for (let [startPoint, endPoint] of shiftingFrameIterator(
-            this.points,
-            2
-        )) {
+        for (let [startPoint, endPoint] of shiftingFrameIterator(this.points, 2)) {
             if (
                 startPoint.pointType === SplinePoint.TYPE_LINEAR &&
                 endPoint.pointType === SplinePoint.TYPE_LINEAR
             ) {
-                if (point.x >= startPoint.x && point.x <= endPoint.x) {
-                    let yValue =
-                        ((endPoint.y - startPoint.y) /
-                            (endPoint.x - startPoint.x)) *
-                            (point.x - startPoint.x) +
-                        startPoint.y;
+                if (
+                    (point.x >= startPoint.x && point.x < endPoint.x) ||
+                    (point.x < startPoint.x && point.x >= endPoint.x)
+                ) {
+                    let slope = (endPoint.y-startPoint.y)/(endPoint.x - startPoint.x),
+                        yValue = slope * (point.x - startPoint.x) + startPoint.y;
 
                     if (
                         yValue - tolerance <= point.y &&
