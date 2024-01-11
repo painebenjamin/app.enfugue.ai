@@ -9,6 +9,7 @@ import {
     ImageFileInputView,
     AnimationLoopInputView,
     AnimationInterpolationStepsInputView,
+    AnimationEngineInputView
 } from "../input.mjs";
 
 const E = new ElementBuilder();
@@ -36,6 +37,41 @@ class AnimationFormView extends FormView {
                 "label": "Enable Animation",
                 "class": CheckboxInputView,
             },
+            "animationEngine": {
+                "label": "Animation Engine",
+                "class": AnimationEngineInputView,
+                "config": {
+                    "value": "ad_hsxl"
+                }
+            },
+            "animationRate": {
+                "label": "Frame Rate",
+                "class": NumberInputView,
+                "config": {
+                    "min": 8,
+                    "value": 8,
+                    "max": 128,
+                    "step": 1,
+                    "tooltip": "The frame rate of the output video. Note that the animations are saved as individual frames, not as videos - so this can be changed later without needing to re-process the invocation. Also note that the frame rate of the AI model is fixed at 8 frames per second, so any values higher than this will result in sped-up motion. Use this value in combination with frame interpolation to control the smoothness of the output video."
+                }
+            },
+            "animationInterpolation": {
+                "label": "Frame Interpolation",
+                "class": AnimationInterpolationStepsInputView
+            },
+            "animationDecodeChunkSize": {
+                "label": "Frame Decode Chunk",
+                "class": NumberInputView,
+                "config": {
+                    "min": 1,
+                    "max": 512,
+                    "value": 1,
+                    "step": 1,
+                    "tooltip": "The number of frames to decode at once when rendering the final output video. Increasing this number increases VRAM requirements while generally decreasing render time."
+                }
+            },
+        },
+        "AnimateDiff and HotshotXL": {
             "animationFrames": {
                 "label": "Animation Frames",
                 "class": NumberInputView,
@@ -121,28 +157,6 @@ class AnimationFormView extends FormView {
                     "tooltip": "How long position encoding data should be after truncating and scaling. For example, if you truncate position data to 16 frames and scale position data to 24 frames, you will have removed the final 8 frames of training data, then altered the timescale of the animation by one half - i.e., the animation will appear about 50% slower. This feature is experimental and may result in strange movement."
                 }
             },
-            "animationRate": {
-                "label": "Frame Rate",
-                "class": NumberInputView,
-                "config": {
-                    "min": 8,
-                    "value": 8,
-                    "max": 128,
-                    "step": 1,
-                    "tooltip": "The frame rate of the output video. Note that the animations are saved as individual frames, not as videos - so this can be changed later without needing to re-process the invocation. Also note that the frame rate of the AI model is fixed at 8 frames per second, so any values higher than this will result in sped-up motion. Use this value in combination with frame interpolation to control the smoothness of the output video."
-                }
-            },
-            "animationDecodeChunkSize": {
-                "label": "Frame Decode Chunk",
-                "class": NumberInputView,
-                "config": {
-                    "min": 1,
-                    "max": 512,
-                    "value": 1,
-                    "step": 1,
-                    "tooltip": "The number of frames to decode at once when rendering the final output video. Increasing this number increases VRAM requirements while generally decreasing render time."
-                }
-            },
             "animationDenoisingIterations": {
                 "label": "Denoising Iterations",
                 "class": NumberInputView,
@@ -153,12 +167,102 @@ class AnimationFormView extends FormView {
                     "step": 1,
                     "tooltip": "The number of times to perform denoising. If this number is greater than one, a process called ablation occurs, whereby the animation is re-noised and then calculated again using position data from the first generation. This can greatly improve consistency of the final animation at a large cost to inference time.<br/><br/><strong>Note:</strong> not all schedulers are supported when this is enabled. DDIM is recommended."
                 }
+            }
+        },
+        "Stable Video Diffusion": {
+            "stableVideoUseDrag": {
+                "label": "Use DragNUWA",
+                "class": CheckboxInputView,
+                "config": {
+                    "tooltip": "When enabled, uses DragNUWA 1.5 to provide controls for directing motion of objects from an image. An interface will be overlaid over the canvas that allows you to draw motion splines."
+                }
             },
-            "animationInterpolation": {
-                "label": "Frame Interpolation",
-                "class": AnimationInterpolationStepsInputView
+            "stableVideoAnimationFrames": {
+                "label": "Animation Frames",
+                "class": SelectInputView,
+                "config": {
+                    "options": {
+                        "14": "14", 
+                        "21": "21"
+                    },
+                    "tooltip": "The number of animation frames the overall animation should be. Divide this number by the animation rate to determine the overall length of the animation in seconds."
+                }
+            },
+            "stableVideoMotionBucketId": {
+                "label": "Motion Bucket ID",
+                "class": NumberInputView,
+                "config": {
+                    "min": 1,
+                    "max": 512,
+                    "value": 127,
+                    "step": 1,
+                    "tooltip": "Approximately represents the amount of motion in the frame, using values from 1 to 255. Higher values are accepted with unpredictable results."
+                }
+            },
+            "stableVideoFps": {
+                "label": "FPS",
+                "class": NumberInputView,
+                "config": {
+                    "min": 1,
+                    "max": 60,
+                    "value": 7,
+                    "step": 1,
+                    "tooltip": "The number of frames per second for inference. Note that this is slightly different from the usual frame rate in that the diffusion model uses this value as a parameter."
+                }
+            },
+            "stableVideoNoiseAugStrength": {
+                "label": "Noise Strength",
+                "class": NumberInputView,
+                "config": {
+                    "min": 0.0,
+                    "max": 1.0,
+                    "value": 0.02,
+                    "step": 0.01,
+                    "tooltip": "The factor when adding noise to the initial image. The recommended value is 0.02."
+                }
+            },
+            "stableVideoMinGuidanceScale": {
+                "label": "Minimum Guidance",
+                "class": NumberInputView,
+                "config": {
+                    "min": 0,
+                    "max": 100,
+                    "value": 1.0,
+                    "step": 0.01,
+                    "tooltip": "The starting guidance scale. This will increase linearly to the ending scale over the course of inference. This overrides the global guidance scale."
+                }
+            },
+            "stableVideoMaxGuidanceScale": {
+                "label": "Maximum Guidance",
+                "class": NumberInputView,
+                "config": {
+                    "min": 0,
+                    "max": 100,
+                    "value": 3.0,
+                    "step": 0.01,
+                    "tooltip": "The ending guidance scale."
+                }
+            },
+            "stableVideoGaussianSigma": {
+                "label": "Gaussian Sigma",
+                "class": NumberInputView,
+                "config": {
+                    "min": 5,
+                    "max": 100,
+                    "value": 20,
+                    "step": 1,
+                    "tooltip": "This controls the size of the motion vectors as they move across the image using DragNUWA. The higher this value, the strong the pull each vector will have to pixels around them."
+                }
             }
         }
+    };
+
+    /**
+     * @var object display conditions for fieldsets
+     */
+    static fieldSetConditions = {
+        "AnimateDiff and HotshotXL": (values) => values.animationEnabled && values.animationEngine === "ad_hsxl",
+        "Stable Video Diffusion": (values) => values.animationEnabled && values.animationEngine === "svd"
     };
 
     /**
@@ -185,8 +289,15 @@ class AnimationFormView extends FormView {
             this.addClass("no-position-slicing");
         }
 
+        if (this.values.stableVideoUseDrag) {
+            this.removeClass("no-motion-vectors");
+        } else {
+            this.addClass("no-motion-vectors");
+        }
+
         let useSlicing = this.values.animationSlicing,
-            slicingInput = await this.getInputView("animationSlicing");
+            slicingInput = await this.getInputView("animationSlicing"),
+            stableVideoAnimationFrames = await this.getInputView("stableVideoAnimationFrames");
 
         if (this.values.animationLoop === "loop") {
             useSlicing = true;
@@ -200,6 +311,17 @@ class AnimationFormView extends FormView {
             this.removeClass("no-animation-slicing");
         } else {
             this.addClass("no-animation-slicing");
+        }
+
+        if (
+            this.values.animationEnabled &&
+            this.values.animationEngine === "svd" &&
+            this.values.stableVideoUseDrag
+        ) {
+            stableVideoAnimationFrames.setValue("14", false);
+            stableVideoAnimationFrames.disable();
+        } else {
+            stableVideoAnimationFrames.enable();
         }
     }
 

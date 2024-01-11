@@ -1473,6 +1473,142 @@ class InvocationController extends Controller {
     }
 
     /**
+     * @return string animation engine
+     */
+    get animationEngine() {
+        return this.kwargs.animation_engine || "ad_hsxl";
+    }
+
+    /**
+     * @param string animation engine
+     */
+    set animationEngine(newAnimationEngine) {
+        if (this.animationEngine !== newAnimationEngine) {
+            this.publish("engineAnimationEngineChange", newAnimationEngine);
+        }
+        this.kwargs.animation_engine = newAnimationEngine;
+    }
+
+    /**
+     * @return ?int Motion bucket ID
+     */
+    get motionBucketId() {
+        return this.kwargs.motion_bucket_id || null;
+    }
+
+    /**
+     * @param ?int Motion bucket ID
+     */
+    set motionBucketId(newMotionBucketId) {
+        if (this.motionBucketId !== newMotionBucketId) {
+            this.publish("engineMotionBucketIdChange", newMotionBucketId);
+        }
+        this.kwargs.motion_bucket_id = newMotionBucketId;
+    }
+
+    /**
+     * @return ?int fps
+     */
+    get fps() {
+        return this.kwargs.fps || null;
+    }
+
+    /**
+     * @param ?int fps
+     */
+    set fps(newFps) {
+        if (this.fps !== newFps) {
+            this.publish("engineFpsChange", newFps);
+        }
+        this.kwargs.fps = newFps;
+    }
+
+    /**
+     * @return ?float noise aug strength
+     */
+    get noiseAugStrength() {
+        return this.kwargs.noise_aug_strength || null;
+    }
+
+    /**
+     * @param ?float noise aug strength
+     */
+    set noiseAugStrength(newNoiseAugStrength) {
+        if (this.noise_aug_strength !== newNoiseAugStrength) {
+            this.publish("engineNoiseAugStrengthChange", newNoiseAugStrength);
+        }
+        this.kwargs.noise_aug_strength = newNoiseAugStrength;
+    }
+
+    /**
+     * @return ?float max guidance scale
+     */
+    get maxGuidanceScale() {
+        return this.kwargs.max_guidance_scale || null;
+    }
+
+    /**
+     * @param ?float max guidance scale
+     */
+    set maxGuidanceScale(newMaxGuidanceScale) {
+        if (this.max_guidance_scale !== newMaxGuidanceScale) {
+            this.publish("engineMaxGuidanceScaleChange", newMaxGuidanceScale);
+        }
+        this.kwargs.max_guidance_scale = newMaxGuidanceScale;
+    }
+
+    /**
+     * @return ?float min guidance scale
+     */
+    get minGuidanceScale() {
+        return this.kwargs.min_guidance_scale || null;
+    }
+
+    /**
+     * @param ?float min guidance scale
+     */
+    set minGuidanceScale(newMinGuidanceScale) {
+        if (this.min_guidance_scale !== newMinGuidanceScale) {
+            this.publish("engineMinGuidanceScaleChange", newMinGuidanceScale);
+        }
+        this.kwargs.min_guidance_scale = newMinGuidanceScale;
+    }
+
+    /**
+     * @return ?array<array<object>> motion vectors
+     */
+    get motionVectors() {
+        return this.kwargs.motion_vectors || null;
+    }
+
+    /**
+     * @param ?array<array<object>> motion vectors
+     */
+    set motionVectors(newMotionVectors) {
+        if (!isEquivalent(this.motionVectors, newMotionVectors)) {
+            this.publish("engineMotionVectorsChange", newMotionVectors);
+        }
+        this.kwargs.motion_vectors = newMotionVectors;
+    }
+
+    /**
+     * @return int gaussian sigma
+     */
+    get gaussianSigma() {
+        return this.kwargs.gaussian_sigma || 20;
+    }
+
+    /**
+     * @param int gaussian sigma
+     */
+    set gaussianSigma(newGaussianSigma) {
+        if (!isEquivalent(this.gaussianSigma, newGaussianSigma)) {
+            this.publish("engineGaussianSigmaChange", newGaussianSigma);
+        }
+        this.kwargs.gaussian_sigma = newGaussianSigma;
+    }
+
+    /**
      * On initialization, create DOM elements related to invocations.
      */
     async initialize() {

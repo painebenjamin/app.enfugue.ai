@@ -372,7 +372,6 @@ class LoraFormView extends FormView {
                 "label": "Weight",
                 "class": FloatInputView,
                 "config": {
-                    "min": 0,
                     "value": 1.0,
                     "step": 0.01,
                     "required": true
@@ -418,7 +417,6 @@ class LycorisFormView extends FormView {
                 "label": "Weight",
                 "class": FloatInputView,
                 "config": {
-                    "min": 0,
                     "value": 1.0,
                     "step": 0.01,
                     "required": true

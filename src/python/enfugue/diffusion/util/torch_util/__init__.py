@@ -6,3 +6,4 @@ from enfugue.diffusion.util.torch_util.scale_util import *
 from enfugue.diffusion.util.torch_util.noise_util import *
 from enfugue.diffusion.util.torch_util.blending_util import *
 from enfugue.diffusion.util.torch_util.filter_util import *
+from enfugue.diffusion.util.torch_util.animation_util import *

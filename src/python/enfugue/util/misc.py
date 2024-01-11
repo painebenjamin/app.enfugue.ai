@@ -1,3 +1,5 @@
+import math
+
 from typing import Dict, Any, Iterator, List, Iterable, Optional
 from contextlib import contextmanager
 
@@ -7,7 +9,8 @@ __all__ = [
     "replace_images",
     "redact_for_log",
     "profiler",
-    "reiterator"
+    "reiterator",
+    "human_duration"
 ]
 
 def noop(*args: Any, **kwargs: Any) -> None:
@@ -127,3 +130,52 @@ class reiterator:
         else:
             for item in self.memoized:
                 yield item
+
+SECONDS_PER_MINUTE = 60
+SECONDS_PER_HOUR = SECONDS_PER_MINUTE*60
+SECONDS_PER_DAY = SECONDS_PER_HOUR*24
+
+def human_duration(seconds: int, trim: bool = True, compact: bool = False) -> str:
+    """
+    Turns some number of seconds into a string
+    """
+    days = 0
+    hours = 0
+    minutes = 0
+
+    if seconds > SECONDS_PER_DAY:
+        days = math.floor(seconds / SECONDS_PER_DAY)
+        seconds -= days * SECONDS_PER_DAY
+
+    if seconds > SECONDS_PER_HOUR:
+        hours = math.floor(seconds / SECONDS_PER_HOUR)
+        seconds -= hours * SECONDS_PER_HOUR
+
+    if seconds > SECONDS_PER_MINUTE:
+        minutes = math.floor(seconds / SECONDS_PER_MINUTE)
+        seconds -= minutes * SECONDS_PER_MINUTE
+
+    seconds = math.floor(seconds)
+
+    if compact:
+        duration_separator = ":"
+        duration_string = f"{days}:{hours:02d}:{minutes:02d}:{seconds:02d}"
+    else:
+        duration_separator = ", "
+        days_plural = "s" if days != 1 else ""
+        hours_plural = "s" if hours != 1 else ""
+        minutes_plural = "s" if minutes != 1 else ""
+        seconds_plural = "s" if seconds != 1 else ""
+        duration_string = f"{days} day{days_plural}, {hours} hour{hours_plural}, {minutes} minute{minutes_plural}, {seconds} second{seconds_plural}"
+
+    if trim and days == 0:
+        duration_parts = duration_string.split(duration_separator)
+        if hours == 0 and minutes == 0:
+            if compact:
+                return f"0:{duration_parts[-1]}"
+            return duration_separator.join(duration_parts[3:])
+        elif hours == 0:
+            return duration_separator.join(duration_parts[2:])
+        else:
+            return duration_separator.join(duration_parts[1:])
+    return duration_string

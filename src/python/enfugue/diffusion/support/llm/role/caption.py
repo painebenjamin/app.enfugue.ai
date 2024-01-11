@@ -48,6 +48,7 @@ class CaptionUpsampler(Role):
             "You will only ever output a single image description per user request.",
             "Sometimes the user will repeat a request. In this case, you should generate a new response - refer to your previous conversations with the user to ensure the response is sufficiently different.",
             "Image descriptions must be between 15-80 words. Extra words will be ignored. To stay within this word limit, you should NOT form sentences, instead you should simply return a few short phrases describing visual characteristics with commas in-between.",
+            "Be sure to factor in every detail the user specified into your own prompt. Do not omit any requested features. If the user includes the name of a person in their prompt, your caption MUST include that person's name.",
             "Do not describe any sounds, scents, smells, or feelings - only describe visual characteristics."
         ]
 
@@ -63,7 +64,7 @@ class CaptionUpsampler(Role):
             },
             {
                 "role": "assistant",
-                "content": "pale figure, long white hair, dark forest, holding sword above head, glowing blue sword casts soft cool glow on bushes",
+                "content": "middle-aged man, pale figure in armor, long white hair, dark forest, holding sword above head, glowing blue sword casts soft cool glow on bushes",
             },
             {
                 "role": "user",
@@ -71,7 +72,7 @@ class CaptionUpsampler(Role):
             },
             {
                 "role": "assistant",
-                "content": "pale figure, long white hair, dark forest, holding sword above head, glowing red sword casts warm glow on bushes",
+                "content": "middle-aged man, pale figure in armor, long white hair, dark forest, holding sword above head, glowing red sword casts warm glow on bushes",
             },
             {
                 "role": "user",
@@ -79,6 +80,6 @@ class CaptionUpsampler(Role):
             },
             {
                 "role": "assistant",
-                "content": "a frog iearing a jacket and jeans plays dominoes with a racoon, worn table with green cloth, cozy forest abode, large distant tree"
+                "content": "a frog wearing a jacket and jeans plays dominoes with a racoon, worn table with green cloth, cozy forest abode, large distant tree"
             }
         ]

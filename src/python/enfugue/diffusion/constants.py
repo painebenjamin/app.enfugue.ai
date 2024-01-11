@@ -28,6 +28,7 @@ __all__ = [
     "IPAdapterImageDict",
     "ControlImageDict",
     "PromptDict",
+    "MotionVectorPointDict",
     "DEFAULT_MODEL",
     "DEFAULT_INPAINTING_MODEL",
     "DEFAULT_SDXL_MODEL",
@@ -123,7 +124,8 @@ __all__ = [
     "MAX_IMAGE_SCALE",
     "LATENT_BLEND_METHOD_LITERAL",
     "NOISE_METHOD_LITERAL",
-    "IP_ADAPTER_LITERAL"
+    "IP_ADAPTER_LITERAL",
+    "ANIMATION_ENGINE_LITERAL"
 ]
 
 DEFAULT_MODEL = "https://huggingface.co/runwayml/stable-diffusion-v1-5/resolve/main/v1-5-pruned.ckpt"
@@ -228,6 +230,9 @@ NOISE_METHOD_LITERAL = Literal[
 ]
 IP_ADAPTER_LITERAL = Literal[
     "default", "plus", "plus-face", "full-face"
+]
+ANIMATION_ENGINE_LITERAL = Literal[
+    "ad_hsxl", "svd"
 ]
 
 # VAE repos/files
@@ -394,6 +399,9 @@ class ImageDict(TypedDict):
     fit: NotRequired[Optional[IMAGE_FIT_LITERAL]]
     anchor: NotRequired[Optional[IMAGE_ANCHOR_LITERAL]]
     invert: NotRequired[bool]
+    low_frequency: NotRequired[int]
+    high_frequency: NotRequired[int]
+    audio_channel: NotRequired[int]
 
 class ControlImageDict(ImageDict):
     """
@@ -443,3 +451,14 @@ class PromptDict(TypedDict):
     weight: NotRequired[Optional[float]]
     start: NotRequired[Optional[int]]
     end: NotRequired[Optional[int]]
+    low_frequency: NotRequired[int]
+    high_frequency: NotRequired[int]
+    audio_channel: NotRequired[int]
+
+class MotionVectorPointDict(TypedDict):
+    """
+    A point along a motion vector
+    """
+    anchor: Tuple[int, int]
+    control_1: NotRequired[Tuple[int, int]]
+    control_2: NotRequired[Tuple[int, int]]

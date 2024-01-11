@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from typing import Any, Union, Dict, Optional, TYPE_CHECKING
+from typing import Any, Union, Dict, Optional, List, Tuple, TYPE_CHECKING
 from typing_extensions import Self
 
 from enfugue.diffusion.constants import MASK_TYPE_LITERAL
@@ -211,6 +211,66 @@ class MaskWeightBuilder:
         On exit, clear tensors.
         """
         self.clear()
+
+    def frames(
+        self,
+        frames: List[int],
+        start: Optional[int]=None,
+        end: Optional[int]=None
+    ) -> Tensor:
+        """
+        Calculates a 1D frame mask
+        """
+        import torch
+        mask = torch.tensor(frames)
+        if start is not None:
+            mask = torch.where(mask >= start, mask, -1)
+        if end is not None:
+            end = torch.where(mask < end, mask, -1)
+        return torch.where(mask >= 0, 1, 0).to(
+            dtype=self.dtype,
+            device=self.device
+        )
+
+    def audio(
+        self,
+        frames: List[int],
+        frequencies: Tensor,
+        amplitudes: Tensor,
+        frequency: Optional[Union[int, Tuple[int]]]=None,
+        channel: Optional[Union[int, Tuple[int]]]=None
+    ) -> Tensor:
+        """
+        Calculates a 1D audio mask
+        """
+        import torch
+        from einops import repeat
+
+        num_frames = len(frames)
+
+        if frequency is None:
+            return torch.ones((num_frames)).to(device=self.device, dtype=self.dtype)
+
+        num_channels = amplitudes.shape[-1]
+
+        if isinstance(frequency, tuple):
+            lo, hi = frequency
+        else:
+            lo, hi = frequency * 0.9, frequency * 1.1
+
+        frequency_mask = torch.where((lo <= frequencies) & (frequencies < hi), 1, 0)
+        frequency_mask = repeat(frequency_mask, "h -> f h c", f=num_frames, c=num_channels)
+        masked_amplitude = amplitudes[frames, :, :] * frequency_mask
+
+        if channel is not None:
+            if isinstance(channel, tuple):
+                masked_amplitude = masked_amplitude[:, :, channel]
+            else:
+                masked_amplitude = masked_amplitude[:, :, [channel]]
+
+        masked_amplitude = torch.mean(masked_amplitude, dim=2)
+        masked_amplitude = torch.sum(masked_amplitude, dim=1) / torch.sum(torch.where(masked_amplitude > 0, 1, 0), dim=1)
+        return masked_amplitude
 
     def constant(
         self,

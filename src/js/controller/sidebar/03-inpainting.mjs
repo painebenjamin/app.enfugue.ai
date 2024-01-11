@@ -130,6 +130,34 @@ class InpaintingController extends Controller {
     }
 
     /**
+     * Enables inpainting
+     */
+    enableInpainting(updateForm = true) {
+        this.publish("inpaintEnabled");
+        this.application.container.classList.add("inpainting");
+        this.scribbleView.show();
+        this.scribbleToolbar.show();
+        this.engine.mask = this.scribbleView.src;
+        if (updateForm) {
+            this.inpaintForm.setValues({"inpaint": true}, false);
+        }
+    }
+
+    /**
+     * Disables inpainting
+     */
+     disableInpainting(updateForm = true) {
+        this.publish("inpaintDisabled");
+        this.application.container.classList.remove("inpainting");
+        this.scribbleView.hide();
+        this.scribbleToolbar.hide();
+        this.engine.mask = null;
+        if (updateForm) {
+            this.inpaintForm.setValues({"inpaint": false}, false);
+        }
+    }
+
+    /**
      * On initialize, build sub controllers and add DOM nodes
      */
     async initialize() {
@@ -159,17 +187,9 @@ class InpaintingController extends Controller {
         this.inpaintForm.onSubmit((values) => {
             // Show/hide parts
             if (values.inpaint) {
-                this.publish("inpaintEnabled");
-                this.application.container.classList.add("inpainting");
-                this.scribbleView.show();
-                this.scribbleToolbar.show();
-                this.engine.mask = this.scribbleView.src;
+                this.enableInpainting(false);
             } else {
-                this.publish("inpaintDisabled");
-                this.application.container.classList.remove("inpainting");
-                this.scribbleView.hide();
-                this.scribbleToolbar.hide();
-                this.engine.mask = null;
+                this.disableInpainting(false);
             }
             // Set engine values
             this.engine.outpaint = values.outpaint;
@@ -179,6 +199,11 @@ class InpaintingController extends Controller {
 
         this.subscribe("engineWidthChange", (newWidth) => this.resize(newWidth));
         this.subscribe("engineHeightChange", (newHeight) => this.resize(null, newHeight));
+        this.subscribe("engineMotionVectorsChange", (newVectors) => {
+            if (!isEmpty(newVectors)) {
+                this.disableInpainting();
+            }
+        });
         this.subscribe("quickUpscale", () => {
             let currentState = this.getState();
             currentState.inpainting.options.inpaint = false;

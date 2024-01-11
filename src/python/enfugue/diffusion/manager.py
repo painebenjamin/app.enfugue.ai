@@ -23,6 +23,7 @@ from enfugue.diffusion.util import get_vram_info
 from enfugue.util import (
     logger,
     check_download,
+    human_duration,
     check_make_directory,
     find_file_in_directory,
     get_file_name_from_url,
@@ -56,7 +57,8 @@ if TYPE_CHECKING:
         IPAdapter,
         BackgroundRemover,
         Interpolator,
-        Conversation
+        Conversation,
+        DragAnimator
     )
     from torch import Tensor
 
@@ -71,7 +73,15 @@ def redact(kwargs: Dict[str, Any]) -> Dict[str, Any]:
     """
     redacted = {}
     for key, value in kwargs.items():
-        if isinstance(value, dict):
+        if key == "audio":
+            frequency_bands = len(value[0])
+            audio_samples = len(value[1])
+            channels = len(value[1][0][0])
+            redacted[key] = f"Audio({audio_samples} samples, {frequency_bands} frequency bands, {channels} channel(s))"
+        elif key == "prompts":
+            total = len(value)
+            redacted[key] = f"PromptList({total} prompt(s))"
+        elif isinstance(value, dict):
             redacted[key] = redact(value)
         elif isinstance(value, tuple):
             redacted[key] = "(" + ", ".join([str(redact({"v": v})["v"]) for v in value]) + ")" # type: ignore[assignment]
@@ -217,6 +227,35 @@ class DiffusionPipelineManager:
 
         diffusers.utils.torch_utils.apply_freeu = apply_freeu # type: ignore[assignment]
 
+    def get_download_callback(self, file_label: str) -> Callable[[int, int], None]:
+        """
+        Gets the callback that applies during downloads.
+        """
+        last_callback = datetime.datetime.now()
+        last_callback_amount: int = 0
+        bytes_per_second_history = []
+
+        def progress_callback(written_bytes: int, total_bytes: int) -> None:
+            nonlocal last_callback
+            nonlocal last_callback_amount
+            this_callback = datetime.datetime.now()
+            this_callback_offset = (this_callback-last_callback).total_seconds()
+            if this_callback_offset > 1:
+                difference = written_bytes - last_callback_amount
+
+                bytes_per_second = difference / this_callback_offset
+                bytes_per_second_history.append(bytes_per_second)
+                bytes_per_second_average = sum(bytes_per_second_history[-10:]) / len(bytes_per_second_history[-10:])
+
+                estimated_seconds_remaining = (total_bytes - written_bytes) / bytes_per_second_average
+                estimated_duration = human_duration(estimated_seconds_remaining, compact=True)
+                percentage = (written_bytes / total_bytes) * 100.0
+                self.task_callback(f"Downloading {file_label}: {percentage:0.1f}% ({human_size(written_bytes)}/{human_size(total_bytes)}), {human_size(bytes_per_second)}/s, {estimated_duration} remaining")
+                last_callback = this_callback
+                last_callback_amount = written_bytes
+
+        return progress_callback
+
     def patch_downloads(self) -> None:
         """
         Steals huggingface hub HTTP GET to report back to the UI.
@@ -226,7 +265,7 @@ class DiffusionPipelineManager:
 
         huggingface_http_get = huggingface_hub.file_download.http_get
 
-        def http_get(url: str, *args: Any, **kwargs: Any) -> Any:
+        def http_get(url: str, out: BinaryIO, *args: Any, **kwargs: Any) -> Any:
             """
             Call the task callback then execute the standard function
             """
@@ -236,8 +275,15 @@ class DiffusionPipelineManager:
             )
             if self.offline:
                 raise ValueError(f"Offline mode enabled, but need to download {file_label}. Exiting.")
+
             self.task_callback(f"Downloading {file_label}")
-            return huggingface_http_get(url, *args, **kwargs)
+
+            return check_download(
+                url,
+                out,
+                resume_size=kwargs.pop("resume_size", 0),
+                progress_callback=self.get_download_callback(file_label)
+            )
 
         huggingface_hub.file_download.http_get = http_get
 
@@ -259,23 +305,49 @@ class DiffusionPipelineManager:
             get_domain_from_url(remote_url)
         )
         self.task_callback(f"Downloading {file_label}")
-        last_callback = datetime.datetime.now()
-
-        def progress_callback(written_bytes: int, total_bytes: int) -> None:
-            nonlocal last_callback
-            this_callback = datetime.datetime.now()
-            if (this_callback - last_callback).total_seconds() > 5:
-                percentage = (written_bytes / total_bytes) * 100.0
-                self.task_callback(f"Downloading {file_label}: {percentage:0.1f}% ({human_size(written_bytes)}/{human_size(total_bytes)})")
-                last_callback = this_callback
 
         check_download(
             remote_url,
             output_path,
-            progress_callback=progress_callback
+            progress_callback=self.get_download_callback(file_label)
         )
 
         return output_path
+
+    def start_keepalive(self) -> None:
+        """
+        Starts a thread which will call the keepalive callback every <n> seconds.
+        """
+        if not hasattr(self, "_keepalive_thread") or not self._keepalive_thread.is_alive():
+            keepalive_callback = self.keepalive_callback
+            self._keepalive_thread = KeepaliveThread(self)
+            self._keepalive_thread.start()
+
+    def stop_keepalive(self) -> None:
+        """
+        Stops the thread which calls the keepalive.
+        """
+        if hasattr(self, "_keepalive_thread"):
+            if self._keepalive_thread.is_alive():
+                self._keepalive_thread.stop()
+                self._keepalive_thread.join()
+            del self._keepalive_thread
+
+    def clear_memory(self) -> None:
+        """
+        Clears cached data
+        """
+        if self.device.type == "cuda":
+            import torch
+            import torch.cuda
+            torch.cuda.empty_cache()
+            torch.cuda.synchronize()
+        elif self.device.type == "mps":
+            import torch
+            import torch.mps
+            torch.mps.empty_cache()
+            torch.mps.synchronize()
+        gc.collect()
 
     @classmethod
     def is_loadable_model_file(cls, path: str) -> bool:
@@ -284,6 +356,8 @@ class DiffusionPipelineManager:
         """
         _, ext = os.path.splitext(path)
         return ext in cls.LOADABLE_EXTENSIONS
+
+    # Overall properties
 
     @property
     def offline(self) -> bool:
@@ -361,29 +435,13 @@ class DiffusionPipelineManager:
             device = torch.device(new_device)
         self._device = device
 
-    def clear_memory(self) -> None:
-        """
-        Clears cached data
-        """
-        if self.device.type == "cuda":
-            import torch
-            import torch.cuda
-            torch.cuda.empty_cache()
-            torch.cuda.synchronize()
-        elif self.device.type == "mps":
-            import torch
-            import torch.mps
-            torch.mps.empty_cache()
-            torch.mps.synchronize()
-        gc.collect()
-
     @property
     def seed(self) -> int:
         """
         Gets the seed. If there is None, creates a random one once.
         """
         if not hasattr(self, "_seed"):
-            self._seed = self.configuration.get("enfugue.seed", random.randint(0, 2**63 - 1))
+            self._seed = self.configuration.get("enfugue.seed", random.randint(0, 2**32-1))
         return self._seed
 
     @seed.setter
@@ -420,25 +478,6 @@ class DiffusionPipelineManager:
         """
         if hasattr(self, "_keepalive_callback"):
             del self._keepalive_callback
-
-    def start_keepalive(self) -> None:
-        """
-        Starts a thread which will call the keepalive callback every <n> seconds.
-        """
-        if not hasattr(self, "_keepalive_thread") or not self._keepalive_thread.is_alive():
-            keepalive_callback = self.keepalive_callback
-            self._keepalive_thread = KeepaliveThread(self)
-            self._keepalive_thread.start()
-
-    def stop_keepalive(self) -> None:
-        """
-        Stops the thread which calls the keepalive.
-        """
-        if hasattr(self, "_keepalive_thread"):
-            if self._keepalive_thread.is_alive():
-                self._keepalive_thread.stop()
-                self._keepalive_thread.join()
-            del self._keepalive_thread
 
     @property
     def generator(self) -> torch.Generator:
@@ -481,81 +520,7 @@ class DiffusionPipelineManager:
         if hasattr(self, "_noise_generator"):
             delattr(self, "_noise_generator")
 
-    def get_scheduler_class(
-        self,
-        scheduler: Optional[SCHEDULER_LITERAL]
-    ) -> Optional[
-        Union[
-            Type,
-            Tuple[Type, Dict[str, Any]]
-        ]
-    ]:
-        """
-        Sets the scheduler class
-        """
-        kwargs: Dict[str, Any] = {}
-        if not scheduler:
-            return None
-        elif scheduler in ["dpmsm", "dpmsms", "dpmsmk", "dpmsmka"]:
-            from diffusers.schedulers import DPMSolverMultistepScheduler
-            if scheduler in ["dpmsms", "dpmsmka"]:
-                kwargs["algorithm_type"] = "sde-dpmsolver++"
-            if scheduler in ["dpmsmk", "dpmsmka"]:
-                kwargs["use_karras_sigmas"] = True
-            return (DPMSolverMultistepScheduler, kwargs)
-        elif scheduler in ["dpmss", "dpmssk"]:
-            from diffusers.schedulers import DPMSolverSinglestepScheduler
-            if scheduler == "dpmssk":
-                kwargs["use_karras_sigmas"] = True
-            return (DPMSolverSinglestepScheduler, kwargs)
-        elif scheduler == "heun":
-            from diffusers.schedulers import HeunDiscreteScheduler
-            return HeunDiscreteScheduler
-        elif scheduler in ["dpmd", "dpmdk"]:
-            from diffusers.schedulers import KDPM2DiscreteScheduler
-            if scheduler == "dpmdk":
-                kwargs["use_karras_sigmas"] = True
-            return (KDPM2DiscreteScheduler, kwargs)
-        elif scheduler in ["adpmd", "adpmdk"]:
-            from diffusers.schedulers import KDPM2AncestralDiscreteScheduler
-            if scheduler == "adpmdk":
-                kwargs["use_karras_sigmas"] = True
-            return (KDPM2AncestralDiscreteScheduler, kwargs)
-        elif scheduler in ["lmsd", "lmsdk"]:
-            from diffusers.schedulers import LMSDiscreteScheduler
-            if scheduler == "lmsdk":
-                kwargs["use_karras_sigmas"] = True
-            return (LMSDiscreteScheduler, kwargs)
-        elif scheduler == "ddim":
-            from diffusers.schedulers import DDIMScheduler
-            return DDIMScheduler
-        elif scheduler == "ddpm":
-            from diffusers.schedulers import DDPMScheduler
-            return DDPMScheduler
-        elif scheduler == "deis":
-            from diffusers.schedulers import DEISMultistepScheduler
-            return DEISMultistepScheduler
-        elif scheduler == "dpmsde":
-            from diffusers.schedulers import DPMSolverSDEScheduler
-            return DPMSolverSDEScheduler
-        elif scheduler == "unipc":
-            from diffusers.schedulers import UniPCMultistepScheduler
-            return UniPCMultistepScheduler
-        elif scheduler == "pndm":
-            from diffusers.schedulers import PNDMScheduler
-            return PNDMScheduler
-        elif scheduler in ["eds", "edsk"]:
-            from diffusers.schedulers import EulerDiscreteScheduler
-            if scheduler == "edsk":
-                kwargs["use_karras_sigmas"] = True
-            return (EulerDiscreteScheduler, kwargs)
-        elif scheduler == "eads":
-            from diffusers.schedulers import EulerAncestralDiscreteScheduler
-            return EulerAncestralDiscreteScheduler
-        elif scheduler == "lcm":
-            from diffusers.schedulers import LCMScheduler
-            return LCMScheduler
-        raise ValueError(f"Unknown scheduler {scheduler}")
+    # Diffusion properties
 
     @property
     def scheduler_config(self) -> Dict[str, Any]:
@@ -655,125 +620,6 @@ class DiffusionPipelineManager:
                 **self.scheduler_config,
                 **self.static_scheduler_config
             })
-
-    def get_vae_path(self, vae: Optional[str] = None) -> Optional[Union[str, Tuple[str, ...]]]:
-        """
-        Gets the path to the VAE repository based on the passed path or key
-        """
-        if vae == "ema":
-            return VAE_EMA
-        elif vae == "mse":
-            return VAE_MSE
-        elif vae == "xl":
-            return VAE_XL
-        elif vae == "xl16":
-            return VAE_XL16
-        elif vae == "consistency":
-            return VAE_CONSISTENCY
-        return vae
-
-    def find_vae_path(self, vae: str) -> str:
-        """
-        Finds a VAE path if there is one, otherwise returns a repo.
-        """
-        path = self.get_vae_path(vae)
-        if not path:
-            raise ValueError("find_vae_path requires an argument")
-        if not isinstance(path, tuple):
-            return path
-        repo, possible_files = path[0], path[1:]
-        for filename in possible_files:
-            possible_file = find_file_in_directory(
-                self.engine_cache_dir,
-                filename,
-                self.LOADABLE_EXTENSIONS
-            )
-            if possible_file is not None:
-                return possible_file
-        return repo
-    
-    def get_xl_vae(self, vae: str) -> AutoencoderKL:
-        """
-        Loads an XL VAE from file or dies trying
-        """
-        from diffusers.models import AutoencoderKL
-        from enfugue.diffusion.util.torch_util import load_state_dict
-
-        vae_config = os.path.join(self.engine_cache_dir, "sdxl-vae-config.json")
-        check_download(
-            "https://huggingface.co/stabilityai/sdxl-vae/raw/main/config.json",
-            vae_config
-        )
-        vae_model = AutoencoderKL.from_config(
-            AutoencoderKL._dict_from_json_file(vae_config)
-        )
-        vae_model.load_state_dict(load_state_dict(vae), strict=False)
-        return vae_model.to(self.device)
-
-    def get_vae(
-        self,
-        vae: Optional[Union[str, Tuple[str, ...]]] = None
-    ) -> Optional[Union[AutoencoderKL, ConsistencyDecoderVAE]]:
-        """
-        Loads the VAE
-        """
-        if vae is None:
-            return None
-
-        if isinstance(vae, tuple):
-            vae, possible_files = vae[0], vae[1:]
-            for filename in possible_files:
-                possible_file = find_file_in_directory(
-                    self.engine_cache_dir,
-                    filename,
-                    self.LOADABLE_EXTENSIONS
-                )
-                if possible_file is not None:
-                    vae = possible_file
-                    break
-
-        if vae.startswith("http"):
-            vae = self.check_download_model(self.engine_cache_dir, vae)
-
-        if "consisten" in vae.lower():
-            from diffusers.models import ConsistencyDecoderVAE
-            vae_model = ConsistencyDecoderVAE
-        else:
-            from diffusers.models import AutoencoderKL
-            vae_model = AutoencoderKL
-
-        if os.path.exists(vae):
-            try:
-                result = vae_model.from_single_file(
-                    vae,
-                    torch_dtype=self.dtype,
-                    cache_dir=self.engine_cache_dir,
-                    from_safetensors="safetensors" in vae
-                )
-            except KeyError as ex:
-                logger.debug(f"Received KeyError on '{ex}' when instantiating VAE from single file, trying to use XL VAE loader fix.")
-                result = self.get_xl_vae(vae)
-        else:
-            result = vae_model.from_pretrained(
-                vae,
-                torch_dtype=self.dtype,
-                cache_dir=self.engine_cache_dir,
-                local_files_only=self.offline
-            )
-
-        return result
-
-    def get_vae_preview(self, use_xl: bool) -> AutoencoderTiny:
-        """
-        Gets a previewer VAE (tiny)
-        """
-        from diffusers.models import AutoencoderTiny
-        repo = "madebyollin/taesdxl" if use_xl else "madebyollin/taesd"
-        return AutoencoderTiny.from_pretrained(
-            repo,
-            cache_dir=self.engine_cache_dir,
-            torch_dtype=self.dtype
-        )
 
     @property
     def vae(self) -> Optional[Union[AutoencoderKL, ConsistencyDecoderVAE]]:
@@ -1169,7 +1015,7 @@ class DiffusionPipelineManager:
         """
         Gets the cache for diffusers-downloaded configuration files, base models, etc.
         """
-        path = self.configuration.get("enfugue.engine.cache", "~/.cache/enfugue/cache")
+        path = self.configuration.get("enfugue.engine.cache", os.path.join(self.engine_root, "cache"))
         if path.startswith("~"):
             path = os.path.expanduser(path)
         path = os.path.realpath(path)
@@ -1181,7 +1027,7 @@ class DiffusionPipelineManager:
         """
         Gets where checkpoints are downloaded in.
         """
-        path = self.configuration.get("enfugue.engine.checkpoint", "~/.cache/enfugue/checkpoint")
+        path = self.configuration.get("enfugue.engine.checkpoint", os.path.join(self.engine_root, "checkpoint"))
         if path.startswith("~"):
             path = os.path.expanduser(path)
         path = os.path.realpath(path)
@@ -1193,7 +1039,7 @@ class DiffusionPipelineManager:
         """
         Gets where any other weights are download in
         """
-        path = self.configuration.get("enfugue.engine.other", "~/.cache/enfugue/other")
+        path = self.configuration.get("enfugue.engine.other", os.path.join(self.engine_root, "other"))
         if path.startswith("~"):
             path = os.path.expanduser(path)
         path = os.path.realpath(path)
@@ -1205,7 +1051,7 @@ class DiffusionPipelineManager:
         """
         Gets where lora are downloaded in.
         """
-        path = self.configuration.get("enfugue.engine.lora", "~/.cache/enfugue/lora")
+        path = self.configuration.get("enfugue.engine.lora", os.path.join(self.engine_root, "lora"))
         if path.startswith("~"):
             path = os.path.expanduser(path)
         path = os.path.realpath(path)
@@ -1217,7 +1063,7 @@ class DiffusionPipelineManager:
         """
         Gets where lycoris are downloaded in.
         """
-        path = self.configuration.get("enfugue.engine.lycoris", "~/.cache/enfugue/lycoris")
+        path = self.configuration.get("enfugue.engine.lycoris", os.path.join(self.engine_root, "lycoris"))
         if path.startswith("~"):
             path = os.path.expanduser(path)
         path = os.path.realpath(path)
@@ -1229,7 +1075,7 @@ class DiffusionPipelineManager:
         """
         Gets where inversion are downloaded to.
         """
-        path = self.configuration.get("enfugue.engine.inversion", "~/.cache/enfugue/inversion")
+        path = self.configuration.get("enfugue.engine.inversion", os.path.join(self.engine_root, "inversion"))
         if path.startswith("~"):
             path = os.path.expanduser(path)
         path = os.path.realpath(path)
@@ -1241,7 +1087,7 @@ class DiffusionPipelineManager:
         """
         Gets where TensorRT engines are built.
         """
-        path = self.configuration.get("enfugue.engine.tensorrt", "~/.cache/enfugue/tensorrt")
+        path = self.configuration.get("enfugue.engine.tensorrt", os.path.join(self.engine_root, "tensorrt"))
         if path.startswith("~"):
             path = os.path.expanduser(path)
         path = os.path.realpath(path)
@@ -1253,7 +1099,7 @@ class DiffusionPipelineManager:
         """
         Gets where motion modules are saved.
         """
-        path = self.configuration.get("enfugue.engine.motion", "~/.cache/enfugue/motion")
+        path = self.configuration.get("enfugue.engine.motion", os.path.join(self.engine_root, "motion"))
         if path.startswith("~"):
             path = os.path.expanduser(path)
         path = os.path.realpath(path)
@@ -1265,7 +1111,7 @@ class DiffusionPipelineManager:
         """
         Gets where language modules are saved.
         """
-        path = self.configuration.get("enfugue.engine.language", "~/.cache/enfugue/language")
+        path = self.configuration.get("enfugue.engine.language", os.path.join(self.engine_root, "language"))
         if path.startswith("~"):
             path = os.path.expanduser(path)
         path = os.path.realpath(path)
@@ -2482,24 +2328,6 @@ class DiffusionPipelineManager:
             from enfugue.diffusion.animate.pipeline import EnfugueAnimateStableDiffusionPipeline
             return EnfugueAnimateStableDiffusionPipeline
 
-    def check_get_default_model(self, model: str) -> str:
-        """
-        Checks if a model is a default model, in which case the remote URL is returned
-        to check if the resources has changed or needs to be downloaded
-        """
-        model_file = os.path.basename(model)
-        if model_file == DEFAULT_MODEL_FILE:
-            return DEFAULT_MODEL
-        elif model_file == DEFAULT_INPAINTING_MODEL_FILE:
-            return DEFAULT_INPAINTING_MODEL
-        elif model_file == DEFAULT_SDXL_MODEL_FILE:
-            return DEFAULT_SDXL_MODEL
-        elif model_file == DEFAULT_SDXL_INPAINTING_MODEL_FILE:
-            return DEFAULT_SDXL_INPAINTING_MODEL
-        elif model_file == DEFAULT_SDXL_REFINER_FILE:
-            return DEFAULT_SDXL_REFINER
-        return model
-
     @property
     def model(self) -> str:
         """
@@ -3255,6 +3083,40 @@ class DiffusionPipelineManager:
             return self.animator_metadata.is_sdxl
         return "xl" in self.animator_name.lower()
 
+    @property
+    def svd_xt(self) -> bool:
+        """
+        Returns true if the SVD pipeline should use XT.
+        """
+        return getattr(self, "_svd_xt", False)
+
+    @svd_xt.setter
+    def svd_xt(self, value: bool) -> None:
+        """
+        Sets the pipeline XT, unloads the pipeline if set
+        """
+        if self.svd_xt != value:
+            del self.svd_pipeline
+        self._svd_xt = value
+
+    def check_get_default_model(self, model: str) -> str:
+        """
+        Checks if a model is a default model, in which case the remote URL is returned
+        to check if the resources has changed or needs to be downloaded
+        """
+        model_file = os.path.basename(model)
+        if model_file == DEFAULT_MODEL_FILE:
+            return DEFAULT_MODEL
+        elif model_file == DEFAULT_INPAINTING_MODEL_FILE:
+            return DEFAULT_INPAINTING_MODEL
+        elif model_file == DEFAULT_SDXL_MODEL_FILE:
+            return DEFAULT_SDXL_MODEL
+        elif model_file == DEFAULT_SDXL_INPAINTING_MODEL_FILE:
+            return DEFAULT_SDXL_INPAINTING_MODEL
+        elif model_file == DEFAULT_SDXL_REFINER_FILE:
+            return DEFAULT_SDXL_REFINER
+        return model
+
     def check_create_engine_cache(self) -> None:
         """
         Converts a .ckpt file to the directory structure from diffusers
@@ -3342,7 +3204,7 @@ class DiffusionPipelineManager:
             if i < len(modules_to_cpu):
                 modules_to_cpu[i].to(torch.device("cpu"))
             self.clear_memory()
-    
+
     @property
     def pipeline(self) -> EnfugueStableDiffusionPipeline:
         """
@@ -4052,6 +3914,55 @@ class DiffusionPipelineManager:
             self.clear_memory()
             self.reload_motion_module = False
 
+    # Special pipelines
+
+    @property
+    def drag_pipeline(self) -> DragAnimatorPipeline:
+        """
+        Gets the drag animator pipeline.
+        """
+        if not hasattr(self, "_drag_pipeline"):
+            from enfugue.diffusion.support import DragAnimator
+            drag_pipeline = DragAnimator(
+                self.engine_motion_dir,
+                device=self.device,
+                dtype=self.dtype,
+                offline=self.offline
+            )
+            drag_pipeline.task_callback = self.task_callback
+            self.task_callback("Preparing DragNUWA Pipeline")
+            self._drag_pipeline = drag_pipeline.nuwa()
+        return self._drag_pipeline
+
+    @drag_pipeline.deleter
+    def drag_pipeline(self) -> None:
+        """
+        Deletes the drag animator pipeline.
+        """
+        if hasattr(self, "_drag_pipeline"):
+            logger.debug("Unloading DragNUWA pipeline.")
+            del self._drag_pipeline
+
+    @property
+    def svd_pipeline(self, use_xt: bool = True) -> StableVideoDiffusionPipeline:
+        """
+        Gets the SVD pipeline
+        """
+        if not hasattr(self, "_svd_pipeline"):
+            self._svd_pipeline = self.get_svd_pipeline(self.svd_xt)
+        return self._svd_pipeline
+
+    @svd_pipeline.deleter
+    def svd_pipeline(self) -> None:
+        """
+        Deletes the SVD pipeline
+        """
+        if hasattr(self, "_svd_pipeline"):
+            del self._svd_pipeline
+            self.clear_memory()
+
+    # Functional pipeline loaders/unloaders
+
     def unload_pipeline(self, reason: str = "None") -> None:
         """
         Calls the pipeline deleter.
@@ -4283,6 +4194,203 @@ class DiffusionPipelineManager:
             )
             self._interpolator.task_callback = self.task_callback
         return self._interpolator
+
+    # Diffusers model getters
+
+    def get_vae_path(self, vae: Optional[str] = None) -> Optional[Union[str, Tuple[str, ...]]]:
+        """
+        Gets the path to the VAE repository based on the passed path or key
+        """
+        if vae == "ema":
+            return VAE_EMA
+        elif vae == "mse":
+            return VAE_MSE
+        elif vae == "xl":
+            return VAE_XL
+        elif vae == "xl16":
+            return VAE_XL16
+        elif vae == "consistency":
+            return VAE_CONSISTENCY
+        return vae
+
+    def find_vae_path(self, vae: str) -> str:
+        """
+        Finds a VAE path if there is one, otherwise returns a repo.
+        """
+        path = self.get_vae_path(vae)
+        if not path:
+            raise ValueError("find_vae_path requires an argument")
+        if not isinstance(path, tuple):
+            return path
+        repo, possible_files = path[0], path[1:]
+        for filename in possible_files:
+            possible_file = find_file_in_directory(
+                self.engine_cache_dir,
+                filename,
+                self.LOADABLE_EXTENSIONS
+            )
+            if possible_file is not None:
+                return possible_file
+        return repo
+    
+    def get_xl_vae(self, vae: str) -> AutoencoderKL:
+        """
+        Loads an XL VAE from file or dies trying
+        """
+        from diffusers.models import AutoencoderKL
+        from enfugue.diffusion.util.torch_util import load_state_dict
+
+        vae_config = os.path.join(self.engine_cache_dir, "sdxl-vae-config.json")
+        check_download(
+            "https://huggingface.co/stabilityai/sdxl-vae/raw/main/config.json",
+            vae_config
+        )
+        vae_model = AutoencoderKL.from_config(
+            AutoencoderKL._dict_from_json_file(vae_config)
+        )
+        vae_model.load_state_dict(load_state_dict(vae), strict=False)
+        return vae_model.to(self.device)
+
+    def get_vae(
+        self,
+        vae: Optional[Union[str, Tuple[str, ...]]] = None
+    ) -> Optional[Union[AutoencoderKL, ConsistencyDecoderVAE]]:
+        """
+        Loads the VAE
+        """
+        if vae is None:
+            return None
+
+        if isinstance(vae, tuple):
+            vae, possible_files = vae[0], vae[1:]
+            for filename in possible_files:
+                possible_file = find_file_in_directory(
+                    self.engine_cache_dir,
+                    filename,
+                    self.LOADABLE_EXTENSIONS
+                )
+                if possible_file is not None:
+                    vae = possible_file
+                    break
+
+        if vae.startswith("http"):
+            vae = self.check_download_model(self.engine_cache_dir, vae)
+
+        if "consisten" in vae.lower():
+            from diffusers.models import ConsistencyDecoderVAE
+            vae_model = ConsistencyDecoderVAE
+        else:
+            from diffusers.models import AutoencoderKL
+            vae_model = AutoencoderKL
+
+        if os.path.exists(vae):
+            try:
+                result = vae_model.from_single_file(
+                    vae,
+                    torch_dtype=self.dtype,
+                    cache_dir=self.engine_cache_dir,
+                    from_safetensors="safetensors" in vae
+                )
+            except KeyError as ex:
+                logger.debug(f"Received KeyError on '{ex}' when instantiating VAE from single file, trying to use XL VAE loader fix.")
+                result = self.get_xl_vae(vae)
+        else:
+            result = vae_model.from_pretrained(
+                vae,
+                torch_dtype=self.dtype,
+                cache_dir=self.engine_cache_dir,
+                local_files_only=self.offline
+            )
+
+        return result
+
+    def get_vae_preview(self, use_xl: bool) -> AutoencoderTiny:
+        """
+        Gets a previewer VAE (tiny)
+        """
+        from diffusers.models import AutoencoderTiny
+        repo = "madebyollin/taesdxl" if use_xl else "madebyollin/taesd"
+        return AutoencoderTiny.from_pretrained(
+            repo,
+            cache_dir=self.engine_cache_dir,
+            torch_dtype=self.dtype
+        )
+
+    def get_scheduler_class(
+        self,
+        scheduler: Optional[SCHEDULER_LITERAL]
+    ) -> Optional[
+        Union[
+            Type,
+            Tuple[Type, Dict[str, Any]]
+        ]
+    ]:
+        """
+        Sets the scheduler class
+        """
+        kwargs: Dict[str, Any] = {}
+        if not scheduler:
+            return None
+        elif scheduler in ["dpmsm", "dpmsms", "dpmsmk", "dpmsmka"]:
+            from diffusers.schedulers import DPMSolverMultistepScheduler
+            if scheduler in ["dpmsms", "dpmsmka"]:
+                kwargs["algorithm_type"] = "sde-dpmsolver++"
+            if scheduler in ["dpmsmk", "dpmsmka"]:
+                kwargs["use_karras_sigmas"] = True
+            return (DPMSolverMultistepScheduler, kwargs)
+        elif scheduler in ["dpmss", "dpmssk"]:
+            from diffusers.schedulers import DPMSolverSinglestepScheduler
+            if scheduler == "dpmssk":
+                kwargs["use_karras_sigmas"] = True
+            return (DPMSolverSinglestepScheduler, kwargs)
+        elif scheduler == "heun":
+            from diffusers.schedulers import HeunDiscreteScheduler
+            return HeunDiscreteScheduler
+        elif scheduler in ["dpmd", "dpmdk"]:
+            from diffusers.schedulers import KDPM2DiscreteScheduler
+            if scheduler == "dpmdk":
+                kwargs["use_karras_sigmas"] = True
+            return (KDPM2DiscreteScheduler, kwargs)
+        elif scheduler in ["adpmd", "adpmdk"]:
+            from diffusers.schedulers import KDPM2AncestralDiscreteScheduler
+            if scheduler == "adpmdk":
+                kwargs["use_karras_sigmas"] = True
+            return (KDPM2AncestralDiscreteScheduler, kwargs)
+        elif scheduler in ["lmsd", "lmsdk"]:
+            from diffusers.schedulers import LMSDiscreteScheduler
+            if scheduler == "lmsdk":
+                kwargs["use_karras_sigmas"] = True
+            return (LMSDiscreteScheduler, kwargs)
+        elif scheduler == "ddim":
+            from diffusers.schedulers import DDIMScheduler
+            return DDIMScheduler
+        elif scheduler == "ddpm":
+            from diffusers.schedulers import DDPMScheduler
+            return DDPMScheduler
+        elif scheduler == "deis":
+            from diffusers.schedulers import DEISMultistepScheduler
+            return DEISMultistepScheduler
+        elif scheduler == "dpmsde":
+            from diffusers.schedulers import DPMSolverSDEScheduler
+            return DPMSolverSDEScheduler
+        elif scheduler == "unipc":
+            from diffusers.schedulers import UniPCMultistepScheduler
+            return UniPCMultistepScheduler
+        elif scheduler == "pndm":
+            from diffusers.schedulers import PNDMScheduler
+            return PNDMScheduler
+        elif scheduler in ["eds", "edsk"]:
+            from diffusers.schedulers import EulerDiscreteScheduler
+            if scheduler == "edsk":
+                kwargs["use_karras_sigmas"] = True
+            return (EulerDiscreteScheduler, kwargs)
+        elif scheduler == "eads":
+            from diffusers.schedulers import EulerAncestralDiscreteScheduler
+            return EulerAncestralDiscreteScheduler
+        elif scheduler == "lcm":
+            from diffusers.schedulers import LCMScheduler
+            return LCMScheduler
+        raise ValueError(f"Unknown scheduler {scheduler}")
 
     def get_svd_pipeline(self, use_xt: bool = True) -> StableVideoDiffusionPipeline:
         """
@@ -4734,6 +4842,94 @@ class DiffusionPipelineManager:
         """
         return getattr(self, "_refiner_controlnet_names", set())
 
+    def dragnuwa_img2vid(
+        self,
+        image: Union[str, PIL.Image.Image],
+        motion_vectors: List[List[MotionVectorPointDict]],
+        decode_chunk_size: Optional[int] = 1,
+        num_frames: int = 14,
+        num_inference_steps: int = 25,
+        min_guidance_scale: float = 1.0,
+        max_guidance_scale: float = 3.0,
+        fps: int = 7,
+        motion_bucket_id: int = 127,
+        noise_aug_strength: float = 0.02,
+        gaussian_sigma: int = 20,
+        task_callback: Optional[Callable[[str], None]] = None,
+        progress_callback: Optional[Callable[[int, int, float], None]] = None,
+        image_callback: Optional[Callable[[List[PIL.Image.Image]], None]] = None,
+        image_callback_steps: Optional[int] = None,
+        **kwargs: Any
+    ) -> List[PIL.Image.Image]:
+        """
+        Gets a Stable Video Diffusion (SVD) pipeline and executes it.
+        """
+        if task_callback is None:
+            task_callback = lambda arg: None
+
+        self.set_task_callback(task_callback)
+        self.offload_all() # Send any active diffusion pipelines to CPU
+        self.start_keepalive()
+
+        try:
+            if isinstance(image, str):
+                from enfugue.util import image_from_uri
+                image = image_from_uri(image)
+            latent_callback: Optional[Callable[[Tensor], None]] = None
+            if image_callback is not None:
+                # Build decoding callback
+                from diffusers.image_processor import VaeImageProcessor
+                vae_preview = self.get_vae_preview(False).to(device=self.device)
+                image_processor = VaeImageProcessor()
+                def decode_svd_latents(latents):
+                    import numpy as np
+                    from einops import rearrange
+                    from torchvision import utils
+                    cond, uncond = latents.chunk(2)
+                    cond = cond.unsqueeze(0)
+                    preview_decoded = torch.cat([
+                        vae_preview.decode(
+                            cond[:, i, :, :, :],
+                            return_dict=False
+                        )[0].to(self.device).unsqueeze(1)
+                        for i in range(cond.shape[1])
+                    ], dim=1)
+                    preview_decoded = (preview_decoded / 2 + 0.5).clamp(0, 0.98)
+                    preview_decoded = rearrange(preview_decoded, "b f c h w -> f b c h w")
+                    images = []
+                    for frame in preview_decoded:
+                        frame = utils.make_grid(frame, nrow=8)
+                        frame = frame.transpose(0, 1).transpose(1, 2).squeeze(-1)
+                        frame = (255 - (frame * 255)).cpu().numpy().astype(np.uint8)
+                        images.extend(image_processor.numpy_to_pil(frame))
+
+                    image_callback(images)
+
+                latent_callback = decode_svd_latents
+
+            width, height = image.size
+            pipeline = self.drag_pipeline 
+            self.stop_keepalive()
+            task_callback("Executing Inference")
+            return pipeline(
+                image,
+                width=width,
+                height=height,
+                fps=fps,
+                seed=self.seed,
+                num_frames=num_frames,
+                motion_vectors=motion_vectors,
+                motion_bucket_id=motion_bucket_id,
+                gaussian_sigma=gaussian_sigma,
+                noise_aug_strength=noise_aug_strength,
+                progress_callback=progress_callback,
+                latent_callback=latent_callback,
+                latent_callback_steps=image_callback_steps
+            )[0]
+        finally:
+            self.clear_task_callback()
+            self.stop_keepalive()
+
     def svd_img2vid(
         self,
         image: Union[str, PIL.Image.Image],
@@ -4760,6 +4956,7 @@ class DiffusionPipelineManager:
 
         self.set_task_callback(task_callback)
         self.offload_all() # Send any active diffusion pipelines to CPU
+        del self.drag_pipeline # Unload this
         self.start_keepalive()
         try:
             if isinstance(image, str):
@@ -4767,9 +4964,15 @@ class DiffusionPipelineManager:
                 image = image_from_uri(image)
 
             width, height = image.size
-            pipe = self.get_svd_pipeline(use_xt=use_xt)
-            self.stop_keepalive()
 
+            task_callback("Instantiating SVD Pipeline")
+
+            pipe = self.get_svd_pipeline(use_xt=use_xt)
+            vae_preview = None
+            if image_callback is not None and image_callback_steps is not None:
+                vae_preview = self.get_vae_preview(False).to(device=self.device)
+
+            self.stop_keepalive()
             task_callback("Executing Inference")
 
             step_start: datetime.datetime = datetime.datetime.now()
@@ -4781,14 +4984,46 @@ class DiffusionPipelineManager:
                 timestep: Tensor,
                 callback_kwargs: Dict[str, Any]
             ) -> Dict[str, Any]:
+                """
+                The SVD pipeline uses one callback function, so we invoke our split ones here
+                """
+                import numpy as np
+                from einops import rearrange
+                from torchvision import utils
                 nonlocal step_start
                 now = datetime.datetime.now()
                 step_times.append((now-step_start).total_seconds())
                 step_start = now
+
                 if progress_callback is not None:
                     time_slice = step_times[-5:]
                     step_rate = 1.0 / (sum(time_slice)/len(time_slice))
                     progress_callback(step, num_inference_steps, step_rate)
+
+                if (
+                    step > 0 and
+                    image_callback is not None and
+                    image_callback_steps is not None and
+                    step % image_callback_steps == 0 and
+                    "latents" in callback_kwargs
+                ):
+                    latents = callback_kwargs["latents"]
+                    preview_decoded = torch.cat([
+                        vae_preview.decode(
+                            latents[:, i, :, :, :],
+                            return_dict=False
+                        )[0].to(self.device).unsqueeze(1)
+                        for i in range(latents.shape[1])
+                    ], dim=1)
+                    preview_decoded = (preview_decoded / 2 + 0.5).clamp(0, 0.98)
+                    preview_decoded = rearrange(preview_decoded, "b f c h w -> f b c h w")
+                    images = []
+                    for frame in preview_decoded:
+                        frame = utils.make_grid(frame, nrow=8)
+                        frame = frame.transpose(0, 1).transpose(1, 2).squeeze(-1)
+                        frame = (255 - (frame * 255)).cpu().numpy().astype(np.uint8)
+                        images.extend(pipe.image_processor.numpy_to_pil(frame))
+                    image_callback(images)
                 return callback_kwargs
 
             frames = pipe( # type: ignore[operator]
@@ -4805,8 +5040,10 @@ class DiffusionPipelineManager:
                 noise_aug_strength=noise_aug_strength,
                 generator=self.noise_generator,
                 callback_on_step_end=step_callback,
+                callback_on_step_end_tensor_inputs=["latents"] if image_callback is not None else [],
             ).frames[0]
             del pipe
+            del vae_preview
             self.clear_memory()
             return frames
         finally:
@@ -4887,6 +5124,9 @@ class DiffusionPipelineManager:
                 intention = "inference"
 
             task_callback(f"Preparing {intention.title()} Pipeline")
+            # Unload any remaining specialty pipelines
+            del self.svd_pipeline
+            del self.drag_pipeline
 
             if animating and self.has_animator:
                 size = self.animator_size

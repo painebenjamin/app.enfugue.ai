@@ -758,6 +758,13 @@ class UNet3DConditionModel(ModelMixin, ConfigMixin, UNet2DConditionLoadersMixin)
         if self.config.center_input_sample:
             sample = 2 * sample - 1.0
 
+        # 00. compress temporal if necessary
+        if added_cond_kwargs is not None:
+            if "text_embeds" in added_cond_kwargs and len(added_cond_kwargs["text_embeds"].shape) == 4:
+                added_cond_kwargs["text_embeds"] = torch.mean(added_cond_kwargs["text_embeds"], dim=1)[:, 0, :]
+        if len(encoder_hidden_states.shape) == 4:
+            encoder_hidden_states = torch.mean(encoder_hidden_states, dim=1)
+
         # 1. time
         timesteps = timestep
         if not torch.is_tensor(timesteps):

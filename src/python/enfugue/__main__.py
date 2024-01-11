@@ -2,6 +2,7 @@ import os
 import sys
 import time
 import json
+import math
 import click
 import termcolor
 import logging
@@ -274,6 +275,103 @@ def run(
             click.echo(termcolor.colored(traceback.format_exc(), "red"))
     finally:
         click.echo("Goodbye!")
+
+@click.argument("file_path")
+@click.option("-d", "--debug", help="Enable debug logging.", is_flag=True, default=False)
+@click.option("-s", "--seconds", help="The number of seconds to limit reading to.", default=300.0, show_default=True)
+@click.option("-r", "--rate", help="The number of FFT samples to get per second.", default=8, show_default=True)
+@click.option("-b", "--bands", help="The number of bands to limit to (linearly spaced).", default=512, show_default=True)
+@click.option("-l", "--low-filter", help="A low pass, under which will be set to 0.", default=0.3, show_default=True)
+
+@main.command(short_help="Analyzes the audio spectrum across an input file.")
+def spectralyze(
+    file_path: str,
+    debug: bool = False,
+    seconds: float = 300.0,
+    rate: int = 8,
+    bands: int = 512,
+    low_filter: float = 0.0,
+) -> None:
+    """
+    Analyzes frequencies in an audio file.
+    """
+    from enfugue.diffusion.util import Audio
+    with get_context(debug):
+        click.echo("Getting normalized frequencies and amplitudes from file.")
+        if file_path.startswith("~"):
+            file_path = os.path.expanduser(file_path)
+        frequencies, amplitudes = Audio.from_file(file_path).get_normalized_frequencies(
+            samples_per_second=rate,
+            maximum_samples=rate*seconds,
+            low_filter=low_filter
+        )
+        maxes = dict([
+            (frequency, 0.0)
+            for frequency in frequencies
+        ])
+        averages = dict([
+            (frequency, 0.0)
+            for frequency in frequencies
+        ])
+        max_freqs = []
+        audio_frames = len(amplitudes)
+        click.echo(f"Evaluating {audio_frames} spectral audio frames.")
+        for i, frame in enumerate(amplitudes):
+            frame_max_amplitude = 0
+            frame_max_amplitude_index = 0
+            for i, frequency in enumerate(frequencies):
+                frame_amplitude = max(frame[i])
+                if frame_amplitude > frame_max_amplitude:
+                    frame_max_amplitude = frame_amplitude
+                    frame_max_amplitude_index = i
+                maxes[frequency] = max([maxes[frequency], frame_amplitude])
+                averages[frequency] += frame_amplitude / audio_frames
+            max_freqs.append(frequencies[frame_max_amplitude_index])
+
+        from tabulate import tabulate
+        headers = ["Second"] + [
+            f"+{(i/rate):0.2f}s"
+            for i in range(rate)
+        ]
+        table = []
+        for i in range(0, audio_frames, rate):
+            table += [[f"{(i/rate):0.2f}s"] + [
+                f"{(max_freqs[j]):d}Hz"
+                for j in range(i, i+rate)
+                if j < audio_frames
+            ]]
+
+        click.echo(termcolor.colored("Frequency with Highest Amplitude over Time", "green"))
+        click.echo(tabulate(table, headers=headers, tablefmt="grid"))
+
+        min_freq = min(frequencies)
+        max_freq = max(frequencies)
+        freq_range = max_freq - min_freq
+        freq_per_band = math.ceil(freq_range / bands)
+
+        click.echo(termcolor.colored("Frequency Band Overall Analysis", "green"))
+        for i in range(bands):
+            band_min_freq = max_freq
+            band_max_freq = 0
+            band_max = 0
+            band_averages = []
+            band_freq_start = i * freq_per_band
+            band_freq_end = ((i + 1) * freq_per_band) - 1
+            for frequency in frequencies:
+                if frequency >= band_freq_start and frequency < band_freq_end:
+                    band_min_freq = min([band_min_freq, frequency])
+                    band_max_freq = max([band_max_freq, frequency])
+                    band_max = max([band_max, maxes[frequency]])
+                    band_averages.append(averages[frequency])
+                elif frequency >= band_freq_end:
+                    break
+
+            band_average = sum(band_averages) / len(band_averages)
+            click.echo("{0}: {1}/{2}".format(
+                termcolor.colored(f"{band_min_freq}-{band_max_freq} Hz", "cyan"),
+                termcolor.colored(f"{band_max:0.3f} max", "green"),
+                termcolor.colored(f"{band_average:0.3f} avg", "magenta")
+            ))
 
 try:
     main()

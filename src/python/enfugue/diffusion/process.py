@@ -371,7 +371,8 @@ class DiffusionEngineProcess(EngineProcess):
         """
 
         def callback(task: str) -> None:
-            logger.debug(f"Instruction {instruction_id} beginning task “{task}”")
+            if not task.startswith("Download"):
+                logger.debug(f"Instruction {instruction_id} beginning task “{task}”")
             payload = {"id": instruction_id, "task": task}
             self.intermediates.put_nowait(payload)
         

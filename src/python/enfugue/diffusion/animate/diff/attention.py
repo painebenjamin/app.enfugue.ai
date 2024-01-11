@@ -121,7 +121,10 @@ class Transformer3DModel(ModelMixin, ConfigMixin):
         assert hidden_states.dim() == 5, f"Expected hidden_states to have ndim=5, but got ndim={hidden_states.dim()}."
         video_length = hidden_states.shape[2]
         hidden_states = rearrange(hidden_states, "b c f h w -> (b f) c h w")
-        encoder_hidden_states = repeat(encoder_hidden_states, 'b n c -> (b f) n c', f=video_length)
+        if len(encoder_hidden_states.shape) == 4:
+            encoder_hidden_states = rearrange(encoder_hidden_states, 'b f n c -> (b f) n c')
+        else:
+            encoder_hidden_states = repeat(encoder_hidden_states, 'b n c -> (b f) n c', f=video_length)
 
         batch, channel, height, weight = hidden_states.shape
         residual = hidden_states

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Tuple, TYPE_CHECKING
+from typing import Tuple, Any, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from torch import device as Device
@@ -14,6 +14,7 @@ __all__ = [
     "get_ram_info",
     "get_vram_info",
     "empty_cache",
+    "debug_tensors",
 ]
 
 def tensorrt_available() -> bool:
@@ -103,3 +104,25 @@ def empty_cache() -> None:
         torch.mps.synchronize()
     import gc
     gc.collect()
+
+def debug_tensors(*args: Any, **kwargs: Any) -> None:
+    """
+    Logs tensors
+    """
+    import torch
+    from enfugue.util import logger
+    arg_dict = dict([
+        (f"arg_{i}", arg)
+        for i, arg in enumerate(args)
+    ])
+    for tensor_dict in [arg_dict, kwargs]:
+        for key, value in tensor_dict.items():
+            if isinstance(value, list) or isinstance(value, tuple):
+                for i, v in enumerate(value):
+                    debug_tensors(**{f"{key}_{i}": v})
+            elif isinstance(value, dict):
+                for k, v in value.items():
+                    debug_tensors(**{f"{key}_{k}": v})
+            elif isinstance(value, torch.Tensor):
+                t_min, t_max = value.aminmax()
+                logger.debug(f"{key} = {value.shape} ({value.dtype}) on {value.device}, min={t_min}, max={t_max}")

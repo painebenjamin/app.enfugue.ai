@@ -37,6 +37,7 @@ def interpolate_frames(
     interpolation_step = 0
 
     for i, frame in enumerate(frames):
+        frame = frame.convert("RGB")
         if last_frame is not None:
             yield last_frame
             this_multiplier = get_multiplier(i - 1)
@@ -52,9 +53,10 @@ def interpolate_frames(
                     interpolation_step += this_multiplier
                     progress_callback(interpolation_step, num_interpolations, this_multiplier / duration)
                 for interpolated_frame in interpolated_frames:
-                    yield interpolated_frame
+                    yield interpolated_frame.convert("RGB")
         last_frame = frame
-    yield last_frame
+    if last_frame is not None:
+        yield last_frame
 
 def reflect_frames(
     frames: List[Image.Image],

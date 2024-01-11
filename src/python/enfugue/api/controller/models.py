@@ -63,7 +63,7 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
                 checkpoints.append({"name": checkpoint, "directory": "available for download"})
         return checkpoints
 
-    @handlers.path("^/api/checkpoints/(?P<model_file>[a-zA-Z0-9_\-\.]+)$")
+    @handlers.path("^/api/checkpoints/(?P<model_file>[^\/]+)$")
     @handlers.methods("GET")
     @handlers.format()
     @handlers.secured()
@@ -95,7 +95,7 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
 
         return lora
 
-    @handlers.path("^/api/lora/(?P<model_file>[a-zA-Z0-9_\-\.]+)$")
+    @handlers.path("^/api/lora/(?P<model_file>[^\/]+)$")
     @handlers.methods("GET")
     @handlers.format()
     @handlers.secured()
@@ -123,7 +123,7 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         ]
         return lycoris
 
-    @handlers.path("^/api/lycoris/(?P<model_file>[a-zA-Z0-9_\-\.]+)$")
+    @handlers.path("^/api/lycoris/(?P<model_file>[^\/]+)$")
     @handlers.methods("GET")
     @handlers.format()
     @handlers.secured()
@@ -151,7 +151,7 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         ]
         return inversions
 
-    @handlers.path("^/api/inversions/(?P<model_file>[a-zA-Z0-9_\-\.]+)$")
+    @handlers.path("^/api/inversions/(?P<model_file>[^\/]+)$")
     @handlers.methods("GET")
     @handlers.format()
     @handlers.secured()
@@ -179,7 +179,7 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         ]
         return motion
 
-    @handlers.path("^/api/motion/(?P<model_file>[a-zA-Z0-9_\-\.]+)$")
+    @handlers.path("^/api/motion/(?P<model_file>[^\/]+)$")
     @handlers.methods("GET")
     @handlers.format()
     @handlers.secured()

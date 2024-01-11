@@ -204,7 +204,7 @@ class View {
             }
 
             if (!isEmpty(this.styles)) {
-                this.node.css(this.styles);
+                node.css(this.styles);
             }
 
             if (this.hidden) {

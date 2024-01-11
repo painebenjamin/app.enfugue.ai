@@ -227,7 +227,6 @@ class SelectInputView extends EnumerableInputView {
      */
     setValue(newValue, triggerChange) {
         if (this.node !== undefined) {
-            this.node.val(newValue);
             if (this.node.element !== undefined) {
                 this.node.element.value = newValue;
                 requestAnimationFrame(() => {

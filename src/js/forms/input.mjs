@@ -92,6 +92,7 @@ import {
 } from "./input/enfugue/noise.mjs";
 import {
     AnimationLoopInputView,
+    AnimationEngineInputView,
     AnimationInterpolationStepsInputView,
 } from "./input/enfugue/animation.mjs";
 import {
@@ -168,6 +169,7 @@ export {
     NoiseMethodInputView,
     BlendMethodInputView,
     AnimationLoopInputView,
+    AnimationEngineInputView,
     AnimationInterpolationStepsInputView,
     MotionModuleInputView,
     FontInputView,

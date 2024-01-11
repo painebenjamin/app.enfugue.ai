@@ -2,6 +2,7 @@
 import { isEmpty } from "../../../base/helpers.mjs";
 import { FormView } from "../../../forms/base.mjs";
 import {
+    StringInputView,
     PromptInputView,
     ButtonInputView,
     FloatInputView,
@@ -128,13 +129,11 @@ class ImageEditorImageNodeOptionsFormView extends FormView {
             }
         },
         "Animation Options": {
-            "startFrame": {
-                "label": "Starting Frame",
-                "class": NumberInputView,
+            "frameRange": {
+                "label": "Frame Range",
+                "class": StringInputView,
                 "config": {
-                    "tooltip": "When using animation, this controls what frame to begin this layer's influence, starting from one.",
-                    "min": 1,
-                    "step": 1
+                    "tooltip": "When using animation, this controls what frames to use this layer's influence on, starting from one. Use commas to separate multiple frames, and place two numbers between a dash to indicate a frame range. For example, '1-3, 6' would result in the layer applying on frames 1, 2, 3 and 6."
                 }
             }
         }

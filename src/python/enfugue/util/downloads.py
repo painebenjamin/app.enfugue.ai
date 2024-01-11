@@ -1,7 +1,9 @@
 import os
 import requests
 
-from typing import Optional, Callable
+from typing import Optional, Callable, Union, BinaryIO, Iterator
+
+from contextlib import contextmanager
 
 from enfugue.util.log import logger
 
@@ -43,9 +45,10 @@ def get_file_name_from_url(url: str) -> str:
 
 def check_download(
     remote_url: str,
-    local_path: str,
+    target: Union[str, BinaryIO],
     chunk_size: int=8192,
     check_size: bool=True,
+    resume_size: int = 0,
     progress_callback: Optional[Callable[[int, int], None]]=None,
 ) -> None:
     """
@@ -53,22 +56,33 @@ def check_download(
     If it does, checks the size and matches against the remote URL.
     If it doesn't, or the size doesn't match, download it.
     """
-    if os.path.exists(local_path) and check_size:
+    if isinstance(target, str) and os.path.exists(target) and check_size and resume_size <= 0:
         expected_length = requests.head(remote_url, allow_redirects=True).headers.get("Content-Length", None)
-        actual_length = os.path.getsize(local_path)
+        actual_length = os.path.getsize(target)
         if expected_length and actual_length != int(expected_length):
             logger.info(
-                f"File at {local_path} looks like an interrupted download, or the remote resource has changed - expected a size of {expected_length} bytes but got {actual_length} instead. Removing."
+                f"File at {target} looks like an interrupted download, or the remote resource has changed - expected a size of {expected_length} bytes but got {actual_length} instead. Removing."
             )
-            os.remove(local_path)
+            os.remove(target)
 
-    if not os.path.exists(local_path):
-        logger.info(f"Downloading file from {remote_url}. Will write to {local_path}")
-        response = requests.get(remote_url, allow_redirects=True, stream=True)
+    headers = {}
+    if resume_size is not None:
+        headers["Range"] = f"bytes={resume_size:d}-"
+
+    if not isinstance(target, str) or not os.path.exists(target):
+        @contextmanager
+        def get_write_handle() -> Iterator[BinaryIO]:
+            if isinstance(target, str):
+                with open(target, "wb") as handle:
+                    yield handle
+            else:
+                yield target
+        logger.info(f"Downloading file from {remote_url}. Will write to {target}")
+        response = requests.get(remote_url, allow_redirects=True, stream=True, headers=headers)
         content_length: Optional[int] = response.headers.get("Content-Length", None) # type: ignore[assignment]
         if content_length is not None:
             content_length = int(content_length)
-        with open(local_path, "wb") as fh:
+        with get_write_handle() as fh:
             written_bytes = 0
             for chunk in response.iter_content(chunk_size=chunk_size):
                 fh.write(chunk)

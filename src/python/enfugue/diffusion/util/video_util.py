@@ -6,6 +6,7 @@ from enfugue.util import logger
 if TYPE_CHECKING:
     from PIL.Image import Image
     from moviepy.editor import VideoFileClip
+    from enfugue.diffusion.util.audio_util.helper import Audio
 
 __all__ = ["Video"]
 
@@ -23,13 +24,19 @@ class Video:
         self,
         frames: Iterable[Image],
         frame_rate: Optional[float]=None,
+        audio: Optional[Audio]=None,
         audio_frames: Optional[Iterable[Tuple[float]]]=None,
         audio_rate: Optional[int]=None,
     ) -> None:
         self.frames = frames
         self.frame_rate = frame_rate
-        self.audio_frames = audio_frames
-        self.audio_rate = audio_rate
+        if audio is not None:
+            self.audio = audio
+        elif audio_frames is not None:
+            from enfugue.diffusion.util.audio_util import Audio
+            self.audio = Audio(frames=audio_frames, rate=audio_rate)
+        else:
+            self.audio = None
 
     def save(
         self,
@@ -62,11 +69,13 @@ class Video:
         from moviepy.editor import ImageSequenceClip
         import numpy as np
 
-        clip = ImageSequenceClip([np.array(frame) for frame in self.frames], fps=rate)
+        clip_frames = [np.array(frame) for frame in self.frames]
+        clip = ImageSequenceClip(clip_frames, fps=rate)
 
-        if self.audio_frames is not None:
-            from enfugue.diffusion.util.audio_util import Audio
-            clip.audio = Audio(self.audio_frames, self.audio_rate).get_composite_clip()
+        if self.audio is not None:
+            clip.audio = self.audio.get_composite_clip(
+                maximum_seconds=len(clip_frames)/rate
+            )
 
         clip.write_videofile(path, fps=rate)
 

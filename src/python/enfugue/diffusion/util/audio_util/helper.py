@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import os
 
+from math import log
+from bisect import bisect_left
 from enfugue.util import reiterator
 from typing import TYPE_CHECKING, Iterable, Tuple, Optional, List, Dict, Callable
 
@@ -23,7 +25,11 @@ class Audio:
         self.frames = reiterator(frames)
         self.rate = rate
 
-    def get_clip(self, rate: Optional[int]=None) -> AudioClip:
+    def get_clip(
+        self,
+        rate: Optional[int]=None,
+        maximum_seconds: Optional[float]=None
+    ) -> AudioClip:
         """
         Gets the moviepy audioclip
         """
@@ -35,6 +41,9 @@ class Audio:
         from moviepy.editor import AudioClip
 
         all_frames = [frame for frame in self.frames] # type: ignore
+        if maximum_seconds is not None:
+            all_frames = all_frames[:int(maximum_seconds*rate)]
+
         total_frames = len(all_frames)
         duration = total_frames / rate
 
@@ -48,12 +57,18 @@ class Audio:
 
         return AudioClip(get_frame, duration=duration, fps=rate)
 
-    def get_composite_clip(self, rate: Optional[int]=None) -> CompositeAudioClip:
+    def get_composite_clip(
+        self,
+        rate: Optional[int]=None,
+        maximum_seconds: Optional[float]=None
+    ) -> CompositeAudioClip:
         """
         Gets the moviepy composite audioclip
         """
         from moviepy.editor import CompositeAudioClip
-        return CompositeAudioClip([self.get_clip(rate=rate)])
+        return CompositeAudioClip([
+            self.get_clip(rate=rate, maximum_seconds=maximum_seconds)
+        ])
 
     def save(
         self,
@@ -78,22 +93,53 @@ class Audio:
             raise IOError(f"Nothing was written to {path}.")
         return size
 
-    def get_frequencies(
+    def get_normalized_frequencies(
+        self,
+        samples_per_second: int=8,
+        maximum_samples: Optional[int]=None,
+        rate: Optional[int]=None,
+        low_filter: float = 0.0,
+        num_frequency_bands: int = 256,
+    ) -> Tuple[List[int], List[Tuple[float]]]:
+        """
+        Gets frequencies after normalizing
+        """
+        amplitude_dicts = [
+            f for f in self.analyze(
+                samples_per_second=samples_per_second,
+                maximum_samples=maximum_samples,
+                rate=rate,
+                num_frequency_bands=num_frequency_bands
+            )
+        ]
+        frequencies = list(amplitude_dicts[0].keys())
+        num_frequency_bands = len(frequencies)
+        low_pass = lambda f: 0 if f < low_filter else f
+        amplitudes = [
+            [
+                tuple([low_pass(channel_value) for channel_value in amplitude_dict[freq]])
+                for freq in frequencies
+            ]
+            for amplitude_dict in amplitude_dicts
+            if len(list(amplitude_dict.keys())) == num_frequency_bands
+        ]
+
+        return [int(f) for f in frequencies], amplitudes
+
+    def analyze(
         self,
         samples_per_second: int=60,
         maximum_samples: Optional[int]=None,
         rate: Optional[int]=None,
-    ) -> Iterable[Dict[int, float]]:
-        """
-        Gets channel frequencies over the audio frames using RFFT
-        """
-        import numpy as np
-        from math import sqrt
-
-        if not rate:
+        num_frequency_bands: int=512,
+    ) -> Iterable[Dict[int, List[float]]]:
+        from enfugue.diffusion.util.audio_util.stream_analyzer import StreamAnalyzer # type: ignore[attr-defined]
+        if rate is None:
             rate = self.rate
-        if not rate:
+        if rate is None:
             rate = 44100
+
+        analyzers: List[StreamAnalyzer] = []
 
         samples_per_yield = int(rate / samples_per_second)
         samples: List[Tuple[float]] = [(0.0,)] * samples_per_yield
@@ -102,19 +148,30 @@ class Audio:
 
         def get_frequencies() -> Dict[int, float]:
             num_channels = len(samples[0])
-            channel_frequencies = []
+            xf = None
+            xy = []
             for i in range(num_channels):
                 these_samples = [
                     samples[j][i]
                     for j in range(current_samples)
                 ]
-                channel_frequencies.append([
-                    sqrt(f.real * f.real + f.imag * f.imag) for f in np.fft.rfft(these_samples)
-                ])
-            xf = np.fft.rfftfreq(current_samples, d=1/rate) # type: ignore[operator]
+                if len(analyzers) <= i:
+                    analyzers.append(
+                        StreamAnalyzer(
+                            rate=rate,
+                            fft_window_size=samples_per_yield,
+                            smoothing_length_ms=1000//samples_per_second,
+                            n_frequency_bins=num_frequency_bands
+                        )
+                    )
+                fftx, fft, fbc, fbe = analyzers[i](these_samples)
+                if xf is None:
+                    xf = fbc
+                xy.append(fbe)
+
             return dict(zip(
                 [int(f) for f in xf],
-                [list(f) for f in zip(*channel_frequencies)] # type: ignore[misc]
+                [list(f) for f in zip(*xy)] # type: ignore[misc]
             ))
 
         for frame in self.frames: # type: ignore[attr-defined]
@@ -129,24 +186,6 @@ class Audio:
         if current_samples != 0:
             if maximum_samples is None or yielded_samples < maximum_samples:
                 yield get_frequencies()
-
-    @classmethod
-    def frequencies_from_file(
-        cls,
-        path: str,
-        skip_frames: Optional[int]=None,
-        samples_per_second: int=8,
-        maximum_samples: Optional[int]=None
-   ) -> Iterable[Dict[int, float]]:
-        """
-        Gets frequencies over a file iterable
-        """
-        audio = cls.from_file(path, skip_frames=skip_frames)
-        rate = audio.rate if audio.rate is not None else 44100
-        for i, histogram in enumerate(audio.get_frequencies(rate, samples_per_second)):
-            yield histogram
-            if maximum_samples is not None and i >= maximum_samples:
-                break
 
     @classmethod
     def file_to_frames(

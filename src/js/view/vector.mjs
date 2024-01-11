@@ -117,33 +117,11 @@ class EditableSplineVector extends Spline {
     /**
      * Draws the spline and points
      */
-    draw(context) {
+    draw(context, color) {
+        context.strokeStyle = color;
+        context.fillStyle = color;
         context.lineWidth = 2;
         this.stroke(context);
-        context.lineWidth = 1;
-        for (let point of this.points) {
-            let handle = this.getHandleAboutPoint(point);
-            handle.stroke(context);
-            if (point.pointType === SplinePoint.TYPE_BEZIER) {
-                if (!isEmpty(point.controlPoint1)) {
-                    let controlHandle = this.getHandleAboutPoint(point.controlPoint1),
-                        controlLine = new Drawable([point.anchorPoint, point.controlPoint1]);
-                    context.setLineDash([]);
-                    controlHandle.stroke(context);
-                    context.setLineDash([4,2]);
-                    controlLine.stroke(context);
-                }
-                if (!isEmpty(point.controlPoint2)) {
-                    let controlHandle = this.getHandleAboutPoint(point.controlPoint2),
-                        controlLine = new Drawable([point.anchorPoint, point.controlPoint2]);
-                    context.setLineDash([]);
-                    controlHandle.stroke(context);
-                    context.setLineDash([4,2]);
-                    controlLine.stroke(context);
-                }
-            }
-            context.setLineDash([]);
-        }
 
         let [penultimate, end] = this.points.slice(-2);
 
@@ -177,6 +155,35 @@ class EditableSplineVector extends Spline {
 
         arrowhead.rotateAbout(lastSection.rad + 3*Math.PI/2, lastSection.end);
         arrowhead.fill(context);
+        context.lineWidth = 2;
+        context.strokeStyle = "#ffffff";
+        context.fillStyle = "rgba(0,0,0,0.2)";
+
+        for (let point of this.points) {
+            let handle = this.getHandleAboutPoint(point);
+            handle.stroke(context);
+            handle.fill(context);
+            if (point.pointType === SplinePoint.TYPE_BEZIER) {
+                if (!isEmpty(point.controlPoint1)) {
+                    let controlHandle = this.getHandleAboutPoint(point.controlPoint1),
+                        controlLine = new Drawable([point.anchorPoint, point.controlPoint1]);
+                    context.setLineDash([]);
+                    controlHandle.stroke(context);
+                    context.setLineDash([4,2]);
+                    controlLine.stroke(context);
+                }
+                if (!isEmpty(point.controlPoint2)) {
+                    let controlHandle = this.getHandleAboutPoint(point.controlPoint2),
+                        controlLine = new Drawable([point.anchorPoint, point.controlPoint2]);
+                    context.setLineDash([]);
+                    controlHandle.stroke(context);
+                    context.setLineDash([4,2]);
+                    controlLine.stroke(context);
+                }
+            }
+            context.setLineDash([]);
+        }
+
     }
 }
 
@@ -207,14 +214,67 @@ class VectorView extends View {
      * Gets the encoded data
      */
     get value() {
-
+        return this.splines.map((spline) => {
+            return spline.points.map((point) => {
+                let mapped = {
+                    "anchor": [point.x, point.y]
+                };
+                if (point.pointType === SplinePoint.TYPE_BEZIER) {
+                    if (!isEmpty(point.controlPoint1)) {
+                        mapped["control_1"] = [point.cp1x, point.cp1y];
+                    }
+                    if (!isEmpty(point.controlPoint2)) {
+                        mapped["control_2"] = [point.cp2x, point.cp2y];
+                    }
+                }
+                return mapped;
+            });
+        });
     }
 
     /**
      * Sets the encoded data
      */
     set value(newValue) {
+        this.splines = newValue.map((encodedSpline) => {
+            return new EditableSplineVector(
+                encodedSpline.map((encodedPoint) => {
+                    let anchorPoint = new Point(
+                            encodedPoint.anchor[0],
+                            encodedPoint.anchor[1]
+                        ),
+                        pointType = isEmpty(encodedPoint.control_1) && isEmpty(encodedPoint.control_2)
+                            ? SplinePoint.TYPE_LINEAR
+                            : SplinePoint.TYPE_BEZIER,
+                        controlPoint1 = isEmpty(encodedPoint.control_1)
+                            ? undefined
+                            : new Point(
+                                encodedPoint.control_1[0],
+                                encodedPoint.control_1[1]
+                            ),
+                        controlPoint2 = isEmpty(encodedPoint.control_2)
+                            ? undefined
+                            : new Point(
+                                encodedPoint.control_2[0],
+                                encodedPoint.control_2[1]
+                            );
+                    return new SplinePoint(
+                        anchorPoint,
+                        pointType,
+                        controlPoint1,
+                        controlPoint2
+                    );
+                })
+            );
+        });
+        this.updateCanvas();
+    }
 
+    /**
+     * Gets the theme color
+     */
+    get color() {
+        return window.getComputedStyle(document.documentElement).getPropertyValue("--theme-color-primary");
     }
 
     /**
@@ -242,6 +302,20 @@ class VectorView extends View {
         this.height = height;
         this.canvas.width = width;
         this.canvas.height = height;
+        for (let spline of this.splines) {
+            for (let point of spline.points) {
+                point.x = Math.min(point.x, width);
+                point.y = Math.min(point.y, height);
+                if (!isEmpty(point.controlPoint1)) {
+                    point.cp1x = Math.min(point.cp1x, width);
+                    point.cp1y = Math.min(point.cp1y, height);
+                }
+                if (!isEmpty(point.controlPoint2)) {
+                    point.cp2x = Math.min(point.cp2x, width);
+                    point.cp2y = Math.min(point.cp2y, height);
+                }
+            }
+        }
         this.updateCanvas();
         this.changed();
     }
@@ -250,12 +324,11 @@ class VectorView extends View {
      * Draws the canvas
      */
     updateCanvas() {
-        let context = this.canvas.getContext("2d");
+        let context = this.canvas.getContext("2d"),
+            color = this.color;
         context.clearRect(0, 0, this.width, this.height);
-        context.strokeStyle = "#ffffff";
-        context.fillStyle = "#ffffff";
         for (let spline of this.splines) {
-            spline.draw(context);
+            spline.draw(context, color);
         }
     }
 
@@ -325,7 +398,6 @@ class VectorView extends View {
             let spline = this.splines[i],
                 splineIndex = spline.pointAlongSpline(point, 10);
             if (!isEmpty(splineIndex)) {
-                console.log(splineIndex);
                 return [parseInt(i), splineIndex+1];
             }
         }
@@ -336,17 +408,22 @@ class VectorView extends View {
      * The 'mouseenter' handler
      */
     onNodeMouseEnter(e) {
-        this.active = false;
+        this.activeSpline = null;
+        this.activePoint = null;
+        this.activeControl = null;
     }
 
     /**
      * The 'mouseleave' handler
      */
     onNodeMouseLeave(e) {
-        this.active = false;
+        if (!isEmpty(this.activeSpline)) {
+            this.changed();
+        }
+        this.activeSpline = null;
+        this.activePoint = null;
+        this.activeControl = null;
         this.updateCanvas();
-        this.lastX = null;
-        this.lastY = null;
     }
 
     /**
@@ -398,6 +475,7 @@ class VectorView extends View {
         this.activeSpline = null;
         this.activePoint = null;
         this.activeControl = null;
+        this.changed();
     }
 
     /**

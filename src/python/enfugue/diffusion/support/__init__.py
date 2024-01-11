@@ -8,7 +8,8 @@ from enfugue.diffusion.support.background import BackgroundRemover
 from enfugue.diffusion.support.ip import IPAdapter
 from enfugue.diffusion.support.llm import Conversation
 from enfugue.diffusion.support.interpolate import Interpolator
+from enfugue.diffusion.support.drag import DragAnimator, DragAnimatorPipeline
 
-EdgeDetector, LineDetector, DepthDetector, PoseDetector, ControlImageProcessor, Upscaler, BackgroundRemover, IPAdapter, Conversation, Interpolator  # Silence importchecker
+EdgeDetector, LineDetector, DepthDetector, PoseDetector, ControlImageProcessor, Upscaler, BackgroundRemover, IPAdapter, Conversation, Interpolator, DragAnimator, DragAnimatorPipeline  # Silence importchecker
 
-__all__ = ["EdgeDetector", "LineDetector", "DepthDetector", "PoseDetector", "ControlImageProcessor", "Upscaler", "BackgroundRemover", "IPAdapter", "Conversation", "Interpolator"]
+__all__ = ["EdgeDetector", "LineDetector", "DepthDetector", "PoseDetector", "ControlImageProcessor", "Upscaler", "BackgroundRemover", "IPAdapter", "Conversation", "Interpolator", "DragAnimator", "DragAnimatorPipeline"]

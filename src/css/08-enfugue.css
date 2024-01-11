@@ -41,7 +41,8 @@ enfugue-application > .current-view-input-view {
     z-index: 5;
 }
 
-enfugue-application.inpainting > .current-view-input-view {
+enfugue-application.inpainting > .current-view-input-view,
+enfugue-application.motion-vectors > .current-view-input-view {
     top: 157px;
 }
 
@@ -1374,6 +1375,23 @@ enfugue-scribble-view canvas {
     image-rendering: pixelated;
 }
 
+enfugue-vector-view {
+    display: block;
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    cursor: default;
+    z-index: 100000;
+}
+
+enfugue-vector-view canvas {
+    position: relative;
+    z-index: -1;
+    image-rendering: pixelated;
+}
+
 enfugue-model-table-searching {
     display: block;
     text-align: right;
@@ -1525,6 +1543,7 @@ fieldset.field-set-image-roles .field-container,
 fieldset.field-set-inpainting .field-container,
 fieldset.field-set-image-prompt .field-container,
 fieldset.field-set-filters .field-container.string-input-view-search,
+fieldset.field-set-animation .field-container.animation-engine-input-view,
 fieldset.field-set-dimensions .field-container.canvas-size-input-view,
 fieldset.field-set-dimensions .field-container.checkbox-input-view-use-tiling,
 fieldset.field-set-animation .field-container.checkbox-input-view,
@@ -1660,6 +1679,10 @@ form.no-animation-scaling .field-container.number-input-view-animation-motion-sc
 
 form.no-position-slicing .field-container.number-input-view-animation-position-encoding-truncate-length,
 form.no-position-slicing .field-container.number-input-view-animation-position-encoding-scale-length
+{
+    display: none;
+}
+form.no-motion-vectors .field-container.number-input-view-stable-video-gaussian-sigma
 {
     display: none;
 }
@@ -2128,17 +2151,26 @@ enfugue-layer-options-view::-webkit-scrollbar-thumb:hover {
     background-color: rgba(0,0,0,0.7);
 }
 
-enfugue-toolbar.inpainting::before {
+enfugue-toolbar.inpainting::before,
+enfugue-toolbar.motion-vectors::before {
     position: absolute;
     left: 0px;
     top: 0px;
-    content: "INPAINTING TOOLS";
     color: var(--theme-color-secondary);
     font-family: var(--monospace-font);
     font-size: 10px;
 }
 
-enfugue-toolbar.inpainting {
+enfugue-toolbar.inpainting::before {
+    content: "INPAINTING TOOLS";
+}
+
+enfugue-toolbar.motion-vectors::before {
+    content: "MOTION TOOLS";
+}
+
+enfugue-toolbar.inpainting,
+enfugue-toolbar.motion-vectors {
     position: fixed;
     left: 250px;
     right: 250px;
@@ -2152,14 +2184,16 @@ enfugue-toolbar.inpainting {
     z-index: 4;
 }
 
-enfugue-toolbar.inpainting enfugue-toolbar-item {
+enfugue-toolbar.inpainting enfugue-toolbar-item,
+enfugue-toolbar.motion-vectors enfugue-toolbar-item {
     width: 30px;
     height: 30px;
     border-left: 1px solid rgba(255,255,255,0.1);
     border-right: 1px solid rgba(0,0,0,0.2);
 }
 
-enfugue-toolbar.inpainting enfugue-toolbar-item:last-child {
+enfugue-toolbar.inpainting enfugue-toolbar-item:last-child,
+enfugue-toolbar.motion-vectors enfugue-toolbar-item:last-child {
     border-right: none;
 }
 

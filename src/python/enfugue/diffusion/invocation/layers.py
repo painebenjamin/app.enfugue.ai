@@ -105,6 +105,7 @@ class LayeredInvocation:
     noise_method: NOISE_METHOD_LITERAL="perlin"
     noise_blend_method: LATENT_BLEND_METHOD_LITERAL="inject"
     # Animation
+    animation_engine: Optional[ANIMATION_ENGINE_LITERAL]=None
     animation_frames: Optional[int]=None
     animation_rate: int=8
     frame_window_size: Optional[int]=16
@@ -116,6 +117,14 @@ class LayeredInvocation:
     position_encoding_truncate_length: Optional[int]=None
     position_encoding_scale_length: Optional[int]=None
     num_denoising_iterations: Optional[int]=None
+    # stable video
+    motion_vectors: Optional[List[List[MotionVectorPointDict]]]=None
+    motion_bucket_id: int=127
+    fps: int=7
+    noise_aug_strength: float=0.02
+    min_guidance_scale: float=1.0
+    max_guidance_scale: float=3.0
+    gaussian_sigma: int=20
     # img2img
     strength: Optional[float]=None
     # Inpainting
@@ -165,6 +174,29 @@ class LayeredInvocation:
             for prompt, weight in args
             if prompt
         ])
+
+    @staticmethod
+    def parse_frame_range(frames: Optional[Union[int, List[int], str]]) -> Optional[List[int]]:
+        """
+        Parses a comma-separated frame string
+        """
+        if isinstance(frames, int):
+            return [frames-1]
+        elif isinstance(frames, list):
+            frames = [int(f)-1 for f in frames]
+            frames.sort()
+            return frames
+        elif isinstance(frames, str) and len(frames) > 0:
+            frame_parts = frames.split(",")
+            frame_indexes: List[int] = []
+            for frame_part in frame_parts:
+                frame_range = frame_part.split("-")
+                if len(frame_range) == 1:
+                    frame_indexes.append(int(frame_range[0])-1)
+                else:
+                    frame_indexes.extend(list(range(int(frame_range[0])-1, int(frame_range[1]))))
+            return list(sorted(set(frame_indexes)))
+        return None
 
     @classmethod
     def get_image_bounding_box(
@@ -390,7 +422,7 @@ class LayeredInvocation:
         height: int,
         image: Union[str, Image, List[Image]],
         animation_frames: Optional[int]=None,
-        frame: Optional[int]=None,
+        frames: Optional[List[int]]=None,
         fit: Optional[IMAGE_FIT_LITERAL]=None,
         anchor: Optional[IMAGE_ANCHOR_LITERAL]=None,
         offset_x: Optional[int]=None,
@@ -452,8 +484,8 @@ class LayeredInvocation:
                 fitted_image = fitted_image[0]
             else:
                 requested_frames = animation_frames
-                if frame is not None:
-                    requested_frames -= frame
+                if frames is not None:
+                    requested_frames = len(frames)
                 fitted_image = fitted_image[:requested_frames]
 
         if not return_mask:
@@ -554,7 +586,7 @@ class LayeredInvocation:
 
             skip_frames = layer.pop("skip_frames", None)
             divide_frames = layer.pop("divide_frames", None)
-            frame = layer.pop("frame", None)
+            frames = cls.parse_frame_range(layer.pop("frame", None))
 
             if skip_frames and isinstance(layer["image"], list):
                 layer["image"] = layer["image"][skip_frames:]
@@ -565,16 +597,15 @@ class LayeredInvocation:
                     if i % divide_frames == 0
                 ]
 
-            if animation_frames and frame is not None:
-                layer["frame"] = frame
+            if animation_frames and frames is not None:
+                layer["frame"] = frames
 
             if isinstance(layer["image"], list):
                 # Minimize the number of images we pass
                 if animation_frames:
                     layer_frames = animation_frames
-                    if frame is not None:
-                        frame = max(frame, 0)
-                        layer_frames -= frame
+                    if frames is not None:
+                        layer_frames = len(frames)
                     layer["image"] = layer["image"][:layer_frames]
                 else:
                     layer["image"] = layer["image"][0]
@@ -714,9 +745,13 @@ class LayeredInvocation:
                 needs_pose_detector = True
             if image_dict.get("visibility", None) in ["denoised", "visible"]:
                 layer_frames = 1 if not isinstance(image_dict["image"], list) else len(image_dict["image"])
-                layer_frame_start = image_dict.get("frame", None)
-                layer_frame_start = 0 if not layer_frame_start else layer_frame_start
-                visible_image_frames[layer_frame_start:layer_frame_start+layer_frames] = [True]*layer_frames
+                layer_frame_range = self.parse_frame_range(image_dict.get("frame", None))
+
+                if layer_frame_range is None:
+                    visible_image_frames[:layer_frames] = [True] * layer_frames
+                else:
+                    for layer_frame in layer_frame_range:
+                        visible_image_frames[layer_frame] = True
             for control_dict in image_dict.get("control_units", []):
                 if control_dict.get("process", True) and control_dict.get("controlnet", None) is not None:
                     if control_dict["controlnet"] == "pose":
@@ -776,6 +811,7 @@ class LayeredInvocation:
         invocation_mask = None
         invocation_image = None
         no_inference = False
+        animation_frames = None if not self.animation_frames or self.animation_engine == "svd" else self.animation_frames
 
         if self.layers:
             if task_callback is not None:
@@ -811,7 +847,7 @@ class LayeredInvocation:
                     width=self.width,
                     height=self.height,
                     image=mask,
-                    animation_frames=self.animation_frames,
+                    animation_frames=animation_frames,
                     return_mask=False
                 )
 
@@ -835,16 +871,28 @@ class LayeredInvocation:
             visible_frames: List[bool] = [False] * (1 if not self.animation_frames else self.animation_frames)
             for i, layer in enumerate(self.layers):
                 layer_image = layer.get("image", None)
-                layer_frame = layer.get("frame", 0)
+                layer_frames = self.parse_frame_range(layer.get("frame", None))
 
                 if isinstance(layer_image, str):
                     layer_image = get_frames_or_image_from_file(layer_image)
                     layer["image"] = layer_image
 
                 image_count = len(layer_image) if isinstance(layer_image, list) else 1
+                if image_count == 1 and layer_frames is not None:
+                    image_count = len(layer_frames)
+                elif image_count > 1 and self.animation_frames:
+                    if layer_frames is not None:
+                        layer_frame = range(layer_frames[0], min(layer_frames[0] + image_count, self.animation_frames))
+                        image_count = len(layer_frames)
+                    else:
+                        image_count = min(image_count, self.animation_frames)
+                        layer_frames = list(range(image_count))
 
-                if self.animation_frames:
-                    image_count = min(image_count, self.animation_frames - layer_frame)
+                if layer_frames is None:
+                    if self.animation_frames:
+                        layer_frames = list(range(self.animation_frames))
+                    else:
+                        layer_frames = [0]
 
                 if layer.get("remove_background", False):
                     images_to_preprocess += image_count
@@ -853,7 +901,8 @@ class LayeredInvocation:
                     images_to_preprocess += image_count
 
                 if layer.get("visibility", None) in ["visible", "denoised"]:
-                    visible_frames[layer_frame:layer_frame+image_count] = [True] * image_count
+                    for frame in layer_frames:
+                        visible_frames[frame] = True
 
                 control_units = layer.get("control_units", None)
                 if control_units:
@@ -916,7 +965,7 @@ class LayeredInvocation:
                     offset_y = layer.get("offset_y", None)
                     opacity = layer.get("opacity", None)
                     remove_background = layer.get("remove_background", None)
-                    frame = layer.get("frame", 0)
+                    frames = self.parse_frame_range(layer.get("frame", None))
 
                     # Capabilities of layer
                     visibility = layer.get("visibility", None)
@@ -953,7 +1002,7 @@ class LayeredInvocation:
                         offset_x=offset_x,
                         offset_y=offset_y,
                         animation_frames=self.animation_frames,
-                        frame=frame,
+                        frames=frames,
                         w=w,
                         h=h,
                         x=x,
@@ -987,20 +1036,27 @@ class LayeredInvocation:
                                 image_paste_mask = Image.eval(image_paste_mask, lambda a: min(a, int(opacity * 255)))
 
                         if isinstance(fit_layer_image, list):
-                            for i in range(len(fit_layer_image)):
-                                invocation_image[i+frame].paste( # type: ignore[index]
-                                    fit_layer_image[i],
-                                    mask=fit_layer_mask[i]
+                            fit_layer_images = len(fit_layer_image)
+                            if frames is None:
+                                frames = list(range(len(invocation_image)))
+                            for i, frame in enumerate(frames):
+                                index = i if i < fit_layer_images else fit_layer_images - 1
+                                invocation_image[frame].paste( # type: ignore[index]
+                                    fit_layer_image[index],
+                                    mask=fit_layer_mask[index]
                                 )
                                 if passthrough:
-                                    invocation_mask[i+frame].paste( # type: ignore[index]
+                                    invocation_mask[frame].paste( # type: ignore[index]
                                         black,
-                                        mask=fit_layer_mask[i]
+                                        mask=fit_layer_mask[index]
                                     )
                         elif isinstance(invocation_image, list):
-                            invocation_image[frame].paste(fit_layer_image, mask=image_paste_mask)
-                            if passthrough:
-                                invocation_mask[frame].paste(black, mask=fit_layer_mask) # type: ignore[index]
+                            if frames is None:
+                                frames = list(range(len(invocation_image)))
+                            for frame in frames:
+                                invocation_image[frame].paste(fit_layer_image, mask=image_paste_mask)
+                                if passthrough:
+                                    invocation_mask[frame].paste(black, mask=fit_layer_mask) # type: ignore[index]
                         else:
                             invocation_image.paste(fit_layer_image, mask=image_paste_mask) # type: ignore[attr-defined]
                             if passthrough:
@@ -1052,11 +1108,11 @@ class LayeredInvocation:
                                 "start": control_unit.get("start", 0.0),
                                 "end": control_unit.get("end", 1.0),
                                 "scale": control_unit.get("scale", 1.0),
-                                "frame": frame,
+                                "frame": frames,
                                 "image": control_image,
                             })
 
-                # Perform any interpolation any copy/paste
+                # Perform any interpolation and copy/paste
                 if has_invocation_image and isinstance(invocation_image, list):
                     from enfugue.diffusion.util import interpolate_frames
                     visible_frame_indices = [i for i, is_visible in enumerate(visible_frames) if is_visible]
@@ -1236,7 +1292,8 @@ class LayeredInvocation:
 
         # Completed pre-processing
         results_dict: Dict[str, Any] = {
-            "no_inference": no_inference or (self.layers and (not invocation_mask and not self.strength and not control_images and not ip_adapter_images))
+            "no_inference": no_inference or (self.layers and (not invocation_mask and not self.strength and not control_images and not ip_adapter_images)),
+            "animation_frames": animation_frames
         }
 
         if invocation_image:
@@ -1298,7 +1355,7 @@ class LayeredInvocation:
             has_post_processing = bool(self.upscale) or self.detailer_face_restore or ((self.detailer_face_inpaint or self.detailer_hand_inpaint) and self.detailer_denoising_strength)
 
             if self.animation_frames:
-                has_post_processing = has_post_processing or bool(self.interpolate_frames) or self.reflect
+                has_post_processing = has_post_processing or bool(self.interpolate_frames) or self.reflect or self.animation_engine == "svd"
 
             inference_image_callback = image_callback
 
@@ -1419,6 +1476,18 @@ class LayeredInvocation:
                         cropped_inpaint_position[:2]
                     )
 
+            # Execute SVD, if requested
+            images, nsfw = self.execute_stable_video(
+                pipeline,
+                images=images,
+                nsfw=nsfw,
+                task_callback=task_callback,
+                progress_callback=progress_callback,
+                image_callback=image_callback,
+                image_callback_steps=image_callback_steps,
+                invocation_kwargs=invocation_kwargs
+            )
+
             # Execute detailer, if requested
             images, nsfw = self.execute_detailer(
                 pipeline,
@@ -1427,6 +1496,7 @@ class LayeredInvocation:
                 task_callback=task_callback,
                 progress_callback=progress_callback,
                 image_callback=image_callback,
+                image_callback_steps=image_callback_steps,
                 invocation_kwargs=invocation_kwargs
             )
 
@@ -1438,6 +1508,7 @@ class LayeredInvocation:
                 task_callback=task_callback,
                 progress_callback=progress_callback,
                 image_callback=image_callback,
+                image_callback_steps=image_callback_steps,
                 invocation_kwargs=invocation_kwargs
             )
 
@@ -1449,6 +1520,7 @@ class LayeredInvocation:
                 task_callback=task_callback,
                 progress_callback=progress_callback,
                 image_callback=image_callback,
+                image_callback_steps=image_callback_steps,
             )
             return result
         finally:
@@ -1463,7 +1535,7 @@ class LayeredInvocation:
         """
         pipeline.start_keepalive() # Make sure this is going
 
-        if self.animation_frames is not None and self.animation_frames > 0:
+        if self.animation_frames is not None and self.animation_frames > 0 and self.animation_engine != "svd":
             pipeline.animator = self.model
             pipeline.animator_vae = self.vae # type: ignore[assignment]
             pipeline.frame_window_size = self.frame_window_size # type: ignore[assignment]
@@ -1488,7 +1560,7 @@ class LayeredInvocation:
         pipeline.lora = self.lora # type: ignore[assignment]
         pipeline.lycoris = self.lycoris # type: ignore[assignment]
         pipeline.inversion = self.inversion # type: ignore[assignment]
-        
+
         if (
             self.scheduler_beta_start is not None or
             self.scheduler_beta_end is not None or
@@ -1586,15 +1658,26 @@ class LayeredInvocation:
             else list(invocation_kwargs["control_images"].keys())
         )
 
+        repeat_images = self.animation_frames is not None and self.animation_engine == "svd"
+        expected_iteration_length = self.samples
+        if self.animation_frames is not None:
+            expected_iteration_length *= self.animation_frames
+
         for it in range(self.iterations):
+            image_index_start = (it * self.samples)
             if image_callback is not None:
                 def iteration_image_callback(callback_images: List[Image]) -> None:
                     """
                     Wrap the original image callback so we're actually pasting the initial image on the main canvas
                     """
                     for j, callback_image in enumerate(callback_images):
-                        image_index = (it * self.samples) + j
+                        image_index = image_index_start + j
                         images[image_index] = callback_image
+                    if repeat_images:
+                        callback_count = len(callback_images)
+                        repeat_count = expected_iteration_length - callback_count
+                        for k in range(repeat_count):
+                            images[image_index_start + callback_count + k] = images[image_index_start + callback_count - 1]
                     image_callback(images)  # type: ignore
             else:
                 iteration_image_callback = None  # type: ignore
@@ -1613,11 +1696,16 @@ class LayeredInvocation:
             )
 
             for j, image in enumerate(result["images"]):
-                image_index = (it * self.samples) + j
-                images[image_index] = image
-                nsfw_content_detected[image_index] = nsfw_content_detected[image_index] or (
+                images[image_index_start + j] = image
+                nsfw_content_detected[image_index_start + j] = nsfw_content_detected[image_index_start + j] or (
                     "nsfw_content_detected" in result and result["nsfw_content_detected"][j]
                 )
+
+            if repeat_images:
+                returned_count = len(result["images"])
+                repeat_count = expected_iteration_length - returned_count
+                for k in range(repeat_count):
+                    images[image_index_start + returned_count + k] = images[image_index_start + returned_count - 1]
 
             # Call the callback
             if image_callback is not None:
@@ -1625,6 +1713,56 @@ class LayeredInvocation:
 
         return images, nsfw_content_detected
 
+    def execute_stable_video(
+        self,
+        pipeline: DiffusionPipelineManager,
+        images: List[Image],
+        nsfw: List[bool],
+        task_callback: Optional[Callable[[str], None]] = None,
+        progress_callback: Optional[Callable[[int, int, float], None]] = None,
+        image_callback: Optional[Callable[[List[Image]], None]] = None,
+        image_callback_steps: Optional[int] = None,
+        invocation_kwargs: Dict[str, Any] = {}
+    ) -> Tuple[List[Image], List[bool]]:
+        """
+        Executes stable video diffusion if required
+        """
+        if nsfw[0] or not self.animation_frames or self.animation_engine != "svd":
+            return images, nsfw
+
+        svd_kwargs = {
+            "image": images[0],
+            "decode_chunk_size": self.frame_decode_chunk_size,
+            "num_inference_steps": 25, # self.num_inference_steps,
+            "min_guidance_scale": self.min_guidance_scale,
+            "max_guidance_scale": self.max_guidance_scale,
+            "fps": self.fps,
+            "noise_aug_strength": self.noise_aug_strength,
+            "motion_bucket_id": self.motion_bucket_id
+        }
+
+        if self.motion_vectors:
+            svd_kwargs["motion_vectors"] = self.motion_vectors
+            svd_kwargs["gaussian_sigma"] = self.gaussian_sigma
+            frames = pipeline.dragnuwa_img2vid(
+                task_callback=task_callback,
+                progress_callback=progress_callback,
+                image_callback=image_callback,
+                image_callback_steps=image_callback_steps,
+                **svd_kwargs
+            )
+        else:
+            svd_kwargs["use_xt"] = self.animation_frames > 14
+            frames = pipeline.svd_img2vid(
+                task_callback=task_callback,
+                progress_callback=progress_callback,
+                image_callback=image_callback,
+                image_callback_steps=image_callback_steps,
+                **svd_kwargs
+            )
+
+        return frames, [False] * len(frames)
+        
     def execute_detailer(
         self,
         pipeline: DiffusionPipelineManager,
@@ -1768,6 +1906,9 @@ class LayeredInvocation:
         if (self.detailer_face_inpaint or self.detailer_hand_inpaint) and self.detailer_inpaint_strength:
             # Face and/or hand fix pass
             for i, image in enumerate([images] if self.animation_frames else images):
+                if nsfw[i]:
+                    continue
+
                 if task_callback is not None:
                     task_callback(f"Detailing sample {i+1}")
 
@@ -1848,6 +1989,8 @@ class LayeredInvocation:
         if self.detailer_denoising_strength:
             # Final denoise pass
             for i, image in enumerate([images] if self.animation_frames else images):
+                if nsfw[i]:
+                    continue
                 if task_callback:
                     task_callback(f"Finishing sample {i+1}")
 
@@ -2016,7 +2159,6 @@ class LayeredInvocation:
                 for i, image in enumerate(images):
                     upscale_start = datetime.now()
                     if nsfw is not None and nsfw[i]:
-                        logger.debug(f"Image {i} had NSFW content, not upscaling.")
                         continue
                     logger.debug(f"Upscaling sample {i} by {amount} using {method}")
                     images[i] = upscale_image(image)
@@ -2060,7 +2202,6 @@ class LayeredInvocation:
 
                 for i, image in enumerate(upscaled_images):
                     if nsfw is not None and nsfw[i]:
-                        logger.debug(f"Image {i} had NSFW content, not upscaling.")
                         continue
 
                     if isinstance(image, list):
@@ -2180,6 +2321,9 @@ class LayeredInvocation:
         """
         Finishes the result and interpolates
         """
+        if nsfw[0]:
+            return images, nsfw
+
         result = {
             "images": images,
             "nsfw_content_detected": nsfw
@@ -2190,6 +2334,7 @@ class LayeredInvocation:
 
         from enfugue.diffusion.util import interpolate_frames, reflect_frames
         with pipeline.interpolator.film() as interpolate:
+            pipeline.stop_keepalive()
             if self.interpolate_frames:
                 if task_callback is not None:
                     task_callback("Interpolating")

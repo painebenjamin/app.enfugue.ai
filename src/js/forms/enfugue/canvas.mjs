@@ -39,8 +39,10 @@ class CanvasSizeInputView extends SelectInputView {
      * @var object Dimension options
      */
     static defaultOptions = {
+        "320_576": "320×576",
         "512_512": "512×512",
         "512_768": "512×768",
+        "576_320": "576×320",
         "576_1024": "576×1024",
         "640_320": "640×320",
         "640_480": "640×480",

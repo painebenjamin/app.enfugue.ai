@@ -12,26 +12,26 @@ __all__ = [
     "iterate_state_dict",
 ]
 
-def load_ckpt_state_dict(path: str) -> Dict[str, Union[Tensor, Dict[str, Tensor]]]:
+def load_ckpt_state_dict(path: str, device: str="cpu") -> Dict[str, Union[Tensor, Dict[str, Tensor]]]:
     """
     Loads a state dictionary from a .ckpt (old-style) file
     """
     import torch
-    return torch.load(path, map_location="cpu")
+    return torch.load(path, map_location=device)
 
-def load_safetensor_state_dict(path: str) -> Dict[str, Union[Tensor, Dict[str, Tensor]]]:
+def load_safetensor_state_dict(path: str, device: str="cpu") -> Dict[str, Union[Tensor, Dict[str, Tensor]]]:
     """
     Loads a state dictionary from a .safetensor(s) (new-style) file
     """
     from safetensors import safe_open
 
     checkpoint = {}
-    with safe_open(path, framework="pt", device="cpu") as f: # type: ignore[attr-defined]
+    with safe_open(path, framework="pt", device=device) as f: # type: ignore[attr-defined]
         for key in f.keys():
             checkpoint[key] = f.get_tensor(key)
     return checkpoint
 
-def load_state_dict(path: str) -> Dict[str, Union[Tensor, Dict[str, Tensor]]]:
+def load_state_dict(path: str, device: str="cpu") -> Dict[str, Union[Tensor, Dict[str, Tensor]]]:
     """
     Loads a state dictionary from file.
     Tries to correct issues with incorrrect formats.
@@ -44,7 +44,7 @@ def load_state_dict(path: str) -> Dict[str, Union[Tensor, Dict[str, Tensor]]]:
 
     for i, loader in enumerate(load_order):
         try:
-            return loader(path)
+            return loader(path, device=device)
         except Exception as ex:
             if first_error is None:
                 first_error = ex
@@ -53,7 +53,7 @@ def load_state_dict(path: str) -> Dict[str, Union[Tensor, Dict[str, Tensor]]]:
         raise IOError(f"Recevied exception reading checkpoint {path}, please ensure file integrity.\n{type(first_error).__name__}: {first_error}")
     raise IOError(f"No data read from path {path}")
 
-def iterate_state_dict(path: str) -> Iterable[Tuple[str, Tensor]]:
+def iterate_state_dict(path: str, device: str="cpu") -> Iterable[Tuple[str, Tensor]]:
     """
     Loads a state dict one tensor at a time.
     """
@@ -65,6 +65,6 @@ def iterate_state_dict(path: str) -> Iterable[Tuple[str, Tensor]]:
             yield (key, sd[key]) # type: ignore[misc]
     else:
         from safetensors import safe_open
-        with safe_open(path, framework="pt", device="cpu") as f:
+        with safe_open(path, framework="pt", device=cpu) as f:
             for key in f.keys():
                 yield (key, f.get_tensor(key))

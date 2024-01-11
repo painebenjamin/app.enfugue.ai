@@ -370,6 +370,7 @@ class UNet3DConditionModel(ModelMixin, ConfigMixin, UNet2DConditionLoadersMixin)
         return_dict: bool = True,
         down_block_additional_residuals: Optional[Tuple[torch.Tensor]] = None,
         mid_block_additional_residual: Optional[torch.Tensor] = None,
+        motion_attention_mask: Optional[torch.Tensor] = None,
         **kwargs: Any
     ) -> Union[UNet3DConditionOutput, Tuple]:
         r"""
@@ -453,9 +454,10 @@ class UNet3DConditionModel(ModelMixin, ConfigMixin, UNet2DConditionLoadersMixin)
                     temb=emb,
                     encoder_hidden_states=encoder_hidden_states,
                     attention_mask=attention_mask,
+                    motion_attention_mask=motion_attention_mask
                 )
             else:
-                sample, res_samples = downsample_block(hidden_states=sample, temb=emb, encoder_hidden_states=encoder_hidden_states)
+                sample, res_samples = downsample_block(hidden_states=sample, temb=emb, encoder_hidden_states=encoder_hidden_states, motion_attention_mask=motion_attention_mask)
 
             down_block_res_samples += res_samples
 
@@ -471,7 +473,7 @@ class UNet3DConditionModel(ModelMixin, ConfigMixin, UNet2DConditionLoadersMixin)
 
         # mid
         sample = self.mid_block(
-            sample, emb, encoder_hidden_states=encoder_hidden_states, attention_mask=attention_mask
+            sample, emb, encoder_hidden_states=encoder_hidden_states, attention_mask=attention_mask, motion_attention_mask=motion_attention_mask
         )
 
         # mid controlnet
@@ -498,10 +500,16 @@ class UNet3DConditionModel(ModelMixin, ConfigMixin, UNet2DConditionLoadersMixin)
                     encoder_hidden_states=encoder_hidden_states,
                     upsample_size=upsample_size,
                     attention_mask=attention_mask,
+                    motion_attention_mask=motion_attention_mask
                 )
             else:
                 sample = upsample_block(
-                    hidden_states=sample, temb=emb, res_hidden_states_tuple=res_samples, upsample_size=upsample_size, encoder_hidden_states=encoder_hidden_states,
+                    hidden_states=sample,
+                    temb=emb,
+                    res_hidden_states_tuple=res_samples,
+                    upsample_size=upsample_size,
+                    encoder_hidden_states=encoder_hidden_states,
+                    motion_attention_mask=motion_attention_mask
                 )
 
         # post-process
@@ -587,8 +595,7 @@ class UNet3DConditionModel(ModelMixin, ConfigMixin, UNet2DConditionLoadersMixin)
 
         return processors
 
-    def set_attn_processor(self, processor: Union[AttentionProcessor, Dict[str, AttentionProcessor]],
-                           include_temporal_layers=False):
+    def set_attn_processor(self, processor: Union[AttentionProcessor, Dict[str, AttentionProcessor]], include_temporal_layers=False):
         r"""
         Sets the attention processor to use to compute attention.
 

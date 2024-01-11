@@ -81,9 +81,9 @@ class VanillaTemporalModule(nn.Module):
     def reset_attention_scale_multiplier(self) -> None:
         self.temporal_transformer.reset_attention_scale_multiplier()
 
-    def forward(self, input_tensor, temb, encoder_hidden_states, attention_mask=None, anchor_frame_idx=None):
+    def forward(self, input_tensor, temb, encoder_hidden_states, attention_mask=None, anchor_frame_idx=None, motion_attention_mask=None):
         hidden_states = input_tensor
-        hidden_states = self.temporal_transformer(hidden_states, encoder_hidden_states, attention_mask)
+        hidden_states = self.temporal_transformer(hidden_states, encoder_hidden_states, attention_mask, motion_attention_mask=motion_attention_mask)
 
         output = hidden_states
         return output
@@ -147,7 +147,7 @@ class TemporalTransformer3DModel(nn.Module):
         for block in self.transformer_blocks:
             block.reset_attention_scale_multiplier()
 
-    def forward(self, hidden_states, encoder_hidden_states=None, attention_mask=None):
+    def forward(self, hidden_states, encoder_hidden_states=None, attention_mask=None, motion_attention_mask=None):
         assert hidden_states.dim() == 5, f"Expected hidden_states to have ndim=5, but got ndim={hidden_states.dim()}."
         video_length = hidden_states.shape[2]
         hidden_states = rearrange(hidden_states, "b c f h w -> (b f) c h w")
@@ -162,7 +162,7 @@ class TemporalTransformer3DModel(nn.Module):
 
         # Transformer Blocks
         for block in self.transformer_blocks:
-            hidden_states = block(hidden_states, encoder_hidden_states=encoder_hidden_states, video_length=video_length)
+            hidden_states = block(hidden_states, encoder_hidden_states=encoder_hidden_states, video_length=video_length, motion_attention_mask=motion_attention_mask)
         
         # output
         hidden_states = self.proj_out(hidden_states)
@@ -231,13 +231,14 @@ class TemporalTransformerBlock(nn.Module):
         for block in self.attention_blocks:
             block.reset_scale_multiplier()
 
-    def forward(self, hidden_states, encoder_hidden_states=None, attention_mask=None, video_length=None):
+    def forward(self, hidden_states, encoder_hidden_states=None, attention_mask=None, video_length=None, motion_attention_mask=None):
         for attention_block, norm in zip(self.attention_blocks, self.norms):
             norm_hidden_states = norm(hidden_states)
             hidden_states = attention_block(
                 norm_hidden_states,
                 encoder_hidden_states=encoder_hidden_states if attention_block.is_cross_attention else None,
                 video_length=video_length,
+                motion_attention_mask=motion_attention_mask,
             ) + hidden_states
             
         hidden_states = self.ff(self.ff_norm(hidden_states)) + hidden_states
@@ -309,7 +310,7 @@ class VersatileAttention(Attention):
     def extra_repr(self):
         return f"(Module Info) Attention_Mode: {self.attention_mode}, Is_Cross_Attention: {self.is_cross_attention}"
 
-    def forward(self, hidden_states, encoder_hidden_states=None, attention_mask=None, video_length=None):
+    def forward(self, hidden_states, encoder_hidden_states=None, attention_mask=None, video_length=None, motion_attention_mask=None):
         batch_size, sequence_length, _ = hidden_states.shape
 
         if self.attention_mode == "Temporal":
@@ -360,6 +361,13 @@ class VersatileAttention(Attention):
         #        hidden_states = self._sliced_attention(query, key, value, sequence_length, dim, attention_mask)
 
         attention_probs = self.get_attention_scores(query, key, attention_mask)
+
+        if motion_attention_mask is not None:
+            B, F, C = attention_probs.shape
+            if motion_attention_mask.shape[0] != F:
+                raise IOError(f"Motion attention mask shape {motion_attention_mask.shape} does not match video length {F}")
+            attention_probs *= repeat(motion_attention_mask, "f -> b f c", b=B, c=C)
+
         hidden_states = torch.bmm(attention_probs, value)
         hidden_states = self.batch_to_head_dim(hidden_states)
         
