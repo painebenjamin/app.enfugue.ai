@@ -59,21 +59,37 @@ def replace_images(dictionary: Dict[str, Any]) -> Dict[str, Any]:
                 dictionary[key] = tuple(dictionary[key])
     return dictionary
 
-def redact_for_log(dictionary: Dict[str, Any]) -> Dict[str, Any]:
+def redact_for_log(kwargs: Dict[str, Any]) -> Dict[str, Any]:
     """
     Redacts prompts from logs to encourage log sharing for troubleshooting.
     """
-    redacted = {}
-    for key, value in dictionary.items():
-        if isinstance(value, dict):
+    from PIL.Image import Image
+    redacted: Dict[str, Any] = {}
+    for key, value in kwargs.items():
+        if key == "audio":
+            frequency_bands = len(value[0])
+            audio_samples = len(value[1])
+            channels = len(value[1][0][0])
+            redacted[key] = f"Audio({audio_samples} samples, {frequency_bands} frequency bands, {channels} channel(s))"
+        elif key == "prompts" and value:
+            total = len(value)
+            redacted[key] = f"PromptList({total} prompt(s))"
+        elif key == "motion_vectors" and value:
+            total = len(value)
+            redacted[key] = f"MotionVectors({total} vector(s))"
+        elif isinstance(value, dict):
             redacted[key] = redact_for_log(value)
         elif isinstance(value, tuple):
             redacted[key] = "(" + ", ".join([str(redact_for_log({"v": v})["v"]) for v in value]) + ")" # type: ignore[assignment]
         elif isinstance(value, list):
-            redacted[key] = "[" + ", ".join([str(redact_for_log({"v": v})["v"]) for v in value]) + "]" # type: ignore[assignment]
+            if value and isinstance(value[0], Image):
+                total = len(value)
+                redacted[key] = f"ImageList({total} image(s))"
+            else:
+                redacted[key] = "[" + ", ".join([str(redact_for_log({"v": v})["v"]) for v in value]) + "]" # type: ignore[assignment]
         elif type(value) not in [str, float, int, bool, type(None)]:
             redacted[key] = type(value).__name__ # type: ignore[assignment]
-        elif "prompt" in key and value is not None:
+        elif "prompt" in key and "num" not in key and value is not None:
             redacted[key] = "***" # type: ignore[assignment]
         else:
             redacted[key] = str(value) # type: ignore[assignment]

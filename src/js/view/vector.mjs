@@ -1,9 +1,14 @@
 /** @module view/vector */
-import { isEmpty } from '../base/helpers.mjs';
 import { View } from "./base.mjs";
 import { Point, Drawable, Vector } from "../graphics/geometry.mjs";
 import { Spline, SplinePoint } from "../graphics/spline.mjs";
 import { ElementBuilder } from '../base/builder.mjs';
+import {
+    isEmpty,
+    deepClone,
+    bindPointerUntilRelease,
+    getPointerEventCoordinates,
+} from '../base/helpers.mjs';
 
 const E = new ElementBuilder();
 
@@ -11,7 +16,7 @@ class EditableSplineVector extends Spline {
     /**
      * @var int Half handle width
      */
-    static handleWidth = 8;
+    static handleWidth = 10;
 
     /**
      * @var int Half arrow length
@@ -21,27 +26,27 @@ class EditableSplineVector extends Spline {
     /**
      * Gets the handle drawable about a point
      */
-    getHandleAboutPoint(point) {
+    getHandleAboutPoint(point, offsetAmount = 0) {
         return new Drawable([
             new Point(
-                point.x-this.constructor.handleWidth,
-                point.y-this.constructor.handleWidth
+                point.x-this.constructor.handleWidth-offsetAmount,
+                point.y-this.constructor.handleWidth-offsetAmount,
             ),
             new Point(
-                point.x+this.constructor.handleWidth,
-                point.y-this.constructor.handleWidth
+                point.x+this.constructor.handleWidth+offsetAmount,
+                point.y-this.constructor.handleWidth-offsetAmount,
             ),
             new Point(
-                point.x+this.constructor.handleWidth,
-                point.y+this.constructor.handleWidth
+                point.x+this.constructor.handleWidth+offsetAmount,
+                point.y+this.constructor.handleWidth+offsetAmount,
             ),
             new Point(
-                point.x-this.constructor.handleWidth,
-                point.y+this.constructor.handleWidth
+                point.x-this.constructor.handleWidth-offsetAmount,
+                point.y+this.constructor.handleWidth+offsetAmount,
             ),
             new Point(
-                point.x-this.constructor.handleWidth,
-                point.y-this.constructor.handleWidth
+                point.x-this.constructor.handleWidth-offsetAmount,
+                point.y-this.constructor.handleWidth-offsetAmount,
             ),
         ]);
     }
@@ -115,66 +120,93 @@ class EditableSplineVector extends Spline {
     }
 
     /**
+     * Gets the angle between points in radians
+     */
+    getEndingAngleBetweenPoints(start, end) {
+        start = start.clone();
+        end = end.clone();
+        if (start.pointType === SplinePoint.TYPE_LINEAR && end.pointType === SplinePoint.TYPE_BEZIER) {
+            start = this.quadraticBezierCurvePoint(start, end.controlPoint1, end, 0.9);
+        } else if (start.pointType === SplinePoint.TYPE_BEZIER && end.pointType === SplinePoint.TYPE_LINEAR) {
+            start = this.quadraticBezierCurvePoint(start, start.controlPoint2, end, 0.9);
+        } else if (start.pointType !== SplinePoint.TYPE_LINEAR && end.pointType !== SplinePoint.TYPE_LINEAR) {
+            start = this.cubicBezierCurvePoint(start, start.controlPoint2, end.controlPoint1, end, 0.9);
+        }
+        let vector = new Vector(start, end);
+        return vector.rad + 3*Math.PI/2;
+    }
+
+    /**
      * Draws the spline and points
      */
-    draw(context, color) {
+    draw(context, color, drawHandles, selected) {
         context.strokeStyle = color;
         context.fillStyle = color;
         context.lineWidth = 2;
         this.stroke(context);
 
-        let [penultimate, end] = this.points.slice(-2);
-
-        if (penultimate.pointType === SplinePoint.TYPE_LINEAR && end.pointType === SplinePoint.TYPE_BEZIER) {
-            penultimate = this.quadraticBezierCurvePoint(penultimate, end.controlPoint1, end, 0.9);
-        } else if (penultimate.pointType === SplinePoint.TYPE_BEZIER && end.pointType === SplinePoint.TYPE_LINEAR) {
-            penultimate = this.quadraticBezierCurvePoint(penultimate, penultimate.controlPoint2, end, 0.9);
-        } else if (penultimate.pointType !== SplinePoint.TYPE_LINEAR && end.pointType !== SplinePoint.TYPE_LINEAR) {
-            penultimate = this.cubicBezierCurvePoint(penultimate, penultimate.controlPoint2, end.controlPoint1, end, 0.9);
-        }
-
-        let lastSection = new Vector(penultimate, end),
+        let [penultimate, end] = this.points.slice(-2),
             arrowhead = new Drawable([
                 new Point(
-                    lastSection.end.x,
-                    lastSection.end.y
+                    end.x,
+                    end.y
                 ),
                 new Point(
-                    lastSection.end.x - this.constructor.arrowLength,
-                    lastSection.end.y - this.constructor.arrowLength
+                    end.x - this.constructor.arrowLength,
+                    end.y - this.constructor.arrowLength
                 ),
                 new Point(
-                    lastSection.end.x + this.constructor.arrowLength,
-                    lastSection.end.y - this.constructor.arrowLength
+                    end.x + this.constructor.arrowLength,
+                    end.y - this.constructor.arrowLength
                 ),
                 new Point(
-                    lastSection.end.x,
-                    lastSection.end.y
+                    end.x,
+                    end.y
                 )
             ]);
 
-        arrowhead.rotateAbout(lastSection.rad + 3*Math.PI/2, lastSection.end);
+        arrowhead.rotateAbout(this.getEndingAngleBetweenPoints(penultimate, end), end);
         arrowhead.fill(context);
-        context.lineWidth = 2;
-        context.strokeStyle = "#ffffff";
-        context.fillStyle = "rgba(0,0,0,0.2)";
 
-        for (let point of this.points) {
+        if (!drawHandles) return;
+
+        // Color what is selected
+        context.fillStyle = "rgba(0,0,0,0.4)";
+
+        for (let pointIndex in this.points) {
+            let point = this.points[pointIndex],
+                selectedPoints = [];
+
+            if (!isEmpty(selected) && !isEmpty(selected[pointIndex])) {
+                selectedPoints = selected[pointIndex];
+            }
+
             let handle = this.getHandleAboutPoint(point);
+            context.lineWidth = 2;
+            context.strokeStyle = selectedPoints.indexOf("anchorPoint") !== -1
+                ? color
+                : "#ffffff";
             handle.stroke(context);
             handle.fill(context);
+            context.lineWidth = 1;
             if (point.pointType === SplinePoint.TYPE_BEZIER) {
                 if (!isEmpty(point.controlPoint1)) {
-                    let controlHandle = this.getHandleAboutPoint(point.controlPoint1),
+                    let controlHandle = this.getHandleAboutPoint(point.controlPoint1, -2),
                         controlLine = new Drawable([point.anchorPoint, point.controlPoint1]);
+                    context.strokeStyle = selectedPoints.indexOf("controlPoint1") !== -1
+                        ? color
+                        : "#ffffff";
                     context.setLineDash([]);
                     controlHandle.stroke(context);
                     context.setLineDash([4,2]);
                     controlLine.stroke(context);
                 }
                 if (!isEmpty(point.controlPoint2)) {
-                    let controlHandle = this.getHandleAboutPoint(point.controlPoint2),
+                    let controlHandle = this.getHandleAboutPoint(point.controlPoint2, -2),
                         controlLine = new Drawable([point.anchorPoint, point.controlPoint2]);
+                    context.strokeStyle = selectedPoints.indexOf("controlPoint2") !== -1
+                        ? color
+                        : "#ffffff";
                     context.setLineDash([]);
                     controlHandle.stroke(context);
                     context.setLineDash([4,2]);
@@ -185,6 +217,16 @@ class EditableSplineVector extends Spline {
         }
 
     }
+}
+
+/**
+ * Enum for cursor mode
+ */
+class VectorCursorMode {
+    static NONE = 0;
+    static MOVE = 1;
+    static ROTATE = 2;
+    static SELECT = 3;
 }
 
 /**
@@ -208,27 +250,61 @@ class VectorView extends View {
         this.canvas = document.createElement("canvas");
         this.canvas.width = width;
         this.canvas.height = height;
+        this.mode = VectorCursorMode.NONE;
+        this.selected = {};
+        this.startPosition = null;
+        this.startSelected = null;
+        this.startRadians = null;
+        this.extendCopies = 2;
+    }
+
+    /**
+     * Encodes data from a spline
+     */
+    getValueFromSpline(spline) {
+        return spline.points.map((point) => {
+            let mapped = {
+                "anchor": [point.x, point.y]
+            };
+            if (point.pointType === SplinePoint.TYPE_BEZIER) {
+                if (!isEmpty(point.controlPoint1)) {
+                    mapped["control_1"] = [point.cp1x, point.cp1y];
+                }
+                if (!isEmpty(point.controlPoint2)) {
+                    mapped["control_2"] = [point.cp2x, point.cp2y];
+                }
+            }
+            return mapped;
+        });
     }
 
     /**
      * Gets the encoded data
      */
     get value() {
+        return this.splines.map((spline) => this.getValueFromSpline(spline));
+    }
+
+    /**
+     * Gets the encoded data with repetitions
+     */
+    get extendedValue() {
         return this.splines.map((spline) => {
-            return spline.points.map((point) => {
-                let mapped = {
-                    "anchor": [point.x, point.y]
-                };
-                if (point.pointType === SplinePoint.TYPE_BEZIER) {
-                    if (!isEmpty(point.controlPoint1)) {
-                        mapped["control_1"] = [point.cp1x, point.cp1y];
-                    }
-                    if (!isEmpty(point.controlPoint2)) {
-                        mapped["control_2"] = [point.cp2x, point.cp2y];
-                    }
-                }
-                return mapped;
-            });
+            let encodedPoints = this.getValueFromSpline(spline);
+            for (let j = 0; j < this.extendCopies; j++) {
+                let cloned = spline.clone(),
+                    splineStart = spline.points[0],
+                    [splinePenultimate, splineEnd] = spline.points.slice(-2),
+                    deltaX = splineEnd.x - splineStart.x,
+                    deltaY = splineEnd.y - splineStart.y;
+
+                cloned.translatePoint(new Point(deltaX, deltaY));
+                let clonePoints = this.getValueFromSpline(cloned);
+                encodedPoints[encodedPoints.length-1].control_2 = clonePoints[0].control_1;
+                encodedPoints = encodedPoints.concat(clonePoints.slice(1));
+                spline = cloned;
+            }
+            return encodedPoints;
         });
     }
 
@@ -327,9 +403,31 @@ class VectorView extends View {
         let context = this.canvas.getContext("2d"),
             color = this.color;
         context.clearRect(0, 0, this.width, this.height);
-        for (let spline of this.splines) {
-            spline.draw(context, color);
+        for (let i in this.splines) {
+            let spline = this.splines[i];
+            spline.draw(context, color, true, this.selected[i]);
+            for (let j = 0; j < this.extendCopies; j++) {
+                let cloned = spline.clone(),
+                    splineStart = spline.points[0],
+                    [splinePenultimate, splineEnd] = spline.points.slice(-2),
+                    deltaX = splineEnd.x - splineStart.x,
+                    deltaY = splineEnd.y - splineStart.y;
+
+                cloned.translatePoint(new Point(deltaX, deltaY));
+                context.setLineDash([2,4]);
+                cloned.draw(context, color, false);
+                spline = cloned;
+            }
+            context.setLineDash([]);
         }
+    }
+
+    /**
+     * Sets the number of copies
+     */
+    setCopies(newCopies) {
+        this.extendCopies = newCopies;
+        this.updateCanvas();
     }
 
     /**
@@ -358,30 +456,14 @@ class VectorView extends View {
             let spline = this.splines[i];
             for (let j in spline.points) {
                 let point = spline.points[j];
-                if (point.x - EditableSplineVector.handleWidth <= x &&
-                    point.x + EditableSplineVector.handleWidth >  x &&
-                    point.y - EditableSplineVector.handleWidth <= y &&
-                    point.y + EditableSplineVector.handleWidth >  y
-                ) {
-                    return [parseInt(i), parseInt(j), 0];
-                }
-                if (point.pointType === SplinePoint.TYPE_BEZIER) {
-                    if (!isEmpty(point.controlPoint1)) {
-                        if (point.controlPoint1.x - EditableSplineVector.handleWidth <= x &&
-                            point.controlPoint1.x + EditableSplineVector.handleWidth >  x &&
-                            point.controlPoint1.y - EditableSplineVector.handleWidth <= y &&
-                            point.controlPoint1.y + EditableSplineVector.handleWidth >  y
+                for (let pointName of ["anchorPoint", "controlPoint1", "controlPoint2"]) {
+                    if (!isEmpty(point[pointName])) {
+                        if (point[pointName].x - EditableSplineVector.handleWidth <= x &&
+                            point[pointName].x + EditableSplineVector.handleWidth >  x &&
+                            point[pointName].y - EditableSplineVector.handleWidth <= y &&
+                            point[pointName].y + EditableSplineVector.handleWidth >  y
                         ) {
-                            return [parseInt(i), parseInt(j), 1];
-                        }
-                    }
-                    if (!isEmpty(point.controlPoint2)) {
-                        if (point.controlPoint2.x - EditableSplineVector.handleWidth <= x &&
-                            point.controlPoint2.x + EditableSplineVector.handleWidth >  x &&
-                            point.controlPoint2.y - EditableSplineVector.handleWidth <= y &&
-                            point.controlPoint2.y + EditableSplineVector.handleWidth >  y
-                        ) {
-                            return [parseInt(i), parseInt(j), 2];
+                            return [parseInt(i), parseInt(j), pointName];
                         }
                     }
                 }
@@ -403,78 +485,251 @@ class VectorView extends View {
         }
     }
 
-
-    /**
-     * The 'mouseenter' handler
-     */
-    onNodeMouseEnter(e) {
-        this.activeSpline = null;
-        this.activePoint = null;
-        this.activeControl = null;
-    }
-
-    /**
-     * The 'mouseleave' handler
-     */
-    onNodeMouseLeave(e) {
-        if (!isEmpty(this.activeSpline)) {
-            this.changed();
-        }
-        this.activeSpline = null;
-        this.activePoint = null;
-        this.activeControl = null;
-        this.updateCanvas();
-    }
-
     /**
      * The 'mousedown' handler
      */
     onNodeMouseDown(e) {
         if (e.type === "mousedown" && e.which !== 1) return;
-        if (e.metaKey || e.ctrlKey) return;
+        if (e.metaKey || (e.ctrlKey && !e.shiftKey)) return;
 
         e.preventDefault();
         e.stopPropagation();
-
-        let [x, y] = this.getCoordinates(e),
-            point = this.getPointFromCoordinates(x, y);
-
-        if (!isEmpty(point)) {
-            if (e.altKey && point[2] === 0) {
-                if (this.splines[point[0]].points.length === 2) {
-                    this.splines = this.splines.slice(0, point[0]).concat(this.splines.slice(point[0]+1));
+        let [x, y] = this.getCoordinates(e);
+        try {
+            let point = this.getPointFromCoordinates(x, y);
+            if (!isEmpty(point)) {
+                let [splineIndex, pointIndex, pointName] = point;
+                if (e.altKey && pointName === "anchorPoint") {
+                    if (this.splines[splineIndex].points.length === 2) {
+                        // Remove spline
+                        this.splines = this.splines.slice(0, splineIndex).concat(this.splines.slice(splineIndex+1));
+                    } else {
+                        // Remove point in spline
+                        this.splines[splineIndex].removePoint(pointIndex);
+                    }
                 } else {
-                    this.splines[point[0]].removePoint(point[1]);
+                    if (!e.shiftKey) {
+                        this.selected = {};
+                    }
+                    if (isEmpty(this.selected[splineIndex])) {
+                        this.selected[splineIndex] = {};
+                    }
+                    if (isEmpty(this.selected[splineIndex][pointIndex])) {
+                        this.selected[splineIndex][pointIndex] = [];
+                    }
+                    let isSelected = this.selected[splineIndex][pointIndex].indexOf(pointName) !== -1;
+                    if (!isSelected) {
+                        this.selected[splineIndex][pointIndex].push(pointName);
+                    }
+                    this.mode = VectorCursorMode.MOVE;
                 }
-            } else {
-                [this.activeSpline, this.activePoint, this.activeControl] = point;
+                return;
             }
-            return;
-        }
 
-        let spline = this.getSplineFromCoordinates(x, y);
-        if (!isEmpty(spline)) {
-            this.splines[spline[0]].addPoint(spline[1]);
-            return;
-        }
+            let spline = this.getSplineFromCoordinates(x, y);
+            if (!isEmpty(spline)) {
+                let [splineIndex, pointIndex] = spline;
+                if (e.altKey) {
+                    this.splines[splineIndex].addPoint(pointIndex);
+                } else {
+                    if (!e.shiftKey) {
+                        this.selected = {};
+                    }
+                    this.selected[splineIndex] = {};
+                    for (let pointIndex in this.splines[splineIndex].points) {
+                        let selectedPoints = ["anchorPoint"];
+                        for (let pointName of ["controlPoint1", "controlPoint2"]) {
+                            if (!isEmpty(this.splines[splineIndex].points[pointIndex][pointName])) {
+                                selectedPoints.push(pointName);
+                            }
+                        }
+                        this.selected[splineIndex][pointIndex] = selectedPoints;
+                    }
+                    this.mode = VectorCursorMode.MOVE;
+                }
+                return;
+            }
 
-        let newSpline = new EditableSplineVector([
-            new SplinePoint(new Point(x, y), SplinePoint.TYPE_LINEAR),
-            new SplinePoint(new Point(x, y), SplinePoint.TYPE_LINEAR)
-        ]);
-        this.splines.push(newSpline);
-        this.activeSpline = this.splines.length - 1;
-        this.activePoint = 1;
-        this.activeControl = 0;
+            if (e.altKey) {
+                let newSpline = new EditableSplineVector([
+                    new SplinePoint(new Point(x, y), SplinePoint.TYPE_LINEAR),
+                    new SplinePoint(new Point(x, y), SplinePoint.TYPE_LINEAR)
+                ]);
+                this.splines.push(newSpline);
+                this.selected = {};
+                this.selected[this.splines.length-1] = {};
+                this.selected[this.splines.length-1][1] = ["anchorPoint"];
+                this.mode = VectorCursorMode.MOVE;
+            } else if (e.shiftKey && e.ctrlKey) {
+                this.mode = VectorCursorMode.ROTATE;
+            } else {
+                this.startSelected = deepClone(this.selected);
+                this.mode = VectorCursorMode.SELECT;
+            }
+        } finally {
+            if (this.mode !== VectorCursorMode.NONE) {
+                this.startPosition = [x, y];
+            }
+            this.updateCanvas();
+            this.changed();
+        }
     }
 
     /**
      * The 'mouseup' handler
      */
     onNodeMouseUp(e) {
-        this.activeSpline = null;
-        this.activePoint = null;
-        this.activeControl = null;
+        this.mode = VectorCursorMode.NONE;
+        this.startPosition = null;
+        this.startSelected = null;
+        this.startRadians = null;
+        this.updateCanvas();
+        this.changed();
+    }
+
+    /**
+     * Draws the select box and selects in two modes
+     */
+    rectangleSelect(points, addToSaved = false) {
+        let [[x1, y1], [x2, y2]] = points,
+            sx1 = Math.min(x1, x2),
+            sx2 = Math.max(x1, x2),
+            sy1 = Math.min(y1, y2),
+            sy2 = Math.max(y1, y2);
+
+        let drawable = new Drawable([
+                new Point(sx1, sy1),
+                new Point(sx2, sy1),
+                new Point(sx2, sy2),
+                new Point(sx1, sy2),
+                new Point(sx1, sy1)
+            ]),
+            context = this.canvas.getContext("2d"),
+            selected = {};
+
+        if (addToSaved && !isEmpty(this.startSelected)) {
+            selected = deepClone(this.startSelected);
+        }
+
+        for (let splineIndex in this.splines) {
+            if (isEmpty(selected[splineIndex])) {
+                selected[splineIndex] = {};
+            }
+            for (let pointIndex in this.splines[splineIndex].points) {
+                let point = this.splines[splineIndex].points[pointIndex];
+                if (isEmpty(selected[splineIndex][pointIndex])) {
+                    selected[splineIndex][pointIndex] = [];
+                }
+                for (let pointName of ["anchorPoint", "controlPoint1", "controlPoint2"]) {
+                    if (selected[splineIndex][pointIndex].indexOf(pointName) === -1 && 
+                        !isEmpty(point[pointName]) &&
+                        drawable.containsBounding(point[pointName])
+                    ) {
+                        selected[splineIndex][pointIndex].push(pointName);
+                    }
+                }
+                if (isEmpty(selected[splineIndex][pointIndex])) {
+                    delete selected[splineIndex][pointIndex];
+                }
+            }
+            if (isEmpty(selected[splineIndex])) {
+                delete selected[splineIndex];
+            }
+        }
+
+        this.selected = selected;
+        this.updateCanvas();
+
+        context.setLineDash([4,2]);
+        context.lineWidth = 2;
+        context.strokeStyle = "#ffffff";
+        drawable.stroke(context);
+        context.setLineDash([]);
+    }
+
+    /**
+     * Gets a list of selected points
+     */
+    getSelectedPoints() {
+        let points = [];
+        for (let selectedSplineIndex in this.selected) {
+            for (let selectedPointIndex in this.selected[selectedSplineIndex]) {
+                for (let selectedPointName of this.selected[selectedSplineIndex][selectedPointIndex]) {
+                    if (!isEmpty(this.splines[selectedSplineIndex].points[selectedPointIndex][selectedPointName])) {
+                        points.push(this.splines[selectedSplineIndex].points[selectedPointIndex][selectedPointName]);
+                    }
+                }
+            }
+        }
+        return points;
+    }
+
+    /**
+     * Copies any selected splines with an offset
+     */
+    copySelected(offset = 25) {
+        let splineSelection = {};
+        for (let splineIndex in this.selected) {
+            let splineSelectedPoints = [];
+            for (let pointIndex in this.selected[splineIndex]) {
+                if (this.selected[splineIndex][pointIndex].indexOf("anchorPoint") !== -1) {
+                    splineSelectedPoints.push(this.splines[splineIndex].points[pointIndex]);
+                }
+            }
+            if (splineSelectedPoints.length >= 2) {
+                let newPoints = splineSelectedPoints.map((point) => {
+                        point = point.clone();
+                        point.x = Math.min(point.x+offset, this.width);
+                        point.y = Math.min(point.y+offset, this.height);
+                        if (!isEmpty(point.controlPoint1)) {
+                            point.cp1x = Math.min(point.cp1x+offset, this.width);
+                            point.cp1y = Math.min(point.cp1y+offset, this.height);
+                        }
+                        if (!isEmpty(point.controlPoint2)) {
+                            point.cp2x = Math.min(point.cp2x+offset, this.width);
+                            point.cp2y = Math.min(point.cp2y+offset, this.height);
+                        }
+                        return point;
+                    }),
+                    newSpline = new EditableSplineVector(newPoints);
+                this.splines.push(newSpline);
+                splineSelection[this.splines.length-1] = {};
+                for (let pointIndex in newSpline.points) {
+                    splineSelection[this.splines.length-1][pointIndex] = [];
+                    for (let pointName of ["anchorPoint", "controlPoint1", "controlPoint2"]) {
+                        if (!isEmpty(newSpline.points[pointIndex][pointName])) {
+                            splineSelection[this.splines.length-1][pointIndex].push(pointName);
+                        }
+                    }
+                }
+            }
+        }
+        if (!isEmpty(splineSelection)) {
+            this.selected = splineSelection;
+        }
+        this.updateCanvas();
+        this.changed();
+    }
+
+    /**
+     * Deletes any selected splines
+     */
+    deleteSelected() {
+        for (let splineIndex in this.selected) {
+            for (let pointIndex in this.selected[splineIndex]) {
+                if (this.selected[splineIndex][pointIndex].indexOf("anchorPoint") !== -1) {
+                    this.splines[splineIndex].points[pointIndex] = null;
+                }
+            }
+            this.splines[splineIndex].points = this.splines[splineIndex].points.filter((point) => point !== null);
+            if (this.splines[splineIndex].points.length < 2) {
+                this.splines[splineIndex] = null;
+            }
+        }
+
+        this.splines = this.splines.filter((spline) => spline !== null);
+        this.selected = {};
+        this.updateCanvas();
         this.changed();
     }
 
@@ -483,37 +738,41 @@ class VectorView extends View {
      */
     onNodeMouseMove(e) {
         let [eventX, eventY] = this.getCoordinates(e);
-        if (
-            !isEmpty(this.activeSpline) &&
-            !isEmpty(this.activePoint) &&
-            !isEmpty(this.activeControl)
-        ) {
-            let activePoint = this.splines[this.activeSpline].points[this.activePoint];
-            switch (this.activeControl) {
-                case 0:
-                    activePoint = activePoint.anchorPoint;
-                    break;
-                case 1:
-                    activePoint = activePoint.controlPoint1;
-                    break;
-                case 2:
-                    activePoint = activePoint.controlPoint2;
-                    break;
-                default:
-                    console.error("Bad active control", this.activeControl);
-            }
-            activePoint.x = eventX;
-            activePoint.y = eventY;
-        } else {
-            if (!isEmpty(this.getPointFromCoordinates(eventX, eventY))) {
-                this.node.css("cursor", "pointer");
-            } else if (!isEmpty(this.getSplineFromCoordinates(eventX, eventY))) {
-                this.node.css("cursor", "cell");
-            } else {
-                this.node.css("cursor", "default");
-            }
+        switch (this.mode) {
+            case VectorCursorMode.MOVE:
+                let [lastX, lastY] = this.startPosition,
+                    [deltaX, deltaY] = [lastX - eventX, lastY - eventY];
+                for (let point of this.getSelectedPoints()) {
+                    point.x -= deltaX;
+                    point.y -= deltaY;
+                }
+                this.startPosition = [eventX, eventY];
+                this.updateCanvas();
+                break;
+            case VectorCursorMode.ROTATE:
+                let drawable = new Drawable(this.getSelectedPoints()),
+                    thisPoint = new Point(eventX, eventY),
+                    lastPoint = new Point(...this.startPosition),
+                    thisVector = new Vector(thisPoint, drawable.center),
+                    lastVector = new Vector(lastPoint, drawable.center),
+                    rotation = thisVector.radians - lastVector.radians;
+                drawable.rotate(rotation);
+                this.updateCanvas();
+                this.startPosition = [eventX, eventY];
+                break;
+            case VectorCursorMode.SELECT:
+                this.rectangleSelect([this.startPosition, [eventX, eventY]], e.shiftKey);
+                break;
+            case VectorCursorMode.NONE:
+                if (!isEmpty(this.getPointFromCoordinates(eventX, eventY))) {
+                    this.node.css("cursor", "pointer");
+                } else if (!isEmpty(this.getSplineFromCoordinates(eventX, eventY))) {
+                    this.node.css("cursor", "cell");
+                } else {
+                    this.node.css("cursor", "default");
+                }
+                break;
         }
-        this.updateCanvas();
     }
 
     /**
@@ -558,13 +817,11 @@ class VectorView extends View {
         let node = await super.build();
         node.append(this.canvas);
         node.on("dblclick", (e) => this.onDblClick(e));
-        node.on("mouseenter", (e) => this.onNodeMouseEnter(e));
-        node.on("mousemove", (e) => this.onNodeMouseMove(e));
+        node.on("mousemove", (e) => this.onNodeMouseMove(e), true);
         node.on("mousedown", (e) => this.onNodeMouseDown(e));
         node.on("mouseup", (e) => this.onNodeMouseUp(e));
-        node.on("mouseleave", (e) => this.onNodeMouseLeave(e));
         node.on("touchstart", (e) => this.onNodeMouseDown(e, true));
-        node.on("touchmove", (e) => this.onNodeMouseMove(e));
+        node.on("touchmove", (e) => this.onNodeMouseMove(e), true);
         node.on("touchend", (e) => this.onNodeMouseUp(e));
         this.updateCanvas();
         return node;

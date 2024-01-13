@@ -235,7 +235,7 @@ def get_point_along_vector(
     ]
     total_segment_length = sum(segment_lengths)
     length_at_t = total_segment_length * t
-    running_length = 0
+    running_length = 0.0
     for i, segment_length in enumerate(segment_lengths):
         starting_length = running_length
         running_length += segment_length
@@ -324,6 +324,10 @@ def motion_vector_conditioning_tensor(
         for i in range(frames - 2):
             segment_start_x, segment_start_y = all_points[i]
             segment_end_x, segment_end_y = all_points[i+1]
+            segment_start_x = int(segment_start_x)
+            segment_start_y = int(segment_start_y)
+            segment_end_x = int(segment_end_x)
+            segment_end_y = int(segment_end_y)
             if (
                 segment_start_y < 0 or
                 segment_start_y >= height or

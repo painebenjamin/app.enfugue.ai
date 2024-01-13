@@ -1,6 +1,5 @@
 # type: ignore
 # adapted from https://github.com/ProjectNUWA/DragNUWA
-from functools import partial
 from typing import List, Optional, Union
 
 from einops import rearrange

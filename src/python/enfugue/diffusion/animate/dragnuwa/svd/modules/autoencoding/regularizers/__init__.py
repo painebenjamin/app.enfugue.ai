@@ -1,15 +1,13 @@
 # type: ignore
+from __future__ import annotations
 # adapted from https://github.com/ProjectNUWA/DragNUWA
-from abc import abstractmethod
-from typing import Any, Tuple
+from typing import Any, Tuple, TYPE_CHECKING
 
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
+if TYPE_CHECKING:
+    from torch import Tensor
 
 from enfugue.diffusion.animate.dragnuwa.svd.modules.distributions.distributions import DiagonalGaussianDistribution
 from enfugue.diffusion.animate.dragnuwa.svd.modules.autoencoding.regularizers.base import AbstractRegularizer
-
 
 class DiagonalGaussianRegularizer(AbstractRegularizer):
     def __init__(self, sample: bool = True):
@@ -19,7 +17,8 @@ class DiagonalGaussianRegularizer(AbstractRegularizer):
     def get_trainable_parameters(self) -> Any:
         yield from ()
 
-    def forward(self, z: torch.Tensor) -> Tuple[torch.Tensor, dict]:
+    def forward(self, z: Tensor) -> Tuple[Tensor, dict]:
+        import torch
         log = dict()
         posterior = DiagonalGaussianDistribution(z)
         if self.sample:

@@ -649,35 +649,33 @@ class DOMElement {
         return this.contentArray[this.contentArray.length - 1];
     }
 
-    on(eventName, handler) {
+    on(eventName, handler, passive) {
         for (let splitEventName of eventName.split(',')) {
             if (this.element !== undefined) {
-                this.setDOMEvent(splitEventName, handler);
+                this.setDOMEvent(splitEventName, handler, passive);
             }
             if (this.events.hasOwnProperty(splitEventName)) {
-                this.events[splitEventName].push(handler);
+                this.events[splitEventName].push([handler, passive]);
             } else {
-                this.events[splitEventName] = [handler];
+                this.events[splitEventName] = [[handler, passive]];
             }
         }
         return this;
     }
 
-    off(eventName, handler) {
+    off(eventName, handler, passive) {
         for (let splitEventName of eventName.split(',')) {
             if (this.element !== undefined) {
                 if (this.events[splitEventName] !== undefined) {
                     if (handler !== undefined) {
-                        this.removeDOMEvent(splitEventName, handler);
-                        this.events[splitEventName] = this.events[
-                            splitEventName
-                        ].filter(
-                            (existingHandler) => existingHandler !== handler
+                        this.removeDOMEvent(splitEventName, handler, passive);
+                        this.events[splitEventName] = this.events[splitEventName].filter(
+                            ([existingHandler, passive]) => existingHandler !== handler
                         );
                         return this;
                     } else {
-                        for (let eventHandler of this.events[splitEventName]) {
-                            this.removeDOMEvent(splitEventName, eventHandler);
+                        for (let [eventHandler, passive] of this.events[splitEventName]) {
+                            this.removeDOMEvent(splitEventName, eventHandler, passive);
                         }
                     }
                 }
@@ -791,11 +789,11 @@ class DOMElement {
         return this;
     }
 
-    setDOMEvent(eventName, eventHandler) {
+    setDOMEvent(eventName, eventHandler, passive) {
         if (this.element === undefined) {
             throw 'Element has not been rendered, cannot set event listeners.';
         }
-        this.element.addEventListener(eventName, eventHandler);
+        this.element.addEventListener(eventName, eventHandler, passive);
         return this;
     }
 
@@ -979,8 +977,8 @@ class DOMElement {
         }
 
         for (eventName in this.events) {
-            for (eventHandler of this.events[eventName]) {
-                this.setDOMEvent(eventName, eventHandler);
+            for (let [eventHandler, passive] of this.events[eventName]) {
+                this.setDOMEvent(eventName, eventHandler, passive);
             }
         }
 
@@ -1181,7 +1179,7 @@ class ShadowDOMElement extends DOMElement {
         return this;
     }
 
-    setDOMEvent(eventName, eventHandler) {
+    setDOMEvent(eventName, eventHandler, passive) {
         console.warn(
             'DOM events not supported on shadow elements, ignoring adding listener for',
             eventName

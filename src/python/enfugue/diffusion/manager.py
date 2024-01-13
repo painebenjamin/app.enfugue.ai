@@ -10,9 +10,10 @@ import datetime
 import traceback
 import threading
 
-from typing import Type, Union, Any, Optional, List, Tuple, Dict, Callable, Literal, Set, TYPE_CHECKING
+from typing import Type, Union, Any, Optional, List, Tuple, Dict, Callable, Literal, Set, BinaryIO, TYPE_CHECKING
 from hashlib import md5
 
+from math import ceil
 from pibble.api.configuration import APIConfiguration
 from pibble.api.exceptions import ConfigurationError, BadRequestError
 from pibble.util.files import dump_json, load_json
@@ -28,6 +29,7 @@ from enfugue.util import (
     find_file_in_directory,
     get_file_name_from_url,
     get_domain_from_url,
+    redact_for_log
 )
 
 __all__ = ["DiffusionPipelineManager"]
@@ -58,7 +60,7 @@ if TYPE_CHECKING:
         BackgroundRemover,
         Interpolator,
         Conversation,
-        DragAnimator
+        DragAnimatorPipeline
     )
     from torch import Tensor
 
@@ -66,35 +68,6 @@ def noop(*args: Any) -> None:
     """
     The default callback, does nothing.
     """
-
-def redact(kwargs: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Redacts prompts from logs to encourage log sharing for troubleshooting.
-    """
-    redacted = {}
-    for key, value in kwargs.items():
-        if key == "audio":
-            frequency_bands = len(value[0])
-            audio_samples = len(value[1])
-            channels = len(value[1][0][0])
-            redacted[key] = f"Audio({audio_samples} samples, {frequency_bands} frequency bands, {channels} channel(s))"
-        elif key == "prompts":
-            total = len(value)
-            redacted[key] = f"PromptList({total} prompt(s))"
-        elif isinstance(value, dict):
-            redacted[key] = redact(value)
-        elif isinstance(value, tuple):
-            redacted[key] = "(" + ", ".join([str(redact({"v": v})["v"]) for v in value]) + ")" # type: ignore[assignment]
-        elif isinstance(value, list):
-            redacted[key] = "[" + ", ".join([str(redact({"v": v})["v"]) for v in value]) + "]" # type: ignore[assignment]
-        elif type(value) not in [str, float, int, bool, type(None)]:
-            redacted[key] = type(value).__name__ # type: ignore[assignment]
-        elif "prompt" in key and "num" not in key and value is not None:
-            redacted[key] = "***" # type: ignore[assignment]
-        else:
-            redacted[key] = str(value) # type: ignore[assignment]
-    
-    return redacted
 
 class KeepaliveThread(threading.Thread):
     """
@@ -248,7 +221,7 @@ class DiffusionPipelineManager:
                 bytes_per_second_average = sum(bytes_per_second_history[-10:]) / len(bytes_per_second_history[-10:])
 
                 estimated_seconds_remaining = (total_bytes - written_bytes) / bytes_per_second_average
-                estimated_duration = human_duration(estimated_seconds_remaining, compact=True)
+                estimated_duration = human_duration(int(estimated_seconds_remaining), compact=True)
                 percentage = (written_bytes / total_bytes) * 100.0
                 self.task_callback(f"Downloading {file_label}: {percentage:0.1f}% ({human_size(written_bytes)}/{human_size(total_bytes)}), {human_size(bytes_per_second)}/s, {estimated_duration} remaining")
                 last_callback = this_callback
@@ -3260,7 +3233,7 @@ class DiffusionPipelineManager:
                     kwargs["variant"] = "fp16"
 
                 logger.debug(
-                    f"Initializing TensorRT pipeline from diffusers cache directory at {self.model_diffusers_cache_dir}. Arguments are {redact(kwargs)}"
+                    f"Initializing TensorRT pipeline from diffusers cache directory at {self.model_diffusers_cache_dir}. Arguments are {redact_for_log(kwargs)}"
                 )
                 pipeline = self.pipeline_class.from_pretrained(
                     self.model_diffusers_cache_dir,
@@ -3281,7 +3254,7 @@ class DiffusionPipelineManager:
                     kwargs["variant"] = "fp16"
 
                 logger.debug(
-                    f"Initializing pipeline from diffusers cache directory at {self.model_diffusers_cache_dir}. Arguments are {redact(kwargs)}"
+                    f"Initializing pipeline from diffusers cache directory at {self.model_diffusers_cache_dir}. Arguments are {redact_for_log(kwargs)}"
                 )
 
                 pipeline = self.pipeline_class.from_pretrained(
@@ -3296,7 +3269,7 @@ class DiffusionPipelineManager:
                 if self.vae_name is not None:
                     kwargs["vae_path"] = self.find_vae_path(self.vae_name)
 
-                logger.debug(f"Initializing pipeline from checkpoint at {self.model}. Arguments are {redact(kwargs)}")
+                logger.debug(f"Initializing pipeline from checkpoint at {self.model}. Arguments are {redact_for_log(kwargs)}")
 
                 pipeline = self.pipeline_class.from_ckpt(self.model, **kwargs)
                 if pipeline.is_sdxl and "16" not in self.model and (self.vae_name is None or "16" not in self.vae_name):
@@ -3434,7 +3407,7 @@ class DiffusionPipelineManager:
                     kwargs["variant"] = "fp16"
 
                 logger.debug(
-                    f"Initializing refiner TensorRT pipeline from diffusers cache directory at {self.refiner_diffusers_cache_dir}. Arguments are {redact(kwargs)}"
+                    f"Initializing refiner TensorRT pipeline from diffusers cache directory at {self.refiner_diffusers_cache_dir}. Arguments are {redact_for_log(kwargs)}"
                 )
 
                 refiner_pipeline = self.refiner_pipeline_class.from_pretrained(
@@ -3461,7 +3434,7 @@ class DiffusionPipelineManager:
                     kwargs["variant"] = "fp16"
 
                 logger.debug(
-                    f"Initializing refiner pipeline from diffusers cache directory at {self.refiner_diffusers_cache_dir}. Arguments are {redact(kwargs)}"
+                    f"Initializing refiner pipeline from diffusers cache directory at {self.refiner_diffusers_cache_dir}. Arguments are {redact_for_log(kwargs)}"
                 )
 
                 refiner_pipeline = self.refiner_pipeline_class.from_pretrained(
@@ -3476,7 +3449,7 @@ class DiffusionPipelineManager:
                 if self.refiner_vae_name is not None:
                     kwargs["vae_path"] = self.find_vae_path(self.refiner_vae_name)
 
-                logger.debug(f"Initializing refiner pipeline from checkpoint at {self.refiner}. Arguments are {redact(kwargs)}")
+                logger.debug(f"Initializing refiner pipeline from checkpoint at {self.refiner}. Arguments are {redact_for_log(kwargs)}")
 
                 refiner_pipeline = self.refiner_pipeline_class.from_ckpt(
                     self.refiner,
@@ -3624,7 +3597,7 @@ class DiffusionPipelineManager:
                     kwargs["build_half"] = True
 
                 logger.debug(
-                    f"Initializing inpainter TensorRT pipeline from diffusers cache directory at {self.inpainter_diffusers_cache_dir}. Arguments are {redact(kwargs)}"
+                    f"Initializing inpainter TensorRT pipeline from diffusers cache directory at {self.inpainter_diffusers_cache_dir}. Arguments are {redact_for_log(kwargs)}"
                 )
 
                 inpainter_pipeline = self.inpainter_pipeline_class.from_pretrained(
@@ -3647,7 +3620,7 @@ class DiffusionPipelineManager:
                     kwargs["variant"] = "fp16"
                 
                 logger.debug(
-                    f"Initializing inpainter pipeline from diffusers cache directory at {self.inpainter_diffusers_cache_dir}. Arguments are {redact(kwargs)}"
+                    f"Initializing inpainter pipeline from diffusers cache directory at {self.inpainter_diffusers_cache_dir}. Arguments are {redact_for_log(kwargs)}"
                 )
 
                 inpainter_pipeline = self.inpainter_pipeline_class.from_pretrained(
@@ -3662,7 +3635,7 @@ class DiffusionPipelineManager:
                     kwargs["vae_path"] = self.find_vae_path(self.inpainter_vae_name)
                 
                 logger.debug(
-                    f"Initializing inpainter pipeline from checkpoint at {self.inpainter}. Arguments are {redact(kwargs)}"
+                    f"Initializing inpainter pipeline from checkpoint at {self.inpainter}. Arguments are {redact_for_log(kwargs)}"
                 )
 
                 inpainter_pipeline = self.inpainter_pipeline_class.from_ckpt(
@@ -3801,7 +3774,7 @@ class DiffusionPipelineManager:
                     kwargs["build_half"] = True
 
                 logger.debug(
-                    f"Initializing animator TensorRT pipeline from diffusers cache directory at {self.animator_diffusers_cache_dir}. Arguments are {redact(kwargs)}"
+                    f"Initializing animator TensorRT pipeline from diffusers cache directory at {self.animator_diffusers_cache_dir}. Arguments are {redact_for_log(kwargs)}"
                 )
 
                 animator_pipeline = self.animator_pipeline_class.from_pretrained(
@@ -3823,7 +3796,7 @@ class DiffusionPipelineManager:
                     kwargs["variant"] = "fp16"
                 
                 logger.debug(
-                    f"Initializing animator pipeline from diffusers cache directory at {self.animator_diffusers_cache_dir}. Arguments are {redact(kwargs)}"
+                    f"Initializing animator pipeline from diffusers cache directory at {self.animator_diffusers_cache_dir}. Arguments are {redact_for_log(kwargs)}"
                 )
 
                 animator_pipeline = self.animator_pipeline_class.from_pretrained(
@@ -3836,7 +3809,7 @@ class DiffusionPipelineManager:
                     kwargs["vae_path"] = self.find_vae_path(self.animator_vae_name)
                 
                 logger.debug(
-                    f"Initializing animator pipeline from checkpoint at {self.animator}. Arguments are {redact(kwargs)}"
+                    f"Initializing animator pipeline from checkpoint at {self.animator}. Arguments are {redact_for_log(kwargs)}"
                 )
 
                 animator_pipeline = self.animator_pipeline_class.from_ckpt(
@@ -3942,6 +3915,7 @@ class DiffusionPipelineManager:
         if hasattr(self, "_drag_pipeline"):
             logger.debug("Unloading DragNUWA pipeline.")
             del self._drag_pipeline
+            self.clear_memory()
 
     @property
     def svd_pipeline(self, use_xt: bool = True) -> StableVideoDiffusionPipeline:
@@ -3958,6 +3932,7 @@ class DiffusionPipelineManager:
         Deletes the SVD pipeline
         """
         if hasattr(self, "_svd_pipeline"):
+            logger.debug("Unloading SVD pipeline.")
             del self._svd_pipeline
             self.clear_memory()
 
@@ -4846,19 +4821,20 @@ class DiffusionPipelineManager:
         self,
         image: Union[str, PIL.Image.Image],
         motion_vectors: List[List[MotionVectorPointDict]],
-        decode_chunk_size: Optional[int] = 1,
-        num_frames: int = 14,
-        num_inference_steps: int = 25,
-        min_guidance_scale: float = 1.0,
-        max_guidance_scale: float = 3.0,
-        fps: int = 7,
-        motion_bucket_id: int = 127,
-        noise_aug_strength: float = 0.02,
-        gaussian_sigma: int = 20,
-        task_callback: Optional[Callable[[str], None]] = None,
-        progress_callback: Optional[Callable[[int, int, float], None]] = None,
-        image_callback: Optional[Callable[[List[PIL.Image.Image]], None]] = None,
-        image_callback_steps: Optional[int] = None,
+        decode_chunk_size: Optional[int]=1,
+        num_frames: int=14,
+        frame_window_size: int=14,
+        num_inference_steps: int=25,
+        min_guidance_scale: float=1.0,
+        max_guidance_scale: float=3.0,
+        fps: int=4,
+        motion_bucket_id: int=27,
+        noise_aug_strength: float=0.02,
+        gaussian_sigma: int=20,
+        task_callback: Optional[Callable[[str], None]]=None,
+        progress_callback: Optional[Callable[[int, int, float], None]]=None,
+        image_callback: Optional[Callable[[List[PIL.Image.Image]], None]]=None,
+        image_callback_steps: Optional[int]=None,
         **kwargs: Any
     ) -> List[PIL.Image.Image]:
         """
@@ -4869,19 +4845,31 @@ class DiffusionPipelineManager:
 
         self.set_task_callback(task_callback)
         self.offload_all() # Send any active diffusion pipelines to CPU
+        del self.svd_pipeline # Also unload this
         self.start_keepalive()
 
         try:
             if isinstance(image, str):
                 from enfugue.util import image_from_uri
                 image = image_from_uri(image)
-            latent_callback: Optional[Callable[[Tensor], None]] = None
+
+            latent_callback: Optional[Callable[[Tensor, int], None]] = None
+            num_iterations = ceil(num_frames / frame_window_size)
+            last_iteration = 0
+            num_returned_images = num_frames - num_iterations + 1
+            animation_preview_images: List[PIL.Image.Image] = [
+                image.copy()
+                for i in range(num_returned_images)
+            ]
+
             if image_callback is not None:
                 # Build decoding callback
                 from diffusers.image_processor import VaeImageProcessor
                 vae_preview = self.get_vae_preview(False).to(device=self.device)
                 image_processor = VaeImageProcessor()
-                def decode_svd_latents(latents):
+
+                def decode_svd_latents(latents, iteration):
+                    nonlocal last_iteration
                     import numpy as np
                     from einops import rearrange
                     from torchvision import utils
@@ -4897,13 +4885,23 @@ class DiffusionPipelineManager:
                     preview_decoded = (preview_decoded / 2 + 0.5).clamp(0, 0.98)
                     preview_decoded = rearrange(preview_decoded, "b f c h w -> f b c h w")
                     images = []
+                    image_count = 0
                     for frame in preview_decoded:
                         frame = utils.make_grid(frame, nrow=8)
                         frame = frame.transpose(0, 1).transpose(1, 2).squeeze(-1)
                         frame = (255 - (frame * 255)).cpu().numpy().astype(np.uint8)
                         images.extend(image_processor.numpy_to_pil(frame))
+                        image_count += 1
 
-                    image_callback(images)
+                    start_index = (frame_window_size * iteration) - iteration
+                    for i in range(start_index, num_returned_images):
+                        image_index = i - start_index
+                        if image_index >= image_count:
+                            image_index = image_count - 1
+                        animation_preview_images[i] = images[image_index]
+
+                    image_callback(animation_preview_images)
+                    last_iteration = iteration
 
                 latent_callback = decode_svd_latents
 
@@ -4911,6 +4909,7 @@ class DiffusionPipelineManager:
             pipeline = self.drag_pipeline 
             self.stop_keepalive()
             task_callback("Executing Inference")
+
             return pipeline(
                 image,
                 width=width,
@@ -4922,6 +4921,9 @@ class DiffusionPipelineManager:
                 motion_bucket_id=motion_bucket_id,
                 gaussian_sigma=gaussian_sigma,
                 noise_aug_strength=noise_aug_strength,
+                num_inference_steps=num_inference_steps,
+                min_guidance_scale=min_guidance_scale,
+                max_guidance_scale=max_guidance_scale,
                 progress_callback=progress_callback,
                 latent_callback=latent_callback,
                 latent_callback_steps=image_callback_steps
@@ -4933,8 +4935,9 @@ class DiffusionPipelineManager:
     def svd_img2vid(
         self,
         image: Union[str, PIL.Image.Image],
-        use_xt: bool = True,
-        num_frames: Optional[int] = None,
+        use_xt: bool = False,
+        num_frames: int=14,
+        frame_window_size: int=14,
         decode_chunk_size: Optional[int] = 1,
         num_inference_steps: int = 25,
         min_guidance_scale: float = 1.0,
@@ -4964,10 +4967,9 @@ class DiffusionPipelineManager:
                 image = image_from_uri(image)
 
             width, height = image.size
+            self.svd_xt = use_xt
 
-            task_callback("Instantiating SVD Pipeline")
-
-            pipe = self.get_svd_pipeline(use_xt=use_xt)
+            pipe = self.svd_pipeline
             vae_preview = None
             if image_callback is not None and image_callback_steps is not None:
                 vae_preview = self.get_vae_preview(False).to(device=self.device)
@@ -4975,6 +4977,15 @@ class DiffusionPipelineManager:
             self.stop_keepalive()
             task_callback("Executing Inference")
 
+            frame_window_size = 21 if self.svd_xt else 14
+            num_iterations = ceil(num_frames / frame_window_size)
+            iteration = 0
+            total_steps = num_iterations * num_inference_steps
+            total_step = 0
+            total_images = [
+                image.copy()
+                for i in range(num_frames)
+            ]
             step_start: datetime.datetime = datetime.datetime.now()
             step_times: List[float] = []
 
@@ -4990,7 +5001,11 @@ class DiffusionPipelineManager:
                 import numpy as np
                 from einops import rearrange
                 from torchvision import utils
-                nonlocal step_start
+                nonlocal total_step, step_start
+
+                total_step += 1
+                iteration_start = iteration * frame_window_size
+
                 now = datetime.datetime.now()
                 step_times.append((now-step_start).total_seconds())
                 step_start = now
@@ -4998,10 +5013,11 @@ class DiffusionPipelineManager:
                 if progress_callback is not None:
                     time_slice = step_times[-5:]
                     step_rate = 1.0 / (sum(time_slice)/len(time_slice))
-                    progress_callback(step, num_inference_steps, step_rate)
+                    progress_callback(total_step, total_steps, step_rate)
 
                 if (
                     step > 0 and
+                    vae_preview is not None and
                     image_callback is not None and
                     image_callback_steps is not None and
                     step % image_callback_steps == 0 and
@@ -5022,30 +5038,41 @@ class DiffusionPipelineManager:
                         frame = utils.make_grid(frame, nrow=8)
                         frame = frame.transpose(0, 1).transpose(1, 2).squeeze(-1)
                         frame = (255 - (frame * 255)).cpu().numpy().astype(np.uint8)
-                        images.extend(pipe.image_processor.numpy_to_pil(frame))
-                    image_callback(images)
+                        images.extend(pipe.image_processor.numpy_to_pil(frame)) # type: ignore[attr-defined]
+                    step_images = len(images)
+                    for i in range(iteration_start, num_frames):
+                        image_index = i - iteration_start
+                        if image_index >= step_images:
+                            image_index = step_images - 1
+                        total_images[i] = images[image_index].copy()
+                    image_callback(total_images)
                 return callback_kwargs
 
-            frames = pipe( # type: ignore[operator]
-                image=image.convert("RGB"),
-                height=height,
-                width=width,
-                num_frames=num_frames,
-                decode_chunk_size=decode_chunk_size,
-                num_inference_steps=num_inference_steps,
-                min_guidance_scale=min_guidance_scale,
-                max_guidance_scale=max_guidance_scale,
-                fps=fps,
-                motion_bucket_id=motion_bucket_id,
-                noise_aug_strength=noise_aug_strength,
-                generator=self.noise_generator,
-                callback_on_step_end=step_callback,
-                callback_on_step_end_tensor_inputs=["latents"] if image_callback is not None else [],
-            ).frames[0]
+            for iteration in range(num_iterations):
+                frames = pipe( # type: ignore[operator]
+                    image=image.convert("RGB"),
+                    height=height,
+                    width=width,
+                    num_frames=frame_window_size,
+                    decode_chunk_size=decode_chunk_size,
+                    num_inference_steps=num_inference_steps,
+                    min_guidance_scale=min_guidance_scale,
+                    max_guidance_scale=max_guidance_scale,
+                    fps=fps,
+                    motion_bucket_id=motion_bucket_id,
+                    noise_aug_strength=noise_aug_strength,
+                    generator=self.noise_generator,
+                    callback_on_step_end=step_callback,
+                    callback_on_step_end_tensor_inputs=["latents"] if image_callback is not None else [],
+                ).frames[0]
+                iteration_start = iteration * frame_window_size
+                for i, frame in enumerate(frames):
+                    total_images[iteration_start+i] = frame
+                image = frames[-1].convert("RGB")
             del pipe
             del vae_preview
             self.clear_memory()
-            return frames
+            return total_images
         finally:
             self.clear_task_callback()
             self.stop_keepalive()
@@ -5256,7 +5283,7 @@ class DiffusionPipelineManager:
 
                 self.stop_keepalive()
                 task_callback("Executing Inference")
-                logger.debug(f"Calling pipeline with arguments {redact(kwargs)}")
+                logger.debug(f"Calling pipeline with arguments {redact_for_log(kwargs)}")
                 try:
                     result = pipe( # type: ignore[assignment]
                         generator=self.generator,
@@ -5334,7 +5361,7 @@ class DiffusionPipelineManager:
                 if refiner_negative_prompt_2:
                     kwargs["negative_prompt_2"] = refiner_negative_prompt_2
 
-                logger.debug(f"Refining results with arguments {redact(kwargs)}")
+                logger.debug(f"Refining results with arguments {redact_for_log(kwargs)}")
                 pipe = self.refiner_pipeline # type: ignore 
                 self.stop_keepalive()  # This checks, we can call it all we want
                 task_callback(f"Refining")

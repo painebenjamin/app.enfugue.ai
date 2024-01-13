@@ -19,7 +19,6 @@ from enfugue.diffusion.engine import DiffusionEngine
 from enfugue.diffusion.invocation import (
     LayeredInvocation,
     CaptionInvocation,
-    StableVideoDiffusionInvocation
 )
 
 from enfugue.util import logger, check_make_directory, find_file_in_directory
@@ -30,7 +29,6 @@ __all__ = ["SystemManagerThread", "SystemManager"]
 InvocationType = Union[
     LayeredInvocation,
     CaptionInvocation,
-    StableVideoDiffusionInvocation
 ]
 
 class SystemManagerThread(Thread):
@@ -476,10 +474,7 @@ class SystemManager:
         if not can_start and not can_queue:
             raise TooManyRequestsError()
 
-        if (
-            isinstance(plan, LayeredInvocation) or
-            isinstance(plan, StableVideoDiffusionInvocation)
-        ):
+        if isinstance(plan, LayeredInvocation):
             if disable_intermediate_decoding:
                 kwargs["decode_nth_intermediate"] = None
             else:

@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import os
 
-from math import log
-from bisect import bisect_left
 from enfugue.util import reiterator
 from typing import TYPE_CHECKING, Iterable, Tuple, Optional, List, Dict, Callable
 
@@ -100,7 +98,7 @@ class Audio:
         rate: Optional[int]=None,
         low_filter: float = 0.0,
         num_frequency_bands: int = 256,
-    ) -> Tuple[List[int], List[Tuple[float]]]:
+    ) -> Tuple[List[int], List[List[Tuple[float, ...]]]]:
         """
         Gets frequencies after normalizing
         """
@@ -146,7 +144,7 @@ class Audio:
         current_samples = 0
         yielded_samples = 0
 
-        def get_frequencies() -> Dict[int, float]:
+        def get_frequencies() -> Dict[int, List[float]]:
             num_channels = len(samples[0])
             xf = None
             xy = []
@@ -169,8 +167,8 @@ class Audio:
                     xf = fbc
                 xy.append(fbe)
 
-            return dict(zip(
-                [int(f) for f in xf],
+            return dict(zip( # type: ignore
+                [int(f) for f in xf], # type: ignore[union-attr]
                 [list(f) for f in zip(*xy)] # type: ignore[misc]
             ))
 

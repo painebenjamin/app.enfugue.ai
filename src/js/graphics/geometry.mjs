@@ -9,7 +9,7 @@ class Point {
     }
 
     clone() {
-        return new Point(this.x, this.y);
+        return new this.constructor(this.x, this.y);
     }
 
     equals(otherPoint, tolerance = 0) {
@@ -110,15 +110,15 @@ class Vector {
         this.end = end;
     }
 
+    get radians() {
+        return Math.atan2(
+            this.end.y - this.start.y,
+            this.end.x - this.start.x
+        );
+    }
+
     get actualCardinal() {
-        let degrees =
-                (Math.atan2(
-                    this.end.y - this.start.y,
-                    this.end.x - this.start.x
-                ) *
-                    180) /
-                    Math.PI +
-                180,
+        let degrees = (this.radians * 180) / Math.PI + 180,
             nearestCardinalDegrees = roundTo(degrees, 45),
             nearestCardinalIndex = parseInt(nearestCardinalDegrees / 45),
             cardinalNumber = nearestCardinalIndex - 2;
@@ -237,7 +237,7 @@ class Drawable {
     }
 
     clone() {
-        return new Drawable(
+        return new this.constructor(
             [].concat(this.points.map((point) => point.clone()))
         );
     }
@@ -254,6 +254,14 @@ class Drawable {
             Math.min(...this.points.map((p) => p.x)),
             Math.min(...this.points.map((p) => p.y))
         );
+    }
+
+    translatePoint(otherPoint) {
+        for (let point of this.points) {
+            point.add(otherPoint);
+        }
+        this.center.add(otherPoint);
+        return this;
     }
 
     translateX(deltaX) {

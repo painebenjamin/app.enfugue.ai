@@ -20,6 +20,8 @@ class Video:
     """
     Provides helper methods for video
     """
+    audio: Optional[Audio] = None
+
     def __init__(
         self,
         frames: Iterable[Image],

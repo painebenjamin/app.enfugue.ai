@@ -1,4 +1,4 @@
-/** @module controller/help/02-documentation */
+/** @module controller/help/03-documentation */
 import { MenuController } from "../menu.mjs";
 
 /**
@@ -13,7 +13,7 @@ class DocumentationController extends MenuController {
     /**
      * @var string The text to display
      */
-    static menuName = "Documentation";
+    static menuName = "Wiki";
 
     /**
      * @var string The icon to display
@@ -23,7 +23,7 @@ class DocumentationController extends MenuController {
     /**
      * @var string The keyboard shortcut
      */
-    static menuShortcut = "d";
+    static menuShortcut = "w";
 
     /**
      * On click, open window

@@ -1201,28 +1201,50 @@ export let createElementsFromString = (text) => {
 }
 
 /**
+ * Gets the zoom-adjusted x, y coordinates from an event
+ */
+export let getPointerEventCoordinates = (e, relativeElement = null) => {
+    let elementCoordinates = {x: 0, y: 0};
+    if (!isEmpty(relativeElement)) {
+        elementCoordinates = relativeElement.getBoundingClientRect();
+    }
+
+    if (e.touches && e.touches.length > 0) {
+        return [
+            e.touches[0].clientX - elementCoordinates.x,
+            e.touches[0].clientY - elementCoordinates.y
+        ];
+    } else {
+        return [
+            e.clientX - elementCoordinates.x,
+            e.clientY - elementCoordinates.y
+        ]
+    }
+};
+
+/**
  * Binds a method to window mousemove, and then unbinds it when released
  * or when the mouse leaves the window.
  */
-export let bindMouseUntilRelease = (callback, releaseCallback = null) => {
+export let bindPointerUntilRelease = (callback, releaseCallback = null) => {
     let onWindowMouseMove = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
         callback(e);
     }
     let onWindowMouseUpOrLeave = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
         if (!isEmpty(releaseCallback)) {
             releaseCallback(e);
         }
         window.removeEventListener("mouseup", onWindowMouseUpOrLeave, true);
         window.removeEventListener("mouseleave", onWindowMouseUpOrLeave, true);
+        window.removeEventListener("touchend", onWindowMouseUpOrLeave, true);
         window.removeEventListener("mousemove", onWindowMouseMove, true);
+        window.removeEventListener("touchmove", onWindowMouseMove, true);
     }
     window.addEventListener("mouseup", onWindowMouseUpOrLeave, true);
     window.addEventListener("mouseleave", onWindowMouseUpOrLeave, true);
+    window.addEventListener("touchend", onWindowMouseUpOrLeave, true);
     window.addEventListener("mousemove", onWindowMouseMove, true);
+    window.addEventListener("touchmove", onWindowMouseMove, true);
 };
 
 /**

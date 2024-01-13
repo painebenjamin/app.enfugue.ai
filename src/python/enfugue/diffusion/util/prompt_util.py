@@ -146,8 +146,8 @@ class Prompt:
     start: Optional[int] = None
     end: Optional[int] = None
     weight: Optional[float] = None
-    frequency: Optional[Union[int, Tuple[int]]] = None
-    channel: Optional[Union[int, Tuple[int]]] = None
+    frequency: Optional[Union[int, Tuple[int, int]]] = None
+    channel: Optional[Union[int, Tuple[int, ...]]] = None
 
     def get_mask(
         self,
@@ -306,8 +306,8 @@ class EncodedPrompt:
 
 if TYPE_CHECKING:
     PromptGetterCallable = Callable[
-        [EncodedPrompt, Optional[List[int]]],
-        Tuple[Optional[Tensor], Union[float, int]]
+        [EncodedPrompt],
+        Tuple[Optional[Tensor], Union[float, int, Tensor]]
     ]
 
 @dataclass
@@ -377,10 +377,10 @@ class EncodedPrompts:
                 elif not isinstance(weight, torch.Tensor) and weight > 0:
                     if return_tensor is None:
                         return_tensor = (tensor * weight).unsqueeze(0)
-                        total_weight = weight
+                        total_weight = weight # type: ignore
                     else:
                         return_tensor = torch.cat([return_tensor, (tensor * weight).unsqueeze(0)]) # type: ignore[unreachable]
-                        total_weight += weight
+                        total_weight += weight # type: ignore
         if return_tensor is not None:
             return torch.sum(return_tensor, 0) / total_weight
         return None
@@ -412,14 +412,15 @@ class EncodedPrompts:
                     image_embeds = image_embeds[frames]
 
             if return_tensor is None:
-                return_tensor = image_embeds
+                return_tensor = image_embeds.unsqueeze(0)
             else:
                 return_tensor = torch.cat(
-                    [return_tensor, image_embeds],
-                    dim=2
+                    [return_tensor, image_embeds.unsqueeze(0)],
+                    dim=0
                 )
         if return_tensor is None:
             raise RuntimeError("Prompt embeds could not be retrieved.")
+        return_tensor = torch.mean(return_tensor, dim=0)
         if frames:
             return rearrange(return_tensor, "f b t d -> b f t d")
         return return_tensor
@@ -451,14 +452,15 @@ class EncodedPrompts:
                     uncond_embeds = uncond_embeds[frames]
 
             if return_tensor is None:
-                return_tensor = uncond_embeds
+                return_tensor = uncond_embeds.unsqueeze(0)
             else:
                 return_tensor = torch.cat(
-                    [return_tensor, uncond_embeds],
-                    dim=2
+                    [return_tensor, uncond_embeds.unsqueeze(0)],
+                    dim=0
                 )
         if return_tensor is None:
             raise RuntimeError("Prompt embeds could not be retrieved.")
+        return_tensor = torch.mean(return_tensor, dim=0)
         if frames:
             return rearrange(return_tensor, "f b t d -> b f t d")
         return return_tensor
@@ -513,11 +515,13 @@ class EncodedPrompts:
         import torch
         get_embeds: PromptGetterCallable = lambda prompt: prompt.get_negative_embeds(frames=frames, frequencies=frequencies, amplitudes=amplitudes)
         result = self.get_mean_tensor(get_embeds)
+        if result is None:
+            return result
         stack_dim = 2 if frames else 1
         if self.is_sdxl and self.image_uncond_prompt_embeds is not None and result is not None:
             return torch.cat([result, self.get_image_uncond_prompt_embeds(frames)], dim=stack_dim)
-        elif self.image_uncond_prompt_embeds is not None and result is not None:
-            if self.do_classifier_free_guidance:
+        elif self.image_uncond_prompt_embeds is not None:
+            if self.do_classifier_free_guidance: # type: ignore[unreachable]
                 negative, positive = result.chunk(2)
             else:
                 negative, positive = result, None
@@ -538,6 +542,8 @@ class EncodedPrompts:
             return None
         get_embeds: PromptGetterCallable = lambda prompt: prompt.get_pooled_embeds(frames=frames, frequencies=frequencies, amplitudes=amplitudes)
         result = self.get_mean_tensor(get_embeds)
+        if result is None:
+            return result
         return result.to(dtype=self.dtype)
 
     def get_negative_pooled_embeds(
@@ -553,6 +559,8 @@ class EncodedPrompts:
             return None
         get_embeds: PromptGetterCallable = lambda prompt: prompt.get_negative_pooled_embeds(frames=frames, frequencies=frequencies, amplitudes=amplitudes)
         result = self.get_mean_tensor(get_embeds)
+        if result is None:
+            return result
         return result.to(dtype=self.dtype)
 
     def get_add_text_embeds(
@@ -573,6 +581,8 @@ class EncodedPrompts:
             if negative_pooled_embeds is None:
                 negative_pooled_embeds = torch.zeros_like(pooled_embeds)
             pooled_embeds = torch.cat([negative_pooled_embeds, pooled_embeds], dim=0)
+        if pooled_embeds is None:
+            return pooled_embeds
         return pooled_embeds.to(dtype=self.dtype)
 
     @property

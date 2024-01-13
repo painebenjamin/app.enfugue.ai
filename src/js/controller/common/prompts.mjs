@@ -1,9 +1,14 @@
 /** @module controllers/common/prompts */
-import { isEmpty, bindMouseUntilRelease } from "../../base/helpers.mjs";
 import { ElementBuilder } from "../../base/builder.mjs";
 import { View } from "../../view/base.mjs";
 import { Controller } from "../base.mjs";
 import { PromptTravelFormView } from "../../forms/enfugue/prompts.mjs";
+import {
+    isEmpty,
+    kebabCase,
+    getPointerEventCoordinates,
+    bindPointerUntilRelease
+} from '../../base/helpers.mjs';
 
 const E = new ElementBuilder();
 
@@ -278,15 +283,16 @@ class PromptView extends View {
 
                 let promptPosition = node.element.getBoundingClientRect(),
                     promptWidth = promptPosition.width,
+                    [eventX, eventY] = getPointerEventCoordinates(e),
                     relativeLeft = Math.min(
-                        Math.max(e.clientX - promptPosition.x, 0),
+                        Math.max(eventX - promptPosition.x, 0),
                         promptWidth
                     ),
                     relativeRight = Math.max(promptWidth - relativeLeft, 0),
                     containerPosition = node.element.parentElement.getBoundingClientRect(),
                     containerWidth = containerPosition.width - 15, // Padding
                     containerRelativeLeft = Math.min(
-                        Math.max(e.clientX - containerPosition.x, 0),
+                        Math.max(eventX - containerPosition.x, 0),
                         containerWidth
                     ),
                     containerRelativeRight = Math.max(containerWidth - containerRelativeLeft, 0),
@@ -341,7 +347,7 @@ class PromptView extends View {
                 slideStartRange = [this.start, this.end];
             }
             updatePosition(e);
-            bindMouseUntilRelease(
+            bindPointerUntilRelease(
                 (e2) => { 
                     updatePosition(e2);
                 },

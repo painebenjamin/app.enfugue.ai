@@ -1,6 +1,6 @@
 /** @module graphics/spline */
 import { Point, Drawable } from './geometry.mjs';
-import { roundTo, shiftingFrameIterator } from '../base/helpers.mjs';
+import { isEmpty, roundTo, shiftingFrameIterator } from '../base/helpers.mjs';
 
 /**
  * Represents a point on a spline, with option control points for bezier
@@ -27,10 +27,50 @@ class SplinePoint {
     }
 
     /**
+     * Adds another point to this one
+     */
+    add(otherPoint) {
+        for (let point of [this.anchorPoint, this.controlPoint1, this.controlPoint2]) {
+            if (!isEmpty(point)) {
+                point.x += otherPoint.x;
+                point.y += otherPoint.y;
+            }
+        }
+        return this;
+    }
+
+    /**
+     * Subtracts another point to this one
+     */
+    subtract(otherPoint) {
+        for (let point of [this.anchorPoint, this.controlPoint1, this.controlPoint2]) {
+            if (!isEmpty(point)) {
+                point.x -= otherPoint.x;
+                point.y -= otherPoint.y;
+            }
+        }
+        return this;
+    }
+
+    /**
+     * Rotates this point some number of radians
+     */
+    rotate(radians) {
+        for (let point of [this.anchorPoint, this.controlPoint1, this.controlPoint2]) {
+            if (!isEmpty(point)) {
+                let x = point.x, y = point.y;
+                point.x = x * Math.cos(radians) - y * Math.sin(radians);
+                point.y = y * Math.cos(radians) + x * Math.sin(radians);
+            }
+        }
+        return this;
+    }
+
+    /**
      * Create a clone of this point
      */
     clone() {
-        return new SplinePoint(
+        return new this.constructor(
             this.anchorPoint.clone(),
             this.pointType,
             this.controlPoint1 === undefined
@@ -176,12 +216,28 @@ class Spline extends Drawable {
                 startPoint.pointType === SplinePoint.TYPE_LINEAR &&
                 endPoint.pointType === SplinePoint.TYPE_LINEAR
             ) {
+                let mx1 = Math.min(startPoint.x, endPoint.x),
+                    my1 = Math.min(startPoint.y, endPoint.y),
+                    mx2 = Math.max(startPoint.x, endPoint.x),
+                    my2 = Math.max(startPoint.y, endPoint.y);
+
                 if (
-                    (point.x >= startPoint.x && point.x < endPoint.x) ||
-                    (point.x < startPoint.x && point.x >= endPoint.x)
+                    mx1 <= point.x + tolerance && point.x <= mx2 + tolerance &&
+                    my1 <= point.y + tolerance && point.y <= my2 + tolerance
                 ) {
-                    let slope = (endPoint.y-startPoint.y)/(endPoint.x - startPoint.x),
+                    let slope, yValue;
+                    if (startPoint.y === endPoint.y) {
+                        return startIndex;
+                    } else if (startPoint.x == endPoint.x) {
+                        return startIndex;
+                    } else {
+                        slope = (endPoint.y-startPoint.y)/(endPoint.x - startPoint.x);
+                        if (slope > 5) {
+                            // Nearly vertical
+                            return startIndex;
+                        }
                         yValue = slope * (point.x - startPoint.x) + startPoint.y;
+                    }
 
                     if (
                         yValue - tolerance <= point.y &&

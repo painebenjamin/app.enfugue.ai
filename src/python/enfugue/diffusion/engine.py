@@ -336,7 +336,7 @@ class DiffusionEngine(Engine):
 
     def execute(
         self,
-        plan: Union[LayeredInvocation, StableVideoDiffusionInvocation],
+        plan: LayeredInvocation,
         intermediate_dir: Optional[str]=None,
         intermediate_steps: Optional[int]=None,
         timeout: Optional[Union[int, float]] = None,

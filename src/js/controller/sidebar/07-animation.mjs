@@ -12,7 +12,7 @@ class AnimationController extends Controller {
     /**
      * @var int extra space for the motion vector editor
      */
-    static vectorPadding = 256;
+    static vectorPadding = 512;
 
     /**
      * Get data from the animation form
@@ -54,7 +54,10 @@ class AnimationController extends Controller {
                 "stableVideoMinGuidanceScale": 1.0,
                 "stableVideoMaxGuidanceScale": 3.0,
                 "stableVideoUseDrag": false,
-                "stableVideoGaussianSigma": 20
+                "stableVideoReflect": false,
+                "stableVideoModel": "svd",
+                "stableVideoGaussianSigma": 20,
+                "stableVideoRepeatVectors": true
             }
         };
     }
@@ -99,7 +102,7 @@ class AnimationController extends Controller {
                         point.control_1[1]-this.constructor.vectorPadding,
                     ];
                 }
-                if (!isEmpty(point.control_1)) {
+                if (!isEmpty(point.control_2)) {
                     offset.control_2 = [
                         point.control_2[0]-this.constructor.vectorPadding,
                         point.control_2[1]-this.constructor.vectorPadding,
@@ -150,14 +153,16 @@ class AnimationController extends Controller {
         this.application.sidebar.addChild(this.animationForm);
         this.animationForm.onSubmit(async (values) => {
             if (values.animationEnabled) {
+                this.engine.animationFrames = values.animationFrames;
                 this.engine.animationRate = values.animationRate;
                 this.engine.animationInterpolation = values.animationInterpolation;
                 this.engine.animationDecodeChunkSize = values.animationDecodeChunkSize;
                 this.engine.animationInterpolation = values.animationInterpolation;
 
                 if (isEmpty(values.animationEngine) || values.animationEngine === "ad_hsxl") {
+                    this.vector.hide();
+                    this.vectorToolbar.hide();
                     this.engine.animationEngine = "ad_hsxl";
-                    this.engine.animationFrames = values.animationFrames;
                     this.engine.animationDenoisingIterations = values.animationDenoisingIterations;
                     this.engine.animationLoop = values.animationLoop;
 
@@ -183,19 +188,31 @@ class AnimationController extends Controller {
                         this.engine.animationStride = 0;
                     }
                } else if (values.animationEngine === "svd") {
-                    this.engine.animationEngine = "svd";
-                    this.engine.animationFrames = values.stableVideoAnimationFrames;
-                    this.engine.motionBucketId = values.stableVideoMotionBucketId;
                     this.engine.fps = values.stableVideoFps;
+                    this.engine.animationEngine = "svd";
+                    this.engine.stableVideoModel = values.stableVideoModel;
+                    this.engine.motionBucketId = values.stableVideoMotionBucketId;
                     this.engine.noiseAugStrength = values.stableVideoNoiseAugStrength;
                     this.engine.minGuidanceScale = values.stableVideoMinGuidanceScale;
                     this.engine.maxGuidanceScale = values.stableVideoMaxGuidanceScale;
+                    if (values.stableVideoReflect) {
+                        this.engine.animationLoop = "reflect";
+                    } else {
+                        this.engine.animationLoop = null;
+                    }
+
                     if (values.stableVideoUseDrag) {
+                        if (values.stableVideoRepeatVectors) {
+                            let numCopies = Math.ceil(this.engine.animationFrames/14) - 1;
+                            this.vector.setCopies(numCopies);
+                            this.engine.motionVectors = this.getOffsetVectors(this.vector.extendedValue);
+                        } else {
+                            this.engine.motionVectors = this.getOffsetVectors(this.vector.value);
+                        }
                         this.vector.show();
                         this.vectorToolbar.show();
                         this.application.container.classList.add("motion-vectors");
                         this.engine.gaussianSigma = values.stableVideoGaussianSigma;
-                        this.engine.motionVectors = this.getOffsetVectors(this.vector.value);
                     } else {
                         this.application.container.classList.remove("motion-vectors");
                         this.vector.hide();
@@ -212,8 +229,31 @@ class AnimationController extends Controller {
             }
         });
 
+        this.subscribe("engineAnimationEngineChange", (newEngine) => {
+            setTimeout(() => {
+                if (newEngine === "svd" && this.engine.animationFrames === 16) {
+                    this.animationForm.setValues({...this.animationForm.values, ...{"animationFrames": 14}});
+                } else if (newEngine === "ad_hsxl" && this.engine.animationFrames === 14) {
+                    this.animationForm.setValues({...this.animationForm.values, ...{"animationFrames": 16}});
+                }
+            }, 125);
+        });
         this.subscribe("engineWidthChange", (width) => { this.resize(width, null); });
         this.subscribe("engineHeightChange", (height) => { this.resize(null, height); });
+        this.subscribe("engineAnimationFramesChange", (newFrames) => {
+            if (this.animationForm.values.stableVideoRepeatVectors) {
+                let numCopies = Math.ceil(newFrames/14) - 1;
+                this.vector.setCopies(numCopies);
+            }
+        });
+        this.subscribe("keyboard", (e) => {
+            if (e.key == "c" && e.ctrlKey) {
+                this.vector.copySelected();
+            }
+            if (e.key == "Delete") {
+                this.vector.deleteSelected();
+            }
+        });
 
         this.vectorToolbar = new ToolbarView(this.config);
         this.vectorToolbar.addClass("motion-vectors");

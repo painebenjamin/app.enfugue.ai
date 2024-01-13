@@ -1102,7 +1102,7 @@ class InvocationController extends Controller {
     }
 
     /**
-     * @param ?string loop animation ,pde
+     * @param ?string loop animation mode
      */
     set animationLoop(newLoop) {
         if (this.animationLoop !== newLoop) {
@@ -1606,6 +1606,23 @@ class InvocationController extends Controller {
             this.publish("engineGaussianSigmaChange", newGaussianSigma);
         }
         this.kwargs.gaussian_sigma = newGaussianSigma;
+    }
+
+    /**
+     * @return string SVD model
+     */
+    get stableVideoModel() {
+        return this.kwargs.svd_model;
+    }
+
+    /**
+     * @param string SVD model
+     */
+    set stableVideoModel(newModel) {
+        if (this.stableVideoModel !== newModel) {
+            this.publish("engineStableVideoModelChange", newModel);
+        }
+        this.kwargs.svd_model = newModel;
     }
 
     /**

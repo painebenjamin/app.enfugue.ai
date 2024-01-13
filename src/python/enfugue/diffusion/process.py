@@ -250,11 +250,11 @@ class DiffusionEngineProcess(EngineProcess):
             raise ValueError(f"Expected dictionary payload.")
         try:
             if instruction_action == "plan":
-                from enfugue.diffusion.invocation import LayeredInvocation, StableVideoDiffusionInvocation
+                from enfugue.diffusion.invocation import LayeredInvocation
                 intermediate_dir = instruction_payload.get("intermediate_dir", None)
                 intermediate_steps = instruction_payload.get("intermediate_steps", None)
                 plan = instruction_payload.get("plan", None)
-                if not isinstance(plan, LayeredInvocation) and not isinstance(plan, StableVideoDiffusionInvocation):
+                if not isinstance(plan, LayeredInvocation):
                     raise IOError("Did not receive an invocation plan.")
 
                 return self.execute_diffusion_plan(
@@ -285,7 +285,7 @@ class DiffusionEngineProcess(EngineProcess):
     def execute_diffusion_plan(
         self,
         instruction_id: int,
-        plan: Union[LayeredInvocation, StableVideoDiffusionInvocation],
+        plan: LayeredInvocation,
         intermediate_dir: Optional[str] = None,
         intermediate_steps: Optional[int] = None,
     ) -> Dict[str, Any]:

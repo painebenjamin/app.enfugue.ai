@@ -34,6 +34,7 @@ from enfugue.util import (
     get_frames_or_image_from_file,
     dilate_erode,
     redact_images_from_metadata,
+    redact_for_log,
 )
 
 from enfugue.diffusion.constants import *
@@ -118,6 +119,7 @@ class LayeredInvocation:
     position_encoding_scale_length: Optional[int]=None
     num_denoising_iterations: Optional[int]=None
     # stable video
+    svd_model: Optional[Literal["svd", "svd_xt"]]=None
     motion_vectors: Optional[List[List[MotionVectorPointDict]]]=None
     motion_bucket_id: int=127
     fps: int=7
@@ -1038,7 +1040,10 @@ class LayeredInvocation:
                         if isinstance(fit_layer_image, list):
                             fit_layer_images = len(fit_layer_image)
                             if frames is None:
-                                frames = list(range(len(invocation_image)))
+                                if isinstance(invocation_image, list):
+                                    frames = list(range(len(invocation_image)))
+                                else:
+                                    frames = [0]
                             for i, frame in enumerate(frames):
                                 index = i if i < fit_layer_images else fit_layer_images - 1
                                 invocation_image[frame].paste( # type: ignore[index]
@@ -1730,13 +1735,18 @@ class LayeredInvocation:
         if nsfw[0] or not self.animation_frames or self.animation_engine != "svd":
             return images, nsfw
 
+        # Set up RNG
+        if self.seed is not None:
+            pipeline.seed = self.seed
+
         svd_kwargs = {
+            "fps": self.fps,
             "image": images[0],
+            "num_frames": self.animation_frames,
             "decode_chunk_size": self.frame_decode_chunk_size,
             "num_inference_steps": 25, # self.num_inference_steps,
             "min_guidance_scale": self.min_guidance_scale,
             "max_guidance_scale": self.max_guidance_scale,
-            "fps": self.fps,
             "noise_aug_strength": self.noise_aug_strength,
             "motion_bucket_id": self.motion_bucket_id
         }
@@ -1744,6 +1754,7 @@ class LayeredInvocation:
         if self.motion_vectors:
             svd_kwargs["motion_vectors"] = self.motion_vectors
             svd_kwargs["gaussian_sigma"] = self.gaussian_sigma
+            logger.debug(f"Calling DragNUWA pipeline with arguments {redact_for_log(svd_kwargs)}")
             frames = pipeline.dragnuwa_img2vid(
                 task_callback=task_callback,
                 progress_callback=progress_callback,
@@ -1752,7 +1763,8 @@ class LayeredInvocation:
                 **svd_kwargs
             )
         else:
-            svd_kwargs["use_xt"] = self.animation_frames > 14
+            svd_kwargs["use_xt"] = self.svd_model == "svd_xt"
+            logger.debug(f"Calling SVD pipeline with arguments {redact_for_log(svd_kwargs)}")
             frames = pipeline.svd_img2vid(
                 task_callback=task_callback,
                 progress_callback=progress_callback,
@@ -1988,6 +2000,12 @@ class LayeredInvocation:
 
         if self.detailer_denoising_strength:
             # Final denoise pass
+            if use_inpainter:
+                # Need to tell the pipeline about detailer controlnets
+                if self.detailer_controlnet:
+                    pipeline.controlnets = self.detailer_controlnet # type: ignore[assignment]
+                else:
+                    pipeline.controlnets = None # type: ignore[assignment]
             for i, image in enumerate([images] if self.animation_frames else images):
                 if nsfw[i]:
                     continue
@@ -2321,15 +2339,12 @@ class LayeredInvocation:
         """
         Finishes the result and interpolates
         """
-        if nsfw[0]:
-            return images, nsfw
-
         result = {
             "images": images,
             "nsfw_content_detected": nsfw
         }
 
-        if not self.animation_frames or not (self.interpolate_frames or self.reflect):
+        if not self.animation_frames or not (self.interpolate_frames or self.reflect) or (len(nsfw) > 0 and nsfw[0]):
             return result
 
         from enfugue.diffusion.util import interpolate_frames, reflect_frames

@@ -6,31 +6,17 @@ from enfugue.diffusion.animate.dragnuwa.utils import *
 
 #### SVD
 from enfugue.util import logger
-from enfugue.diffusion.animate.dragnuwa.svd.modules.diffusionmodules.video_model_flow import (
-    VideoUNet_flow,
-    VideoResBlock_Embed,
-)
-from enfugue.diffusion.animate.dragnuwa.svd.modules.diffusionmodules.denoiser import (
-    Denoiser,
-)
-from enfugue.diffusion.animate.dragnuwa.svd.modules.diffusionmodules.denoiser_scaling import (
-    VScalingWithEDMcNoise,
-)
+from enfugue.diffusion.animate.dragnuwa.svd.modules.diffusionmodules.video_model_flow import VideoUNet_flow
+from enfugue.diffusion.animate.dragnuwa.svd.modules.diffusionmodules.denoiser import Denoiser
 from enfugue.diffusion.animate.dragnuwa.svd.modules.encoders.modules import *
 from enfugue.diffusion.animate.dragnuwa.svd.models.autoencoder import AutoencodingEngine
-from enfugue.diffusion.animate.dragnuwa.svd.modules.diffusionmodules.wrappers import (
-    OpenAIWrapper,
-)
-from enfugue.diffusion.animate.dragnuwa.svd.modules.diffusionmodules.sampling import (
-    EulerEDMSampler,
-)
+from enfugue.diffusion.animate.dragnuwa.svd.modules.diffusionmodules.wrappers import OpenAIWrapper
+from enfugue.diffusion.animate.dragnuwa.svd.modules.diffusionmodules.sampling import EulerEDMSampler
 from enfugue.diffusion.animate.dragnuwa.lora import (
     inject_trainable_lora,
     inject_trainable_lora_extended,
     extract_lora_ups_down,
-    _find_modules,
 )
-
 
 def inject_lora(use_lora, model, replace_modules, is_extended=False, dropout=0.0, r=16):
     injector = (

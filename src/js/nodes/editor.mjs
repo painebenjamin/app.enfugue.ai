@@ -735,7 +735,7 @@ class NodeEditorView extends View {
                                 this.top += deltaY;
                             }
 
-                            canvas.off('mouseup,mousemove,mouseleave,touchend,touchleave');
+                            canvas.off('mouseup,mousemove,mouseleave,touchend,touchleave,touchmove');
                             canvas.css({
                                 left: `${this.left}px`,
                                 top: `${this.top}px`,

@@ -226,7 +226,7 @@ class MaskWeightBuilder:
         if start is not None:
             mask = torch.where(mask >= start, mask, -1)
         if end is not None:
-            end = torch.where(mask < end, mask, -1)
+            mask = torch.where(mask < end, mask, -1)
         return torch.where(mask >= 0, 1, 0).to(
             dtype=self.dtype,
             device=self.device
@@ -237,8 +237,8 @@ class MaskWeightBuilder:
         frames: List[int],
         frequencies: Tensor,
         amplitudes: Tensor,
-        frequency: Optional[Union[int, Tuple[int]]]=None,
-        channel: Optional[Union[int, Tuple[int]]]=None
+        frequency: Optional[Union[int, Tuple[int, int]]]=None,
+        channel: Optional[Union[int, Tuple[int, ...]]]=None
     ) -> Tensor:
         """
         Calculates a 1D audio mask
@@ -254,9 +254,9 @@ class MaskWeightBuilder:
         num_channels = amplitudes.shape[-1]
 
         if isinstance(frequency, tuple):
-            lo, hi = frequency
+            lo, hi = frequency # type: ignore[misc]
         else:
-            lo, hi = frequency * 0.9, frequency * 1.1
+            lo, hi = frequency * 0.9, frequency * 1.1 # type: ignore[assignment]
 
         frequency_mask = torch.where((lo <= frequencies) & (frequencies < hi), 1, 0)
         frequency_mask = repeat(frequency_mask, "h -> f h c", f=num_frames, c=num_channels)

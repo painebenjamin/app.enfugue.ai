@@ -30,6 +30,7 @@ def main() -> None:
         manager = DiffusionPipelineManager()
         frames = manager.dragnuwa_img2vid(
             image_from_uri("file://" + os.path.join(input_dir, "nuwa.png")),
+            num_frames=28,
             motion_vectors=[
                 [
                     {

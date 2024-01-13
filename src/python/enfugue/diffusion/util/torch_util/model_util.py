@@ -65,6 +65,6 @@ def iterate_state_dict(path: str, device: str="cpu") -> Iterable[Tuple[str, Tens
             yield (key, sd[key]) # type: ignore[misc]
     else:
         from safetensors import safe_open
-        with safe_open(path, framework="pt", device=cpu) as f:
+        with safe_open(path, framework="pt", device=device) as f:
             for key in f.keys():
                 yield (key, f.get_tensor(key))

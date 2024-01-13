@@ -5,7 +5,6 @@ import torch as th
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.checkpoint import checkpoint as pt_checkpoint # gradient checkpointing from pytorch
-from functools import partial
 from typing import List, Optional, Union
 
 from einops import rearrange
@@ -25,8 +24,6 @@ from enfugue.diffusion.animate.dragnuwa.svd.modules.diffusionmodules.util import
 import math
 from abc import abstractmethod
 from typing import Iterable, List, Optional, Tuple, Union
-
-from enfugue.util import logger as logpy
 
 try :
     import deepspeed

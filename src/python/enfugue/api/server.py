@@ -24,7 +24,7 @@ from pibble.util.encryption import Password
 from pibble.util.helpers import OutputCatcher
 from pibble.util.files import load_json, dump_json
 
-from enfugue.diffusion.invocation import LayeredInvocation, StableVideoDiffusionInvocation
+from enfugue.diffusion.invocation import LayeredInvocation
 
 from enfugue.database import *
 from enfugue.diffusion.constants import *
@@ -471,7 +471,7 @@ class EnfugueAPIServerBase(JSONWebServiceAPIServer, UserRESTExtensionServerBase)
             self.manager.stop_monitor()
             self.manager.stop_engine()
 
-    def format_plan(self, plan: Union[LayeredInvocation, StableVideoDiffusionInvocation]) -> Dict[str, Any]:
+    def format_plan(self, plan: LayeredInvocation) -> Dict[str, Any]:
         """
         Formats a plan for inserting into the database
         """
@@ -654,7 +654,7 @@ class EnfugueAPIServerBase(JSONWebServiceAPIServer, UserRESTExtensionServerBase)
     def invoke(
         self,
         user_id: int,
-        plan: Union[LayeredInvocation, StableVideoDiffusionInvocation],
+        plan: LayeredInvocation,
         save: bool = True,
         ui_state: Optional[str] = None,
         disable_intermediate_decoding: bool = False,

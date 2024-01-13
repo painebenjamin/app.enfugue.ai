@@ -30,7 +30,6 @@ import torchvision
 import numpy as np
 import safetensors.torch
 
-from dataclasses import dataclass
 from contextlib import contextmanager
 from omegaconf import OmegaConf
 from compel import ReturnedEmbeddingsType
@@ -142,12 +141,13 @@ ImagePromptArgType = Optional[Union[ImagePromptType, List[ImagePromptType]]]
 # Control image accepted arguments
 class ControlImageArgDict(TypedDict):
     image: ImageArgType
-    scale: NotRequired[Union[float], List[float]]
-    start: NotRequired[float]
-    end: NotRequired[float]
-    frame: NotRequired[Union[int, List[int]]]
-    frequency: NotRequired[Union[int, Tuple[int]]]
+    scale: NotRequired[Optional[Union[float, List[float]]]]
+    start: NotRequired[Optional[float]]
+    end: NotRequired[Optional[float]]
+    frame: NotRequired[Optional[Union[int, List[int]]]]
+    frequency: NotRequired[Optional[Union[int, Tuple[int]]]]
     standalone: NotRequired[bool]
+    channel: NotRequired[Optional[Tuple[int, ...]]]
 
 ControlImageType = Union[
     ImageArgType, # Image
@@ -156,16 +156,8 @@ ControlImageType = Union[
 ]
 
 ControlImageArgType = Optional[Dict[str, Union[ControlImageType, List[ControlImageType]]]]
-
-@dataclass
-class PreparedControlImage:
-    image: torch.Tensor
-    scale: Union[float, torch.Tensor]
-    start: Optional[float] = None
-    end: Optional[float] = None
-    mask: Optional[torch.Tensor] = None
-
-PreparedControlImageArgType = Optional[Dict[str, List[PreparedControlImage]]]
+PreparedControlImageType = Tuple[torch.Tensor, Union[float, torch.Tensor], Optional[float], Optional[float], Optional[torch.Tensor]]
+PreparedControlImageArgType = Optional[Dict[str, List[PreparedControlImageType]]]
 
 class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
     """
@@ -2022,7 +2014,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         """
         Runs the UNet to predict noise residual.
         """
-        kwargs = {}
+        kwargs: Dict[str, Any] = {}
         if added_cond_kwargs is not None:
             kwargs["added_cond_kwargs"] = added_cond_kwargs
         if motion_attention_mask is not None:
@@ -2051,7 +2043,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         dtype: torch.dtype,
         do_classifier_free_guidance=False,
         animation_frames: Optional[int] = None,
-        conditioning_frame: Optional[int] = None,
+        conditioning_frame: Optional[Union[int, List[int]]] = None,
     ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
         """
         Prepares an image for controlnet conditioning.
@@ -2150,7 +2142,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         latents: torch.Tensor,
         timestep: torch.Tensor,
         encoder_hidden_states: torch.Tensor,
-        controlnet_conds: Optional[Dict[str, List[Tuple[torch.Tensor, float, Optional[torch.Tensor]]]]],
+        controlnet_conds: Optional[Dict[str, List[Tuple[torch.Tensor, Union[float, torch.Tensor], Optional[torch.Tensor]]]]],
         added_cond_kwargs: Optional[Dict[str, Any]],
     ) -> Tuple[Optional[List[torch.Tensor]], Optional[torch.Tensor]]:
         """
@@ -2273,8 +2265,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         added_cond_kwargs: Optional[Dict[str, Any]] = None,
         frequencies: Optional[torch.Tensor] = None,
         amplitudes: Optional[torch.Tensor] = None,
-        motion_attention_frequency: Optional[Union[int, Tuple[int]]] = (0, 22050),
-        motion_attention_channel: Optional[Union[int, Tuple[int]]] = None,
+        motion_attention_frequency: Optional[Union[int, Tuple[int, int]]] = (0, 22050),
+        motion_attention_channel: Optional[Union[int, Tuple[int, ...]]] = None,
         motion_attention_min: float=0.85,
         motion_attention_max: float=1.30,
     ) -> torch.Tensor:
@@ -2303,7 +2295,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         logger.debug(f"Denoising image in {num_steps} steps on {device} (unchunked)")
 
         # Calculate motion attention
-        if motion_attention_frequency is not None and frequencies is not None and amplitudes is not None:
+        if motion_attention_frequency is not None and frequencies is not None and amplitudes is not None and num_frames is not None:
             motion_attention_audio_mask = weight_builder.audio(
                 frames=list(range(num_frames)),
                 frequencies=frequencies,
@@ -2357,7 +2349,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             # Get controlnet input(s) if configured
             if control_images is not None:
                 # Find which control image(s) to use
-                controlnet_conds: Dict[str, List[Tuple[torch.Tensor, float, Optional[torch.Tensor]]]] = {}
+                controlnet_conds: Dict[str, List[Tuple[torch.Tensor, Union[float, torch.Tensor], Optional[torch.Tensor]]]] = {}
                 for controlnet_name in control_images:
                     for (
                         control_image,
@@ -2639,17 +2631,17 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     if wrap_x:
                         horizontal = (left_idx, width_idx, right_idx)
                     else:
-                        horizontal = (left_idx, right_idx)
+                        horizontal = (left_idx, right_idx) # type: ignore[assignment]
 
                     if wrap_y:
                         vertical = (top_idx, height_idx, bottom_idx)
                     else:
-                        vertical = (top_idx, bottom_idx)
+                        vertical = (top_idx, bottom_idx) # type: ignore[assignment]
 
                     if wrap_t:
                         temporal = (start, num_frames, end)
                     else:
-                        temporal = (start, end)
+                        temporal = (start, end) # type: ignore[assignment]
 
                     if num_frames is not None:
                         if len(horizontal) == 3:
@@ -2866,7 +2858,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                     # Get controlnet input(s) if configured
                     if control_images is not None:
                         # Find which control image(s) to use
-                        controlnet_conds: Dict[str, List[Tuple[torch.Tensor, float, Optional[torch.Tensor]]]] = {}
+                        controlnet_conds: Dict[str, List[Tuple[torch.Tensor, Union[float, torch.Tensor], Optional[torch.Tensor]]]] = {}
                         for controlnet_name in control_images:
                             for (
                                 control_image,
@@ -2883,7 +2875,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                                         controlnet_conds[controlnet_name] = []
 
                                     if isinstance(conditioning_scale, torch.Tensor):
-                                        if start > end:
+                                        if start > end: # type: ignore[operator]
                                             # Wraparound
                                             this_scale = torch.cat([
                                                 conditioning_scale[start:num_frames],
@@ -2892,7 +2884,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                                         else:
                                             this_scale = conditioning_scale[start:end]
                                     else:
-                                        this_scale = conditioning_scale
+                                        this_scale = conditioning_scale # type: ignore[assignment]
 
                                     controlnet_conds[controlnet_name].append((
                                         slice_for_view(control_image, self.vae_scale_factor),
@@ -3477,7 +3469,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         self,
         control_images: ControlImageArgType=None,
         animation_frames: Optional[int]=None,
-    ) -> Optional[Dict[str, List[ConrolImageArgDict]]]:
+    ) -> Optional[Dict[str, List[ControlImageArgDict]]]:
         """
         Standardizes control images to dict of list of dicts
         """
@@ -3499,13 +3491,14 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
             for controlnet_image in image_list:
                 conditioning_scale = 1.0
+                conditioning_standalone = False
                 conditioning_frame, conditioning_start, conditioning_end = None, None, None
                 conditioning_frequency, conditioning_channel = None, None
 
                 if isinstance(controlnet_image, tuple):
                     controlnet_image, conditioning_scale = controlnet_image[:2]
                 elif isinstance(controlnet_image, dict):
-                    conditioning_scale = controlnet_image.get("scale", conditioning_scale)
+                    conditioning_scale = controlnet_image.get("scale", conditioning_scale) # type: ignore[assignment]
                     conditioning_start = controlnet_image.get("start", None)
                     conditioning_end = controlnet_image.get("end", None)
                     conditioning_frame = controlnet_image.get("frame", None)
@@ -3552,9 +3545,9 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
     def standardize_audio(
         self,
-        audio: Optional[Tuple[List[int], List[Union[float, Tuple[float]]]]]=None,
+        audio: Optional[Tuple[List[int], List[Union[float, Tuple[float, ...]]]]]=None,
         animation_frames: Optional[int]=None,
-    ) -> Optional[Tuple[List[int], Tuple[float]]]:
+    ) -> Optional[Tuple[List[int], List[Tuple[float, ...]]]]:
         """
         Standardizes audio to tuples (mono/stereo fix) and slices
         """
@@ -3564,13 +3557,13 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         frequencies, amplitudes = audio
         return (
             [int(f) for f in frequencies],
-            [tuple(a) for a in amplitudes[:animation_frames]]
+            [tuple(a) for a in amplitudes[:animation_frames]] # type: ignore[arg-type]
         )
 
     def encode_audio(
         self,
         frequencies: List[int],
-        amplitudes: List[Tuple[float]],
+        amplitudes: List[Tuple[float, ...]],
         device: torch.device,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
@@ -3672,8 +3665,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             ip_adapter_scale = None
 
         if audio is not None:
-            audio = self.standardize_audio(
-                audio,
+            audio = self.standardize_audio( # type: ignore[assignment]
+                audio, # type: ignore[arg-type]
                 animation_frames=animation_frames
             )
         if audio is not None:
@@ -3975,9 +3968,9 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
             # Encode audio if present
             if frequencies and amplitudes:
-                frequencies, amplitudes = self.encode_audio(
+                frequencies, amplitudes = self.encode_audio( # type: ignore[assignment]
                     frequencies=frequencies,
-                    amplitudes=amplitudes,
+                    amplitudes=amplitudes, # type: ignore[arg-type]
                     device=device
                 )
 
@@ -4168,6 +4161,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 
                             for controlnet_image_dict in control_images[name]:
                                 # Gather variables
+                                controlnet_image_dict = cast(ControlImageArgDict, controlnet_image_dict)
                                 controlnet_image = controlnet_image_dict["image"]
                                 conditioning_scale = controlnet_image_dict.get("scale", 1.0)
                                 conditioning_start = controlnet_image_dict.get("start", 0.0)
@@ -4211,12 +4205,12 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                                         if conditioning_frequency is not None and frequencies is not None and amplitudes is not None and animation_frames:
                                             audio_mask = weight_builder.audio(
                                                 frames=list(range(animation_frames)),
-                                                frequencies=frequencies,
-                                                amplitudes=amplitudes,
-                                                frequency=conditioning_frequency,
+                                                frequencies=frequencies, # type: ignore[arg-type]
+                                                amplitudes=amplitudes, # type: ignore[arg-type]
+                                                frequency=conditioning_frequency, # type: ignore[arg-type]
                                                 channel=conditioning_channel
                                             )
-                                            conditioning_scale = audio_mask * conditioning_scale
+                                            conditioning_scale = audio_mask * conditioning_scale # type: ignore[assignment]
 
                                         prepared_control_images[name].append( # type: ignore[index]
                                             (prepared_controlnet_image, conditioning_scale, conditioning_start, conditioning_end, prepared_controlnet_mask) # type: ignore[arg-type]
@@ -4225,7 +4219,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                                     else:
                                         sparse_conditions.append(prepared_controlnet_image)
                                         sparse_masks.append(prepared_controlnet_mask)
-                                        sparse_condition_scale = max(sparse_condition_scale, conditioning_scale)
+                                        sparse_condition_scale = max(sparse_condition_scale, conditioning_scale) # type: ignore
 
                                         if conditioning_start is not None:
                                             if sparse_conditioning_start is None:
@@ -4254,12 +4248,12 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                                     if conditioning_frequency is not None and frequencies is not None and amplitudes is not None and animation_frames:
                                         audio_mask = weight_builder.audio(
                                             frames=list(range(animation_frames)),
-                                            frequencies=frequencies,
-                                            amplitudes=amplitudes,
-                                            frequency=conditioning_frequency,
+                                            frequencies=frequencies, # type: ignore[arg-type]
+                                            amplitudes=amplitudes, # type: ignore[arg-type]
+                                            frequency=conditioning_frequency, # type: ignore[arg-type]
                                             channel=conditioning_channel
                                         )
-                                        conditioning_scale = audio_mask * conditioning_scale
+                                        conditioning_scale = audio_mask * conditioning_scale # type: ignore[assignment]
 
                                     prepared_control_images[name].append( # type: ignore[index]
                                         (prepared_controlnet_image, conditioning_scale, conditioning_start, conditioning_end, None) # type: ignore[arg-type]
@@ -4528,8 +4522,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                         cross_attention_kwargs=cross_attention_kwargs,
                         added_cond_kwargs=added_cond_kwargs,
                         tiling=tiling_unet,
-                        frequencies=frequencies,
-                        amplitudes=amplitudes,
+                        frequencies=frequencies, # type: ignore[arg-type]
+                        amplitudes=amplitudes, # type: ignore[arg-type]
                     )
 
                 # Clear no longer needed tensors

@@ -1,7 +1,6 @@
 # type: ignore
 # Adapted from https://github.com/aiXander/Realtime_PyAudio_FFT/blob/master/src/stream_analyzer.py
 import numpy as np
-import time, math, scipy
 from collections import deque
 from scipy.signal import savgol_filter
 

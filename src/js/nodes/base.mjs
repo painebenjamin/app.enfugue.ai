@@ -1,10 +1,17 @@
 /** @module nodes/base */
-import { isEmpty, camelCase, merge, sleep } from "../base/helpers.mjs";
 import { View } from "../view/base.mjs";
 import { FormView } from "../forms/base.mjs";
 import { InputView, ListInputView } from "../forms/input.mjs";
 import { ElementBuilder } from "../base/builder.mjs";
 import { Point, Drawable } from "../graphics/geometry.mjs";
+import {
+    merge,
+    sleep,
+    isEmpty,
+    camelCase,
+    bindPointerUntilRelease,
+    getPointerEventCoordinates,
+} from "../base/helpers.mjs";
 
 const E = new ElementBuilder({
     nodeContainer: "enfugue-node-container",
@@ -579,7 +586,7 @@ class NodeView extends View {
             let button = E.nodeButton()
                 .class(`node-button-${camelCase(buttonName)}`)
                 .content(E.i().class(buttonConfiguration.icon))
-                .on("click", (e) => {
+                .on("click,touchstart", (e) => {
                     buttonConfiguration.callback.call(buttonConfiguration.context || this, e);
                 });
 
@@ -696,7 +703,7 @@ class NodeView extends View {
         }
         this.buildHeaderButtons(nodeHeader, buttons);
         this.buttons = buttons;
-
+        let lastDimensionEvent;
         let setNodeDimension = (e, saveChanges) => {
             /* Depending on the cursor mode, calculate what dimensions
              * (left, top, width, height) to change.
@@ -704,25 +711,28 @@ class NodeView extends View {
              * saveChanges() will set the nodes stored values, so that
              * should be called when the activity has ceased (i.e. mouseup)
              */
-            e.preventDefault();
-            e.stopPropagation();
-
+            if (isEmpty(e)) {
+                e = lastDimensionEvent;
+            }
             let changed = false,
                 left = this.left,
                 top = this.top,
                 width = this.width,
                 height = this.height,
-                [deltaX, deltaY] = [0, 0];
+                [deltaX, deltaY] = [0, 0],
+                [eventX, eventY] = [0, 0];
 
-            if (!isEmpty(startPositionX) && !isEmpty(startPositionY)) {
-                [deltaX, deltaY] = [
-                    e.clientX - startPositionX,
-                    e.clientY - startPositionY
-                ];
-                deltaX *= 1 / this.editor.zoom;
-                deltaY *= 1 / this.editor.zoom;
+            if (!isEmpty(e)) {
+                [eventX, eventY] = getPointerEventCoordinates(e);
+                if (!isEmpty(startPositionX) && !isEmpty(startPositionY)) {
+                    [deltaX, deltaY] = [
+                        eventX - startPositionX,
+                        eventY - startPositionY
+                    ];
+                    deltaX *= 1 / this.editor.zoom;
+                    deltaY *= 1 / this.editor.zoom;
+                }
             }
-
             switch (cursorMode) {
                 case NodeCursorMode.MOVE:
                     left = left + deltaX;
@@ -772,7 +782,7 @@ class NodeView extends View {
                     changed = true;
                     break;
             }
-
+            lastDimensionEvent = e;
             if (changed) {
                 this.setDimension(left, top, width, height, saveChanges);
                 this.editor.decorations.recalculate();
@@ -780,6 +790,103 @@ class NodeView extends View {
                 this.resized();
             }
         };
+
+        let getModeFromPointerEvent = (e) => {
+            /**
+             * Gets the mode that would be triggered if the user were to click
+             */
+            let nodeBounds = node.element.getBoundingClientRect(),
+                tolerance = this.constructor.edgeHandlerTolerance * this.editor.zoom,
+                headerHeight = this.constructor.headerHeight * this.editor.zoom,
+                [eventX, eventY] = getPointerEventCoordinates(e, node.element),
+                onTop = eventY < tolerance,
+                onLeft = eventX < tolerance,
+                onRight = eventX > nodeBounds.width - tolerance,
+                onBottom = eventY > nodeBounds.height - tolerance,
+                inHeader = this.flipped === true
+                    ? !onBottom && eventY >= nodeBounds.height - headerHeight - tolerance
+                    : !onTop && eventY < tolerance + headerHeight;
+
+            if (
+                onTop &&
+                onLeft &&
+                this.constructor.canResizeX &&
+                this.constructor.canResizeY
+            ) {
+                return NodeCursorMode.RESIZE_NW;
+            } else if (
+                onTop &&
+                onRight &&
+                this.constructor.canResizeX &&
+                this.constructor.canResizeY
+            ) {
+                return NodeCursorMode.RESIZE_NE;
+            } else if (onTop && this.constructor.canResizeY) {
+                return NodeCursorMode.RESIZE_N;
+            } else if (
+                onBottom &&
+                onLeft &&
+                this.constructor.canResizeX &&
+                this.constructor.canResizeY
+            ) {
+                return NodeCursorMode.RESIZE_SW;
+            } else if (
+                onBottom &&
+                onRight &&
+                this.constructor.canResizeX &&
+                this.constructor.canResizeY
+            ) {
+                return NodeCursorMode.RESIZE_SE;
+            } else if (onBottom && this.constructor.canResizeY) {
+                return NodeCursorMode.RESIZE_S;
+            } else if (onLeft && this.constructor.canResizeX) {
+                return NodeCursorMode.RESIZE_W;
+            } else if (onRight && this.constructor.canResizeX) {
+                return NodeCursorMode.RESIZE_E;
+            } else if (
+                inHeader &&
+                this.constructor.canMove &&
+                !onLeft &&
+                !onRight
+            ) {
+                return NodeCursorMode.MOVE;
+            } else {
+                return NodeCursorMode.NONE;
+            }
+        }
+
+        let pointMoveHandler = (e) => {
+            if (this.fixed) return;
+            if (cursorMode == NodeCursorMode.NONE) {
+                nextMode = getModeFromPointerEvent(e);
+                switch (nextMode) {
+                    // Set the cursor as the indication to the user.
+                    case NodeCursorMode.MOVE:
+                        node.css("cursor", "grab");
+                        break;
+                    case NodeCursorMode.RESIZE_NE:
+                    case NodeCursorMode.RESIZE_SW:
+                        node.css("cursor", "nesw-resize");
+                        break;
+                    case NodeCursorMode.RESIZE_N:
+                    case NodeCursorMode.RESIZE_S:
+                        node.css("cursor", "ns-resize");
+                        break;
+                    case NodeCursorMode.RESIZE_E:
+                    case NodeCursorMode.RESIZE_W:
+                        node.css("cursor", "ew-resize");
+                        break;
+                    case NodeCursorMode.RESIZE_NW:
+                    case NodeCursorMode.RESIZE_SE:
+                        node.css("cursor", "nwse-resize");
+                        break;
+                    default:
+                        node.css("cursor", this.constructor.defaultCursor);
+                        break;
+                }
+            }
+        }
+
         nodeContainer.append(nodeHeader);
         node.append(nodeContainer)
             .css({
@@ -790,121 +897,23 @@ class NodeView extends View {
                 padding: `${this.constructor.padding}px`
             })
             .on("mousemove", (e) => {
-                if (this.fixed) return;
-                if (cursorMode == NodeCursorMode.NONE) {
-                    // If there is no cursor mode assigned,
-                    // evalaute what the next mode would be
-                    // if it were to be changed.
-                    let targetNode = e.target;
-                    while (targetNode !== node.element) {
-                        targetNode = targetNode.parentElement;
-                        if (isEmpty(targetNode)) break;
-                    }
-                    if (targetNode !== node.element) return; // Ignore events for child nodes
-                    let nodeBounds = node.element.getBoundingClientRect(),
-                        tolerance = this.constructor.edgeHandlerTolerance * this.editor.zoom,
-                        headerHeight = this.constructor.headerHeight * this.editor.zoom,
-                        onTop = e.clientY >= nodeBounds.y && e.clientY < nodeBounds.y + tolerance,
-                        onLeft = e.clientX >= nodeBounds.x && e.clientX < nodeBounds.x + tolerance,
-                        onRight = e.clientX >= nodeBounds.x + nodeBounds.width - tolerance,
-                        onBottom = e.clientY >= nodeBounds.y + nodeBounds.height - tolerance,
-                        inHeader = this.flipped === true
-                            ? !onBottom && e.clientY >= nodeBounds.y + nodeBounds.height - headerHeight - tolerance
-                            : !onTop && e.clientY >= nodeBounds.y && e.clientY < nodeBounds.y + tolerance + headerHeight;
-
-                    if (
-                        onTop &&
-                        onLeft &&
-                        this.constructor.canResizeX &&
-                        this.constructor.canResizeY
-                    ) {
-                        nextMode = NodeCursorMode.RESIZE_NW;
-                    } else if (
-                        onTop &&
-                        onRight &&
-                        this.constructor.canResizeX &&
-                        this.constructor.canResizeY
-                    ) {
-                        nextMode = NodeCursorMode.RESIZE_NE;
-                    } else if (onTop && this.constructor.canResizeY) {
-                        nextMode = NodeCursorMode.RESIZE_N;
-                    } else if (
-                        onBottom &&
-                        onLeft &&
-                        this.constructor.canResizeX &&
-                        this.constructor.canResizeY
-                    ) {
-                        nextMode = NodeCursorMode.RESIZE_SW;
-                    } else if (
-                        onBottom &&
-                        onRight &&
-                        this.constructor.canResizeX &&
-                        this.constructor.canResizeY
-                    ) {
-                        nextMode = NodeCursorMode.RESIZE_SE;
-                    } else if (onBottom && this.constructor.canResizeY) {
-                        nextMode = NodeCursorMode.RESIZE_S;
-                    } else if (onLeft && this.constructor.canResizeX) {
-                        nextMode = NodeCursorMode.RESIZE_W;
-                    } else if (onRight && this.constructor.canResizeX) {
-                        nextMode = NodeCursorMode.RESIZE_E;
-                    } else if (
-                        inHeader &&
-                        this.constructor.canMove &&
-                        !onLeft &&
-                        !onRight
-                    ) {
-                        nextMode = NodeCursorMode.MOVE;
-                    } else {
-                        nextMode = NodeCursorMode.NONE;
-                    }
-
-                    switch (nextMode) {
-                        // Set the cursor as the indication to the user.
-                        case NodeCursorMode.MOVE:
-                            node.css("cursor", "grab");
-                            break;
-                        case NodeCursorMode.RESIZE_NE:
-                        case NodeCursorMode.RESIZE_SW:
-                            node.css("cursor", "nesw-resize");
-                            break;
-                        case NodeCursorMode.RESIZE_N:
-                        case NodeCursorMode.RESIZE_S:
-                            node.css("cursor", "ns-resize");
-                            break;
-                        case NodeCursorMode.RESIZE_E:
-                        case NodeCursorMode.RESIZE_W:
-                            node.css("cursor", "ew-resize");
-                            break;
-                        case NodeCursorMode.RESIZE_NW:
-                        case NodeCursorMode.RESIZE_SE:
-                            node.css("cursor", "nwse-resize");
-                            break;
-                        default:
-                            node.css("cursor", this.constructor.defaultCursor);
-                            break;
-                    }
-                }
+                if (this.fixed || cursorMode !== NodeCursorMode.NONE) return;
+                pointMoveHandler(e);
             })
-            .on("mousedown", (e) => {
+            .on("mousedown,touchstart", (e) => {
                 if (
                     this.fixed ||
-                    e.which !== 1 ||
-                    nextMode === NodeCursorMode.NONE ||
+                    (e.type === "mousedown" && e.which !== 1) ||
                     cursorMode !== NodeCursorMode.NONE
-                )
+                ) {
                     return;
-                /* On mousedown, we"ll determine the final mode of the cursor,
-                 * and initiate the action.
-                 *
-                 * We also bind the mousemove() and mouseup() listeners within
-                 * this listener, and unbind them in the mouseup/mouseleave
-                 * listener.
-                 */
+                }
+                pointMoveHandler(e);
+                if (nextMode === NodeCursorMode.NONE) return;
                 e.preventDefault();
                 e.stopPropagation();
                 this.editor.focusNode(this);
-
+                pointMoveHandler(e);
                 switch (nextMode) {
                     case NodeCursorMode.MOVE:
                     case NodeCursorMode.RESIZE_NE:
@@ -915,12 +924,8 @@ class NodeView extends View {
                     case NodeCursorMode.RESIZE_W:
                     case NodeCursorMode.RESIZE_NW:
                     case NodeCursorMode.RESIZE_SE:
-                        [startPositionX, startPositionY] = [
-                            e.clientX,
-                            e.clientY
-                        ];
+                        [startPositionX, startPositionY] = getPointerEventCoordinates(e);
                         cursorMode = nextMode;
-
                         switch (cursorMode) {
                             case NodeCursorMode.MOVE:
                                 this.editor.node.css("cursor", "grab");
@@ -950,35 +955,25 @@ class NodeView extends View {
                         }
 
                         let endCursor = (e) => {
-                            setNodeDimension(e, true);
+                            if (e.type === "touchend") {
+                                setNodeDimension(null, true);
+                            } else {
+                                setNodeDimension(e, true);
+                            }
 
                             cursorMode = NodeCursorMode.NONE;
                             [startPositionX, startPositionY] = [null, null];
-                            this.editor.node
-                                .off("mouseup,mouseleave,mousemove")
-                                .css("cursor", this.constructor.defaultCursor);
-                            node.off("mouseup");
+                            this.editor.node.css("cursor", this.constructor.defaultCursor);
                             if (this.editor.constructor.disableCursor) {
                                 this.editor.node.css("pointer-events", "none");
                             }
                         };
 
-                        this.editor.node
-                            .on("mousemove", (e2) => {
-                                e2.preventDefault();
-                                e2.stopPropagation();
-                                setNodeDimension(e2, false);
-                            })
-                            .on("mouseup,mouseleave", (e2) => {
-                                e2.preventDefault();
-                                e2.stopPropagation();
-                                endCursor(e2);
-                            });
+                        bindPointerUntilRelease(
+                            (e2) => setNodeDimension(e2, false),
+                            (e2) => endCursor(e2, true),
+                        );
 
-                        node.on("mouseup", (e2) => {
-                            endCursor(e2);
-                        });
-                            
                         if (this.editor.constructor.disableCursor) {
                             this.editor.node.css("pointer-events", "all");
                         }
@@ -999,7 +994,7 @@ class NodeView extends View {
             contentContainer.content(content);
         }
 
-        contentContainer.on("mousedown", (e) => {
+        contentContainer.on("mousedown,touchstart", (e) => {
             if (this.fixed) return;
             this.editor.focusNode(this);
         });

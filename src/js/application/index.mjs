@@ -1,5 +1,6 @@
 /** @module application/index */
 import {
+    getPointerEventCoordinates,
     getQueryParameters,
     getDataParameters,
     downloadAsBlob,
@@ -263,6 +264,8 @@ class Application {
         document.addEventListener("keydown", (e) => this.onKeyDown(e));
         document.addEventListener("keypress", (e) => this.onKeyPress(e));
         document.addEventListener("mousemove", (e) => this.onMouseMove(e));
+        document.addEventListener("touchmove", (e) => this.onMouseMove(e));
+        document.addEventListener("touchstart", (e) => this.onMouseMove(e));
         document.addEventListener("mouseleave", (e) => this.onMouseLeave(e));
 
         if (this.config.debug) console.log("Application initialization complete.");
@@ -1056,7 +1059,11 @@ class Application {
             this.canvas.setDimension(newState.canvas.width, newState.canvas.height);
         }
         for (let controller of controllerArray) {
-            await controller.setState(newState);
+            try {
+                await controller.setState(newState);
+            } catch(e) {
+                console.error("Couldn't set state for controller", controller, "error was", e);
+            }
         }
     }
 
@@ -1200,6 +1207,8 @@ class Application {
                     }
                 );
             nodeCanvas.trigger(e);
+        } else {
+            this.publish("keyboard", e);
         }
     }
 
@@ -1235,8 +1244,7 @@ class Application {
      * The global onMouseMove event tracks position and fires animations.
      */
     onMouseMove(e) {
-        this.mouseX = e.clientX;
-        this.mouseY = e.clientY;
+        [this.mouseX, this.mouseY] = getPointerEventCoordinates(e);
         if (this.animations === false) {
             return;
         }

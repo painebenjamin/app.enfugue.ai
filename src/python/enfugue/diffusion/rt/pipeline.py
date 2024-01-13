@@ -408,6 +408,7 @@ class EnfugueTensorRTStableDiffusionPipeline(EnfugueStableDiffusionPipeline):
         added_cond_kwargs: Optional[Dict[str, Any]] = None,
         down_block_additional_residuals: Optional[List[torch.Tensor]] = None,
         mid_block_additional_residual: Optional[torch.Tensor] = None,
+        motion_attention_mask: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         """
         Runs the RT engine inference on the unet

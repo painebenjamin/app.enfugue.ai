@@ -27,7 +27,6 @@ from enfugue.diffusion.animate.dragnuwa.svd.modules.distributions.distributions 
 from enfugue.diffusion.animate.dragnuwa.svd.util import (
     append_dims,
     autocast,
-    count_params,
     default,
     disabled_train,
     expand_dims_like,

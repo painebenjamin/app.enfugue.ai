@@ -1,4 +1,4 @@
-/** @module controller/help/03-discuss */
+/** @module controller/help/04-discuss */
 import { MenuController } from "../menu.mjs";
 
 /**
@@ -8,22 +8,22 @@ class DiscussionController extends MenuController {
     /**
      * @var string The help page to link to
      */
-    static helpLink = "https://github.com/painebenjamin/app.enfugue.ai/discussions";
+    static helpLink = "https://discord.gg/fESGhyDKvn";
 
     /**
      * @var string The text to display
      */
-    static menuName = "Discuss";
+    static menuName = "Discord";
 
     /**
      * @var string The icon to display
      */
-    static menuIcon = "fa-solid fa-comments";
+    static menuIcon = "fa-brands fa-discord";
     
     /**
      * @var string The keyboard shortcut
      */
-    static menuShortcut = "c";
+    static menuShortcut = "d";
 
     /**
      * On click, open window

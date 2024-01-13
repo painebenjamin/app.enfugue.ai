@@ -1,8 +1,9 @@
 # type: ignore
 # adapted from https://github.com/ProjectNUWA/DragNUWA
 from enfugue.diffusion.animate.dragnuwa.utils import *
-from typing import Callable, Dict, List, Optional, Set, Tuple, Type, Union
+from typing import  List, Optional, Set, Type
 
+import torch.nn as nn
 
 class LoraInjectedLinear(nn.Module):
     def __init__(

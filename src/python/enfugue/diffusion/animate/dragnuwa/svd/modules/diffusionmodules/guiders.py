@@ -8,8 +8,6 @@ from einops import rearrange, repeat
 
 from enfugue.diffusion.animate.dragnuwa.svd.util import append_dims, default
 
-from enfugue.util import logger as logpy
-
 class Guider(ABC):
     @abstractmethod
     def __call__(self, x: torch.Tensor, sigma: float) -> torch.Tensor:
@@ -74,6 +72,17 @@ class LinearPredictionGuider(Guider):
         if isinstance(additional_cond_keys, str):
             additional_cond_keys = [additional_cond_keys]
         self.additional_cond_keys = additional_cond_keys
+
+    def rescale(
+        self,
+        min_scale: Optional[float] = None,
+        max_scale: Optional[float] = None,
+        num_frames: Optional[int] = None
+    ) -> None:
+        self.min_scale = min_scale if min_scale is not None else self.min_scale
+        self.max_scale = max_scale if max_scale is not None else self.max_scale
+        self.num_frames = num_frames if num_frames is not None else self.num_frames
+        self.scale = torch.linspace(min_scale, max_scale, num_frames).unsqueeze(0)
 
     def __call__(self, x: torch.Tensor, sigma: torch.Tensor) -> torch.Tensor:
         x_u, x_c = x.chunk(2)

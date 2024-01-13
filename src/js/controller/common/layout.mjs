@@ -1,9 +1,14 @@
 /** @module controller/common/layout */
-import { isEmpty, kebabCase, bindMouseUntilRelease } from "../../base/helpers.mjs";
 import { ElementBuilder } from "../../base/builder.mjs";
 import { Controller } from "../base.mjs";
 import { View } from "../../view/base.mjs";
 import { ListInputView } from "../../forms/input.mjs";
+import {
+    isEmpty,
+    kebabCase,
+    getPointerEventCoordinates,
+    bindPointerUntilRelease
+} from '../../base/helpers.mjs';
 
 const E = new ElementBuilder();
 const leftMargin = 250;
@@ -18,8 +23,9 @@ let currentHeight = window.innerHeight - (topMargin + bottomMargin),
  * Allows dragging the samples/canvas view
  */
 class DragLayoutInputView extends View {
-    static offsetLeft = -3;
-    static offsetTop = -2;
+    /**
+     * @var float The minimum ratio for the panes
+     */
     static minimumRatio = 0.1;
 
     /**
@@ -82,36 +88,29 @@ class DragLayoutInputView extends View {
     }
 
     /**
-     * 
-
-    /**
      * On build, bind events
      */
     async build() {
         let node = await super.build();
-        node.on("mousedown", (e) => {
-            if (e.which !== 1) return;
+        node.on("mousedown,touchstart", (e) => {
+            if (e.type === "mousedown" && e.which !== 1) return;
             e.preventDefault();
             e.stopPropagation();
-            bindMouseUntilRelease((e2) => {
-                e2.preventDefault();
-                e2.stopPropagation();
-                let currentPosition = {
-                        x: Math.max(e2.clientX - leftMargin, 0),
-                        y: Math.max(e2.clientY - topMargin, 0)
-                    },
-                    currentRatio = {
-                        x: Math.min(currentPosition.x, currentWidth) / currentWidth,
-                        y: Math.min(currentPosition.y, currentHeight) / currentHeight
-                    };
+            bindPointerUntilRelease((e2) => {
+                let [currentPositionX, currentPositionY] = getPointerEventCoordinates(e2);
+                currentPositionX -= leftMargin;
+                currentPositionY -= topMargin;
 
-                currentRatio.x = Math.max(this.constructor.minimumRatio, Math.min(currentRatio.x, 1.0 - this.constructor.minimumRatio));
-                currentRatio.y = Math.max(this.constructor.minimumRatio, Math.min(currentRatio.y, 1.0 - this.constructor.minimumRatio));
+                let currentRatioX = Math.min(Math.max(currentPositionX, 0), currentWidth) / currentWidth,
+                    currentRatioY = Math.min(Math.max(currentPositionY, 0), currentHeight) / currentHeight;
+
+                currentRatioX = Math.max(this.constructor.minimumRatio, Math.min(currentRatioX, 1.0 - this.constructor.minimumRatio));
+                currentRatioY = Math.max(this.constructor.minimumRatio, Math.min(currentRatioY, 1.0 - this.constructor.minimumRatio));
 
                 if (this.mode === "horizontal") {
-                    this.setRatio(currentRatio.x);
+                    this.setRatio(currentRatioX);
                 } else {
-                    this.setRatio(currentRatio.y);
+                    this.setRatio(currentRatioY);
                 }
             });
         });

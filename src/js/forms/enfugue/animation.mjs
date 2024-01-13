@@ -44,6 +44,16 @@ class AnimationFormView extends FormView {
                     "value": "ad_hsxl"
                 }
             },
+            "animationFrames": {
+                "label": "Animation Frames",
+                "class": NumberInputView,
+                "config": {
+                    "min": 8,
+                    "step": 1,
+                    "value": 16,
+                    "tooltip": "The number of animation frames the overall animation should be. Divide this number by the animation rate to determine the overall length of the animation in seconds."
+                }
+            },
             "animationRate": {
                 "label": "Frame Rate",
                 "class": NumberInputView,
@@ -54,10 +64,6 @@ class AnimationFormView extends FormView {
                     "step": 1,
                     "tooltip": "The frame rate of the output video. Note that the animations are saved as individual frames, not as videos - so this can be changed later without needing to re-process the invocation. Also note that the frame rate of the AI model is fixed at 8 frames per second, so any values higher than this will result in sped-up motion. Use this value in combination with frame interpolation to control the smoothness of the output video."
                 }
-            },
-            "animationInterpolation": {
-                "label": "Frame Interpolation",
-                "class": AnimationInterpolationStepsInputView
             },
             "animationDecodeChunkSize": {
                 "label": "Frame Decode Chunk",
@@ -70,18 +76,12 @@ class AnimationFormView extends FormView {
                     "tooltip": "The number of frames to decode at once when rendering the final output video. Increasing this number increases VRAM requirements while generally decreasing render time."
                 }
             },
+            "animationInterpolation": {
+                "label": "Frame Interpolation",
+                "class": AnimationInterpolationStepsInputView
+            },
         },
         "AnimateDiff and HotshotXL": {
-            "animationFrames": {
-                "label": "Animation Frames",
-                "class": NumberInputView,
-                "config": {
-                    "min": 8,
-                    "step": 1,
-                    "value": 16,
-                    "tooltip": "The number of animation frames the overall animation should be. Divide this number by the animation rate to determine the overall length of the animation in seconds."
-                }
-            },
             "animationLoop": {
                 "label": "Loop Animation",
                 "class": AnimationLoopInputView
@@ -170,6 +170,13 @@ class AnimationFormView extends FormView {
             }
         },
         "Stable Video Diffusion": {
+            "stableVideoReflect": {
+                "label": "Reflect Animation",
+                "class": CheckboxInputView,
+                "config": {
+                    "tooltip": "When enabled, the animation will play in reverse after playing normally. Some interpolated frames will be added at the beginning and end to ease the motion bounce."
+                }
+            },
             "stableVideoUseDrag": {
                 "label": "Use DragNUWA",
                 "class": CheckboxInputView,
@@ -177,15 +184,15 @@ class AnimationFormView extends FormView {
                     "tooltip": "When enabled, uses DragNUWA 1.5 to provide controls for directing motion of objects from an image. An interface will be overlaid over the canvas that allows you to draw motion splines."
                 }
             },
-            "stableVideoAnimationFrames": {
-                "label": "Animation Frames",
+            "stableVideoModel": {
                 "class": SelectInputView,
+                "label": "Model",
                 "config": {
                     "options": {
-                        "14": "14", 
-                        "21": "21"
+                        "svd": "SVD (14 Frames)",
+                        "svd_xt": "SVD-XT (21 Frames)"
                     },
-                    "tooltip": "The number of animation frames the overall animation should be. Divide this number by the animation rate to determine the overall length of the animation in seconds."
+                    "value": "svd",
                 }
             },
             "stableVideoMotionBucketId": {
@@ -253,6 +260,14 @@ class AnimationFormView extends FormView {
                     "step": 1,
                     "tooltip": "This controls the size of the motion vectors as they move across the image using DragNUWA. The higher this value, the strong the pull each vector will have to pixels around them."
                 }
+            },
+            "stableVideoRepeatVectors": {
+                "label": "Repeat Motion Vectors per Iteration",
+                "class": CheckboxInputView,
+                "config": {
+                    "value": true,
+                    "tooltip": "When this checkbox is checked and you want animations over 14 frames in length, each motion vector will be repeated from the end point of the previous iteration for each iteration. This effectively means the same motion will be repeated again - be that a straight line, a bounce, a circle, etc.<br />When this checkbox is not checked, motion vectors are treated as if they go over the entire animation. This means that your motion will be cut into slices for each iteration."
+                }
             }
         }
     };
@@ -289,15 +304,10 @@ class AnimationFormView extends FormView {
             this.addClass("no-position-slicing");
         }
 
-        if (this.values.stableVideoUseDrag) {
-            this.removeClass("no-motion-vectors");
-        } else {
-            this.addClass("no-motion-vectors");
-        }
 
         let useSlicing = this.values.animationSlicing,
-            slicingInput = await this.getInputView("animationSlicing"),
-            stableVideoAnimationFrames = await this.getInputView("stableVideoAnimationFrames");
+            stableVideoModel = await this.getInputView("stableVideoModel"),
+            slicingInput = await this.getInputView("animationSlicing");
 
         if (this.values.animationLoop === "loop") {
             useSlicing = true;
@@ -305,23 +315,22 @@ class AnimationFormView extends FormView {
             slicingInput.disable();
         } else {
             slicingInput.enable();
+            this.addClass("no-animation-slicing");
         }
-
+            
         if (useSlicing) {
             this.removeClass("no-animation-slicing");
         } else {
             this.addClass("no-animation-slicing");
         }
 
-        if (
-            this.values.animationEnabled &&
-            this.values.animationEngine === "svd" &&
-            this.values.stableVideoUseDrag
-        ) {
-            stableVideoAnimationFrames.setValue("14", false);
-            stableVideoAnimationFrames.disable();
+        if (this.values.stableVideoUseDrag) {
+            stableVideoModel.setValue("svd", false);
+            stableVideoModel.disable();
+            this.removeClass("no-motion-vectors");
         } else {
-            stableVideoAnimationFrames.enable();
+            stableVideoModel.enable();
+            this.addClass("no-motion-vectors");
         }
     }
 

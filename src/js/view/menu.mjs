@@ -1,7 +1,7 @@
 /** @module view/menu */
 import { View, ParentView } from "./base.mjs";
 import { ElementBuilder } from "../base/builder.mjs";
-import { isEmpty } from "../base/helpers.mjs";
+import { isEmpty, getPointerEventCoordinates } from "../base/helpers.mjs";
 
 const E = new ElementBuilder({
     categoryHeader: "enfugue-menu-category-header",
@@ -192,7 +192,18 @@ class MenuView extends ParentView {
      */
     async build() {
         let node = await super.build();
-        node.on("click", (e) => e.stopPropagation());
+        node.on("click", (e) => e.stopPropagation())
+            .on("touchmove", (e) => {
+                let [eventX, eventY] = getPointerEventCoordinates(e, node.element);
+                for (let child of this.children) {
+                    if (child instanceof MenuCategoryView) {
+                        let childPosition = child.node.element.getBoundingClientRect();
+                        if (childPosition.x <= eventX && eventX < childPosition.x + childPosition.width) {
+                            this.setCategory(child.name);
+                        }
+                    }
+                }
+            });
         window.addEventListener("click", () => this.hideCategories());
         return node;
     }

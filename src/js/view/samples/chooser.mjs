@@ -1,9 +1,15 @@
 /** @module view/samples/chooser */
-import { isEmpty, isEquivalent, bindMouseUntilRelease } from "../../base/helpers.mjs";
 import { View } from "../base.mjs";
 import { ImageView } from "../image.mjs";
 import { ElementBuilder } from "../../base/builder.mjs";
 import { NumberInputView } from "../../forms/input.mjs";
+import {
+    isEmpty,
+    kebabCase,
+    isEquivalent,
+    getPointerEventCoordinates,
+    bindPointerUntilRelease
+} from "../../base/helpers.mjs";
 
 const E = new ElementBuilder();
 
@@ -278,13 +284,14 @@ class SampleChooserView extends View {
             samplesContainer = E.div().class("samples");
 
         let isScrubbing = false,
-            getFrameIndexFromMousePosition = (e) => {
+            getFrameIndexFromPointerEvent = (e) => {
                 let sampleContainerPosition = samplesContainer.element.getBoundingClientRect(),
-                    clickRatio = e.clientX < sampleContainerPosition.left
+                    [eventX, eventY] = getPointerEventCoordinates(e, samplesContainer.element),
+                    clickRatio = eventX < 0
                         ? 0
-                        : e.clientX > sampleContainerPosition.left + sampleContainerPosition.width
+                        : eventX > sampleContainerPosition.width
                             ? 1
-                            : (e.clientX - sampleContainerPosition.left) / sampleContainerPosition.width;
+                            : eventX / sampleContainerPosition.width;
 
                 return Math.min(
                     Math.floor(clickRatio * this.samples.length),
@@ -299,10 +306,32 @@ class SampleChooserView extends View {
                 samplesContainer.element.scrollLeft += e.deltaY / 10;
             })
             .on("touchstart", (e) => {
-                touchStart = {x: e.touches[0].clientX, y: e.touches[0].clientY};
-                touchScrollStart = samplesContainer.element.scrollLeft;
+                if (this.isAnimation) {
+                    e.preventDefault();
+                    e.stopPropagation();
+
+                    isScrubbing = true;
+                    this.setActiveIndex(getFrameIndexFromPointerEvent(e));
+
+                    bindPointerUntilRelease(
+                        (e2) => {
+                            if (isScrubbing) {
+                                this.setActiveIndex(getFrameIndexFromPointerEvent(e2));
+                            }
+                        },
+                        (e2) => {
+                            isScrubbing = false;
+                        }
+                    );
+                } else {
+                    touchStart = {x: e.touches[0].clientX, y: e.touches[0].clientY};
+                    touchScrollStart = samplesContainer.element.scrollLeft;
+                }
             })
             .on("touchmove", (e) => {
+                if (this.isAnimation) {
+                    return;
+                }
                 let touchPosition = {x: e.touches[0].clientX, y: e.touches[0].clientY};
                 if (isEmpty(touchStart)) {
                     touchStart = touchPosition;
@@ -321,12 +350,12 @@ class SampleChooserView extends View {
                     e.stopPropagation();
 
                     isScrubbing = true;
-                    this.setActiveIndex(getFrameIndexFromMousePosition(e));
+                    this.setActiveIndex(getFrameIndexFromPointerEvent(e));
 
-                    bindMouseUntilRelease(
+                    bindPointerUntilRelease(
                         (e2) => {
                             if (isScrubbing) {
-                                this.setActiveIndex(getFrameIndexFromMousePosition(e2));
+                                this.setActiveIndex(getFrameIndexFromPointerEvent(e2));
                             }
                         },
                         (e2) => {
@@ -340,7 +369,7 @@ class SampleChooserView extends View {
                     e.preventDefault();
                     e.stopPropagation();
                     if (isScrubbing) {
-                        this.setActiveIndex(getFrameIndexFromMousePosition(e));
+                        this.setActiveIndex(getFrameIndexFromPointerEvent(e));
                     }
                 }
             })
