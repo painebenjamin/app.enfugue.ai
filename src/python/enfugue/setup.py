@@ -105,7 +105,7 @@ setup(
     name=package_name,
     author="Benjamin Paine",
     author_email="painebenjamin@gmail.com",
-    version=f"{version_major}.{version_minor}.{version_patch}.post2",
+    version=f"{version_major}.{version_minor}.{version_patch}",
     packages=find_packages("."),
     package_data={package_name: ["py.typed", "version.txt", *package_data]},
     license="agpl-3.0",
