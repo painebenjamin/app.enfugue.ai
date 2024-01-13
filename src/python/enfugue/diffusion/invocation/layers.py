@@ -98,7 +98,6 @@ class LayeredInvocation:
     seed: Optional[int]=None
     tile: Union[bool, Tuple[bool, bool], List[bool]]=False
     # Tweaks
-    inject_dpo: Optional[bool]=None
     freeu_factors: Optional[Tuple[float, float, float, float]]=None
     guidance_scale: Optional[float]=None
     num_inference_steps: Optional[int]=None
@@ -1351,8 +1350,6 @@ class LayeredInvocation:
         safe_status = pipeline.safe # Store this in case we override
         pipeline.set_task_callback(task_callback)
 
-        self.prepare_pipeline(pipeline)
-
         try:
             original_image_callback: Optional[Callable] = None
             cropped_inpaint_position = None
@@ -1374,11 +1371,15 @@ class LayeredInvocation:
             if invocation_kwargs.pop("no_inference", False):
                 if "image" not in invocation_kwargs:
                     raise BadRequestError("No inference and no images.")
+                else:
+                    logger.debug("No inference necessary, skipping to post-processing.")
                 images = invocation_kwargs["image"]
                 if not isinstance(images, list):
                     images = [images]
                 nsfw = [False] * len(images)
             else:
+                # Prepare the pipeline manager
+                self.prepare_pipeline(pipeline)
                 # Determine if we're doing cropped inpainting
                 if invocation_kwargs.get("mask", None) is not None and self.crop_inpaint:
                     (x0, y0), (x1, y1) = self.get_inpaint_bounding_box(
@@ -1587,9 +1588,6 @@ class LayeredInvocation:
 
         if self.safe is not None:
             pipeline.safe = self.safe # safety checking override
-
-        if self.inject_dpo is not None:
-            pipeline.inject_dpo = self.inject_dpo
 
     def execute_inference(
         self,

@@ -3896,6 +3896,7 @@ class DiffusionPipelineManager:
         """
         if not hasattr(self, "_drag_pipeline"):
             from enfugue.diffusion.support import DragAnimator
+            from enfugue.diffusion.util import get_vram_info
             drag_pipeline = DragAnimator(
                 self.engine_motion_dir,
                 device=self.device,
@@ -3904,6 +3905,7 @@ class DiffusionPipelineManager:
             )
             drag_pipeline.task_callback = self.task_callback
             self.task_callback("Preparing DragNUWA Pipeline")
+            vram_free, vram_total = get_vram_info()
             self._drag_pipeline = drag_pipeline.nuwa()
         return self._drag_pipeline
 

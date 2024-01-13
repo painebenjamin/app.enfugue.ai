@@ -268,12 +268,13 @@ def quick_freeze(model):
 
 
 class DragNUWANet(nn.Module):
-    def __init__(self, **kwargs):
+    def __init__(self, device="cpu", **kwargs):
         super(DragNUWANet, self).__init__()
         self.args = DragNUWANetArgs.assemble(**kwargs)
-        self.device = "cpu"
+        self.device = device
+
         ### unet
-        model = VideoUNet_flow(**self.args.network_config)
+        model = VideoUNet_flow(**self.args.network_config).to(self.device)
         self.model = OpenAIWrapper(model)
 
         ### denoiser and sampler
@@ -281,12 +282,12 @@ class DragNUWANet(nn.Module):
         self.sampler = EulerEDMSampler(**self.args.sampler_config)
 
         ### conditioner
-        self.conditioner = GeneralConditioner(self.args.conditioner_emb_models)
+        self.conditioner = GeneralConditioner(self.args.conditioner_emb_models).to(self.device)
 
         ### first stage model
         self.first_stage_model = AutoencodingEngine(
             **self.args.first_stage_config
-        ).eval()
+        ).eval().to(self.device)
 
         self.scale_factor = self.args.scale_factor
         self.en_and_decode_n_samples_a_time = (

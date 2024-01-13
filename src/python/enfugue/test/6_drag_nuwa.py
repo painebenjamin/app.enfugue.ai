@@ -28,9 +28,16 @@ def main() -> None:
 
     with DebugUnifiedLoggingContext():
         manager = DiffusionPipelineManager()
-        frames = manager.dragnuwa_img2vid(
-            image_from_uri("file://" + os.path.join(input_dir, "nuwa.png")),
-            num_frames=28,
+        invocation = LayeredInvocation.assemble(
+            seed=12345,
+            layers = [
+                {
+                    "image": image_from_uri("file://" + os.path.join(input_dir, "nuwa.png")),
+                    "visibility": "visible"
+                }
+            ],
+            animation_frames=28,
+            animation_engine="svd",
             motion_vectors=[
                 [
                     {
@@ -48,7 +55,10 @@ def main() -> None:
                 ]
             ]
         )
-        Video(frames).save(
+        result = invocation.execute(manager)
+        # result['frames'] = interpolated video frames (if present)
+        # result['images'] = animation image sequences
+        Video(result.get("frames", result["images"])).save(
             os.path.join(output_dir, "output.gif"),
             overwrite=True,
             rate=8.0

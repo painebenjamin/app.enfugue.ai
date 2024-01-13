@@ -6,6 +6,7 @@ from datetime import datetime
 from typing import Iterator, List, Optional, Callable, Any, Dict, TYPE_CHECKING
 
 from contextlib import contextmanager
+from enfugue.util import logger
 from enfugue.diffusion.constants import MotionVectorPointDict
 from enfugue.diffusion.support.model import SupportModel
 
@@ -176,7 +177,7 @@ class DragAnimatorProcessor:
                             step_duration_average = sum(step_time_slice) / len(step_time_slice)
                             progress_callback(steps_complete, steps_total, 1 / step_duration_average)
 
-                        if latent_callback is not None and latent_callback_steps is not None and steps_complete % latent_callback_steps == 0:
+                        if latent_callback is not None and latent_callback_steps and steps_complete % latent_callback_steps == 0:
                             latent_callback(result, i)
 
                         step_time = current_time
@@ -275,9 +276,10 @@ class DragAnimator(SupportModel):
     """
     Maps DragNUWA to a support model and returns an easy callable
     """
-    WEIGHTS_PATH = "https://huggingface.co/yinsming/DragNUWA/resolve/main/drag_nuwa_svd.pth"
+    WEIGHTS_PATH = "https://huggingface.co/benjamin-paine/dragnuwa-pruned-safetensors/resolve/main/dragnuwa-svd-pruned.safetensors"
+    WEIGHTS_PATH_FP16 = "https://huggingface.co/benjamin-paine/dragnuwa-pruned-safetensors/resolve/main/dragnuwa-svd-pruned.fp16.safetensors"
 
-    def nuwa(self, **kwargs) -> DragAnimatorPipeline:
+    def nuwa(self, **kwargs: Any) -> DragAnimatorPipeline:
         """
         Gets a re-usable dragnuwa model
         """
@@ -290,21 +292,23 @@ class DragAnimator(SupportModel):
         """
         Gets the DragNUWA model and yields a processor
         """
+        import torch
         from enfugue.diffusion.animate.dragnuwa.net import DragNUWANet # type: ignore
         from enfugue.diffusion.animate.dragnuwa.utils import ( # type: ignore
             adaptively_load_state_dict
         )
-        from enfugue.diffusion.util import load_state_dict
-        weights_file = self.get_model_file(self.WEIGHTS_PATH)
+        weights_file = self.get_model_file(self.WEIGHTS_PATH_FP16 if self.dtype is torch.float16 else self.WEIGHTS_PATH)
         with self.context():
-            network = DragNUWANet(**kwargs)
+            network = DragNUWANet(device=self.device.type, **kwargs)
             network.eval()
-            network.to(device=self.device)
+            network.to(device=self.device, dtype=self.dtype)
+            logger.debug(f"Loading DragNUWA state dictionary from {weights_file}")
             adaptively_load_state_dict(
                 network,
-                load_state_dict(weights_file)
+                weights_file,
+                device=self.device.type,
+                dtype=self.dtype
             )
-            network.to(dtype=self.dtype)
             processor = DragAnimatorProcessor(
                 network=network,
                 device=self.device,
