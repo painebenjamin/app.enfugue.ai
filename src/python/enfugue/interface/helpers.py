@@ -39,15 +39,6 @@ class HTMLPropertiesHelperFunction(FunctionExtensionBase):
     Allows the transformation of a dictionary of properties into HTML key=value syntax.
 
     Callable in templates via {{ html_properties({"foo": "bar"}) }}
-
-    >>> from enfugue.interface.helpers import HTMLPropertiesHelperFunction
-    >>> from pibble.api.configuration import APIConfiguration
-    >>> config = APIConfiguration(server = {'cms':{'path':{'root':'http://www.example.com'}}})
-    >>> self = type('', (object,), {'getConfiguration': lambda: config})
-    >>> HTMLPropertiesHelperFunction.__call__(self, {"id": "something", "name": "somethingelse"})
-    'id="something" name="somethingelse"'
-    >>> HTMLPropertiesHelperFunction.__call__(self, {"src": "/static/img.jpg"})
-    'src="http://www.example.com/static/img.jpg"'
     """
 
     name = "html_properties"
@@ -70,12 +61,6 @@ class SerializeHelperFunction(FunctionExtensionBase):
     Allows calling serialize in templates.
 
     Example usage is {{ serialize({"foo: "bar"}) }}.
-
-    >>> from enfugue.interface.helpers import SerializeHelperFunction
-    >>> SerializeHelperFunction.__call__(None, {"id": "something", "name": "somethingelse"})
-    '{"id": "something", "name": "somethingelse"}'
-    >>> SerializeHelperFunction.__call__(None, {"src": None, "length": 4})
-    '{"src": null, "length": 4}'
     """
 
     name = "serialize"

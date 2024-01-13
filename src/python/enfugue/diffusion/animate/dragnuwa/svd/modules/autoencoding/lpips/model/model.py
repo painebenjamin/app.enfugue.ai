@@ -4,8 +4,6 @@ import functools
 
 import torch.nn as nn
 
-from enfugue.diffusion.animate.dragnuwa.svd.util import ActNorm
-
 
 def weights_init(m):
     classname = m.__class__.__name__
@@ -21,7 +19,7 @@ class NLayerDiscriminator(nn.Module):
     --> see https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix/blob/master/models/networks.py
     """
 
-    def __init__(self, input_nc=3, ndf=64, n_layers=3, use_actnorm=False):
+    def __init__(self, input_nc=3, ndf=64, n_layers=3):
         """Construct a PatchGAN discriminator
         Parameters:
             input_nc (int)  -- the number of channels in input images
@@ -30,10 +28,7 @@ class NLayerDiscriminator(nn.Module):
             norm_layer      -- normalization layer
         """
         super(NLayerDiscriminator, self).__init__()
-        if not use_actnorm:
-            norm_layer = nn.BatchNorm2d
-        else:
-            norm_layer = ActNorm
+        norm_layer = nn.BatchNorm2d
         if (
             type(norm_layer) == functools.partial
         ):  # no need to use bias as BatchNorm2d has affine parameters

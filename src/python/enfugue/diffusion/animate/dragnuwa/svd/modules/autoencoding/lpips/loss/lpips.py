@@ -8,8 +8,6 @@ import torch
 import torch.nn as nn
 from torchvision import models
 
-from enfugue.diffusion.animate.dragnuwa.svd.util import get_ckpt_path
-
 
 class LPIPS(nn.Module):
     # Learned perceptual metric
@@ -23,27 +21,8 @@ class LPIPS(nn.Module):
         self.lin2 = NetLinLayer(self.chns[2], use_dropout=use_dropout)
         self.lin3 = NetLinLayer(self.chns[3], use_dropout=use_dropout)
         self.lin4 = NetLinLayer(self.chns[4], use_dropout=use_dropout)
-        self.load_from_pretrained()
         for param in self.parameters():
             param.requires_grad = False
-
-    def load_from_pretrained(self, name="vgg_lpips"):
-        ckpt = get_ckpt_path(name, "models/svd/modules/autoencoding/lpips/loss")
-        self.load_state_dict(
-            torch.load(ckpt, map_location=torch.device("cpu")), strict=False
-        )
-        print("loaded pretrained LPIPS loss from {}".format(ckpt))
-
-    @classmethod
-    def from_pretrained(cls, name="vgg_lpips"):
-        if name != "vgg_lpips":
-            raise NotImplementedError
-        model = cls()
-        ckpt = get_ckpt_path(name)
-        model.load_state_dict(
-            torch.load(ckpt, map_location=torch.device("cpu")), strict=False
-        )
-        return model
 
     def forward(self, input, target):
         in0_input, in1_input = (self.scaling_layer(input), self.scaling_layer(target))

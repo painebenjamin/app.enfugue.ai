@@ -302,7 +302,7 @@ class DragAnimator(SupportModel):
             network.to(device=self.device)
             adaptively_load_state_dict(
                 network,
-                load_state_dict(weights_file, self.device.type)
+                load_state_dict(weights_file)
             )
             network.to(dtype=self.dtype)
             processor = DragAnimatorProcessor(
