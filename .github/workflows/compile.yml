@@ -75,6 +75,10 @@ jobs:
       if: ${{ contains(inputs.os, 'ubuntu') && contains(inputs.api, 'tensorrt') }}
       run: |
         pip install onnx==1.12 onnxruntime-gpu==1.12.1 onnx-graphsurgeon==0.3.26 tensorrt==8.6.1 --no-deps
+    - name: Install XFormers (MacOS)
+      if: ${{ contains(inputs.os, 'mac') }}
+      run: |
+        pip install xformers>=0.0.20
     - name: Install MMLab Dependencies (MacOS)
       if: ${{ contains(inputs.os, 'mac') && inputs.dwpose }}
       run: |
@@ -118,7 +122,7 @@ jobs:
         conda activate base
         conda list
         pip freeze
-    - name: Compile Linux package
+    - name: Compile Linux/MacOS package
       if: ${{ !contains(inputs.os, 'windows') }} 
       run: |
         make
