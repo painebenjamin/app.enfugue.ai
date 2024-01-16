@@ -47,6 +47,7 @@ class DragAnimatorProcessor:
         frame_window_size: int=14,
         num_inference_steps: int=25,
         motion_vectors: List[List[MotionVectorPointDict]] = [],
+        motion_vector_repeat_window: bool = False,
         progress_callback: Optional[Callable[[int, int, float], None]]=None,
         latent_callback: Optional[Callable[[Tensor, int], None]]=None,
         latent_callback_steps: Optional[int]=None,
@@ -73,15 +74,19 @@ class DragAnimatorProcessor:
         # num_zero_frames = 0
 
         # Build condition
+        condition_frames = frame_window_size if motion_vector_repeat_window else num_frames-num_zero_frames
         condition = motion_vector_conditioning_tensor(
             width=width,
             height=height,
-            frames=num_frames-num_zero_frames,
+            frames=condition_frames,
             gaussian_sigma=gaussian_sigma,
             motion_vectors=motion_vectors,
             device=self.device,
             dtype=self.dtype
         )
+        if motion_vector_repeat_window:
+            # Repeat condition
+            condition = condition.repeat(num_iterations, 1, 1, 1)[:num_frames-num_zero_frames, :, :, :]
 
         # Insert zero-frames
         for i in range(num_zero_frames):
@@ -238,6 +243,7 @@ class DragAnimatorPipeline:
         min_guidance_scale: float=1.0,
         max_guidance_scale: float=3.0,
         progress_callback: Optional[Callable[[int, int, float], None]]=None,
+        motion_vector_repeat_window: bool=False,
         latent_callback: Optional[Callable[[Tensor, int], None]]=None,
         latent_callback_steps: Optional[int]=None,
     ) -> List[List[Image]]:
@@ -263,7 +269,8 @@ class DragAnimatorPipeline:
             noise_aug_strength=noise_aug_strength,
             progress_callback=progress_callback,
             latent_callback=latent_callback,
-            latent_callback_steps=latent_callback_steps
+            latent_callback_steps=latent_callback_steps,
+            motion_vector_repeat_window=motion_vector_repeat_window
         )
 
     def __del__(self) -> None:

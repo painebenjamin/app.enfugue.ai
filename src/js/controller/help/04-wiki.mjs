@@ -1,29 +1,29 @@
-/** @module controller/help/04-discuss */
+/** @module controller/help/04-wiki */
 import { MenuController } from "../menu.mjs";
 
 /**
- * Opens a window to a discussion page
+ * Opens a window to the wiki page
  */
-class DiscussionController extends MenuController {
+class WikiController extends MenuController {
     /**
      * @var string The help page to link to
      */
-    static helpLink = "https://discord.gg/fESGhyDKvn";
+    static helpLink = "https://github.com/painebenjamin/app.enfugue.ai/wiki";
 
     /**
      * @var string The text to display
      */
-    static menuName = "Discord";
+    static menuName = "Wiki";
 
     /**
      * @var string The icon to display
      */
-    static menuIcon = "fa-brands fa-discord";
+    static menuIcon = "fa-solid fa-book";
     
     /**
      * @var string The keyboard shortcut
      */
-    static menuShortcut = "d";
+    static menuShortcut = "w";
 
     /**
      * On click, open window
@@ -33,4 +33,4 @@ class DiscussionController extends MenuController {
     }
 }
 
-export { DiscussionController as MenuController };
+export { WikiController as MenuController };

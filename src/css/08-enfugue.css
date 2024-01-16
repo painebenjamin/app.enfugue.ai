@@ -1550,6 +1550,7 @@ fieldset.field-set-animation .field-container.checkbox-input-view,
 fieldset.field-set-detailer .upscale-diffusion-controlnet-input-view,
 fieldset.field-set-detailer .number-input-view-detail-controlnet-scale,
 fieldset.field-set-upscaling-step .checkbox-input-view.checkbox-input-view-tiling-vae,
+fieldset.field-set-stable-video-diffusion .select-input-view-stable-video-motion-vector-repeat-mode,
 enfugue-layer-options-view .field-container.slider-precise-input-view,
 enfugue-sidebar .field-container.slider-precise-input-view,
 enfugue-sidebar .field-container.checkbox-input-view
@@ -1682,7 +1683,9 @@ form.no-position-slicing .field-container.number-input-view-animation-position-e
 {
     display: none;
 }
-form.no-motion-vectors .field-container.number-input-view-stable-video-gaussian-sigma
+
+form.no-motion-vectors .field-container.number-input-view-stable-video-gaussian-sigma,
+form.no-motion-vectors .field-container.select-input-view-stable-video-motion-vector-repeat-mode
 {
     display: none;
 }

@@ -25,6 +25,7 @@ from typing import (
     Literal,
     TYPE_CHECKING,
 )
+from math import floor
 from random import randint
 
 from enfugue.util import (
@@ -120,6 +121,7 @@ class LayeredInvocation:
     # stable video
     svd_model: Optional[Literal["svd", "svd_xt"]]=None
     motion_vectors: Optional[List[List[MotionVectorPointDict]]]=None
+    motion_vector_repeat_window: bool=False
     motion_bucket_id: int=127
     fps: int=7
     noise_aug_strength: float=0.02
@@ -629,11 +631,20 @@ class LayeredInvocation:
                 image_width = max(image_width, layer_x + layer_w)
                 image_height = max(image_height, layer_y + layer_h)
 
-        # Check sizes
+        # Make sure a size is set
         if not invocation_kwargs.get("width", None):
             invocation_kwargs["width"] = image_width if image_width else size
         if not invocation_kwargs.get("height", None):
             invocation_kwargs["height"] = image_height if image_height else size
+
+        # Make sure size is properly divisible
+        divisor = 8 if not invocation_kwargs.get("animation_engine", None) == "svd" else 64
+        floor_width = floor(invocation_kwargs["width"] / divisor) * divisor
+        floor_height = floor(invocation_kwargs["height"] / divisor) * divisor
+        if invocation_kwargs["width"] != floor_width or invocation_kwargs["height"] != floor_height:
+            logger.warning(f"Width and height must be divisible by {divisor}, cropping from {invocation_kwargs['width']}x{invocation_kwargs['height']} to {floor_width}x{floor_height}")
+            invocation_kwargs["width"] = floor_width
+            invocation_kwargs["height"] = floor_height
 
         # Add seed if not set
         if not invocation_kwargs.get("seed", None):
@@ -1368,7 +1379,9 @@ class LayeredInvocation:
                 progress_callback=progress_callback,
             )
 
-            if invocation_kwargs.pop("no_inference", False):
+            no_inference = invocation_kwargs.pop("no_inference", False)
+
+            if no_inference:
                 if "image" not in invocation_kwargs:
                     raise BadRequestError("No inference and no images.")
                 else:
@@ -1499,6 +1512,7 @@ class LayeredInvocation:
                 pipeline,
                 images=images,
                 nsfw=nsfw,
+                no_inference=no_inference,
                 task_callback=task_callback,
                 progress_callback=progress_callback,
                 image_callback=image_callback,
@@ -1511,6 +1525,7 @@ class LayeredInvocation:
                 pipeline,
                 images=images,
                 nsfw=nsfw,
+                no_inference=no_inference,
                 task_callback=task_callback,
                 progress_callback=progress_callback,
                 image_callback=image_callback,
@@ -1751,6 +1766,7 @@ class LayeredInvocation:
 
         if self.motion_vectors:
             svd_kwargs["motion_vectors"] = self.motion_vectors
+            svd_kwargs["motion_vector_repeat_window"] = self.motion_vector_repeat_window
             svd_kwargs["gaussian_sigma"] = self.gaussian_sigma
             logger.debug(f"Calling DragNUWA pipeline with arguments {redact_for_log(svd_kwargs)}")
             frames = pipeline.dragnuwa_img2vid(
@@ -1778,6 +1794,7 @@ class LayeredInvocation:
         pipeline: DiffusionPipelineManager,
         images: List[Image],
         nsfw: List[bool],
+        no_inference: bool = False,
         task_callback: Optional[Callable[[str], None]] = None,
         progress_callback: Optional[Callable[[int, int, float], None]] = None,
         image_callback: Optional[Callable[[List[Image]], None]] = None,
@@ -1870,7 +1887,10 @@ class LayeredInvocation:
 
         if not ((self.detailer_face_inpaint or self.detailer_hand_inpaint) and self.detailer_inpaint_strength) and not self.detailer_denoising_strength:
             return images, nsfw
-        
+
+        if no_inference:
+            self.prepare_pipeline(pipeline)
+
         use_inpainter = self.detailer_switch_pipeline or invocation_kwargs.get("mask", None)
 
         if self.animation_frames:
@@ -2047,6 +2067,7 @@ class LayeredInvocation:
         pipeline: DiffusionPipelineManager,
         images: List[Image],
         nsfw: List[bool],
+        no_inference: bool = False,
         task_callback: Optional[Callable[[str], None]] = None,
         progress_callback: Optional[Callable[[int, int, float], None]] = None,
         image_callback: Optional[Callable[[List[Image]], None]] = None,
@@ -2188,6 +2209,9 @@ class LayeredInvocation:
             if strength is not None and strength > 0:
                 if task_callback:
                     task_callback("Preparing upscale pipeline")
+
+                if no_inference:
+                    self.prepare_pipeline(pipeline)
 
                 if refiner:
                     # Refiners have safety disabled from the jump

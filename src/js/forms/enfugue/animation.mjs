@@ -261,12 +261,17 @@ class AnimationFormView extends FormView {
                     "tooltip": "This controls the size of the motion vectors as they move across the image using DragNUWA. The higher this value, the strong the pull each vector will have to pixels around them."
                 }
             },
-            "stableVideoRepeatVectors": {
-                "label": "Repeat Motion Vectors per Iteration",
-                "class": CheckboxInputView,
+            "stableVideoMotionVectorRepeatMode": {
+                "label": "Motion Vector Repeat Mode",
+                "class": SelectInputView,
                 "config": {
-                    "value": true,
-                    "tooltip": "When this checkbox is checked and you want animations over 14 frames in length, each motion vector will be repeated from the end point of the previous iteration for each iteration. This effectively means the same motion will be repeated again - be that a straight line, a bounce, a circle, etc.<br />When this checkbox is not checked, motion vectors are treated as if they go over the entire animation. This means that your motion will be cut into slices for each iteration."
+                    "options": {
+                        "extend": "Extend",
+                        "repeat": "Repeat In-Place",
+                        "stretch": "Stretch and Slice",
+                    },
+                    "value": "extend",
+                    "tooltip": "How to handle motion vectors when your animation is longer than 14 frames.<br /><br /><strong>Extend</strong>: For each subsequent 14-frame iteration, the motion vectors will repeat starting from the end of the previous section.<br /><strong>Repeat In-Place</strong>: This is similar to the previous, except the vectors will not be moved to the end of the previous, and instead will repeat from the beginning again.<br /><strong>Stretch and Slice</strong>: This will treat each motion vector as if it goes over the entire animation duration. If you have a 28-frame animation, the first half of the vector would be used for the first 14 frames, and the second half for the latter.<br />"
                 }
             }
         }
@@ -345,204 +350,13 @@ class AnimationFormView extends FormView {
         if (isEmpty(this.values) || this.values.animationPositionEncodingSliceEnabled !== true) {
             node.addClass("no-position-slicing");
         }
+        if (isEmpty(this.values) || this.values.animationEngine !== "svd" || !this.values.stableVideoUseDrag) {
+            node.addClass("no-motion-vectors");
+        }
         return node;
     }
 }
 
-/**
- * This form allows selecting specific options for SVD.
- */
-class StableVideoDiffusionFormView extends FormView {
-    /**
-     * @var string Text to show in the form
-     */
-    static description = "Use this tool to create a video from an image using Stable Video Diffusion. There is no way to prompt the generation at this time.<br /><br />This model is licensed under <a href='https://huggingface.co/stabilityai/stable-video-diffusion-img2vid/blob/main/LICENSE' target='_blank'>a <strong>non-commercial</strong> license</a>. As such, output of this tool cannot be used for commercial purposes without <a href='https://stability.ai/contact' target='_blank'>first contacting Stability AI and acquiring a commercial license.</a>";
-
-    /**
-     * @var object Options for SVD
-     */
-    static fieldSets = {
-        "Model": {
-            "model": {
-                "class": SelectInputView,
-                "config": {
-                    "options": {
-                        "svd": "SVD (18 Frames)",
-                        "svd_xt": "SVD-XT (25 Frames)"
-                    },
-                    "value": "svd",
-                }
-            }
-        },
-        "Image": {
-            "image": {
-                "class": ImageFileInputView,
-                "config": {
-                    "required": true,
-                    "tooltip": "The first image of the animation. The recommended resolution is 1024×576, with some ability to create vertical video at 576×1024. Other resolutions may work, but some can produce errors."
-                }
-            }
-        },
-        "Generation": {
-            "motion_bucket_id": {
-                "label": "Motion Bucket ID",
-                "class": NumberInputView,
-                "config": {
-                    "min": 1,
-                    "max": 512,
-                    "value": 127,
-                    "step": 1,
-                    "tooltip": "Approximately represents the amount of motion in the frame, using values from 1 to 255. Higher values are accepted with unpredictable results."
-                }
-            },
-            "decode_chunk_size": {
-                "label": "Decoding Chunk Size",
-                "class": NumberInputView,
-                "config": {
-                    "min": 1,
-                    "value": 1,
-                    "max": 32,
-                    "step": 1,
-                    "tooltip": "The number of frames to decode at once. Increasing this number will reduce generation time but increase VRAM required."
-                }
-            },
-            "seed": {
-                "label": "Seed",
-                "class": NumberInputView,
-                "config": {
-                    "step": 1,
-                    "tooltip": "The initial seed. Seed this to a specific number for repeatable generations, or leave blank for random."
-                }
-            }
-        },
-        "Tweaks": {
-            "num_inference_steps": {
-                "label": "Inference Steps",
-                "class": NumberInputView,
-                "config": {
-                    "min": 1,
-                    "max": 200,
-                    "value": 25,
-                    "step": 1,
-                    "tooltip": "The number of steps to run through the UNet. Defaults to 25."
-                }
-            },
-            "min_guidance_scale": {
-                "label": "Minimum Guidance",
-                "class": NumberInputView,
-                "config": {
-                    "min": 0,
-                    "max": 100,
-                    "value": 1.0,
-                    "step": 0.01,
-                    "tooltip": "The starting guidance scale. This will increase linearly to the ending scale over the course of inference."
-                }
-            },
-            "max_guidance_scale": {
-                "label": "Maximum Guidance",
-                "class": NumberInputView,
-                "config": {
-                    "min": 0,
-                    "max": 100,
-                    "value": 3.0,
-                    "step": 0.01,
-                    "tooltip": "The ending guidance scale."
-                }
-            },
-            "fps": {
-                "label": "FPS",
-                "class": NumberInputView,
-                "config": {
-                    "min": 1,
-                    "max": 60,
-                    "value": 7,
-                    "step": 1,
-                    "tooltip": "The number of frames per second for inference. Note that this is slightly different from the usual frame rate in that the diffusion model uses this value as a parameter."
-                }
-            },
-            "noise_aug_strength": {
-                "label": "Noise Strength",
-                "class": NumberInputView,
-                "config": {
-                    "min": 0.0,
-                    "max": 1.0,
-                    "value": 0.02,
-                    "step": 0.01,
-                    "tooltip": "The factor when adding noise to the initial image. The recommended value is 0.02."
-                }
-            }
-        },
-        "Post-Processing": {
-            "reflect": {
-                "label": "Reflect Animation",
-                "class": CheckboxInputView,
-                "config": {
-                    "tooltip": "When enabled, the animation will play in reverse after playing normally. Some interpolated frames will be added at the beginning and end to ease the motion bounce."
-                }
-            },
-            "interpolate_frames": {
-                "label": "Frame Interpolation",
-                "class": AnimationInterpolationStepsInputView
-            },
-            "frame_rate": {
-                "label": "Frame Rate",
-                "class": NumberInputView,
-                "config": {
-                    "min": 4,
-                    "max": 120,
-                    "value": 8,
-                    "tooltip": "The final frame rate of the output video after interpolation."
-                }
-            }
-        }
-    };
-
-    /**
-     * On build, prepend description
-     */
-    async build() {
-        let node = await super.build();
-        node.prepend(E.p().content(this.constructor.description));
-        return node;
-    };
-};
-
-/**
- * This form has a static image
- */
-class QuickStableVideoDiffusionFormView extends StableVideoDiffusionFormView {
-    /**
-     * Initialize with the image instead of values, this form never needs
-     * to be pre-filled with anything but defaults
-     */
-    constructor(config, image) {
-        super(config);
-        this.image = image;
-        if (isEmpty(this.values)) {
-            this.values = {};
-        }
-        this.values.image = image;
-    }
-
-    /**
-     * @var object Hide the image input
-     */
-    static fieldSetConditions = {
-        "Image": () => false
-    };
-
-    /**
-     * On build, insert image
-     */
-    async build() {
-        let node = await super.build();
-        node.insert(1, E.img().src(this.image));
-        return node;
-    }
-};
-
 export {
     AnimationFormView,
-    StableVideoDiffusionFormView,
-    QuickStableVideoDiffusionFormView
 };

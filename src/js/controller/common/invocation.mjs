@@ -1626,6 +1626,23 @@ class InvocationController extends Controller {
     }
 
     /**
+     * @return bool Whether or not to repeat motion vectors
+     */
+    get repeatMotionVectors() {
+        return this.kwargs.motion_vector_repeat_window || false;
+    }
+
+    /**
+     * @param string SVD model
+     */
+    set repeatMotionVectors(newRepeat) {
+        if (this.repeatMotionVectors !== newRepeat) {
+            this.publish("engineStableVideoModelChange", newRepeat);
+        }
+        this.kwargs.motion_vector_repeat_window = newRepeat;
+    }
+
+    /**
      * On initialization, create DOM elements related to invocations.
      */
     async initialize() {

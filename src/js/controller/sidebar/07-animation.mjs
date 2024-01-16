@@ -57,7 +57,7 @@ class AnimationController extends Controller {
                 "stableVideoReflect": false,
                 "stableVideoModel": "svd",
                 "stableVideoGaussianSigma": 20,
-                "stableVideoRepeatVectors": true
+                "stableVideoMotionVectorRepeatMode": "extend"
             }
         };
     }
@@ -135,6 +135,25 @@ class AnimationController extends Controller {
     }
 
     /**
+     * Hides motion vectors
+     */
+    hideMotionVectors() {
+        this.vector.hide();
+        this.vectorToolbar.hide();
+        this.application.container.classList.remove("motion-vectors");
+        this.engine.motionVectors = null;
+    }
+
+    /**
+     * Shows motion vectors
+     */
+    showMotionVectors() {
+        this.vector.show();
+        this.vectorToolbar.show();
+        this.application.container.classList.add("motion-vectors");
+    }
+
+    /**
      * On init, append form and hide until SDXL gets selected
      */
     async initialize() {
@@ -160,8 +179,7 @@ class AnimationController extends Controller {
                 this.engine.animationInterpolation = values.animationInterpolation;
 
                 if (isEmpty(values.animationEngine) || values.animationEngine === "ad_hsxl") {
-                    this.vector.hide();
-                    this.vectorToolbar.hide();
+                    this.hideMotionVectors();
                     this.engine.animationEngine = "ad_hsxl";
                     this.engine.animationDenoisingIterations = values.animationDenoisingIterations;
                     this.engine.animationLoop = values.animationLoop;
@@ -202,30 +220,24 @@ class AnimationController extends Controller {
                     }
 
                     if (values.stableVideoUseDrag) {
-                        if (values.stableVideoRepeatVectors) {
+                        this.showMotionVectors();
+                        if (values.stableVideoMotionVectorRepeatMode === "extend") {
                             let numCopies = Math.ceil(this.engine.animationFrames/14) - 1;
                             this.vector.setCopies(numCopies);
                             this.engine.motionVectors = this.getOffsetVectors(this.vector.extendedValue);
                         } else {
+                            this.vector.setCopies(0);
                             this.engine.motionVectors = this.getOffsetVectors(this.vector.value);
+                            this.engine.repeatMotionVectors = values.stableVideoMotionVectorRepeatMode === "repeat";
                         }
-                        this.vector.show();
-                        this.vectorToolbar.show();
-                        this.application.container.classList.add("motion-vectors");
                         this.engine.gaussianSigma = values.stableVideoGaussianSigma;
                     } else {
-                        this.application.container.classList.remove("motion-vectors");
-                        this.vector.hide();
-                        this.vectorToolbar.hide();
-                        this.engine.motionVectors = null;
+                        this.hideMotionVectors();
                     }
                }
             } else {
-                this.application.container.classList.remove("motion-vectors");
-                this.vector.hide();
-                this.vectorToolbar.hide();
+                this.hideMotionVectors();
                 this.engine.animationFrames = 0;
-                this.engine.motionVectors = null;
             }
         });
 

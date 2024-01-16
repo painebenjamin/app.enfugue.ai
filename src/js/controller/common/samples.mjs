@@ -22,7 +22,6 @@ import {
     UpscaleFormView,
     DownscaleFormView
 } from "../../forms/enfugue/upscale.mjs";
-import { QuickStableVideoDiffusionFormView } from "../../forms/enfugue/animation.mjs";
 
 const E = new ElementBuilder();
 
@@ -512,39 +511,6 @@ class SamplesController extends Controller {
     }
 
     /**
-     * Opens the image in the SVD dialog
-     */
-    async sendToSVD() {
-        let stableVideoForm = new QuickStableVideoDiffusionFormView(this.config, this.sampleViewer.getDataURL()),
-            stableVideoWindow = await this.spawnWindow(
-                "Stable Video Diffusion",
-                stableVideoForm,
-                this.constructor.stableVideoWindowWidth,
-                this.constructor.stableVideoWindowHeight
-            );
-
-        stableVideoForm.onSubmit(async (values) => {
-            stableVideoForm.clearError();
-            try {
-                let payload = {...values};
-                payload.image = this.sampleViewer.getDataURL();
-                let result = await this.model.post("/invoke/svd", null, null, payload);
-                if (isEmpty(result.uuid)) {
-                    throw "Response did not contain a result.";
-                }
-                this.engine.enableStop();
-                this.engine.startSample = true;
-                this.engine.canvasInvocation(result.uuid, true);
-                this.notify("info", "Success", "Invocation queued, it will begin shortly.");
-                stableVideoForm.enable();
-            } catch(e) {
-                stableVideoForm.setError(e);
-                stableVideoForm.enable();
-            }
-        });
-    }
-
-    /**
      * The callback when the toolbar has been entered
      */
     async toolbarEntered() {
@@ -647,7 +613,7 @@ class SamplesController extends Controller {
             this.closeVideoPlayer();
         }
         this.video = newVideo;
-        if (!isEmpty(newVideo)) {
+        if (!isEmpty(newVideo) && this.isAnimation) {
             this.videoToolsMenu.show();
             this.spawnVideoPlayer();
         } else {

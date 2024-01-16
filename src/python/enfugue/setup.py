@@ -56,7 +56,9 @@ install_requires = [
     "timm>=0.9.2,<1.0",
     "opensimplex>=0.4.5,<0.5",
     "sentencepiece>=0.1",
-    "compel>=2.0"
+    "compel>=2.0",
+    "open-clip-torch>=2.20",
+    "xformers>=0.0.20",
 ]
 
 extras_require = {
