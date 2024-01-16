@@ -58,11 +58,13 @@ install_requires = [
     "sentencepiece>=0.1",
     "compel>=2.0",
     "open-clip-torch>=2.20",
-    "xformers>=0.0.20",
 ]
 
 extras_require = {
     "directml": ["torch-directml==0.1.13.1.dev230413"],
+    "xformers": [
+        "xformers>=0.0.20",
+    ],
     "tensorrt": [
         "polygraphy>=0.47,<0.48",
         "onnx==1.12",
