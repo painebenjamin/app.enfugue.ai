@@ -3,7 +3,7 @@
 import os
 import sys
 
-sys.setrecursionlimit(sys.getrecursionlimit() * 5)
+sys.setrecursionlimit(sys.getrecursionlimit() * 10)
 
 from PyInstaller.utils.hooks import (
     collect_data_files,
