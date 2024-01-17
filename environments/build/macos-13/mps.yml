@@ -67,7 +67,7 @@ dependencies:
     - diffusers>=0.25.0
     - moviepy>=1.0
     - open-clip-torch>=2.20
-    - pyinstaller-hooks-contrib==2023.11
+    - pyinstaller-hooks-contrib==2023.10
     - git+https://github.com/CompVis/taming-transformers.git@master#egg=taming-transformers
     - git+https://github.com/openai/CLIP.git@main#egg=clip
     - git+https://github.com/CompVis/stable-diffusion.git@main#egg=latent-diffusion
