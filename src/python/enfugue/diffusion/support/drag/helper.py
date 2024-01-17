@@ -46,7 +46,6 @@ class DragAnimatorProcessor:
         num_frames: int=14,
         frame_window_size: int=14,
         num_inference_steps: int=25,
-        optical_flow: Optional[Dict[OPTICAL_FLOW_METHOD_LITERAL, List[List[Image]]]] = None,
         motion_vectors: List[List[MotionVectorPointDict]] = [],
         motion_vector_repeat_window: bool = False,
         progress_callback: Optional[Callable[[int, int, float], None]]=None,
@@ -57,15 +56,10 @@ class DragAnimatorProcessor:
         Executes the network
         """
         import torch
-        import numpy as np
         from torchvision import transforms, utils
         from PIL import Image
         from einops import repeat, rearrange
-        from enfugue.diffusion.util import (
-            Video,
-            motion_vector_conditioning_tensor,
-            optical_flow_conditioning_tensor,
-        )
+        from enfugue.diffusion.util import motion_vector_conditioning_tensor
 
         # Set args
         self.network.args.width = width
@@ -93,25 +87,6 @@ class DragAnimatorProcessor:
         if motion_vector_repeat_window:
             # Repeat condition
             condition = condition.repeat(num_iterations, 1, 1, 1)[:num_frames-num_zero_frames, :, :, :]
-
-        # Calculate optical flow and add to condition
-        if optical_flow:
-            for optical_flow_method in optical_flow:
-                for image_sequence in optical_flow[optical_flow_method]:
-                    image_sequence = image_sequence[:condition_frames]
-                    sequence_gaussian_sigma: Optional[int] = None
-                    if optical_flow_method == "lucas-kanade":
-                        flow = Video(image_sequence).sparse_flow()
-                        sequence_gaussian_sigma = gaussian_sigma
-                    else:
-                        flow = Video(image_sequence).dense_flow(optical_flow_method)
-                    sequence_condition = optical_flow_conditioning_tensor(
-                        np.array([flow_frame for flow_frame in flow]),
-                        gaussian_sigma=sequence_gaussian_sigma,
-                        device=self.device,
-                        dtype=self.dtype
-                    )
-                    condition[0:sequence_condition.shape[0]] += sequence_condition[:condition.shape[0]]
 
         # Insert zero-frames
         for i in range(num_zero_frames):
@@ -267,7 +242,6 @@ class DragAnimatorPipeline:
         num_inference_steps: int=25,
         min_guidance_scale: float=1.0,
         max_guidance_scale: float=3.0,
-        optical_flow: Optional[Dict[OPTICAL_FLOW_METHOD_LITERAL, List[List[Image]]]] = None,
         progress_callback: Optional[Callable[[int, int, float], None]]=None,
         motion_vector_repeat_window: bool=False,
         latent_callback: Optional[Callable[[Tensor, int], None]]=None,
@@ -288,7 +262,6 @@ class DragAnimatorPipeline:
             num_inference_steps=num_inference_steps,
             min_guidance_scale=min_guidance_scale,
             max_guidance_scale=max_guidance_scale,
-            optical_flow=optical_flow,
             motion_vectors=motion_vectors,
             motion_bucket_id=motion_bucket_id,
             batch_size=batch_size,

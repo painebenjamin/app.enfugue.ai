@@ -127,7 +127,6 @@ class LayeredInvocation:
     max_guidance_scale: float=3.0
     # dragnuwa
     motion_vectors: Optional[List[List[MotionVectorPointDict]]]=None
-    optical_flow: Optional[Dict[OPTICAL_FLOW_METHOD_LITERAL, Union[List[Image],List[List[Image]]]]]=None
     motion_vector_repeat_window: bool=False
     gaussian_sigma: int=20
     # img2img
@@ -1766,32 +1765,10 @@ class LayeredInvocation:
             "motion_bucket_id": self.motion_bucket_id
         }
 
-        if self.motion_vectors or self.optical_flow:
+        if self.motion_vectors:
             svd_kwargs["motion_vectors"] = self.motion_vectors
             svd_kwargs["motion_vector_repeat_window"] = self.motion_vector_repeat_window
             svd_kwargs["gaussian_sigma"] = self.gaussian_sigma
-            if self.optical_flow:
-                optical_flow = {}
-                for method in self.optical_flow:
-                    frame_lists = self.optical_flow[method]
-                    if not frame_lists:
-                        continue
-                    if not isinstance(frame_lists[0], list):
-                        frame_lists = [frame_lists]
-                    optical_flow[method] = [
-                        [
-                            self.prepare_image(
-                                width=self.width,
-                                height=self.height,
-                                image=frame,
-                                animation_frames=self.animation_frames,
-                                return_mask=False
-                            )
-                            for frame in frame_list
-                        ]
-                        for frame_list in frame_lists
-                    ]
-            svd_kwargs["optical_flow"] = optical_flow
             logger.debug(f"Calling DragNUWA pipeline with arguments {redact_for_log(svd_kwargs)}")
             frames = pipeline.dragnuwa_img2vid(
                 task_callback=task_callback,

@@ -4823,7 +4823,6 @@ class DiffusionPipelineManager:
         self,
         image: Union[str, PIL.Image.Image],
         motion_vectors: List[List[MotionVectorPointDict]],
-        optical_flow: Dict[OPTICAL_FLOW_METHOD_LITERAL, List[List[PIL.Image.Image]]]={},
         motion_vector_repeat_window: bool=False,
         decode_chunk_size: Optional[int]=1,
         num_frames: int=14,
@@ -4929,7 +4928,6 @@ class DiffusionPipelineManager:
                 num_inference_steps=num_inference_steps,
                 min_guidance_scale=min_guidance_scale,
                 max_guidance_scale=max_guidance_scale,
-                optical_flow=optical_flow,
                 progress_callback=progress_callback,
                 latent_callback=latent_callback,
                 latent_callback_steps=image_callback_steps
