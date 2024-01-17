@@ -125,7 +125,8 @@ __all__ = [
     "LATENT_BLEND_METHOD_LITERAL",
     "NOISE_METHOD_LITERAL",
     "IP_ADAPTER_LITERAL",
-    "ANIMATION_ENGINE_LITERAL"
+    "ANIMATION_ENGINE_LITERAL",
+    "OPTICAL_FLOW_METHOD_LITERAL"
 ]
 
 DEFAULT_MODEL = "https://huggingface.co/runwayml/stable-diffusion-v1-5/resolve/main/v1-5-pruned.ckpt"
@@ -233,6 +234,9 @@ IP_ADAPTER_LITERAL = Literal[
 ]
 ANIMATION_ENGINE_LITERAL = Literal[
     "ad_hsxl", "svd"
+]
+OPTICAL_FLOW_METHOD_LITERAL = Literal[
+    "lucas-kanade", "dense-lucas-kanade", "farneback", "rlof"
 ]
 
 # VAE repos/files

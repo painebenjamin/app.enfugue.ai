@@ -19,6 +19,7 @@ def main() -> None:
         from enfugue.diffusion.util import Video
         from enfugue.diffusion.util.torch_util import (
             motion_vector_conditioning_tensor,
+            flow_condition_to_image_sequence,
             tensor_to_image,
         )
 
@@ -73,17 +74,11 @@ def main() -> None:
                 [{"anchor": [591, 398]}, {"anchor": [539, 390]}],
             ],
         )
-        motion_min = torch.min(tensor)
-        motion_max = torch.max(tensor)
-        tensor = (tensor - motion_min) / (motion_max - motion_min)
-        f, h, w, c = tensor.shape
-        tensor = torch.cat([tensor[:, :, :, 1:2].clone(), tensor], dim=3)
-        Video(
-            [
-                tensor_to_image(rearrange(tensor[i], "h w c -> c h w"))
-                for i in range(tensor.shape[0])
-            ]
-        ).save(os.path.join(save_dir, "motion.gif"), overwrite=True, rate=20.0)
+        Video(flow_condition_to_image_sequence(tensor)).save(
+            os.path.join(save_dir, "motion.gif"),
+            overwrite=True,
+            rate=20.0
+        )
 
 
 if __name__ == "__main__":

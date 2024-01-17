@@ -6,9 +6,6 @@ from webob import Request, Response
 
 from typing import Any, Union, Dict
 
-from lxml import etree as ET
-from lxml.builder import E
-
 from pibble.util.helpers import url_join
 from pibble.util.imaging import contrast_color
 from pibble.util.strings import snake_case, encode, Serializer
@@ -291,23 +288,13 @@ class EnfugueInterfaceServer(
         """
         app_color = self.configuration.get("server.cms.context.base.meta.theme-color", "#ffffff")
         response.content_type = "application/xml"
-        response.body = ET.tostring(
-            E.browserconfig(
-                E.msapplication(
-                    E.tile(
-                        E(
-                            "square{0}logo".format(self.configuration["server.cms.context.base.windows.icon.size"]),
-                            src=url_join(
-                                self.configuration["server.cms.path.root"],
-                                self.configuration["server.cms.context.base.windows.icon.href"],
-                            ),
-                        ),
-                        E.TileColor(app_color),
-                    )
-                )
+        response.text = "<?xml version='1.0' encoding='utf-8'?><browserconfig><msapplication><tile><square{0}logo src=\"{1}\"/><TileColor>{2}</TileColor></tile></msapplication></browserconfig>".format(
+            self.configuration["server.cms.context.base.windows.icon.size"],
+            url_join(
+                self.configuration["server.cms.path.root"],
+                self.configuration["server.cms.context.base.windows.icon.href"],
             ),
-            xml_declaration=True,
-            encoding="utf-8",
+            app_color
         )
 
     @handlers.bypass(

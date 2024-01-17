@@ -161,6 +161,7 @@ class GridMaker:
                 else:
                     target_image = grid
                     target_draw = draw
+
                 # Paste the image on the grid
                 target_image.paste(
                     image,

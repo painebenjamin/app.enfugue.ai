@@ -1580,12 +1580,12 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 image = [image]
 
             if isinstance(image, list) and isinstance(image[0], PIL.Image.Image):
-                image = [np.array(i.convert("RGB"))[None, :] for i in image]
+                image = [np.array(i.convert("RGB"))[None, :] for i in image] # type: ignore[index]
                 image = np.concatenate(image, axis=0)
             elif isinstance(image, list) and isinstance(image[0], np.ndarray):
                 image = np.concatenate([i[None, :] for i in image], axis=0)
 
-            image = image.transpose(0, 3, 1, 2)
+            image = image.transpose(0, 3, 1, 2) # type: ignore[attr-defined]
             image = torch.from_numpy(image).to(dtype=torch.float32) / 127.5 - 1.0
 
             # preprocess mask
@@ -1593,7 +1593,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 mask = [mask]
 
             if isinstance(mask, list) and isinstance(mask[0], PIL.Image.Image):
-                mask = np.concatenate([np.array(m.convert("L"))[None, None, :] for m in mask], axis=0)
+                mask = np.concatenate([np.array(m.convert("L"))[None, None, :] for m in mask], axis=0) # type: ignore[index]
                 mask = mask.astype(np.float32) / 255.0
             elif isinstance(mask, list) and isinstance(mask[0], np.ndarray):
                 mask = np.concatenate([m[None, None, :] for m in mask], axis=0)
@@ -2066,7 +2066,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                 image = images
 
                 image = np.concatenate(image, axis=0)
-                image = np.array(image).astype(np.float32) / 255.0
+                image = np.array(image).astype(np.float32) / 255.0 # type: ignore[attr-defined]
                 image = image.transpose(0, 3, 1, 2)
                 image = torch.from_numpy(image)
             elif isinstance(image[0], torch.Tensor):
@@ -2125,13 +2125,13 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         """
         Combines the image and mask into a condition for controlnet inpainting.
         """
-        image = np.array(image.convert("RGB")).astype(np.float32) / 255.0
-        mask = np.array(mask.convert("L")).astype(np.float32) / 255.0
+        image = np.array(image.convert("RGB")).astype(np.float32) / 255.0 # type: ignore[attr-defined]
+        mask = np.array(mask.convert("L")).astype(np.float32) / 255.0 # type: ignore[attr-defined]
 
         assert image.shape[0:1] == mask.shape[0:1], "image and image_mask must have the same image size"
         image[mask > 0.5] = -1.0  # set as masked pixel
 
-        image = np.expand_dims(image, 0).transpose(0, 3, 1, 2)
+        image = np.expand_dims(image, 0).transpose(0, 3, 1, 2) # type: ignore[attr-defined]
         image = torch.from_numpy(image)
 
         return image.to(device=device, dtype=dtype)

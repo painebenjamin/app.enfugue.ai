@@ -1,11 +1,14 @@
 from __future__ import annotations
+
 import os
-from typing import TYPE_CHECKING, Optional, Iterator, Callable, Iterable, Tuple
-from enfugue.util import logger
+from typing import TYPE_CHECKING, Optional, Iterator, Callable, Iterable, Literal, List, Union, Tuple
+from enfugue.util import logger, reiterator
 
 if TYPE_CHECKING:
+    from numpy import ndarray as NDArray
     from PIL.Image import Image
     from moviepy.editor import VideoFileClip
+    from enfugue.util.images import IMAGE_FIT_LITERAL, IMAGE_ANCHOR_LITERAL
     from enfugue.diffusion.util.audio_util.helper import Audio
 
 __all__ = ["Video"]
@@ -30,7 +33,7 @@ class Video:
         audio_frames: Optional[Iterable[Tuple[float]]]=None,
         audio_rate: Optional[int]=None,
     ) -> None:
-        self.frames = frames
+        self.frames = reiterator(frames)
         self.frame_rate = frame_rate
         if audio is not None:
             self.audio = audio
@@ -59,7 +62,7 @@ class Video:
             os.unlink(path)
         basename, ext = os.path.splitext(os.path.basename(path))
         if ext in [".gif", ".png", ".tiff", ".webp"]:
-            frames = [frame for frame in self.frames]
+            frames = [frame for frame in self.frames] # type: ignore[attr-defined]
             if rate > 50:
                 logger.warning(f"Rate {rate} exceeds maximum frame rate (50), clamping.")
                 rate = 50
@@ -71,7 +74,7 @@ class Video:
         from moviepy.editor import ImageSequenceClip
         import numpy as np
 
-        clip_frames = [np.array(frame) for frame in self.frames]
+        clip_frames = [np.array(frame) for frame in self.frames] # type: ignore[attr-defined]
         clip = ImageSequenceClip(clip_frames, fps=rate)
 
         if self.audio is not None:
@@ -91,7 +94,11 @@ class Video:
         path: str,
         skip_frames: Optional[int] = None,
         maximum_frames: Optional[int] = None,
-        resolution: Optional[int] = None,
+        divide_frames: Optional[int] = None,
+        width: Optional[int] = None,
+        height: Optional[int] = None,
+        fit: Optional[IMAGE_FIT_LITERAL] = None,
+        anchor: Optional[IMAGE_ANCHOR_LITERAL] = None,
         on_open: Optional[Callable[[VideoFileClip], None]] = None,
     ) -> Iterator[Image]:
         """
@@ -116,7 +123,7 @@ class Video:
         frames = 0
 
         frame_start = 0 if skip_frames is None else skip_frames
-        frame_end = None if maximum_frames is None else frame_start + maximum_frames - 1
+        frame_end = None if maximum_frames is None else frame_start + (maximum_frames * (1 if not divide_frames else divide_frames)) - 1
 
         frame_string = "end-of-video" if frame_end is None else f"frame {frame_end}"
         logger.debug(f"Reading video file at {path} starting from frame {frame_start} until {frame_string}")
@@ -132,14 +139,17 @@ class Video:
             """
             Resizes an image frame if requested.
             """
-            if resolution is None:
+            if width is None or height is None:
                 return image
 
-            width, height = image.size
-            ratio = float(resolution) / float(min(width, height))
-            height = round(height * ratio)
-            width = round(width * ratio)
-            return image.resize((width, height))
+            from enfugue.util import fit_image
+            return fit_image(
+                image,
+                width=width,
+                height=height,
+                fit=fit,
+                anchor=anchor
+            )
 
         for frame in clip.iter_frames():
             if frames == 0:
@@ -148,7 +158,8 @@ class Video:
             frames += 1
             if frame_start > frames:
                 continue
-
+            if divide_frames is not None and (frames - frame_start) % divide_frames != 0:
+                continue
             yield resize_image(Image.fromarray(frame))
 
             if frame_end is not None and frames >= frame_end:
@@ -163,7 +174,11 @@ class Video:
         path: str,
         skip_frames: Optional[int] = None,
         maximum_frames: Optional[int] = None,
-        resolution: Optional[int] = None,
+        divide_frames: Optional[int] = None,
+        width: Optional[int] = None,
+        height: Optional[int] = None,
+        fit: Optional[IMAGE_FIT_LITERAL] = None,
+        anchor: Optional[IMAGE_ANCHOR_LITERAL] = None,
         on_open: Optional[Callable[[VideoFileClip], None]] = None,
     ) -> Video:
         """
@@ -173,8 +188,105 @@ class Video:
             frames=cls.file_to_frames(
                 path=path,
                 skip_frames=skip_frames,
+                divide_frames=divide_frames,
                 maximum_frames=maximum_frames,
-                resolution=resolution,
+                width=width,
+                height=height,
+                fit=fit,
+                anchor=anchor,
                 on_open=on_open,
             )
         )
+
+    def dense_flow(
+        self,
+        method: Literal["dense-lucas-kanade", "farneback", "rlof"] = "dense-lucas-kanade",
+        farneback_params: List[Union[int, float]] = [0.5, 3, 15, 3, 5, 1.2, 0],
+    ) -> Iterator[NDArray]:
+        """
+        Calculates dense flow between frames and yields the numpy array
+        """
+        from enfugue.diffusion.util.vision_util import ComputerVision
+        from PIL.Image import Image
+        last_frame: Optional[Image] = None
+        for frame in self.frames: # type: ignore[attr-defined]
+            if last_frame is not None:
+                flow = ComputerVision.dense_flow(
+                    image_1=last_frame,
+                    image_2=frame,
+                    method=method,
+                    farneback_params=farneback_params
+                )
+                yield flow
+            last_frame = frame
+
+    def sparse_flow(
+        self,
+        feature_max_corners: int=100,
+        feature_quality_level: float=0.3,
+        feature_min_distance: int=7,
+        feature_block_size: int=10,
+        lk_window_size: Tuple[int, int]=(15, 15),
+        lk_max_level: int=2,
+        lk_criteria: Tuple[int, int, float]=(3, 10, 0.03),
+    ) -> Iterator[NDArray]:
+        """
+        Calculates dense flow between frames and yields the numpy array
+        """
+        from enfugue.diffusion.util.vision_util import ComputerVision
+        from PIL.Image import Image
+        last_frame: Optional[Image] = None
+        features: Optional[NDArray] = None
+        for frame in self.frames: # type: ignore[attr-defined]
+            if last_frame is not None:
+                flow, features = ComputerVision.sparse_flow(
+                    image_1=last_frame,
+                    image_2=frame,
+                    features=features, # type: ignore[arg-type]
+                    lk_window_size=lk_window_size,
+                    lk_max_level=lk_max_level,
+                    lk_criteria=lk_criteria,
+                    feature_max_corners=feature_max_corners,
+                    feature_quality_level=feature_quality_level,
+                    feature_min_distance=feature_min_distance,
+                    feature_block_size=feature_block_size
+                )
+                yield flow
+            last_frame = frame
+
+    def dense_flow_image(
+        self,
+        method: Literal["dense-lucas-kanade", "farneback", "rlof"] = "dense-lucas-kanade",
+        farneback_params: List[Union[int, float]] = [0.5, 3, 15, 3, 5, 1.2, 0],
+    ) -> Iterator[Image]:
+        """
+        Calculates dense flow and returns as images
+        """
+        from enfugue.diffusion.util.vision_util import ComputerVision
+        for flow in self.dense_flow(method=method, farneback_params=farneback_params):
+            yield ComputerVision.flow_to_image(flow)
+
+    def sparse_flow_image(
+        self,
+        feature_max_corners: int=100,
+        feature_quality_level: float=0.3,
+        feature_min_distance: int=7,
+        feature_block_size: int=7,
+        lk_window_size: Tuple[int, int]=(15, 15),
+        lk_max_level: int=2,
+        lk_criteria: Tuple[int, int, float]=(3, 10, 0.03),
+    ) -> Iterator[NDArray]:
+        """
+        Calculates sparse flow and returns as images
+        """
+        from enfugue.diffusion.util.vision_util import ComputerVision
+        for flow in self.sparse_flow(
+            feature_max_corners=feature_max_corners,
+            feature_quality_level=feature_quality_level,
+            feature_min_distance=feature_min_distance,
+            feature_block_size=feature_block_size,
+            lk_window_size=lk_window_size,
+            lk_max_level=lk_max_level,
+            lk_criteria=lk_criteria
+        ):
+            yield ComputerVision.flow_to_image(flow)

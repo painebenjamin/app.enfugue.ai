@@ -4,6 +4,7 @@ from typing import Optional, Union, Tuple, List, TYPE_CHECKING
 from enfugue.diffusion.constants import MotionVectorPointDict
 
 if TYPE_CHECKING:
+    import numpy.ndarray as NDArray
     from torch import (
         Tensor,
         device as Device,
@@ -24,7 +25,8 @@ __all__ = [
     "get_gaussian_kernel",
     "apply_gaussian_kernel",
     "motion_vector_conditioning_tensor",
-    "motion_vector_to_image_sequence"
+    "optical_flow_conditioning_tensor",
+    "flow_condition_to_image_sequence"
 ]
 
 def linear_length(
@@ -294,11 +296,41 @@ def apply_gaussian_kernel(
         "l c h w -> l h w c"
     )
 
+def optical_flow_conditioning_tensor(
+    flow: NDArray,
+    gaussian_kernel_size: Optional[int]=199,
+    gaussian_sigma: Optional[int]=None,
+    device: Optional[Union[str, Device]]=None,
+    dtype: Optional[DType]=None,
+) -> Tensor:
+    """
+    Turns an optical flow result from CV into a conditioning tensor
+    """
+    import torch
+    condition = torch.tensor(flow)
+    if device is not None:
+        condition = condition.to(device=device)
+    if dtype is not None:
+        condition = condition.to(dtype=dtype)
+    if gaussian_sigma is not None and gaussian_kernel_size is not None:
+        condition = apply_gaussian_kernel(
+            condition,
+            kernel_size=gaussian_kernel_size,
+            sigma=gaussian_sigma
+        )
+
+    f, h, w, c = condition.shape
+
+    return torch.cat([
+        torch.zeros((1, h, w, 2), device=device, dtype=dtype),
+        condition
+    ], dim=0)
+
 def motion_vector_conditioning_tensor(
     width: int,
     height: int,
     frames: int,
-    motion_vectors: List[List[MotionVectorPointDict]],
+    motion_vectors: Optional[List[List[MotionVectorPointDict]]],
     gaussian_kernel_size: int=199,
     gaussian_sigma: int=20,
     device: Optional[Union[str, Device]]=None,
@@ -315,6 +347,8 @@ def motion_vector_conditioning_tensor(
         condition = condition.to(device=device)
     if dtype is not None:
         condition = condition.to(dtype=dtype)
+    if not motion_vectors:
+        motion_vectors = []
     for motion_vector in motion_vectors:
         all_points = [motion_vector[0]["anchor"]]
         for i in range(frames - 3):
@@ -347,23 +381,12 @@ def motion_vector_conditioning_tensor(
         ),
     ], dim=0)
 
-def motion_vector_to_image_sequence(motion_vector: Tensor) -> List[Image]:
+def flow_condition_to_image_sequence(flow: Tensor) -> List[Image]:
     """
-    Converts the motion vector to an image sequence
+    Converts the motion vector to an image sequence for debugging
     """
-    import torch
-    from enfugue.diffusion.util.torch_util.dtype_util import tensor_to_image
-    from einops import rearrange
-    # Scale vector between 0, 1
-    motion_min, motion_max = torch.aminmax(motion_vector)
-    motion_vector = (motion_vector - motion_min) / (motion_max - motion_min)
-    # Add copy of final channel for blue channel
-    motion_vector = torch.cat([
-        motion_vector[:, :, :, 1:2].clone(),
-        motion_vector
-    ], dim=3)
-    # Convert tensors to images
+    from enfugue.diffusion.util.vision_util import ComputerVision
     return [
-        tensor_to_image(rearrange(motion_vector[i], "h w c -> c h w"))
-        for i in range(motion_vector.shape[0])
+        ComputerVision.flow_to_image(frame.float().cpu().numpy())
+        for frame in flow
     ]

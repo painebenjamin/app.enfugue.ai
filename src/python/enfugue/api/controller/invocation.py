@@ -393,7 +393,9 @@ class EnfugueAPIInvocationController(EnfugueAPIControllerBase):
                 Video.file_to_frames(
                     video_path,
                     on_open=on_open,
-                    resolution=self.thumbnail_height
+                    width=self.thumbnail_height,
+                    height=self.thumbnail_height,
+                    fit="contain",
                 )
             ] # Memoize so we capture rate
             Video(frames).save(
