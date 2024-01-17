@@ -71,8 +71,8 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install libatlas-base-dev
-        pip uninstall opencv-python -y
-        pip install opencv-python==4.6.0.66
+        pip uninstall opencv-python opencv-python-headless -y
+        pip install opencv-python==4.6.0.66 opencv-python-headless==4.6.0.66
     - name: Install additional TensorRT Dependencies
       if: ${{ contains(inputs.os, 'ubuntu') && contains(inputs.api, 'tensorrt') }}
       run: |
