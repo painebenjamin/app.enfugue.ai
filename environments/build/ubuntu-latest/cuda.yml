@@ -12,7 +12,7 @@ dependencies:
   - make=4.3
   - nodejs
   - ffmpeg
-  - opencv=4.8.1
+  - opencv=4.9.0
   - openh264
   - git
   - pip:
@@ -71,8 +71,6 @@ dependencies:
     - xformers>=0.0.20
     - open_clip_torch>=2.12.0
     - pyinstaller-hooks-contrib==2023.11
-    - opencv-python==4.8.1.78
-    - opencv-python-headless==4.8.1.78
     - git+https://github.com/CompVis/taming-transformers.git@master#egg=taming-transformers
     - git+https://github.com/openai/CLIP.git@main#egg=clip
     - git+https://github.com/CompVis/stable-diffusion.git@main#egg=latent-diffusion
