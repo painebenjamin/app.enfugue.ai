@@ -82,17 +82,17 @@ class SupportModel:
         else:
             existing_path = find_file_in_directory(self.model_dir, filename)
         if existing_path is not None:
-            return existing_path # Already downloaded somewhere (can be nested)
-        if uri.startswith("http"):
+            local_path = existing_path
+        else:
             local_path = os.path.join(self.model_dir, filename)
-            if not os.path.exists(local_path):
-                if self.offline:
-                    raise IOError(f"Offline mode is enabled and could not find requested model file at {local_path}")
-                elif self.task_callback is not None:
-                    self.task_callback(f"Downloading {uri}")
-            check_download(uri, local_path, check_size=False)
-            return local_path
-        raise IOError(f"Cannot retrieve model file {uri}")
+        if not os.path.exists(local_path) and self.offline:
+            raise IOError(f"Offline mode is enabled and could not find requested model file at {local_path}")
+        check_download(
+            uri,
+            local_path,
+            text_callback=self.task_callback
+        )
+        return local_path
 
     @classmethod
     def get_default_instance(cls) -> SupportModel:

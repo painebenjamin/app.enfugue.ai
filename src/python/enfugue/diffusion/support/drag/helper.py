@@ -25,7 +25,14 @@ class DragAnimatorProcessor:
     """
     Calls DragNUWA
     """
-    def __init__(self, network: DragNUWANet, device: Device, dtype: DType) -> None:
+    def __init__(
+        self,
+        model_dir: str,
+        network: DragNUWANet,
+        device: Device,
+        dtype: DType
+    ) -> None:
+        self.model_dir = model_dir
         self.network = network
         self.device = device
         self.dtype = dtype
@@ -97,21 +104,43 @@ class DragAnimatorProcessor:
         # Calculate optical flow and add to condition
         if optical_flow:
             for optical_flow_method in optical_flow:
-                for image_sequence in optical_flow[optical_flow_method]:
-                    image_sequence = image_sequence[:condition_frames]
-                    sequence_gaussian_sigma: Optional[int] = None
-                    if optical_flow_method == "lucas-kanade":
-                        flow = Video(image_sequence).sparse_flow()
-                        sequence_gaussian_sigma = gaussian_sigma
-                    else:
-                        flow = Video(image_sequence).dense_flow(optical_flow_method)
-                    sequence_condition = optical_flow_conditioning_tensor(
-                        np.array([flow_frame for flow_frame in flow]),
-                        gaussian_sigma=sequence_gaussian_sigma,
+                if optical_flow_method == "unimatch":
+                    from enfugue.diffusion.support.unimatch import Unimatch
+                    with Unimatch(
+                        model_dir=self.model_dir,
                         device=self.device,
                         dtype=self.dtype
-                    )
-                    condition[0:sequence_condition.shape[0]] += sequence_condition[:condition.shape[0]]
+                    ).flow() as get_flow:
+                        for image_sequence in optical_flow[optical_flow_method]:
+                            image_sequence = image_sequence[:condition_frames]
+                            sequence_condition = optical_flow_conditioning_tensor(
+                                np.array([
+                                    get_flow(
+                                        image_sequence[i],
+                                        image_sequence[i+1]
+                                    )
+                                    for i in range(len(image_sequence)-1)
+                                ]),
+                                device=self.device,
+                                dtype=self.dtype
+                            )
+                            condition[0:sequence_condition.shape[0]] += sequence_condition[:condition.shape[0]]
+                else:
+                    for image_sequence in optical_flow[optical_flow_method]:
+                        image_sequence = image_sequence[:condition_frames]
+                        sequence_gaussian_sigma: Optional[int] = None
+                        if optical_flow_method == "lucas-kanade":
+                            flow = Video(image_sequence).sparse_flow()
+                            sequence_gaussian_sigma = gaussian_sigma
+                        else:
+                            flow = Video(image_sequence).dense_flow(optical_flow_method)
+                        sequence_condition = optical_flow_conditioning_tensor(
+                            np.array([flow_frame for flow_frame in flow]),
+                            gaussian_sigma=sequence_gaussian_sigma,
+                            device=self.device,
+                            dtype=self.dtype
+                        )
+                        condition[0:sequence_condition.shape[0]] += sequence_condition[:condition.shape[0]]
 
         # Insert zero-frames
         for i in range(num_zero_frames):
@@ -344,6 +373,7 @@ class DragAnimator(SupportModel):
                 dtype=self.dtype
             )
             processor = DragAnimatorProcessor(
+                model_dir=self.model_dir,
                 network=network,
                 device=self.device,
                 dtype=self.dtype

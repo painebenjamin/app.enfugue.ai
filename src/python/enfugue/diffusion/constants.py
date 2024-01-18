@@ -38,6 +38,7 @@ __all__ = [
     "PLAYGROUND_V2_MODEL",
     "SEGMIND_VEGA_MODEL",
     "OPEN_DALLE_MODEL",
+    "ANIMAGINE_MODEL",
     "VAE_EMA",
     "VAE_MSE",
     "VAE_XL",
@@ -140,6 +141,7 @@ OPEN_DALLE_MODEL = "https://huggingface.co/dataautogpt3/OpenDalleV1.1/resolve/ma
 PLAYGROUND_V2_MODEL = "https://huggingface.co/playgroundai/playground-v2-1024px-aesthetic/resolve/main/playground-v2.fp16.safetensors"
 SEGMIND_VEGA_MODEL = "https://huggingface.co/segmind/Segmind-Vega/resolve/main/segmind-vega.safetensors"
 SDXL_TURBO_MODEL = "https://huggingface.co/stabilityai/sdxl-turbo/resolve/main/sd_xl_turbo_1.0_fp16.safetensors"
+ANIMAGINE_MODEL = "https://huggingface.co/cagliostrolab/animagine-xl-3.0/resolve/main/animagine-xl-3.0.safetensors"
 
 DEFAULT_CHECKPOINT_DIR = os.path.expanduser("~/.cache/enfugue/checkpoint")
 DEFAULT_INVERSION_DIR = os.path.expanduser("~/.cache/enfugue/inversion")
@@ -236,7 +238,7 @@ ANIMATION_ENGINE_LITERAL = Literal[
     "ad_hsxl", "svd"
 ]
 OPTICAL_FLOW_METHOD_LITERAL = Literal[
-    "lucas-kanade", "dense-lucas-kanade", "farneback", "rlof"
+    "lucas-kanade", "dense-lucas-kanade", "farneback", "rlof", "unimatch"
 ]
 
 # VAE repos/files

@@ -56,18 +56,18 @@ def directml_available() -> bool:
     except:
         return False
 
-def get_optimal_device() -> Device:
+def get_optimal_device(device_index: Optional[int] = None) -> Device:
     """
     Gets the optimal device based on availability.
     """
     import torch
     if cuda_available():
-        return torch.device("cuda")
+        return torch.device("cuda", 0 if device_index is None else device_index)
     elif directml_available():
         import torch_directml
         return torch_directml.device()
     elif mps_available():
-        return torch.device("mps")
+        return torch.device("mps", 0 if device_index is None else device_index)
     return torch.device("cpu")
 
 def get_ram_info() -> Tuple[int, int]:

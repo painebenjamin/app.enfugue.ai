@@ -6,12 +6,15 @@ from typing import Optional, Callable, Union, BinaryIO, Iterator
 from contextlib import contextmanager
 
 from enfugue.util.log import logger
+from pibble.util.numeric import human_size
+from enfugue.util.misc import human_duration
 
 __all__ = [
     "check_download",
     "check_download_to_dir",
     "get_file_name_from_url",
     "get_domain_from_url",
+    "get_download_text_callback"
 ]
 
 def get_domain_from_url(url: str) -> str:
@@ -50,6 +53,7 @@ def check_download(
     check_size: bool=True,
     resume_size: int = 0,
     progress_callback: Optional[Callable[[int, int], None]]=None,
+    text_callback: Optional[Callable[[str], None]]=None
 ) -> None:
     """
     Checks if a file exists.
@@ -68,6 +72,17 @@ def check_download(
     headers = {}
     if resume_size is not None:
         headers["Range"] = f"bytes={resume_size:d}-"
+
+    if text_callback is not None:
+        progress_text_callback = get_download_text_callback(remote_url, text_callback)
+        original_progress_callback = progress_callback
+
+        def new_progress_callback(written: int, total: int) -> None:
+            progress_text_callback(written, total)
+            if original_progress_callback is not None:
+                original_progress_callback(written, total)
+
+        progress_callback = new_progress_callback
 
     if not isinstance(target, str) or not os.path.exists(target):
         @contextmanager
@@ -97,6 +112,7 @@ def check_download_to_dir(
     chunk_size: int=8192,
     check_size: bool=True,
     progress_callback: Optional[Callable[[int, int], None]]=None,
+    text_callback: Optional[Callable[[str], None]]=None
 ) -> str:
     """
     Checks if a file exists in a directory based on a remote path.
@@ -113,6 +129,45 @@ def check_download_to_dir(
         local_path,
         chunk_size=chunk_size,
         check_size=check_size,
-        progress_callback=progress_callback
+        progress_callback=progress_callback,
+        text_callback=text_callback
     )
     return local_path
+
+def get_download_text_callback(
+    url: str,
+    callback: Callable[[str], None]
+) -> Callable[[int, int], None]:
+    """
+    Gets the callback that applies during downloads.
+    """
+    from datetime import datetime
+
+    last_callback = datetime.now()
+    last_callback_amount: int = 0
+    bytes_per_second_history = []
+    file_label = "{0} from {1}".format(
+        get_file_name_from_url(url),
+        get_domain_from_url(url)
+    )
+
+    def progress_callback(written_bytes: int, total_bytes: int) -> None:
+        nonlocal last_callback
+        nonlocal last_callback_amount
+        this_callback = datetime.now()
+        this_callback_offset = (this_callback-last_callback).total_seconds()
+        if this_callback_offset > 1:
+            difference = written_bytes - last_callback_amount
+
+            bytes_per_second = difference / this_callback_offset
+            bytes_per_second_history.append(bytes_per_second)
+            bytes_per_second_average = sum(bytes_per_second_history[-10:]) / len(bytes_per_second_history[-10:])
+
+            estimated_seconds_remaining = (total_bytes - written_bytes) / bytes_per_second_average
+            estimated_duration = human_duration(int(estimated_seconds_remaining), compact=True)
+            percentage = (written_bytes / total_bytes) * 100.0
+            callback(f"Downloading {file_label}: {percentage:0.1f}% ({human_size(written_bytes)}/{human_size(total_bytes)}), {human_size(bytes_per_second)}/s, {estimated_duration} remaining")
+            last_callback = this_callback
+            last_callback_amount = written_bytes
+
+    return progress_callback

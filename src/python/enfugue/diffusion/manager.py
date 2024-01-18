@@ -60,7 +60,8 @@ if TYPE_CHECKING:
         BackgroundRemover,
         Interpolator,
         Conversation,
-        DragAnimatorPipeline
+        DragAnimatorPipeline,
+        Unimatch
     )
     from torch import Tensor
 
@@ -255,7 +256,7 @@ class DiffusionPipelineManager:
                 url,
                 out,
                 resume_size=kwargs.pop("resume_size", 0),
-                progress_callback=self.get_download_callback(file_label)
+                text_callback=self.task_callback
             )
 
         huggingface_hub.file_download.http_get = http_get
@@ -282,7 +283,7 @@ class DiffusionPipelineManager:
         check_download(
             remote_url,
             output_path,
-            progress_callback=self.get_download_callback(file_label)
+            text_callback=self.task_callback
         )
 
         return output_path
@@ -386,7 +387,7 @@ class DiffusionPipelineManager:
         if not hasattr(self, "_device"):
             from enfugue.diffusion.util import get_optimal_device
 
-            self._device = get_optimal_device()
+            self._device = get_optimal_device(self.configuration.get("enfugue.gpu", None))
         return self._device
 
     @device.setter
@@ -4171,6 +4172,22 @@ class DiffusionPipelineManager:
             )
             self._interpolator.task_callback = self.task_callback
         return self._interpolator
+
+    @property
+    def unimatch(self) -> Unimatch:
+        """
+        Gets the unimatch.
+        """
+        if not hasattr(self, "_unimatch"):
+            from enfugue.diffusion.support import Unimatch
+            self._unimatch = Unimatch(
+                self.engine_other_dir,
+                device=self.device,
+                dtype=self.dtype,
+                offline=self.offline
+            )
+            self._unimatch.task_callback = self.task_callback
+        return self._unimatch
 
     # Diffusers model getters
 

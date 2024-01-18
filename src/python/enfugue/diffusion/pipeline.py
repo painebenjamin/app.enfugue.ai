@@ -2017,9 +2017,9 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         kwargs: Dict[str, Any] = {}
         if added_cond_kwargs is not None:
             kwargs["added_cond_kwargs"] = added_cond_kwargs
+            self.debug_tensors(**added_cond_kwargs)
         if motion_attention_mask is not None:
             kwargs["motion_attention_mask"] = motion_attention_mask
-
         return self.unet(
             latents,
             timestep,
@@ -2161,10 +2161,11 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
 #            hidden_state_input = encoder_hidden_states.repeat_interleave(frames, dim=0)
             # Then additional conditioning arguments, if passed (XL)
             if added_cond_kwargs:
-                added_cond_input = dict([
-                    (key, tensor.repeat_interleave(frames, dim=0))
-                    for key, tensor in added_cond_kwargs.items()
-                ])
+                added_cond_input = {}
+                if "text_embeds" in added_cond_kwargs:
+                    added_cond_input["text_embeds"] = rearrange(added_cond_kwargs["text_embeds"][:, :, 0, :], "b f d -> (b f) d")
+                if "time_ids" in added_cond_kwargs:
+                    added_cond_input["time_ids"] = added_cond_kwargs["time_ids"].repeat_interleave(frames, dim=0)
             else:
                 added_cond_input = {}
         else:

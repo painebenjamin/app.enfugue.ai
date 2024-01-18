@@ -142,6 +142,20 @@ class GridMaker:
         # Multiply if making a video
         if self.use_video:
             frame_count = max([len(images) for kwargs, label, images, duration in results])
+            def pad_result(
+                result: Tuple[Dict[str, Any], Optional[str], List[Image], Optional[float]]
+            ) -> Tuple[Dict[str, Any], Optional[str], List[Image], Optional[float]]:
+                """
+                Pads frames to the same length (copies pointers, not data)
+                """
+                kwargs, label, images, duration = result
+                result_images = len(images)
+                images = [
+                    images[-1] if i >= result_images else images[i]
+                    for i in range(frame_count)
+                ]
+                return (kwargs, label, images, duration)
+            results = [pad_result(result) for result in results]
             grid = [grid.copy() for i in range(frame_count)]
             draw = [ImageDraw.Draw(image) for image in grid]
         else:

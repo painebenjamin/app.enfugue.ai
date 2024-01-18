@@ -52,6 +52,18 @@ class SystemSettingsFormView extends FormView {
                 }
             }
         },
+        "GPU": {
+            "gpu": {
+                "label": "Device Index",
+                "class": NumberInputView,
+                "config": {
+                    "value": 0,
+                    "min": 0,
+                    "step": 1,
+                    "tooltip": "When you have more than one AI-capable GPU connected to your computer, you may wish to run ENFUGUE on a GPU other than the primary (first) device. Use this value to change the index of the GPU, starting from 0 for the first."
+                }
+            }
+        },
         "Diffusion": {
             "sequential": {
                 "label": "Use Sequential Model Loading",

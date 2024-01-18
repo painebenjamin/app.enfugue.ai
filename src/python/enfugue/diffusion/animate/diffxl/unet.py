@@ -36,13 +36,18 @@ from diffusers.models.embeddings import (
     ImageHintTimeEmbedding,
     ImageProjection,
     ImageTimeEmbedding,
-    PositionNet,
     TextImageProjection,
     TextImageTimeEmbedding,
     TextTimeEmbedding,
     TimestepEmbedding,
     Timesteps,
 )
+
+try:
+    from diffusers.models.embeddings import PositionNet
+except ImportError:
+    from diffusers.models.embeddings import GLIGENTextBoundingboxProjection as PositionNet
+
 from diffusers.models.modeling_utils import ModelMixin
 
 from enfugue.diffusion.animate.diffxl.unet_blocks import (

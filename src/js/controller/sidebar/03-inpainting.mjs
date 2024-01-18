@@ -100,10 +100,12 @@ class InpaintingController extends Controller {
         pencilIncrease.onClick(() => { this.scribbleView.increaseSize(); });
         pencilDecrease.onClick(() => { this.scribbleView.decreaseSize(); });
         hideMask.onClick(() => {
-            if (this.scribbleView.hidden) {
+            if (this.inpaintingHidden === true) {
+                this.inpaintingHidden = false;
                 this.scribbleView.show();
                 hideMask.setIcon("fa-solid fa-eye");
             } else {
+                this.inpaintingHidden = true;
                 this.scribbleView.hide();
                 hideMask.setIcon("fa-solid fa-eye-slash");
             }
@@ -135,7 +137,9 @@ class InpaintingController extends Controller {
     enableInpainting(updateForm = true) {
         this.publish("inpaintEnabled");
         this.application.container.classList.add("inpainting");
-        this.scribbleView.show();
+        if (this.inpaintingHidden !== true) {
+            this.scribbleView.show();
+        }
         this.scribbleToolbar.show();
         this.engine.mask = this.scribbleView.src;
         if (updateForm) {
@@ -219,7 +223,9 @@ class InpaintingController extends Controller {
                 this.inpaintForm.show();
                 if (this.inpaintForm.values.inpaint) {
                     this.engine.mask = this.scribbleView.src;
-                    this.scribbleView.show();
+                    if (this.inpaintingHidden !== true) {
+                        this.scribbleView.show();
+                    }
                     this.scribbleToolbar.show();
                }
             }

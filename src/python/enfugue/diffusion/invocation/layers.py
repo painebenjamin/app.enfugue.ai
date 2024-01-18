@@ -585,7 +585,6 @@ class LayeredInvocation:
             # Standardize images
             if isinstance(layer["image"], str):
                 layer["image"] = get_frames_or_image_from_file(layer["image"])
-
             elif not isinstance(layer["image"], list):
                 layer["image"] = get_frames_or_image(layer["image"])
 
@@ -604,6 +603,7 @@ class LayeredInvocation:
 
             if animation_frames and frames is not None:
                 layer["frame"] = frames
+
 
             if isinstance(layer["image"], list):
                 # Minimize the number of images we pass
@@ -658,6 +658,11 @@ class LayeredInvocation:
         elif isinstance(loop, str):
             invocation_kwargs["loop"] = loop == "loop"
             invocation_kwargs["reflect"] = loop == "reflect"
+
+        # Check samples and iterations (don't do multiple if animating)
+        if invocation_kwargs.get("animation_frames", None):
+            invocation_kwargs["samples"] = 1
+            invocation_kwargs["iterations"] = 1
 
         if ignored_kwargs:
             logger.warning(f"Ignored keyword arguments: {ignored_kwargs}")
@@ -1393,6 +1398,17 @@ class LayeredInvocation:
                     images = [images]
                 nsfw = [False] * len(images)
             else:
+                # Check for a prompt
+                if not invocation_kwargs.get("prompt", None) and (
+                    not invocation_kwargs.get("prompts", None) or
+                    all([
+                        not prompt.positive for prompt in invocation_kwargs["prompts"]
+                    ])
+                ):
+                    raise BadRequestError("A text prompt was required but not found. Please enter a prompt.")
+
+                else:
+                    logger.critical(f"{invocation_kwargs}")
                 # Prepare the pipeline manager
                 self.prepare_pipeline(pipeline)
                 # Determine if we're doing cropped inpainting

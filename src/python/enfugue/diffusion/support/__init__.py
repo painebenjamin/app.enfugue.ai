@@ -9,7 +9,8 @@ from enfugue.diffusion.support.ip import IPAdapter
 from enfugue.diffusion.support.llm import Conversation
 from enfugue.diffusion.support.interpolate import Interpolator
 from enfugue.diffusion.support.drag import DragAnimator, DragAnimatorPipeline
+from enfugue.diffusion.support.unimatch import Unimatch
 
-EdgeDetector, LineDetector, DepthDetector, PoseDetector, ControlImageProcessor, Upscaler, BackgroundRemover, IPAdapter, Conversation, Interpolator, DragAnimator, DragAnimatorPipeline  # Silence importchecker
+EdgeDetector, LineDetector, DepthDetector, PoseDetector, ControlImageProcessor, Upscaler, BackgroundRemover, IPAdapter, Conversation, Interpolator, DragAnimator, DragAnimatorPipeline, Unimatch  # Silence importchecker
 
-__all__ = ["EdgeDetector", "LineDetector", "DepthDetector", "PoseDetector", "ControlImageProcessor", "Upscaler", "BackgroundRemover", "IPAdapter", "Conversation", "Interpolator", "DragAnimator", "DragAnimatorPipeline"]
+__all__ = ["EdgeDetector", "LineDetector", "DepthDetector", "PoseDetector", "ControlImageProcessor", "Upscaler", "BackgroundRemover", "IPAdapter", "Conversation", "Interpolator", "DragAnimator", "DragAnimatorPipeline", "Unimatch"]
