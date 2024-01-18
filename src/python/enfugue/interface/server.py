@@ -180,7 +180,7 @@ class EnfugueInterfaceServer(
         ui_config = self.configuration.get("enfugue.ui.app", {})
         if not isinstance(ui_config, dict):
             ui_config = {}
-        logger.critical(self.configuration.get("server.secure", False))
+
         paths = self.configuration["server.cms.path"]
         if not self.configuration.get("server.secure", False) and self.configuration.get("server.domain", None) is None:
             root = f"http://{request.host}/"

@@ -96,7 +96,7 @@ class EnfugueAPISystemController(EnfugueAPIControllerBase):
             inpainting = "never"
 
         settings = {
-            "gpu": self.configuration.get("enfugue.gpu", 0),
+            "gpu": self.configuration.get("enfugue.gpu.index", 0),
             "safe": self.configuration.get("enfugue.safe", True),
             "auth": not (self.configuration.get("enfugue.noauth", True)),
             "max_queued_invocations": self.configuration.get("enfugue.queue", self.manager.DEFAULT_MAX_QUEUED_INVOCATIONS),
@@ -194,7 +194,7 @@ class EnfugueAPISystemController(EnfugueAPIControllerBase):
             self.user_config["enfugue.downloads.concurrent"] = request.parsed["max_concurrent_downloads"]
 
         if "gpu" in request.parsed:
-            self.user_config["enfugue.gpu"] = int(request.parsed["gpu"])
+            self.user_config["enfugue.gpu.index"] = int(request.parsed["gpu"])
 
         for controlnet in self.CONTROLNETS:
             if controlnet in request.parsed:

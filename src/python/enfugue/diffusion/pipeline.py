@@ -2017,7 +2017,6 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         kwargs: Dict[str, Any] = {}
         if added_cond_kwargs is not None:
             kwargs["added_cond_kwargs"] = added_cond_kwargs
-            self.debug_tensors(**added_cond_kwargs)
         if motion_attention_mask is not None:
             kwargs["motion_attention_mask"] = motion_attention_mask
         return self.unet(
@@ -2306,7 +2305,6 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
             )
             motion_attention_mask = torch.ones_like(motion_attention_audio_mask) * motion_attention_min
             motion_attention_mask += motion_attention_audio_mask * (motion_attention_max - motion_attention_min)
-            logger.critical(motion_attention_mask)
         else:
             motion_attention_mask = None
 

@@ -387,7 +387,7 @@ class DiffusionPipelineManager:
         if not hasattr(self, "_device"):
             from enfugue.diffusion.util import get_optimal_device
 
-            self._device = get_optimal_device(self.configuration.get("enfugue.gpu", None))
+            self._device = get_optimal_device(self.configuration.get("enfugue.gpu.index", None))
         return self._device
 
     @device.setter

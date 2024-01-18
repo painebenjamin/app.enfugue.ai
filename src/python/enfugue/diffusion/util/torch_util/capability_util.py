@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Tuple, Any, TYPE_CHECKING
+from typing import Tuple, Any, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from torch import device as Device
