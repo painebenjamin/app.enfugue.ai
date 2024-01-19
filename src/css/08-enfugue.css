@@ -1518,6 +1518,7 @@ enfugue-image-browser span {
     pointer-events: none;
 }
 
+.field-container.motion-module-input-view,
 .field-container.checkpoint-input-view,
 .field-container.multi-lora-input-view,
 .field-container.multi-lycoris-input-view,
