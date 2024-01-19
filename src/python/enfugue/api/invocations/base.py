@@ -35,7 +35,7 @@ class InvocationMonitor:
     def __init__(
         self,
         engine: DiffusionEngine,
-        communication_timeout: Optional[int]=600,
+        communication_timeout: Optional[int]=300,
         **kwargs: Any
     ) -> None:
         self.lock = Lock()
