@@ -339,10 +339,12 @@ def get_frames_or_image_from_file(path: str) -> Union[Image, List[Image]]:
             from enfugue.diffusion.util.video_util import Video
             return list(Video.file_to_frames(dump_file))
         finally:
-            os.unlink(dump_file)
+            try:
+                os.unlink(dump_file)
+            except:
+                pass
     else:
         name, ext = os.path.splitext(path)
-            
         if ext in [".webp", ".webm", ".mp4", ".avi", ".mov", ".gif", ".m4v", ".mkv", ".ogg"]:
             from enfugue.diffusion.util.video_util import Video
             return list(Video.file_to_frames(path))
