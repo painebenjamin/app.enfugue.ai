@@ -118,6 +118,7 @@ class EnfugueServerRunner:
                 logger.info(f"Enfugue server {(i+1):d} of {num_servers:d} listening on {scheme}://{domain_echo}{port_echo}/")
                 server.configure_start(**this_configuration)
                 servers.append(server)
+                time.sleep(1) # Sleep 1s in between server starts
             if until is not None:
                 while not until.is_set():
                     until.wait(1)
