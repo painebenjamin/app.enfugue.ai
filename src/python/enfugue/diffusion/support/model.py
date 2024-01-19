@@ -49,21 +49,28 @@ class SupportModel:
 
     def __init__(
         self,
+        root_dir: str,
         model_dir: str,
         device: torch.device,
         dtype: torch.dtype,
-        offline: bool = False
+        offline: bool = False,
+        **kwargs: Any
     ) -> None:
+        if root_dir.startswith("~"):
+            root_dir = os.path.expanduser(root_dir)
         if model_dir.startswith("~"):
             model_dir = os.path.expanduser(model_dir)
+        self.root_dir = root_dir
         self.model_dir = model_dir
         self.device = device
         self.dtype = dtype
         self.offline = offline
+        self.kwargs = kwargs
 
     def get_model_file(
         self,
         uri: str,
+        directory: Optional[str] = None,
         filename: Optional[str] = None,
         extensions: Optional[List[str]] = None,
     ) -> str:
@@ -76,17 +83,22 @@ class SupportModel:
             return uri
         if filename is None:
             filename = os.path.basename(uri)
+        if directory is None:
+            directory = self.model_dir
         if extensions is not None:
             basename, ext = os.path.splitext(filename)
-            existing_path = find_file_in_directory(self.model_dir, basename, extensions=extensions)
+            existing_path = find_file_in_directory(self.root_dir, basename, extensions=extensions)
         else:
-            existing_path = find_file_in_directory(self.model_dir, filename)
+            existing_path = find_file_in_directory(self.root_dir, filename)
+
         if existing_path is not None:
             local_path = existing_path
         else:
-            local_path = os.path.join(self.model_dir, filename)
+            local_path = os.path.join(directory, filename)
+
         if not os.path.exists(local_path) and self.offline:
             raise IOError(f"Offline mode is enabled and could not find requested model file at {local_path}")
+
         check_download(
             uri,
             local_path,
@@ -110,7 +122,8 @@ class SupportModel:
             configuration = APIConfiguration()
 
         return cls(
-            configuration.get("enfugue.engine.cache", "~/.cache/enfugue/other"),
+            configuration.get("enfugue.engine.root", "~/.cache/enfugue/"),
+            configuration.get("enfugue.engine.other", "~/.cache/enfugue/other"),
             device,
             torch.float16 if device.type == "cuda" else torch.float32
         )

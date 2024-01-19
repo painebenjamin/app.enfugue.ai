@@ -123,138 +123,6 @@ class ModelPickerInputView extends SearchListInputView {
 };
 
 /**
- * Default VAE Input View
- */
-class DefaultVaeInputView extends SelectInputView {
-    /**
-     * @var object Option values and labels
-     */
-    static defaultOptions = {
-        "ema": "EMA 560000",
-        "mse": "MSE 840000",
-        "consistency": "Consistency Decoder",
-        "xl": "SDXL",
-        "xl16": "SDXL FP16",
-        "other": "Other"
-    };
-    
-    /**
-     * @var string Default text
-     */
-    static placeholder = "Default";
-
-    /**
-     * @var bool Allow null
-     */
-    static allowEmpty = true;
-
-    /**
-     * @var string Tooltip to display
-     */
-    static tooltip = "Variational Autoencoders are the model that translates images between pixel space - images that you can see - and latent space - images that the AI model understands. In general you do not need to select a particular VAE model, but you may find slight differences in sharpness of resulting images.";
-};
-
-/**
- * This class shows the default VAE's and allows an other option
- */
-class VaeInputView extends InputView {
-    /**
-     * @var Custom tag name
-     */
-    static tagName = "enfugue-vae-input-view";
-
-    /**
-     * @var class VAE input class
-     */
-    static selectClass = DefaultVaeInputView;
-
-    /**
-     * @var class text input class
-     */
-    static textClass = StringInputView;
-
-    /**
-     * @var object Text input config
-     */
-    static textInputConfig = {
-        "placeholder": "e.g. stabilityai/sdxl-vae",
-        "tooltip": "Enter the name of a HuggingFace repository housing the VAE configuration. Visit https://huggingface.co for more information."
-    };
-
-    /**
-     * On construct, instantiate sub inputs
-     */
-    constructor(config, fieldName, fieldConfig) {
-        super(config, fieldName, fieldConfig);
-        this.defaultInput = new this.constructor.selectClass(config, "default");
-        this.otherInput = new this.constructor.textClass(config, "other", this.constructor.textInputConfig);
-        this.defaultInput.onChange(() => {
-            let value = this.defaultInput.getValue();
-            if (value === "other") {
-                this.value = "";
-                this.otherInput.show();
-            } else {
-                this.value = value;
-                this.otherInput.hide();
-            }
-            this.changed();
-        });
-        this.otherInput.onChange(() => {
-            if (this.defaultInput.getValue() === "other") {
-                this.value === this.otherInput.getValue();
-                this.changed();
-            }
-        });
-        this.otherInput.hide();
-    }
-
-    /**
-     * Get value from inputs
-     */
-    getValue() {
-        let defaultValue = this.defaultInput.getValue();
-        if (defaultValue === "other") {
-            return this.otherInput.getValue();
-        }
-        return defaultValue;
-    }
-
-    /**
-     * Sets the value in sub inputs
-     */
-    setValue(newValue, triggerChange) {
-        super.setValue(newValue, false);
-        if (isEmpty(newValue)) {
-            this.defaultInput.setValue(null, false);
-            this.otherInput.setValue("", false);
-            this.otherInput.hide();
-        } else if (Object.getOwnPropertyNames(DefaultVaeInputView.defaultOptions).indexOf(newValue) === -1) {
-            this.defaultInput.setValue("other", false);
-            this.otherInput.setValue(newValue, false);
-            this.otherInput.show();
-        } else {
-            this.defaultInput.setValue(newValue, false);
-            this.otherInput.setValue("", false);
-            this.otherInput.hide();
-        }
-        if (triggerChange) {
-            this.changed();
-        }
-    }
-
-    /**
-     * On build, get both inputs.
-     */
-    async build() {
-        let node = await super.build();
-        return node.content(
-            await this.defaultInput.getNode(),
-            await this.otherInput.getNode()
-        );
-    }
-};
-
-/**
  * A superclass for introspectable models
  */
 class ModelInputView extends SearchListInputView {
@@ -327,6 +195,11 @@ class ModelInputView extends SearchListInputView {
 class LoraInputView extends ModelInputView { };
 
 /**
+ * VAE input - will be populated at init.
+ */
+class VAEInputView extends ModelInputView { };
+
+/**
  * LyCORIS input - will be populated at init.
  */
 class LycorisInputView extends ModelInputView { };
@@ -345,6 +218,11 @@ class CheckpointInputView extends ModelInputView { };
  * Motion module input - will be populated at init.
  */
 class MotionModuleInputView extends ModelInputView { };
+
+/**
+ * ControlNet model input - will be populated at init.
+ */
+class ControlNetModelInputView extends ModelInputView { };
 
 /**
  * Lora input additionally has weight; create the FormView here,
@@ -533,12 +411,12 @@ export {
     MultiLoraInputView,
     MultiLycorisInputView,
     MultiInversionInputView,
-    VaeInputView,
-    DefaultVaeInputView,
+    VAEInputView,
     ModelPickerStringInputView,
     ModelPickerListInputView,
     ModelPickerInputView,
     ModelMergeModeInputView,
     MotionModuleInputView,
     ModelTypeInputView,
+    ControlNetModelInputView,
 };

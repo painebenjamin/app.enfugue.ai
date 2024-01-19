@@ -3,15 +3,15 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .backbone import CNNEncoder
-from .transformer import FeatureTransformer
-from .matching import (global_correlation_softmax, local_correlation_softmax, local_correlation_with_flow,
+from enfugue.diffusion.support.unimatch.backbone import CNNEncoder
+from enfugue.diffusion.support.unimatch.transformer import FeatureTransformer
+from enfugue.diffusion.support.unimatch.matching import (global_correlation_softmax, local_correlation_softmax, local_correlation_with_flow,
                        global_correlation_softmax_stereo, local_correlation_softmax_stereo,
                        correlation_softmax_depth)
-from .attention import SelfAttnPropagation
-from .geometry import flow_warp, compute_flow_with_depth_pose
-from .reg_refine import BasicUpdateBlock
-from .utils import normalize_img, feature_add_position, upsample_flow_with_mask
+from enfugue.diffusion.support.unimatch.attention import SelfAttnPropagation
+from enfugue.diffusion.support.unimatch.geometry import flow_warp, compute_flow_with_depth_pose
+from enfugue.diffusion.support.unimatch.reg_refine import BasicUpdateBlock
+from enfugue.diffusion.support.unimatch.utils import normalize_img, feature_add_position, upsample_flow_with_mask
 
 
 class UniMatch(nn.Module):

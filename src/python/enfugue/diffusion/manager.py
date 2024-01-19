@@ -29,7 +29,8 @@ from enfugue.util import (
     find_file_in_directory,
     get_file_name_from_url,
     get_domain_from_url,
-    redact_for_log
+    redact_for_log,
+    check_make_directory_by_names,
 )
 
 __all__ = ["DiffusionPipelineManager"]
@@ -265,12 +266,19 @@ class DiffusionPipelineManager:
         """
         Downloads a model directly to the model folder if enabled.
         """
+        if not remote_url.startswith("http"):
+            return remote_url
         output_file = get_file_name_from_url(remote_url)
         output_path = os.path.join(local_dir, output_file)
-        found_path = find_file_in_directory(local_dir, output_file)
+        found_path = find_file_in_directory(
+            self.engine_root,
+            os.path.splitext(output_file)[0],
+            extensions = [".ckpt", ".bin", ".pt", ".pth", ".safetensors"]
+        )
 
         if found_path:
             return found_path
+
         if self.offline:
             raise ValueError(f"File {output_file} does not exist in {local_dir} and offline mode is enabled, refusing to download from {remote_url}")
 
@@ -279,6 +287,7 @@ class DiffusionPipelineManager:
             get_domain_from_url(remote_url)
         )
         self.task_callback(f"Downloading {file_label}")
+        logger.critical(f"{remote_url} {output_path}")
 
         check_download(
             remote_url,
@@ -612,7 +621,6 @@ class DiffusionPipelineManager:
         """
         Sets a new vae.
         """
-        pretrained_path = self.get_vae_path(new_vae)
         existing_vae = getattr(self, "_vae", None)
 
         if (
@@ -625,8 +633,11 @@ class DiffusionPipelineManager:
                 self._vae = None
                 self.unload_pipeline("VAE resetting to default")
             else:
-                self._vae_name = new_vae
-                self._vae = self.get_vae(pretrained_path)
+                vae_path = self.check_download_model(self.engine_vae_dir, new_vae)
+
+                self._vae_name = os.path.basename(vae_path)
+                self._vae = self.get_vae(vae_path)
+
                 if self.tensorrt_is_ready and "vae" in self.TENSORRT_STAGES:
                     self.unload_pipeline("VAE changing")
                 elif hasattr(self, "_pipeline"):
@@ -634,7 +645,7 @@ class DiffusionPipelineManager:
                     self._pipeline.vae = self._vae # type: ignore[assignment]
                     if self.is_sdxl:
                         self._pipeline.register_to_config( # type: ignore[attr-defined]
-                            force_full_precision_vae = new_vae in ["xl", "stabilityai/sdxl-vae"] or (new_vae.endswith("sdxl_vae.safetensors") and "16" not in new_vae)
+                            force_full_precision_vae = "xl" in new_vae and "16" not in new_vae
                         )
 
     @property
@@ -989,108 +1000,270 @@ class DiffusionPipelineManager:
         """
         Gets the cache for diffusers-downloaded configuration files, base models, etc.
         """
-        path = self.configuration.get("enfugue.engine.cache", os.path.join(self.engine_root, "cache"))
-        if path.startswith("~"):
-            path = os.path.expanduser(path)
-        path = os.path.realpath(path)
-        check_make_directory(path)
-        return path
+        path = self.configuration.get("enfugue.engine.cache", None)
+        if path is not None:
+            if path.startswith("~"):
+                path = os.path.expanduser(path)
+            path = os.path.realpath(path)
+            check_make_directory(path)
+            return path
+        else:
+            return check_make_directory_by_names(self.engine_root, "cache")
 
     @property
     def engine_checkpoints_dir(self) -> str:
         """
         Gets where checkpoints are downloaded in.
         """
-        path = self.configuration.get("enfugue.engine.checkpoint", os.path.join(self.engine_root, "checkpoint"))
-        if path.startswith("~"):
-            path = os.path.expanduser(path)
-        path = os.path.realpath(path)
-        check_make_directory(path)
-        return path
+        path = self.configuration.get("enfugue.engine.checkpoint", None)
+        if path is not None:
+            if path.startswith("~"):
+                path = os.path.expanduser(path)
+            path = os.path.realpath(path)
+            check_make_directory(path)
+            return path
+        else:
+            return check_make_directory_by_names(self.engine_root, "checkpoint", "Stable-diffusion")
 
     @property
     def engine_other_dir(self) -> str:
         """
         Gets where any other weights are download in
         """
-        path = self.configuration.get("enfugue.engine.other", os.path.join(self.engine_root, "other"))
-        if path.startswith("~"):
-            path = os.path.expanduser(path)
-        path = os.path.realpath(path)
-        check_make_directory(path)
-        return path
+        path = self.configuration.get("enfugue.engine.other", None)
+        if path is not None:
+            if path.startswith("~"):
+                path = os.path.expanduser(path)
+            path = os.path.realpath(path)
+            check_make_directory(path)
+            return path
+        else:
+            return check_make_directory_by_names(self.engine_root, "other")
 
     @property
     def engine_lora_dir(self) -> str:
         """
         Gets where lora are downloaded in.
         """
-        path = self.configuration.get("enfugue.engine.lora", os.path.join(self.engine_root, "lora"))
-        if path.startswith("~"):
-            path = os.path.expanduser(path)
-        path = os.path.realpath(path)
-        check_make_directory(path)
-        return path
+        path = self.configuration.get("enfugue.engine.lora", None)
+        if path is not None:
+            if path.startswith("~"):
+                path = os.path.expanduser(path)
+            path = os.path.realpath(path)
+            check_make_directory(path)
+            return path
+        else:
+            return check_make_directory_by_names(self.engine_root, "lora")
 
     @property
     def engine_lycoris_dir(self) -> str:
         """
         Gets where lycoris are downloaded in.
         """
-        path = self.configuration.get("enfugue.engine.lycoris", os.path.join(self.engine_root, "lycoris"))
-        if path.startswith("~"):
-            path = os.path.expanduser(path)
-        path = os.path.realpath(path)
-        check_make_directory(path)
-        return path
+        path = self.configuration.get("enfugue.engine.lycoris", None)
+        if path is not None:
+            if path.startswith("~"):
+                path = os.path.expanduser(path)
+            path = os.path.realpath(path)
+            check_make_directory(path)
+            return path
+        else:
+            return check_make_directory_by_names(self.engine_root, "lycoris", "locon")
 
     @property
     def engine_inversion_dir(self) -> str:
         """
         Gets where inversion are downloaded to.
         """
-        path = self.configuration.get("enfugue.engine.inversion", os.path.join(self.engine_root, "inversion"))
-        if path.startswith("~"):
-            path = os.path.expanduser(path)
-        path = os.path.realpath(path)
-        check_make_directory(path)
-        return path
+        path = self.configuration.get("enfugue.engine.inversion", None)
+        if path is not None:
+            if path.startswith("~"):
+                path = os.path.expanduser(path)
+            path = os.path.realpath(path)
+            check_make_directory(path)
+            return path
+        else:
+            return check_make_directory_by_names(self.engine_root, "inversion", "embedding", "ti")
 
     @property
     def engine_tensorrt_dir(self) -> str:
         """
         Gets where TensorRT engines are built.
         """
-        path = self.configuration.get("enfugue.engine.tensorrt", os.path.join(self.engine_root, "tensorrt"))
-        if path.startswith("~"):
-            path = os.path.expanduser(path)
-        path = os.path.realpath(path)
-        check_make_directory(path)
-        return path
+        path = self.configuration.get("enfugue.engine.tensorrt", None)
+        if path is not None:
+            if path.startswith("~"):
+                path = os.path.expanduser(path)
+            path = os.path.realpath(path)
+            check_make_directory(path)
+            return path
+        else:
+            return check_make_directory_by_names(self.engine_root, "tensorrt", "tensor_rt")
 
     @property
     def engine_motion_dir(self) -> str:
         """
         Gets where motion modules are saved.
         """
-        path = self.configuration.get("enfugue.engine.motion", os.path.join(self.engine_root, "motion"))
-        if path.startswith("~"):
-            path = os.path.expanduser(path)
-        path = os.path.realpath(path)
-        check_make_directory(path)
-        return path
+        path = self.configuration.get("enfugue.engine.motion", None)
+        if path is not None:
+            if path.startswith("~"):
+                path = os.path.expanduser(path)
+            path = os.path.realpath(path)
+            check_make_directory(path)
+            return path
+        else:
+            return check_make_directory_by_names(self.engine_root, "motion", "motion_module")
+
+    @property
+    def engine_controlnet_dir(self) -> str:
+        """
+        Gets where controlnet models are saved.
+        """
+        path = self.configuration.get("enfugue.engine.controlnet", None)
+        if path is not None:
+            if path.startswith("~"):
+                path = os.path.expanduser(path)
+            path = os.path.realpath(path)
+            check_make_directory(path)
+            return path
+        else:
+            return check_make_directory_by_names(self.engine_root, "controlnet", "control_net")
+
+    @property
+    def engine_vae_dir(self) -> str:
+        """
+        Gets where vae models are saved.
+        """
+        path = self.configuration.get("enfugue.engine.vae", None)
+        if path is not None:
+            if path.startswith("~"):
+                path = os.path.expanduser(path)
+            path = os.path.realpath(path)
+            check_make_directory(path)
+            return path
+        else:
+            return check_make_directory_by_names(self.engine_root, "vae")
+
+    @property
+    def engine_vae_approx_dir(self) -> str:
+        """
+        Gets where approximate vae models are saved.
+        """
+        path = self.configuration.get("enfugue.engine.vae_approx", None)
+        if path is not None:
+            if path.startswith("~"):
+                path = os.path.expanduser(path)
+            path = os.path.realpath(path)
+            check_make_directory(path)
+            return path
+        else:
+            return check_make_directory_by_names(self.engine_root, "vae_approx", "vae_taesd")
+
+    @property
+    def engine_clip_dir(self) -> str:
+        """
+        Gets where clip models are saved.
+        """
+        path = self.configuration.get("enfugue.engine.clip", None)
+        if path is not None:
+            if path.startswith("~"):
+                path = os.path.expanduser(path)
+            path = os.path.realpath(path)
+            check_make_directory(path)
+            return path
+        else:
+            return check_make_directory_by_names(self.engine_root, "clip")
+
+    @property
+    def engine_clip_vision_dir(self) -> str:
+        """
+        Gets where clip vision models are saved.
+        """
+        path = self.configuration.get("enfugue.engine.clip_vision", None)
+        if path is not None:
+            if path.startswith("~"):
+                path = os.path.expanduser(path)
+            path = os.path.realpath(path)
+            check_make_directory(path)
+            return path
+        else:
+            return check_make_directory_by_names(self.engine_root, "clip_vision")
+
+    @property
+    def engine_ip_adapter_dir(self) -> str:
+        """
+        Gets where IP adapter models are saved.
+        """
+        path = self.configuration.get("enfugue.engine.ip_adapter", None)
+        if path is not None:
+            if path.startswith("~"):
+                path = os.path.expanduser(path)
+            path = os.path.realpath(path)
+            check_make_directory(path)
+            return path
+        else:
+            return check_make_directory_by_names(self.engine_root, "ip_adapter")
+
+    @property
+    def engine_upscale_dir(self) -> str:
+        """
+        Gets where IP adapter models are saved.
+        """
+        path = self.configuration.get("enfugue.engine.upscale", None)
+        if path is not None:
+            if path.startswith("~"):
+                path = os.path.expanduser(path)
+            path = os.path.realpath(path)
+            check_make_directory(path)
+            return path
+        else:
+            return check_make_directory_by_names(self.engine_root, "upscale", "upscale_models")
 
     @property
     def engine_language_dir(self) -> str:
         """
         Gets where language modules are saved.
         """
-        path = self.configuration.get("enfugue.engine.language", os.path.join(self.engine_root, "language"))
-        if path.startswith("~"):
-            path = os.path.expanduser(path)
-        path = os.path.realpath(path)
-        check_make_directory(path)
-        return path
+        path = self.configuration.get("enfugue.engine.language", None)
+        if path is not None:
+            if path.startswith("~"):
+                path = os.path.expanduser(path)
+            path = os.path.realpath(path)
+            check_make_directory(path)
+            return path
+        else:
+            return check_make_directory_by_names(self.engine_root, "language")
+
+    @property
+    def engine_detection_dir(self) -> str:
+        """
+        Gets where detection modules are saved.
+        """
+        path = self.configuration.get("enfugue.engine.detection", None)
+        if path is not None:
+            if path.startswith("~"):
+                path = os.path.expanduser(path)
+            path = os.path.realpath(path)
+            check_make_directory(path)
+            return path
+        else:
+            return check_make_directory_by_names(self.engine_root, "detection", "mmdet")
+
+    @property
+    def engine_interpolation_dir(self) -> str:
+        """
+        Gets where interpolation modules are saved.
+        """
+        path = self.configuration.get("enfugue.engine.interpolation", None)
+        if path is not None:
+            if path.startswith("~"):
+                path = os.path.expanduser(path)
+            path = os.path.realpath(path)
+            check_make_directory(path)
+            return path
+        else:
+            return check_make_directory_by_names(self.engine_root, "interpolation")
 
     @property
     def model_tensorrt_dir(self) -> str:
@@ -2321,10 +2494,7 @@ class DiffusionPipelineManager:
         else:
             model = new_model
         model = self.check_get_default_model(model)
-        if model.startswith("http"):
-            model = self.check_download_model(self.engine_checkpoints_dir, model)
-        elif not os.path.isabs(model):
-            model = find_file_in_directory(self.engine_checkpoints_dir, model)
+        model = self.check_download_model(self.engine_checkpoints_dir, model)
         if not model:
             raise ValueError(f"Cannot find model {new_model}")
 
@@ -2383,10 +2553,7 @@ class DiffusionPipelineManager:
             self._refiner = None
             return
         refiner = self.check_get_default_model(new_refiner)
-        if refiner.startswith("http"):
-            refiner = self.check_download_model(self.engine_checkpoints_dir, refiner)
-        elif not os.path.isabs(refiner):
-            refiner = find_file_in_directory(self.engine_checkpoints_dir, refiner) # type: ignore[assignment]
+        refiner = self.check_download_model(self.engine_checkpoints_dir, refiner)
         if not refiner:
             raise ValueError(f"Cannot find refiner {new_refiner}")
         refiner_name, _ = os.path.splitext(os.path.basename(refiner))
@@ -2444,10 +2611,7 @@ class DiffusionPipelineManager:
             self._inpainter = None
             return
         inpainter = self.check_get_default_model(new_inpainter)
-        if inpainter.startswith("http"):
-            inpainter = self.check_download_model(self.engine_checkpoints_dir, inpainter)
-        elif not os.path.isabs(inpainter):
-            inpainter = find_file_in_directory(self.engine_checkpoints_dir, inpainter) # type: ignore[assignment]
+        inpainter = self.check_download_model(self.engine_checkpoints_dir, inpainter)
         if not inpainter:
             raise ValueError(f"Cannot find inpainter {new_inpainter}")
         inpainter_name, _ = os.path.splitext(os.path.basename(inpainter))
@@ -2494,10 +2658,7 @@ class DiffusionPipelineManager:
             self._animator = None
             return
         animator = self.check_get_default_model(new_animator)
-        if animator.startswith("http"):
-            animator = self.check_download_model(self.engine_checkpoints_dir, animator)
-        elif not os.path.isabs(animator):
-            animator = find_file_in_directory(self.engine_checkpoints_dir, animator) # type: ignore[assignment]
+        animator = self.check_download_model(self.engine_checkpoints_dir, animator)
         if not animator:
             raise ValueError(f"Cannot find animator {new_animator}")
 
@@ -2595,6 +2756,14 @@ class DiffusionPipelineManager:
         self._torch_dtype = new_dtype
 
     @property
+    def half(self) -> bool:
+        """
+        Returns true if the dtype is half-precision.
+        """
+        import torch
+        return self.dtype is torch.float16
+
+    @property
     def lora(self) -> List[Tuple[str, float]]:
         """
         Get LoRA added to the text encoder and UNet.
@@ -2629,12 +2798,7 @@ class DiffusionPipelineManager:
             lora = [(new_lora, 1)]
 
         for i, (model, weight) in enumerate(lora):
-            if model.startswith("http"):
-                find_model = self.check_download_model(self.engine_lora_dir, model)
-            elif not os.path.isabs(model):
-                find_model = find_file_in_directory(self.engine_lora_dir, model) # type: ignore[assignment]
-            else:
-                find_model = model
+            find_model = self.check_download_model(self.engine_lora_dir, model)
             if not find_model:
                 raise ValueError(f"Cannot find LoRA model {model}")
             lora[i] = (find_model, weight)
@@ -2687,10 +2851,7 @@ class DiffusionPipelineManager:
             lycoris = [(new_lycoris, 1)]
 
         for i, (model, weight) in enumerate(lycoris):
-            if model.startswith("http"):
-                model = self.check_download_model(self.engine_lycoris_dir, model)
-            elif not os.path.isabs(model):
-                model = find_file_in_directory(self.engine_lycoris_dir, model) # type: ignore[assignment]
+            model = self.check_download_model(self.engine_lycoris_dir, model)
             if not model:
                 raise ValueError(f"Cannot find LyCORIS model {model}")
             lycoris[i] = (model, weight)
@@ -2731,10 +2892,7 @@ class DiffusionPipelineManager:
         if not isinstance(new_inversion, list):
             new_inversion = [new_inversion]
         for i, model in enumerate(new_inversion):
-            if model.startswith("http"):
-                model = self.check_download_model(self.engine_inversion_dir, model)
-            elif not os.path.isabs(model):
-                model = find_file_in_directory(self.engine_inversion_dir, model) # type: ignore[assignment]
+            model = self.check_download_model(self.engine_inversion_dir, model)
             if not model:
                 raise ValueError(f"Cannot find inversion model {model}")
             new_inversion[i] = model
@@ -2787,13 +2945,10 @@ class DiffusionPipelineManager:
             )
         ):
             self.reload_motion_module = True
-        if new_module is not None and new_module.startswith("http"):
-            new_module = self.check_download_model(self.engine_motion_dir, new_module)
-        if new_module is not None and not os.path.isabs(new_module):
-            new_module = os.path.join(self.engine_motion_dir, new_module)
-        if new_module is not None and not os.path.exists(new_module):
-            raise IOError(f"Cannot find or access motion module at {new_module}")
-        self._motion_module = new_module
+        if new_module is not None:
+            self._motion_module = self.check_download_model(self.engine_motion_dir, new_module)
+        else:
+            self._motion_module = None # type: ignore[assignment]
 
     @property
     def position_encoding_truncate_length(self) -> Optional[int]:
@@ -2842,24 +2997,6 @@ class DiffusionPipelineManager:
         ):
             self.reload_motion_module = True
         self._position_encoding_scale_length = new_length
-
-    @property
-    def inject_dpo(self) -> bool:
-        """
-        Whether or not to inject DPO (direct preference optimization)
-        """
-        return getattr(self, "_inject_dpo", False)
-
-    @inject_dpo.setter
-    def inject_dpo(self, new_inject: bool) -> None:
-        """
-        Adds or removes DPO injection
-        """
-        if self.inject_dpo != new_inject:
-            self._inject_dpo = new_inject
-            # Only main pipeline or animator
-            self.unload_pipeline("DPO injection changed")
-            self.unload_animator("DPO injection changed")
 
     @property
     def model_diffusers_cache_dir(self) -> Optional[str]:
@@ -3185,9 +3322,7 @@ class DiffusionPipelineManager:
         Instantiates the pipeline.
         """
         if not hasattr(self, "_pipeline"):
-            if self.model.startswith("http"):
-                # Base model, make sure it's downloaded here
-                self.model = self.check_download_model(self.engine_checkpoints_dir, self.model)
+            self.model = self.check_download_model(self.engine_checkpoints_dir, self.model)
 
             kwargs = {
                 "cache_dir": self.engine_cache_dir,
@@ -3199,10 +3334,10 @@ class DiffusionPipelineManager:
                 "controlnets": self.controlnets,
                 "ip_adapter": self.ip_adapter,
                 "task_callback": getattr(self, "_task_callback", None),
+                "vae": self.vae,
+                "vae_preview": self.get_vae_preview(self.is_sdxl)
             }
             
-            vae = self.vae
-
             if self.use_tensorrt:
                 if self.is_sdxl:
                     raise ValueError(f"Sorry, TensorRT is not yet supported for SDXL.")
@@ -3213,8 +3348,6 @@ class DiffusionPipelineManager:
                         kwargs["controlled_unet_engine_dir"] = self.model_tensorrt_controlled_unet_dir
                 if "vae" in self.TENSORRT_STAGES:
                     kwargs["vae_engine_dir"] = self.model_tensorrt_vae_dir
-                elif vae is not None:
-                    kwargs["vae"] = vae
 
                 if "clip" in self.TENSORRT_STAGES:
                     kwargs["clip_engine_dir"] = self.model_tensorrt_clip_dir
@@ -3239,7 +3372,6 @@ class DiffusionPipelineManager:
                 pipeline = self.pipeline_class.from_pretrained(
                     self.model_diffusers_cache_dir,
                     local_files_only=self.offline,
-                    vae_preview=self.get_vae_preview(self.is_sdxl),
                     **kwargs
                 )
             elif self.model_diffusers_cache_dir is not None:
@@ -3248,8 +3380,6 @@ class DiffusionPipelineManager:
                 if not self.is_sdxl:
                     kwargs["tokenizer_2"] = None
                     kwargs["text_encoder_2"] = None
-                if vae is not None:
-                    kwargs["vae"] = vae
 
                 if "16" in str(self.dtype):
                     kwargs["variant"] = "fp16"
@@ -3261,14 +3391,11 @@ class DiffusionPipelineManager:
                 pipeline = self.pipeline_class.from_pretrained(
                     self.model_diffusers_cache_dir,
                     local_files_only=self.offline,
-                    vae_preview=self.get_vae_preview(self.is_sdxl),
                     **kwargs
                 )
             else:
                 kwargs["offload_models"] = self.pipeline_sequential_onload
                 kwargs["load_safety_checker"] = self.safe
-                if self.vae_name is not None:
-                    kwargs["vae_path"] = self.find_vae_path(self.vae_name)
 
                 logger.debug(f"Initializing pipeline from checkpoint at {self.model}. Arguments are {redact_for_log(kwargs)}")
 
@@ -3285,18 +3412,10 @@ class DiffusionPipelineManager:
                 if controlnet_name.startswith("sparse"):
                     pipeline.controlnets[controlnet_name] = pipeline.get_sparse_controlnet(
                         controlnet_name,
-                        cache_dir=self.engine_cache_dir,
+                        cache_dir=self.engine_controlnet_dir,
                         task_callback=self.task_callback
                     ).to(self.dtype)
             if not self.tensorrt_is_ready:
-                if self.inject_dpo:
-                    self.task_callback("Injecting DPO (Direct Preference Optimization)")
-                    dpo_model = DPO_OFFSET_XL if self.is_sdxl else DPO_OFFSET
-                    dpo_model = self.check_download_model(
-                        self.engine_other_dir,
-                        dpo_model
-                    )
-                    pipeline.inject_unet(dpo_model)
                 if self._ip_adapter_model is not None:
                     self.ip_adapter.check_download(
                         is_sdxl=self.is_sdxl,
@@ -3356,9 +3475,7 @@ class DiffusionPipelineManager:
         if not self.refiner:
             raise ValueError("No refiner set")
         if not hasattr(self, "_refiner_pipeline"):
-            if self.refiner.startswith("http"):
-                # Base refiner, make sure it's downloaded here
-                self.refiner = self.check_download_model(self.engine_checkpoints_dir, self.refiner)
+            self.refiner = self.check_download_model(self.engine_checkpoints_dir, self.refiner)
 
             kwargs = {
                 "cache_dir": self.engine_cache_dir,
@@ -3372,9 +3489,9 @@ class DiffusionPipelineManager:
                 "controlnets": self.refiner_controlnets,
                 "ip_adapter": self.ip_adapter,
                 "task_callback": getattr(self, "_task_callback", None),
+                "vae_preview": self.get_vae_preview(self.refiner_is_sdxl),
+                "vae": self.refiner_vae
             }
-            
-            vae = self.refiner_vae
 
             if self.refiner_use_tensorrt:
                 if self.refiner_is_sdxl:
@@ -3387,8 +3504,6 @@ class DiffusionPipelineManager:
 
                 if "vae" in self.TENSORRT_STAGES:
                     kwargs["vae_engine_dir"] = self.refiner_tensorrt_vae_dir
-                elif vae is not None:
-                    kwargs["vae"] = vae
 
                 if "clip" in self.TENSORRT_STAGES:
                     kwargs["clip_engine_dir"] = self.refiner_tensorrt_clip_dir
@@ -3414,7 +3529,6 @@ class DiffusionPipelineManager:
                 refiner_pipeline = self.refiner_pipeline_class.from_pretrained(
                     self.refiner_diffusers_cache_dir,
                     safety_checker=None,
-                    vae_preview=self.get_vae_preview(self.refiner_is_sdxl),
                     local_files_only=self.offline,
                     **kwargs,
                 )
@@ -3428,9 +3542,6 @@ class DiffusionPipelineManager:
                     kwargs["text_encoder_2"] = None
                     kwargs["tokenizer_2"] = None
 
-                if vae is not None:
-                    kwargs["vae"] = vae
-
                 if "16" in str(self.dtype):
                     kwargs["variant"] = "fp16"
 
@@ -3441,14 +3552,11 @@ class DiffusionPipelineManager:
                 refiner_pipeline = self.refiner_pipeline_class.from_pretrained(
                     self.refiner_diffusers_cache_dir,
                     safety_checker=None,
-                    vae_preview=self.get_vae_preview(self.refiner_is_sdxl),
                     local_files_only=self.offline,
                     **kwargs,
                 )
             else:
                 kwargs["offload_models"] = self.pipeline_sequential_onload
-                if self.refiner_vae_name is not None:
-                    kwargs["vae_path"] = self.find_vae_path(self.refiner_vae_name)
 
                 logger.debug(f"Initializing refiner pipeline from checkpoint at {self.refiner}. Arguments are {redact_for_log(kwargs)}")
 
@@ -3529,8 +3637,7 @@ class DiffusionPipelineManager:
             if not self.inpainter:
                 target_checkpoint_path = self.default_inpainter_path
                 logger.debug(f"No inpainter explicitly set, will look for inpainter from {target_checkpoint_path}")
-                if target_checkpoint_path.startswith("http"):
-                    target_checkpoint_path = self.check_download_model(self.engine_checkpoints_dir, target_checkpoint_path)
+                target_checkpoint_path = self.check_download_model(self.engine_checkpoints_dir, target_checkpoint_path)
                 if not os.path.exists(target_checkpoint_path):
                     if self.create_inpainter:
                         logger.info(f"Creating inpainting checkpoint from {self.model}")
@@ -3546,8 +3653,7 @@ class DiffusionPipelineManager:
             else:
                 self.is_default_inpainter = False
 
-            if self.inpainter.startswith("http"):
-                self.inpainter = self.check_download_model(self.engine_checkpoints_dir, self.inpainter)
+            self.inpainter = self.check_download_model(self.engine_checkpoints_dir, self.inpainter)
 
             kwargs = {
                 "cache_dir": self.engine_cache_dir,
@@ -3562,10 +3668,10 @@ class DiffusionPipelineManager:
                 ),
                 "ip_adapter": self.ip_adapter,
                 "task_callback": getattr(self, "_task_callback", None),
-                "is_inpainter": True
+                "is_inpainter": True,
+                "vae_preview": self.get_vae_preview(self.inpainter_is_sdxl),
+                "vae": self.inpainter_vae
             }
-
-            vae = self.inpainter_vae
 
             if self.inpainter_use_tensorrt:
                 if self.inpainter_is_sdxl: # Not possible yet
@@ -3579,8 +3685,6 @@ class DiffusionPipelineManager:
 
                 if "vae" in self.TENSORRT_STAGES:
                     kwargs["vae_engine_dir"] = self.inpainter_tensorrt_vae_dir
-                elif vae is not None:
-                    kwargs["vae"] = vae
 
                 if "clip" in self.TENSORRT_STAGES:
                     kwargs["clip_engine_dir"] = self.inpainter_tensorrt_clip_dir
@@ -3604,7 +3708,6 @@ class DiffusionPipelineManager:
                 inpainter_pipeline = self.inpainter_pipeline_class.from_pretrained(
                     self.inpainter_diffusers_cache_dir,
                     local_files_only=self.offline,
-                    vae_preview=self.get_vae_preview(self.inpainter_is_sdxl),
                     **kwargs
                 )
             elif self.inpainter_engine_cache_exists:
@@ -3615,8 +3718,6 @@ class DiffusionPipelineManager:
                     kwargs["tokenizer_2"] = None
                     kwargs["text_encoder_2"] = None
                     kwargs["tokenizer_2"] = None
-                if vae is not None:
-                    kwargs["vae"] = vae
                 if "16" in str(self.dtype):
                     kwargs["variant"] = "fp16"
                 
@@ -3627,14 +3728,10 @@ class DiffusionPipelineManager:
                 inpainter_pipeline = self.inpainter_pipeline_class.from_pretrained(
                     self.inpainter_diffusers_cache_dir,
                     local_files_only=self.offline,
-                    vae_preview=self.get_vae_preview(self.inpainter_is_sdxl),
                     **kwargs
                 )
             else:
                 kwargs["offload_models"] = self.pipeline_sequential_onload
-                if self.inpainter_vae_name is not None:
-                    kwargs["vae_path"] = self.find_vae_path(self.inpainter_vae_name)
-                
                 logger.debug(
                     f"Initializing inpainter pipeline from checkpoint at {self.inpainter}. Arguments are {redact_for_log(kwargs)}"
                 )
@@ -3652,7 +3749,7 @@ class DiffusionPipelineManager:
                 if controlnet_name.startswith("sparse"):
                     inpainter_pipeline.controlnets[controlnet_name] = inpainter_pipeline.get_sparse_controlnet(
                         controlnet_name,
-                        cache_dir=self.engine_cache_dir,
+                        cache_dir=self.engine_controlnet_dir,
                         task_callback=self.task_callback
                     ).to(self.dtype)
             if not self.inpainter_tensorrt_is_ready:
@@ -3718,15 +3815,22 @@ class DiffusionPipelineManager:
             else:
                 self.is_default_animator = False
 
-            if self.animator.startswith("http"):
-                self.animator = self.check_download_model(self.engine_checkpoints_dir, self.animator)
-            
+            self.animator = self.check_download_model(self.engine_checkpoints_dir, self.animator)
+
+            motion_module = self.motion_module
+            if motion_module is None:
+                if self.animator_is_sdxl:
+                    motion_module = self.animator_pipeline_class.MOTION_MODULE_HOTSHOT
+                else:
+                    motion_module = self.animator_pipeline_class.MOTION_MODULE_V3
+
+            motion_module = self.check_download_model(self.engine_motion_dir, motion_module)
+
             # Disable reloading if it was set
             self.reload_motion_module = False
 
             kwargs = {
                 "cache_dir": self.engine_cache_dir,
-                "motion_dir": self.engine_motion_dir,
                 "engine_size": self.animator_tensorrt_size,
                 "tiling_stride": self.tiling_stride,
                 "frame_window_size": self.frame_window_size,
@@ -3738,12 +3842,12 @@ class DiffusionPipelineManager:
                 "force_full_precision_vae": self.animator_is_sdxl and self.animator_vae_name not in ["xl16", VAE_XL16],
                 "ip_adapter": self.ip_adapter,
                 "task_callback": getattr(self, "_task_callback", None),
-                "motion_module": self.motion_module,
+                "motion_module": motion_module,
                 "position_encoding_truncate_length": self.position_encoding_truncate_length,
                 "position_encoding_scale_length": self.position_encoding_scale_length,
+                "vae_preview": self.get_vae_preview(self.animator_is_sdxl),
+                "vae": self.inpainter_vae
             }
-
-            vae = self.animator_vae
 
             if self.animator_use_tensorrt:
                 if self.animator_is_sdxl: # Not possible yet
@@ -3757,8 +3861,6 @@ class DiffusionPipelineManager:
 
                 if "vae" in self.TENSORRT_STAGES:
                     kwargs["vae_engine_dir"] = self.animator_tensorrt_vae_dir
-                elif vae is not None:
-                    kwargs["vae"] = vae
 
                 if "clip" in self.TENSORRT_STAGES:
                     kwargs["clip_engine_dir"] = self.animator_tensorrt_clip_dir
@@ -3780,7 +3882,6 @@ class DiffusionPipelineManager:
 
                 animator_pipeline = self.animator_pipeline_class.from_pretrained(
                     self.animator_diffusers_cache_dir,
-                    vae_preview=self.get_vae_preview(self.animator_is_sdxl),
                     **kwargs
                 )
             elif self.animator_engine_cache_exists:
@@ -3791,8 +3892,6 @@ class DiffusionPipelineManager:
                     kwargs["tokenizer_2"] = None
                     kwargs["text_encoder_2"] = None
                     kwargs["tokenizer_2"] = None
-                if vae is not None:
-                    kwargs["vae"] = vae
                 if "16" in str(self.dtype):
                     kwargs["variant"] = "fp16"
                 
@@ -3802,13 +3901,9 @@ class DiffusionPipelineManager:
 
                 animator_pipeline = self.animator_pipeline_class.from_pretrained(
                     self.animator_diffusers_cache_dir,
-                    vae_preview=self.get_vae_preview(self.animator_is_sdxl),
                     **kwargs
                 )
             else:
-                if self.animator_vae_name is not None:
-                    kwargs["vae_path"] = self.find_vae_path(self.animator_vae_name)
-                
                 logger.debug(
                     f"Initializing animator pipeline from checkpoint at {self.animator}. Arguments are {redact_for_log(kwargs)}"
                 )
@@ -3826,18 +3921,10 @@ class DiffusionPipelineManager:
                 if controlnet_name.startswith("sparse"):
                     animator_pipeline.controlnets[controlnet_name] = animator_pipeline.get_sparse_controlnet(
                         controlnet_name,
-                        cache_dir=self.engine_cache_dir,
+                        cache_dir=self.engine_controlnet_dir,
                         task_callback=self.task_callback
                     ).to(self.dtype)
             if not self.animator_tensorrt_is_ready:
-                if self.inject_dpo:
-                    self.task_callback("Injecting DPO (Direct Preference Optimization)")
-                    dpo_model = DPO_OFFSET_XL if self.is_sdxl else DPO_OFFSET
-                    dpo_model = self.check_download_model(
-                        self.engine_other_dir,
-                        dpo_model
-                    )
-                    animator_pipeline.inject_unet(dpo_model)
                 if self._ip_adapter_model is not None:
                     self.ip_adapter.check_download(
                         is_sdxl=self.animator_is_sdxl,
@@ -3899,6 +3986,7 @@ class DiffusionPipelineManager:
             from enfugue.diffusion.support import DragAnimator
             from enfugue.diffusion.util import get_vram_info
             drag_pipeline = DragAnimator(
+                self.engine_root,
                 self.engine_motion_dir,
                 device=self.device,
                 dtype=self.dtype,
@@ -3941,13 +4029,15 @@ class DiffusionPipelineManager:
 
     # Functional pipeline loaders/unloaders
 
-    def unload_pipeline(self, reason: str = "None") -> None:
+    def unload_pipeline(self, reason: str = "None", reset_controlnets: bool = True) -> None:
         """
         Calls the pipeline deleter.
         """
         if hasattr(self, "_pipeline"):
             logger.debug(f'Unloading pipeline for reason "{reason}"')
             del self.pipeline
+            if reset_controlnets:
+                self.controlnets = None # type: ignore[assignment]
 
     def offload_pipeline(self, intention: Optional[Literal["inpainting", "refining"]] = None) -> None:
         """
@@ -3971,13 +4061,15 @@ class DiffusionPipelineManager:
                 self._pipeline = self._pipeline.to("cpu") # type: ignore[attr-defined]
             self.clear_memory()
 
-    def unload_refiner(self, reason: str = "None") -> None:
+    def unload_refiner(self, reason: str = "None", reset_controlnets: bool = True) -> None:
         """
         Calls the refiner deleter.
         """
         if hasattr(self, "_refiner_pipeline"):
             logger.debug(f'Unloading refiner pipeline for reason "{reason}"')
             del self.refiner_pipeline
+            if reset_controlnets:
+                self.refiner_controlnets = None # type: ignore[assignment]
 
     def offload_refiner(self, intention: Optional[Literal["inpainting", "inference"]] = None) -> None:
         """
@@ -4001,13 +4093,15 @@ class DiffusionPipelineManager:
                 self._refiner_pipeline = self._refiner_pipeline.to("cpu") # type: ignore[attr-defined]
             self.clear_memory()
 
-    def unload_inpainter(self, reason: str = "None") -> None:
+    def unload_inpainter(self, reason: str = "None", reset_controlnets: bool = True) -> None:
         """
         Calls the inpainter deleter.
         """
         if hasattr(self, "_inpainter_pipeline"):
             logger.debug(f'Unloading inpainter pipeline for reason "{reason}"')
             del self.inpainter_pipeline
+            if reset_controlnets:
+                self.inpainter_controlnets = None # type: ignore[assignment]
 
     def offload_inpainter(self, intention: Optional[Literal["inference", "refining"]] = None) -> None:
         """
@@ -4033,13 +4127,15 @@ class DiffusionPipelineManager:
                 self._inpainter_pipeline = self._inpainter_pipeline.to("cpu") # type: ignore[attr-defined]
             self.clear_memory()
 
-    def unload_animator(self, reason: str = "None") -> None:
+    def unload_animator(self, reason: str = "None", reset_controlnets: bool = True) -> None:
         """
         Calls the animator deleter.
         """
         if hasattr(self, "_animator_pipeline"):
             logger.debug(f'Unloading animator pipeline for reason "{reason}"')
             del self.animator_pipeline
+            if reset_controlnets:
+                self.animator_controlnets = None # type: ignore[assignment]
 
     def offload_animator(self, intention: Optional[Literal["inference", "inpainting", "refining"]] = None) -> None:
         """
@@ -4085,7 +4181,8 @@ class DiffusionPipelineManager:
         if not hasattr(self, "_upscaler"):
             from enfugue.diffusion.support.upscale import Upscaler
             self._upscaler = Upscaler(
-                self.engine_other_dir,
+                self.engine_root,
+                self.engine_upscale_dir,
                 device=self.device,
                 dtype=self.dtype,
                 offline=self.offline
@@ -4101,7 +4198,8 @@ class DiffusionPipelineManager:
         if not hasattr(self, "_control_image_processor"):
             from enfugue.diffusion.support import ControlImageProcessor
             self._control_image_processor = ControlImageProcessor(
-                self.engine_other_dir,
+                self.engine_root,
+                self.engine_detection_dir,
                 device=self.device,
                 dtype=self.dtype,
                 offline=self.offline
@@ -4117,7 +4215,8 @@ class DiffusionPipelineManager:
         if not hasattr(self, "_background_remover"):
             from enfugue.diffusion.support import BackgroundRemover
             self._background_remover = BackgroundRemover(
-                self.engine_other_dir,
+                self.engine_root,
+                self.engine_detection_dir,
                 device=self.device,
                 dtype=self.dtype,
                 offline=self.offline
@@ -4133,10 +4232,12 @@ class DiffusionPipelineManager:
         if not hasattr(self, "_ip_adapter"):
             from enfugue.diffusion.support import IPAdapter
             self._ip_adapter = IPAdapter(
-                self.engine_other_dir,
+                self.engine_root,
+                self.engine_ip_adapter_dir,
                 device=self.device,
                 dtype=self.dtype,
-                offline=self.offline
+                offline=self.offline,
+                clip_vision_dir=self.engine_clip_vision_dir,
             )
             self._ip_adapter.task_callback = self.task_callback
         return self._ip_adapter
@@ -4149,6 +4250,7 @@ class DiffusionPipelineManager:
         if not hasattr(self, "_conversation"):
             from enfugue.diffusion.support import Conversation
             self._conversation = Conversation(
+                self.engine_root,
                 self.engine_language_dir,
                 device=self.device,
                 dtype=self.dtype,
@@ -4165,7 +4267,8 @@ class DiffusionPipelineManager:
         if not hasattr(self, "_interpolator"):
             from enfugue.diffusion.support import Interpolator
             self._interpolator = Interpolator(
-                self.engine_other_dir,
+                self.engine_root,
+                self.engine_interpolation_dir,
                 device=self.device,
                 dtype=self.dtype,
                 offline=self.offline
@@ -4181,7 +4284,8 @@ class DiffusionPipelineManager:
         if not hasattr(self, "_unimatch"):
             from enfugue.diffusion.support import Unimatch
             self._unimatch = Unimatch(
-                self.engine_other_dir,
+                self.engine_root,
+                self.engine_detection_dir,
                 device=self.device,
                 dtype=self.dtype,
                 offline=self.offline
@@ -4191,7 +4295,7 @@ class DiffusionPipelineManager:
 
     # Diffusers model getters
 
-    def get_vae_path(self, vae: Optional[str] = None) -> Optional[Union[str, Tuple[str, ...]]]:
+    def get_vae_path(self, vae: Optional[str] = None) -> Optional[str]:
         """
         Gets the path to the VAE repository based on the passed path or key
         """
@@ -4207,26 +4311,16 @@ class DiffusionPipelineManager:
             return VAE_CONSISTENCY
         return vae
 
-    def find_vae_path(self, vae: str) -> str:
+    def check_default_vae(self, vae: str) -> str:
         """
-        Finds a VAE path if there is one, otherwise returns a repo.
+        Gets a default VAE URL
         """
-        path = self.get_vae_path(vae)
-        if not path:
-            raise ValueError("find_vae_path requires an argument")
-        if not isinstance(path, tuple):
-            return path
-        repo, possible_files = path[0], path[1:]
-        for filename in possible_files:
-            possible_file = find_file_in_directory(
-                self.engine_cache_dir,
-                filename,
-                self.LOADABLE_EXTENSIONS
-            )
-            if possible_file is not None:
-                return possible_file
-        return repo
-    
+        basename = os.path.basename(vae)
+        for default in [VAE_MSE, VAE_EMA, VAE_XL, VAE_XL16, VAE_CONSISTENCY]:
+            if get_file_name_from_url(default) == basename:
+                return default
+        return vae
+
     def get_xl_vae(self, vae: str) -> AutoencoderKL:
         """
         Loads an XL VAE from file or dies trying
@@ -4247,28 +4341,13 @@ class DiffusionPipelineManager:
 
     def get_vae(
         self,
-        vae: Optional[Union[str, Tuple[str, ...]]] = None
+        vae: Optional[str] = None
     ) -> Optional[Union[AutoencoderKL, ConsistencyDecoderVAE]]:
         """
         Loads the VAE
         """
         if vae is None:
             return None
-
-        if isinstance(vae, tuple):
-            vae, possible_files = vae[0], vae[1:]
-            for filename in possible_files:
-                possible_file = find_file_in_directory(
-                    self.engine_cache_dir,
-                    filename,
-                    self.LOADABLE_EXTENSIONS
-                )
-                if possible_file is not None:
-                    vae = possible_file
-                    break
-
-        if vae.startswith("http"):
-            vae = self.check_download_model(self.engine_cache_dir, vae)
 
         if "consisten" in vae.lower():
             from diffusers.models import ConsistencyDecoderVAE
@@ -4277,24 +4356,16 @@ class DiffusionPipelineManager:
             from diffusers.models import AutoencoderKL
             vae_model = AutoencoderKL
 
-        if os.path.exists(vae):
-            try:
-                result = vae_model.from_single_file(
-                    vae,
-                    torch_dtype=self.dtype,
-                    cache_dir=self.engine_cache_dir,
-                    from_safetensors="safetensors" in vae
-                )
-            except KeyError as ex:
-                logger.debug(f"Received KeyError on '{ex}' when instantiating VAE from single file, trying to use XL VAE loader fix.")
-                result = self.get_xl_vae(vae)
-        else:
-            result = vae_model.from_pretrained(
+        try:
+            result = vae_model.from_single_file(
                 vae,
                 torch_dtype=self.dtype,
                 cache_dir=self.engine_cache_dir,
-                local_files_only=self.offline
+                from_safetensors="safetensors" in vae
             )
+        except KeyError as ex:
+            logger.debug(f"Received KeyError on '{ex}' when instantiating VAE from single file, trying to use XL VAE loader fix.")
+            result = self.get_xl_vae(vae)
 
         return result
 
@@ -4303,12 +4374,19 @@ class DiffusionPipelineManager:
         Gets a previewer VAE (tiny)
         """
         from diffusers.models import AutoencoderTiny
-        repo = "madebyollin/taesdxl" if use_xl else "madebyollin/taesd"
-        return AutoencoderTiny.from_pretrained(
-            repo,
-            cache_dir=self.engine_cache_dir,
-            torch_dtype=self.dtype
+        from enfugue.diffusion.util.torch_util import load_state_dict
+        url = VAE_PREVIEW_XL if use_xl else VAE_PREVIEW
+        path = self.check_download_model(self.engine_vae_approx_dir, url)
+        vae_config = os.path.join(self.engine_cache_dir, "taesd-config.json")
+        check_download(
+            "https://huggingface.co/madebyollin/taesd/raw/main/config.json",
+            vae_config
         )
+        vae_model = AutoencoderTiny.from_config(
+            AutoencoderTiny._dict_from_json_file(vae_config)
+        )
+        vae_model.load_state_dict(load_state_dict(path), strict=False)
+        return vae_model.to(self.device)
 
     def get_scheduler_class(
         self,
@@ -4417,7 +4495,9 @@ class DiffusionPipelineManager:
         controlnet_model = ControlNetModel.from_config(
             ControlNetModel._dict_from_json_file(controlnet_config)
         )
-        controlnet_model.load_state_dict(load_state_dict(controlnet), strict=False)
+        state_dict = load_state_dict(controlnet)
+        controlnet_model.load_state_dict(state_dict, strict=False)
+        del state_dict
         return controlnet_model.to(self.device, self.dtype)
 
     def get_controlnet(self, controlnet: Optional[str] = None) -> Optional[ControlNetModel]:
@@ -4428,39 +4508,33 @@ class DiffusionPipelineManager:
             return None
 
         from diffusers.models import ControlNetModel
+        from enfugue.diffusion.util.torch_util import load_state_dict
 
-        if self.is_loadable_model_file(controlnet) or "/" not in controlnet:
-            if os.path.exists(controlnet):
-                expected_controlnet_location = controlnet
-            elif controlnet.startswith("http"):
-                expected_controlnet_location = self.check_download_model(self.engine_cache_dir, controlnet)
-            else:
-                raise ValueError(f"ControlNet path {controlnet} is not a file that can be accessed, a URL that can be downloaded or a repository that can be cloned.")
-            try:
-                self.task_callback(f"Loading ControlNet from file {expected_controlnet_location}")
-                return ControlNetModel.from_single_file(
-                    expected_controlnet_location,
-                    cache_dir=self.engine_cache_dir,
-                ).to(torch.half)
-            except KeyError as ex:
-                logger.debug(f"Received KeyError on '{ex}' when instantiating controlnet from single file, trying to use XL ControlNet loader fix.")
-                return self.get_xl_controlnet(expected_controlnet_location)
-        else:
-            self.task_callback(f"Loading ControlNet from cache {controlnet}")
-            result = ControlNetModel.from_pretrained(
-                controlnet,
-                torch_dtype=torch.half,
-                cache_dir=self.engine_cache_dir,
-                local_files_only=self.offline,
+        find_controlnet = self.check_download_model(self.engine_controlnet_dir, controlnet)
+        if not find_controlnet:
+            raise ValueError(f"ControlNet path {controlnet} is not a file that can be accessed, a URL that can be downloaded or a repository that can be cloned.")
+        try:
+            self.task_callback(f"Loading ControlNet from file {find_controlnet}")
+            controlnet_config = os.path.join(self.engine_cache_dir, "controlnet-config.json")
+            check_download(
+                "https://huggingface.co/lllyasviel/control_v11p_sd15_canny/raw/main/config.json",
+                controlnet_config
             )
-
-        return result
+            controlnet_model = ControlNetModel.from_config(
+                ControlNetModel._dict_from_json_file(controlnet_config)
+            )
+            state_dict = load_state_dict(find_controlnet)
+            controlnet_model.load_state_dict(state_dict, strict=False)
+            del state_dict
+            return controlnet_model.to(self.device, self.dtype)
+        except (RuntimeError, KeyError):
+            return self.get_xl_controlnet(find_controlnet)
     
     def get_default_controlnet_path_by_name(
         self,
         name: CONTROLNET_LITERAL,
         is_sdxl: bool
-    ) -> Tuple[str, ...]:
+    ) -> str:
         """
         Gets the default controlnet path based on pipeline type
         """
@@ -4518,17 +4592,7 @@ class DiffusionPipelineManager:
         key_parts += [name]
         configured_path = self.configuration.get(".".join(key_parts), None)
         if not configured_path:
-            defaults = self.get_default_controlnet_path_by_name(name, is_sdxl)
-            default_path, possible_files = defaults[0], defaults[1:]
-            for file in possible_files:
-                possible_file = find_file_in_directory(
-                    self.engine_cache_dir,
-                    os.path.basename(file),
-                    self.LOADABLE_EXTENSIONS
-                )
-                if possible_file is not None:
-                    return possible_file
-            return default_path
+            return self.get_default_controlnet_path_by_name(name, is_sdxl)
         return configured_path
 
     @property
@@ -4584,9 +4648,13 @@ class DiffusionPipelineManager:
         if not hasattr(self, "_controlnets"):
             self._controlnets = {}
 
+        if getattr(self, "_pipeline", None) is not None and any([name.startswith("sparse") for name in (controlnet_names - existing_controlnet_names)]):
+            self.unload_pipeline("Adding sparse ControlNet", False)
+
         for controlnet_name in controlnet_names.union(existing_controlnet_names):
             if controlnet_name not in controlnet_names:
-                self._controlnets.pop(controlnet_name, None)
+                old_cnet = self._controlnets.pop(controlnet_name, None)
+                del old_cnet # Help the garbage collector
             elif controlnet_name not in self._controlnets:
                 if controlnet_name.startswith("sparse"):
                     continue
@@ -4594,11 +4662,9 @@ class DiffusionPipelineManager:
                     self.get_controlnet_path_by_name(controlnet_name, self.is_sdxl)
                 )
 
+        self.clear_memory()
         if getattr(self, "_pipeline", None) is not None:
-            if any([name.startswith("sparse") for name in (controlnet_names - existing_controlnet_names)]):
-                self.unload_pipeline("Adding sparse ControlNet")
-            else:
-                self._pipeline.controlnets = self.controlnets
+            self._pipeline.controlnets = self.controlnets
 
     @property
     def inpainter_controlnets(self) -> Dict[str, ControlNetModel]:
@@ -4654,9 +4720,13 @@ class DiffusionPipelineManager:
         if not hasattr(self, "_inpainter_controlnets"):
             self._inpainter_controlnets = {}
 
+        if getattr(self, "_inpainter_pipeline", None) is not None and any([name.startswith("sparse") for name in (controlnet_names - existing_controlnet_names)]):
+            self.unload_inpainter("Adding sparse ControlNet", False)
+
         for controlnet_name in controlnet_names.union(existing_controlnet_names):
             if controlnet_name not in controlnet_names:
-                self._inpainter_controlnets.pop(controlnet_name, None)
+                old_cnet = self._inpainter_controlnets.pop(controlnet_name, None)
+                del old_cnet
             elif controlnet_name not in self._inpainter_controlnets:
                 if controlnet_name.startswith("sparse"):
                     continue
@@ -4664,11 +4734,9 @@ class DiffusionPipelineManager:
                     self.get_controlnet_path_by_name(controlnet_name, self.inpainter_is_sdxl)
                 )
 
+        self.clear_memory()
         if getattr(self, "_inpainter_pipeline", None) is not None:
-            if any([name.startswith("sparse") for name in (controlnet_names - existing_controlnet_names)]):
-                self.unload_inpainter("Adding sparse ControlNet")
-            else:
-                self._inpainter_pipeline.controlnets = self.inpainter_controlnets
+            self._inpainter_pipeline.controlnets = self.inpainter_controlnets
 
     @property
     def animator_controlnets(self) -> Dict[str, ControlNetModel]:
@@ -4724,9 +4792,13 @@ class DiffusionPipelineManager:
         if not hasattr(self, "_animator_controlnets"):
             self._animator_controlnets = {}
 
+        if getattr(self, "_animator_pipeline", None) is not None and any([name.startswith("sparse") for name in (controlnet_names - existing_controlnet_names)]):
+            self.unload_animator("Adding sparse ControlNet", False)
+
         for controlnet_name in controlnet_names.union(existing_controlnet_names):
             if controlnet_name not in controlnet_names:
-                self._animator_controlnets.pop(controlnet_name, None)
+                old_cnet = self._animator_controlnets.pop(controlnet_name, None)
+                del old_cnet
             elif controlnet_name not in self._animator_controlnets:
                 if controlnet_name.startswith("sparse"):
                     continue
@@ -4734,11 +4806,9 @@ class DiffusionPipelineManager:
                     self.get_controlnet_path_by_name(controlnet_name, self.animator_is_sdxl)
                 )
 
+        self.clear_memory()
         if getattr(self, "_animator_pipeline", None) is not None:
-            if any([name.startswith("sparse") for name in (controlnet_names - existing_controlnet_names)]):
-                self.unload_animator("Adding sparse ControlNet")
-            else:
-                self._animator_pipeline.controlnets = self.animator_controlnets
+            self._animator_pipeline.controlnets = self.animator_controlnets
 
     @property
     def refiner_controlnets(self) -> Dict[str, ControlNetModel]:
@@ -4792,9 +4862,13 @@ class DiffusionPipelineManager:
         if not hasattr(self, "_refiner_controlnets"):
             self._refiner_controlnets = {}
 
+        if getattr(self, "_refiner_pipeline", None) is not None and any([name.startswith("sparse") for name in (controlnet_names - existing_controlnet_names)]):
+            self.unload_refiner("Adding sparse ControlNet", False)
+
         for controlnet_name in controlnet_names.union(existing_controlnet_names):
             if controlnet_name not in controlnet_names:
-                self._refiner_controlnets.pop(controlnet_name, None)
+                old_cnet = self._refiner_controlnets.pop(controlnet_name, None)
+                del old_cnet
             elif controlnet_name not in self._refiner_controlnets:
                 if controlnet_name.startswith("sparse"):
                     continue
@@ -4802,11 +4876,9 @@ class DiffusionPipelineManager:
                     self.get_controlnet_path_by_name(controlnet_name, self.refiner_is_sdxl)
                 )
 
+        self.clear_memory()
         if getattr(self, "_refiner_pipeline", None) is not None:
-            if any([name.startswith("sparse") for name in (controlnet_names - existing_controlnet_names)]):
-                self.unload_refiner("Adding sparse ControlNet")
-            else:
-                self._refiner_pipeline.controlnets = self.refiner_controlnets
+            self._refiner_pipeline.controlnets = self.refiner_controlnets
 
     @property
     def controlnet_names(self) -> Set[CONTROLNET_LITERAL]:
@@ -5246,12 +5318,11 @@ class DiffusionPipelineManager:
                                 self.unload_animator("changing IP adapter model")
 
                     pipe = self.animator_pipeline
-                    if self.reload_motion_module:
+                    if self.reload_motion_module and self.motion_module is not None:
                         if task_callback is not None:
                             task_callback("Reloading motion module")
                         try:
                             pipe.load_motion_module_weights(
-                                cache_dir=self.engine_cache_dir,
                                 motion_module=self.motion_module,
                                 task_callback=task_callback,
                                 position_encoding_truncate_length=self.position_encoding_truncate_length,

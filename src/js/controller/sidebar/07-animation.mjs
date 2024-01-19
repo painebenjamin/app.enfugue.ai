@@ -122,6 +122,7 @@ class AnimationController extends Controller {
 
         clearVectors.onClick(() => {
             this.vector.value = [];
+            this.vector.changed();
         });
         lockVectors.onClick(() => {
             if (this.vector.hasClass("locked")) {
@@ -261,8 +262,11 @@ class AnimationController extends Controller {
         this.subscribe("keyboard", (e) => {
             if (e.key == "c" && e.ctrlKey) {
                 this.vector.copySelected();
-            }
-            if (e.key == "Delete") {
+            } else if (e.key == "z" && e.ctrlKey) {
+                this.vector.undo();
+            } else if (e.key === "y" && e.ctrlKey) {
+                this.vector.redo();
+            } else if (e.key == "Delete") {
                 this.vector.deleteSelected();
             }
         });

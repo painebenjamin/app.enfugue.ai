@@ -30,11 +30,13 @@ class ControlImageProcessor:
     task_callback: Optional[Callable[[str], None]] = None
     def __init__(
         self,
+        root_dir: str,
         model_dir: str,
         device: torch.device,
         dtype: torch.dtype,
         offline: bool = False
     ) -> None:
+        self.root_dir = root_dir
         self.model_dir = model_dir
         self.device = device
         self.dtype = dtype
@@ -98,6 +100,7 @@ class ControlImageProcessor:
         if not hasattr(self, "_edge_detector"):
             from enfugue.diffusion.support.edge import EdgeDetector
             self._edge_detector = EdgeDetector(
+                self.root_dir,
                 self.model_dir,
                 device=self.device,
                 dtype=self.dtype,
@@ -114,6 +117,7 @@ class ControlImageProcessor:
         if not hasattr(self, "_line_detector"):
             from enfugue.diffusion.support.line import LineDetector
             self._line_detector = LineDetector(
+                self.root_dir,
                 self.model_dir,
                 device=self.device,
                 dtype=self.dtype,
@@ -130,6 +134,7 @@ class ControlImageProcessor:
         if not hasattr(self, "_depth_detector"):
             from enfugue.diffusion.support.depth import DepthDetector
             self._depth_detector = DepthDetector(
+                self.root_dir,
                 self.model_dir,
                 device=self.device, 
                 dtype=self.dtype,
@@ -146,6 +151,7 @@ class ControlImageProcessor:
         if not hasattr(self, "_pose_detector"):
             from enfugue.diffusion.support.pose import PoseDetector
             self._pose_detector = PoseDetector(
+                self.root_dir,
                 self.model_dir,
                 device=self.device,
                 dtype=self.dtype,

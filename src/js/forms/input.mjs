@@ -43,14 +43,14 @@ import {
     MultiLoraInputView,
     MultiLycorisInputView,
     MultiInversionInputView,
-    VaeInputView,
-    DefaultVaeInputView,
+    VAEInputView,
     ModelPickerStringInputView,
     ModelPickerListInputView,
     ModelPickerInputView,
     ModelMergeModeInputView,
     MotionModuleInputView,
     ModelTypeInputView,
+    ControlNetModelInputView,
 } from "./input/enfugue/models.mjs";
 import {
     EngineSizeInputView,
@@ -144,8 +144,7 @@ export {
     EngineSizeInputView,
     RefinerEngineSizeInputView,
     InpainterEngineSizeInputView,
-    VaeInputView,
-    DefaultVaeInputView,
+    VAEInputView,
     SchedulerInputView,
     ModelPickerStringInputView,
     ModelPickerListInputView,
@@ -175,4 +174,5 @@ export {
     FontInputView,
     ModelTypeInputView,
     BetaScheduleInputView,
+    ControlNetModelInputView,
 };

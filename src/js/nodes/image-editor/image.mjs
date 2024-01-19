@@ -130,34 +130,39 @@ class ImageEditorImageNodeView extends ImageEditorNodeView {
             });
             reader.readAsDataURL(imageToLoad);
         }
+        this.contentChanged();
     }
 
     /**
      * Mirrors the image horizontally
      */
     mirrorHorizontally() {
-        return this.content.mirrorHorizontally();
+        this.content.mirrorHorizontally();
+        this.contentChanged();
     }
     
     /**
      * Mirrors the image vertically
      */
     mirrorVertically() {
-        return this.content.mirrorVertically();
+        this.content.mirrorVertically();
+        this.contentChanged();
     }
     
     /**
      * Rotates the image clockwise by 90 degrees
      */
     rotateClockwise() {
-        return this.content.rotateClockwise();
+        this.content.rotateClockwise();
+        this.contentChanged();
     }
     
     /**
      * Rotates the image counter-clockwise by 90 degrees
      */
     rotateCounterClockwise() {
-        return this.content.rotateCounterClockwise();
+        this.content.rotateCounterClockwise();
+        this.contentChanged();
     }
 
     /**

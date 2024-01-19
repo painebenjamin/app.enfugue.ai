@@ -27,11 +27,13 @@ class DragAnimatorProcessor:
     """
     def __init__(
         self,
+        root_dir: str,
         model_dir: str,
         network: DragNUWANet,
         device: Device,
         dtype: DType
     ) -> None:
+        self.root_dir = root_dir
         self.model_dir = model_dir
         self.network = network
         self.device = device
@@ -107,6 +109,7 @@ class DragAnimatorProcessor:
                 if optical_flow_method == "unimatch":
                     from enfugue.diffusion.support.unimatch import Unimatch
                     with Unimatch(
+                        root_dir=self.root_dir,
                         model_dir=self.model_dir,
                         device=self.device,
                         dtype=self.dtype
@@ -373,6 +376,7 @@ class DragAnimator(SupportModel):
                 dtype=self.dtype
             )
             processor = DragAnimatorProcessor(
+                root_dir=self.root_dir,
                 model_dir=self.model_dir,
                 network=network,
                 device=self.device,

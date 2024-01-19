@@ -93,7 +93,6 @@ from enfugue.diffusion.animate.diff.sparse_controlnet import SparseControlNetMod
 from enfugue.diffusion.constants import *
 from enfugue.util import (
     logger,
-    check_download,
     check_download_to_dir,
     merge_tokens,
 )
@@ -195,7 +194,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
     def __init__(
         self,
         vae: Union[AutoencoderKL, ConsistencyDecoderVAE],
-        vae_preview: AutoencoderTiny,
+        vae_preview: Optional[AutoencoderTiny],
         text_encoder: Optional[CLIPTextModel],
         text_encoder_2: Optional[CLIPTextModelWithProjection],
         tokenizer: Optional[CLIPTokenizer],
@@ -277,23 +276,6 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         )
 
     @classmethod
-    def debug_tensors(cls, **kwargs: Union[Dict, List, torch.Tensor]) -> None:
-        """
-        Debug logs tensors.
-        """
-        for key in kwargs:
-            value = kwargs[key]
-            if isinstance(value, list) or isinstance(value, tuple): # type: ignore[unreachable]
-                for i, v in enumerate(value):
-                    cls.debug_tensors(**{f"{key}_{i}": v})
-            elif isinstance(value, dict):
-                for k in value:
-                    cls.debug_tensors(**{f"{key}_{k}": value[k]})
-            elif isinstance(value, torch.Tensor):
-                t_min, t_max = value.aminmax()
-                logger.debug(f"{key} = {value.shape} ({value.dtype}) on {value.device}, min={t_min}, max={t_max}")
-
-    @classmethod
     def open_image(cls, path: str) -> List[PIL.Image.Image]:
         """
         Opens an image or video and standardizes to a list of images
@@ -343,8 +325,8 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         prediction_type: Optional[str]=None,
         image_size: int=512,
         scheduler_type: Literal["pndm", "lms", "heun", "euler", "euler-ancestral", "dpm", "ddim"]="ddim",
-        vae_path: Optional[str]=None,
-        vae_preview_path: Optional[str]=None,
+        vae: Optional[Union[AutoencoderKL, ConsistencyDecoderVAE]]=None,
+        vae_preview: Optional[AutoencoderTiny]=None,
         load_safety_checker: bool=True,
         torch_dtype: Optional[torch.dtype]=None,
         upcast_attention: Optional[bool]=None,
@@ -595,80 +577,31 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         unet.load_state_dict(converted_unet_checkpoint, strict=False)
 
         # Convert the VAE model.
-        if vae_path is None:
-            try:
-                task_callback("Loading Default VAE")
-                vae_config = create_vae_diffusers_config(original_config, image_size=image_size)
-                converted_vae_checkpoint = convert_ldm_vae_checkpoint(checkpoint, vae_config)
+        if vae is None:
+            task_callback("Loading Default VAE")
+            vae_config = create_vae_diffusers_config(original_config, image_size=image_size)
+            converted_vae_checkpoint = convert_ldm_vae_checkpoint(checkpoint, vae_config)
 
-                if (
-                    "model" in original_config
-                    and "params" in original_config.model
-                    and "scale_factor" in original_config.model.params
-                ):
-                    vae_scale_factor = original_config.model.params.scale_factor
-                else:
-                    vae_scale_factor = 0.18215  # default SD scaling factor
-
-                vae_config["scaling_factor"] = vae_scale_factor
-
-                vae = AutoencoderKL(**vae_config)
-                vae_keys = len(list(converted_vae_checkpoint.keys()))
-                logger.debug(f"Loading {vae_keys} keys into Autoencoder state dict (strict). Autoencoder scale is {vae_config['scaling_factor']}")
-                vae.load_state_dict(converted_vae_checkpoint)
-            except KeyError as ex:
-                default_path = "stabilityai/sdxl-vae" if model_type in ["SDXL", "SDXL-Refiner"] else "stabilityai/sd-vae-ft-ema"
-                logger.error(f"Malformed VAE state dictionary detected; missing required key '{ex}'. Reverting to default model {default_path}")
-                task_callback(f"Loading VAE {default_path}")
-                vae = AutoencoderKL.from_pretrained(default_path, cache_dir=cache_dir)
-        elif os.path.exists(vae_path):
-            if model_type in ["SDXL", "SDXL-Refiner"]:
-                vae_config_path = os.path.join(cache_dir, "sdxl-vae-config.json")
-                check_download(
-                    "https://huggingface.co/stabilityai/sdxl-vae/raw/main/config.json",
-                    vae_config_path,
-                    check_size=False
-                )
-                task_callback("Loading VAE")
-                vae_config = AutoencoderKL._dict_from_json_file(vae_config_path)
-                vae = AutoencoderKL.from_config(vae_config)
-                vae_state_dict = load_state_dict(vae_path)
-                vae_keys = len(list(vae_state_dict.keys()))
-                logger.debug(f"Loading {vae_keys} keys into Autoencoder state dict (non-strict)")
-                vae.load_state_dict(load_state_dict(vae_path), strict=False)
+            if (
+                "model" in original_config
+                and "params" in original_config.model
+                and "scale_factor" in original_config.model.params
+            ):
+                vae_scale_factor = original_config.model.params.scale_factor
             else:
-                logger.debug(f"Initializing Autoencoder from file {vae_path}")
-                task_callback("Loading VAE")
-                vae = AutoencoderKL.from_single_file(
-                    vae_path,
-                    cache_dir=cache_dir,
-                    from_safetensors="safetensors" in vae_path
-                )
-                logger.debug(f"VAE Scaling factor is {vae.config.scaling_factor}")
-        else:
-            logger.debug(f"Initializing autoencoder from repository {vae_path}")
-            if vae_path == "openai/consistency-decoder":
-                vae_model = ConsistencyDecoderVAE
-            else:
-                vae_model = AutoencoderKL
-            vae = vae_model.from_pretrained(vae_path, cache_dir=cache_dir)
+                vae_scale_factor = 0.18215  # default SD scaling factor
+
+            vae_config["scaling_factor"] = vae_scale_factor
+
+            vae = AutoencoderKL(**vae_config)
+            vae_keys = len(list(converted_vae_checkpoint.keys()))
+            logger.debug(f"Loading {vae_keys} keys into Autoencoder state dict (strict). Autoencoder scale is {vae_config['scaling_factor']}")
+            vae.load_state_dict(converted_vae_checkpoint)
 
         if offload_models:
             logger.debug("Offloading enabled; sending VAE to CPU")
             vae.to("cpu")
             empty_cache()
-
-        if vae_preview_path is None:
-            if model_type in ["SDXL", "SDXL-Refiner"]:
-                vae_preview_path = "madebyollin/taesdxl"
-            else:
-                vae_preview_path = "madebyollin/taesd"
-
-        task_callback(f"Loading preview VAE {vae_preview_path}")
-        vae_preview = AutoencoderTiny.from_pretrained(
-            vae_preview_path,
-            cache_dir=cache_dir
-        )
 
         if load_safety_checker:
             safety_checker_path = "CompVis/stable-diffusion-safety-checker"
@@ -956,7 +889,11 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
         if task_callback is not None and not os.path.exists(os.path.join(cache_dir, os.path.basename(controlnet_path))):
             task_callback(f"Downloading {controlnet_path}")
 
-        controlnet_module = check_download_to_dir(controlnet_path, cache_dir)
+        controlnet_module = check_download_to_dir(
+            controlnet_path,
+            cache_dir,
+            text_callback=task_callback
+        )
         controlnet_state_dict = load_state_dict(controlnet_module)
         if "controlnet" in controlnet_state_dict:
             controlnet_state_dict = controlnet_state_dict["controlnet"] # type: ignore[assignment]
@@ -2203,6 +2140,12 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                             down_samples[i] *= repeat(conditioning_scale, "f -> b c f h w", b=batch, c=C, h=H, w=W)
                         _, C, _, H, W = mid_sample.shape
                         mid_sample *= repeat(conditioning_scale, "f -> b c f h w", b=batch, c=C, h=H, w=W)
+
+                    if not is_animation:
+                        for i, sample in enumerate(down_samples):
+                            down_samples[i] = rearrange(sample, "b c f h w -> (b f) c h w")
+                        mid_sample = rearrange(mid_sample, "b c f h w -> (b f) c h w")
+
                 else:
                     if is_animation:
                         controlnet_cond = rearrange(controlnet_cond, "b c f h w -> (b f) c h w")

@@ -6,6 +6,7 @@ import { ElementBuilder } from '../base/builder.mjs';
 import {
     isEmpty,
     deepClone,
+    isEquivalent,
     bindPointerUntilRelease,
     getPointerEventCoordinates,
 } from '../base/helpers.mjs';
@@ -239,6 +240,11 @@ class VectorView extends View {
     static tagName = "enfugue-vector-view";
 
     /**
+     * @var int History length
+     */
+    static historyLength = 250;
+
+    /**
      * On construct, add buffers for splines and callbacks
      */
     constructor(config, width, height) {
@@ -256,6 +262,8 @@ class VectorView extends View {
         this.startSelected = null;
         this.startRadians = null;
         this.extendCopies = 2;
+        this.history = [];
+        this.redoStack = [];
     }
 
     /**
@@ -363,10 +371,43 @@ class VectorView extends View {
     /**
      * Triggers onChange handlers
      */
-    changed() {
-        let callbackValue = this.value;
-        for (let handler of this.onChangeCallbacks) {
-            handler(callbackValue);
+    changed(addToHistory=true, resetStack=true) {
+        let callbackValue = this.value,
+            lastCallbackValue = this.lastCallbackValue;
+        if (!isEquivalent(callbackValue, lastCallbackValue)) {
+            for (let handler of this.onChangeCallbacks) {
+                handler(callbackValue);
+            }
+            if (addToHistory) {
+                this.history = this.history.concat([callbackValue]).slice(-this.constructor.historyLength);
+                if (resetStack) {
+                    this.redoStack = [];
+                }
+            }
+        }
+        this.lastCallbackValue = callbackValue;
+    }
+
+    /**
+     * Does an undo
+     */
+    undo() {
+        if (!isEmpty(this.history)) {
+            let currentState = this.history.pop(-1);
+            this.redoStack.push(currentState);
+            this.value = this.history[this.history.length-1];
+            this.changed(false, false);
+        }
+    }
+
+    /**
+     * Does a redo
+     */
+     redo() {
+        if (!isEmpty(this.redoStack)) {
+            let lastState = this.redoStack.pop(-1);
+            this.value = lastState;
+            this.changed(true, false);
         }
     }
 

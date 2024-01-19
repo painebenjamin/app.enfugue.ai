@@ -14,6 +14,7 @@ from enfugue.util.misc import merge_into
 __all__ = [
     "VersionDict",
     "check_make_directory",
+    "check_make_directory_by_names",
     "get_local_installation_directory",
     "get_local_config_directory",
     "get_local_static_directory",
@@ -207,3 +208,35 @@ def find_files_in_directory(directory: str, pattern: Optional[Union[str, re.Patt
                     yield sub_file
             elif pattern is None or bool(pattern.match(filename)):
                 yield os.path.abspath(check_path)
+
+def check_make_directory_by_names(root: str, *directory_names: str) -> str:
+    """
+    Finds a directory from the root, trying many different cases.
+    """
+    default = os.path.join(root, directory_names[0])
+    if os.path.exists(default):
+        return default
+
+    from pibble.util.strings import kebab_case, camel_case, pascal_case, snake_case
+    all_lowercase = lambda name: re.sub(r"[^a-zA-Z0-9]", "", name).lower()
+    all_uppercase = lambda name: re.sub(r"[^a-zA-Z0-9]", "", name).upper()
+    all_directory_names = []
+
+    for directory_name in directory_names:
+        all_directory_names.append(directory_name)
+        if not directory_name.endswith("s"):
+            maybe_plural = f"{directory_name}s"
+            if maybe_plural not in directory_names:
+                all_directory_names.append(maybe_plural)
+
+    for directory_name in all_directory_names:
+        default_name = os.path.join(root, directory_name)
+        if os.path.exists(default_name):
+            return default_name
+        for try_method in [snake_case, kebab_case, camel_case, pascal_case, all_lowercase, all_uppercase]:
+            maybe = os.path.join(root, try_method(directory_name))
+            if os.path.exists(maybe):
+                return maybe
+
+    check_make_directory(default)
+    return default

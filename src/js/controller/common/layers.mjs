@@ -246,7 +246,7 @@ class LayerView extends View {
                                     break;
                             }
                         }
-                    } else if(scaledWidth <= verticalWidth && scaledHeight <= verticalHeight) {
+                    } else if (scaledWidth <= verticalWidth && scaledHeight <= verticalHeight) {
                         scaledImageWidth = verticalWidth;
                         scaledImageHeight = verticalHeight;
                         if (!isEmpty(nodeAnchor)) {
@@ -716,7 +716,7 @@ class LayersController extends Controller {
     /**
      * Activates a layer by index
      */
-    async activateLayer(layerIndex) {
+    async activateLayer(layerIndex, focusNode=true) {
         if (layerIndex === -1) {
             return;
         }
@@ -724,14 +724,18 @@ class LayersController extends Controller {
             this.layers[i].setActive(i === layerIndex);
         }
         this.layerOptions.setForm(this.layers[layerIndex].form);
+        if (focusNode) {
+            this.application.canvas.focusNode(this.layers[layerIndex].editorNode);
+        }
     }
 
     /**
      * Activates a layer by layer
      */
-    activate(layer) {
+    activate(layer, focusNode=true) {
         return this.activateLayer(
-            this.layers.indexOf(layer)
+            this.layers.indexOf(layer),
+            focusNode
         );
     }
 
@@ -745,6 +749,11 @@ class LayersController extends Controller {
         });
         newLayer.editorNode.onClose(() => {
             this.removeLayer(newLayer, false);
+        });
+        newLayer.editorNode.onContentChanged(() => {
+            newLayer.debounceDrawPreviewImage();
+            this.activate(newLayer, false);
+            this.layersChanged();
         });
         newLayer.form.onSubmit(() => {
             this.layersChanged();
@@ -843,11 +852,6 @@ class LayersController extends Controller {
         let scribbleForm = new ImageEditorScribbleNodeOptionsFormView(this.config),
             scribbleLayer = new LayerView(this, scribbleNode, scribbleForm);
 
-        scribbleNode.content.onDraw(() => { 
-            this.activate(scribbleLayer);
-            scribbleLayer.debounceDrawPreviewImage();
-            this.layersChanged();
-        });
         await this.addLayer(scribbleLayer, activate);
         
         return scribbleLayer;
@@ -936,7 +940,7 @@ class LayersController extends Controller {
 
         // Register callbacks for image editor
         this.canvas.onNodeFocus((node) => {
-            this.activate(this.getLayerByEditorNode(node));
+            this.activate(this.getLayerByEditorNode(node), false);
         });
         this.canvas.onNodeCopy((newNode, previousNode) => {
             this.addCopiedNode(newNode, previousNode);

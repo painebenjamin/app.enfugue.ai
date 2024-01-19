@@ -39,37 +39,6 @@ class EngineSizeInputView extends NumberInputView {
 };
 
 /**
- * Default VAE Input View
- */
-class DefaultVaeInputView extends SelectInputView {
-    /**
-     * @var object Option values and labels
-     */
-    static defaultOptions = {
-        "ema": "EMA 560000",
-        "mse": "MSE 840000",
-        "xl": "SDXL",
-        "xl16": "SDXL FP16",
-        "other": "Other"
-    };
-    
-    /**
-     * @var string Default text
-     */
-    static placeholder = "Default";
-
-    /**
-     * @var bool Allow null
-     */
-    static allowEmpty = true;
-
-    /**
-     * @var string Tooltip to display
-     */
-    static tooltip = "Variational Autoencoders are the model that translates images between pixel space - images that you can see - and latent space - images that the AI model understands. In general you do not need to select a particular VAE model, but you may find slight differences in sharpness of resulting images.";
-};
-
-/**
  * Mask Type Input View
  */
 class MaskTypeInputView extends SelectInputView {

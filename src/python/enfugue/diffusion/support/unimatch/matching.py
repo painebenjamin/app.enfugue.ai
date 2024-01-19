@@ -2,7 +2,7 @@
 import torch
 import torch.nn.functional as F
 
-from .geometry import coords_grid, generate_window_grid, normalize_coords
+from enfugue.diffusion.support.unimatch.geometry import coords_grid, generate_window_grid, normalize_coords
 
 
 def global_correlation_softmax(feature0, feature1,

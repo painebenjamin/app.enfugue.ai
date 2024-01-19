@@ -17,6 +17,9 @@ class EnfugueAPIControllerBase(JSONWebServiceAPIServer):
     # Properties defined in server
     default_checkpoints: Dict[str, str]
     default_lora: Dict[str, str]
+    default_controlnet: Dict[str, str]
+    default_vae: Dict[str, str]
+    engine_directories: List[str]
     engine_root: str
     safe: bool
     thumbnail_height: int

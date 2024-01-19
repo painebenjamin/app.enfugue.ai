@@ -412,15 +412,14 @@ class EncodedPrompts:
                     image_embeds = image_embeds[frames]
 
             if return_tensor is None:
-                return_tensor = image_embeds.unsqueeze(0)
+                return_tensor = image_embeds
             else:
                 return_tensor = torch.cat(
-                    [return_tensor, image_embeds.unsqueeze(0)],
-                    dim=0
+                    [return_tensor, image_embeds],
+                    dim=2 if frames else 1
                 )
         if return_tensor is None:
             raise RuntimeError("Prompt embeds could not be retrieved.")
-        return_tensor = torch.mean(return_tensor, dim=0)
         if frames:
             return rearrange(return_tensor, "f b t d -> b f t d")
         return return_tensor
@@ -452,15 +451,14 @@ class EncodedPrompts:
                     uncond_embeds = uncond_embeds[frames]
 
             if return_tensor is None:
-                return_tensor = uncond_embeds.unsqueeze(0)
+                return_tensor = uncond_embeds
             else:
                 return_tensor = torch.cat(
-                    [return_tensor, uncond_embeds.unsqueeze(0)],
-                    dim=0
+                    [return_tensor, uncond_embeds],
+                    dim=2 if frames else 1
                 )
         if return_tensor is None:
             raise RuntimeError("Prompt embeds could not be retrieved.")
-        return_tensor = torch.mean(return_tensor, dim=0)
         if frames:
             return rearrange(return_tensor, "f b t d -> b f t d")
         return return_tensor
@@ -477,11 +475,24 @@ class EncodedPrompts:
         import torch
         get_embeds: PromptGetterCallable = lambda prompt: prompt.get_embeds(frames=frames, frequencies=frequencies, amplitudes=amplitudes)
         result = self.get_mean_tensor(get_embeds)
-        stack_dim = 2 if frames else 1
         if result is None:
             return None
         if self.is_sdxl and self.image_prompt_embeds is not None:
-            result = torch.cat([result, self.get_image_prompt_embeds(frames)], dim=stack_dim)
+            ip_embeds = self.get_image_prompt_embeds(frames)
+            if frames:
+                base_tokens = result.shape[2]
+                ip_tokens = ip_embeds.shape[2]
+                result = torch.cat([
+                    result[:, :, :(base_tokens-ip_tokens), :],
+                    ip_embeds
+                ], dim=2)
+            else:
+                base_tokens = result.shape[1]
+                ip_tokens = ip_embeds.shape[1]
+                result = torch.cat([
+                    result[:, :(base_tokens-ip_tokens), :],
+                    ip_embeds
+                ], dim=1)
         if self.is_sdxl and self.do_classifier_free_guidance:
             negative_result = self.get_negative_embeds(frames)
             if negative_result is None:
@@ -493,12 +504,40 @@ class EncodedPrompts:
             else:
                 negative, positive = None, result
             ip_embeds = self.get_image_prompt_embeds(frames)
-            positive = torch.cat([positive, self.get_image_prompt_embeds(frames)], dim=stack_dim)
-            if self.do_classifier_free_guidance and negative is not None and self.image_uncond_prompt_embeds is not None:
-                negative = torch.cat([negative, self.get_image_uncond_prompt_embeds(frames)], dim=stack_dim)
-                return torch.cat([negative, positive], dim=0)
+            if frames:
+                base_tokens = positive.shape[2]
+                ip_tokens = ip_embeds.shape[2]
+                positive = torch.cat([
+                    positive[:, :, :(base_tokens-ip_tokens), :],
+                    ip_embeds
+                ], dim=2)
+                if self.do_classifier_free_guidance and negative is not None and self.image_uncond_prompt_embeds is not None:
+                    uncond_ip_embeds = self.get_image_uncond_prompt_embeds(frames)
+                    base_uncond_tokens = negative.shape[2]
+                    ip_uncond_tokens = uncond_ip_embeds.shape[2]
+                    negative = torch.cat([
+                        negative[:, :, :(base_uncond_tokens-ip_uncond_tokens), :],
+                        uncond_ip_embeds
+                    ], dim=2)
+                    return torch.cat([negative, positive], dim=0)
             else:
-                return positive
+                base_tokens = positive.shape[1]
+                ip_tokens = ip_embeds.shape[1]
+                positive = torch.cat([
+                    positive[:, :(base_tokens-ip_tokens), :],
+                    ip_embeds
+                ], dim=1)
+                if self.do_classifier_free_guidance and negative is not None and self.image_uncond_prompt_embeds is not None:
+                    uncond_ip_embeds = self.get_image_uncond_prompt_embeds(frames)
+                    base_uncond_tokens = negative.shape[1]
+                    ip_uncond_tokens = uncond_ip_embeds.shape[1]
+                    negative = torch.cat([
+                        negative[:, :(base_uncond_tokens-ip_uncond_tokens), :],
+                        uncond_ip_embeds
+                    ], dim=1)
+                    return torch.cat([negative, positive], dim=0)
+                else:
+                    return positive
         return result.to(dtype=self.dtype)
 
     def get_negative_embeds(
@@ -519,14 +558,41 @@ class EncodedPrompts:
             return result
         stack_dim = 2 if frames else 1
         if self.is_sdxl and self.image_uncond_prompt_embeds is not None and result is not None:
-            return torch.cat([result, self.get_image_uncond_prompt_embeds(frames)], dim=stack_dim)
+            uncond_ip_embeds = self.get_image_uncond_prompt_embeds(frames)
+            if frames:
+                base_uncond_tokens = result.shape[2]
+                ip_uncond_tokens = uncond_ip_embeds.shape[2]
+                return torch.cat([
+                    result[:, :, :(base_uncond_tokens-ip_uncond_tokens), :],
+                    uncond_ip_embeds
+                ], dim=2)
+            else:
+                base_uncond_tokens = result.shape[1]
+                ip_uncond_tokens = uncond_ip_embeds.shape[1]
+                return torch.cat([
+                    result[:, :(base_uncond_tokens-ip_uncond_tokens), :],
+                    uncond_ip_embeds
+                ], dim=1)
         elif self.image_uncond_prompt_embeds is not None:
             if self.do_classifier_free_guidance: # type: ignore[unreachable]
                 negative, positive = result.chunk(2)
             else:
                 negative, positive = result, None
-            negative = torch.cat([negative, self.get_image_uncond_prompt_embeds(frames)], dim=stack_dim)
-            return negative
+            uncond_ip_embeds = self.get_image_uncond_prompt_embeds(frames)
+            if frames:
+                base_uncond_tokens = negative.shape[2]
+                ip_uncond_tokens = uncond_ip_embeds.shape[2]
+                return torch.cat([
+                    negative[:, :, :(base_uncond_tokens-ip_uncond_tokens), :],
+                    uncond_ip_embeds
+                ], dim=2)
+            else:
+                base_uncond_tokens = negative.shape[1]
+                ip_uncond_tokens = uncond_ip_embeds.shape[1]
+                return torch.cat([
+                    negative[:, :(base_uncond_tokens-ip_uncond_tokens), :],
+                    uncond_ip_embeds
+                ], dim=1)
         return result.to(dtype=self.dtype)
 
     def get_pooled_embeds(

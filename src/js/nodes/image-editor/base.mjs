@@ -106,6 +106,27 @@ class ImageEditorNodeView extends NodeView {
             true
         );
     }
+
+    /**
+     * Adds a change handlers for when the content is changed
+     */
+    onContentChanged(changed) {
+        if (isEmpty(this.contentChangeCallbacks)) {
+            this.contentChangeCallbacks = [];
+        }
+        this.contentChangeCallbacks.push(changed);
+    }
+
+    /**
+     * Triggers content change handlers
+     */
+    contentChanged() {
+        if (!isEmpty(this.contentChangeCallbacks)) {
+            for (let callback of this.contentChangeCallbacks) {
+                callback(this.content);
+            }
+        }
+    }
 };
 
 export { ImageEditorNodeView };

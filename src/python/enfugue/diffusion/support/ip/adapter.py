@@ -234,6 +234,7 @@ class IPAdapter(SupportModel):
         """
         return self.get_model_file(
             self.DEFAULT_ENCODER_PATH,
+            directory=self.kwargs.get("clip_vision_dir", None),
             filename="ip-adapter_sd15_encoder.pth",
             extensions=[".bin", ".pth", ".safetensors"]
         )
@@ -246,6 +247,7 @@ class IPAdapter(SupportModel):
         """
         return self.get_model_file(
             self.DEFAULT_ENCODER_CONFIG_PATH,
+            directory=self.kwargs.get("clip_vision_dir", None),
             filename="ip-adapter_sd15_encoder_config.json"
         )
 
@@ -285,6 +287,7 @@ class IPAdapter(SupportModel):
 
         return self.get_model_file(
             self.XL_ENCODER_PATH,
+            directory=self.kwargs.get("clip_vision_dir", None),
             filename="ip-adapter_sdxl_encoder.pth",
             extensions=[".bin", ".pth", ".safetensors"]
         )
@@ -300,6 +303,7 @@ class IPAdapter(SupportModel):
 
         return self.get_model_file(
             self.XL_ENCODER_CONFIG_PATH,
+            directory=self.kwargs.get("clip_vision_dir", None),
             filename="ip-adapter_sdxl_encoder_config.json"
         )
 

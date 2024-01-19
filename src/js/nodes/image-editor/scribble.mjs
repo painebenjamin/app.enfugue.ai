@@ -110,15 +110,17 @@ class ImageEditorScribbleNodeView extends ImageEditorNodeView {
      * Intercept the constructor and add ScribbleView
      */
     constructor(editor, name, content, left, top, width, height) {
+        let scribbleView = new ScribbleView(editor.config, width, height);
         super(
             editor,
             name,
-            new ScribbleView(editor.config, width, height),
+            scribbleView,
             left,
             top,
             width,
             height
         );
+        scribbleView.onDraw(() => this.contentChanged());
     }
 
     /**

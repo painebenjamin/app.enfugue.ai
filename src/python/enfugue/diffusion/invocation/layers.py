@@ -1807,7 +1807,7 @@ class LayeredInvocation:
                         ]
                         for frame_list in frame_lists
                     ]
-            svd_kwargs["optical_flow"] = optical_flow
+                svd_kwargs["optical_flow"] = optical_flow
             logger.debug(f"Calling DragNUWA pipeline with arguments {redact_for_log(svd_kwargs)}")
             frames = pipeline.dragnuwa_img2vid(
                 task_callback=task_callback,
@@ -1960,11 +1960,11 @@ class LayeredInvocation:
                 for i, image in enumerate(images):
                     processed_control_images.append(process(image))
                 if self.animation_frames:
-                    control_images = [[
+                    control_images = [
                         dict([
                             (self.detailer_controlnet, [(processed_control_images, self.detailer_controlnet_scale)])
                         ])
-                    ]]
+                    ]
                 else:
                     control_images = [
                         dict([ # type: ignore[misc]
@@ -1978,10 +1978,11 @@ class LayeredInvocation:
             for i, image in enumerate([images] if self.animation_frames else images):
                 if nsfw[i]:
                     continue
-
+                
                 if task_callback is not None:
                     task_callback(f"Detailing sample {i+1}")
 
+                pipeline.stop_keepalive()
                 mask_max, mask_min = detail_masks[i].getextrema()
                 if mask_max == mask_min == 0:
                     logger.debug("No detailable areas found, skipping.")
@@ -2043,11 +2044,11 @@ class LayeredInvocation:
                 for i, image in enumerate(images):
                     processed_control_images.append(process(image))
                 if self.animation_frames:
-                    control_images = [[
+                    control_images = [
                         dict([
                             (self.detailer_controlnet, [(processed_control_images, self.detailer_controlnet_scale)])
                         ])
-                    ]]
+                    ]
                 else:
                     control_images = [
                         dict([ # type: ignore[misc]
@@ -2070,6 +2071,7 @@ class LayeredInvocation:
                 if task_callback:
                     task_callback(f"Finishing sample {i+1}")
 
+                pipeline.stop_keepalive()
                 if isinstance(image, list):
                     width, height = image[0].size
                 else:

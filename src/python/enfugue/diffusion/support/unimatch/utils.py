@@ -1,7 +1,7 @@
 # type: ignore
 import torch
 import torch.nn.functional as F
-from .position import PositionEmbeddingSine
+from enfugue.diffusion.support.unimatch.position import PositionEmbeddingSine
 
 
 def generate_window_grid(h_min, h_max, w_min, w_max, len_h, len_w, device=None):

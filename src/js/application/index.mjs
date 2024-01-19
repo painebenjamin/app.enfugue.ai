@@ -40,12 +40,13 @@ import { HistoryDatabase } from "../common/history.mjs";
 import { SimpleNotification } from "../common/notify.mjs";
 import {
     CheckpointInputView,
+    ControlNetModelInputView,
     LoraInputView,
     LycorisInputView,
     InversionInputView,
     ModelPickerInputView,
-    DefaultVaeInputView,
     MotionModuleInputView,
+    VAEInputView,
 } from "../forms/input.mjs";
 import {
     ConfirmFormView,
@@ -362,14 +363,12 @@ class Application {
      * Sets getters for dynamic inputs
      */
     async registerDynamicInputs() {
-        if (!this.userIsAdmin) {
-            // Remove other input
-            delete DefaultVaeInputView.defaultOptions.other;
-        }
         this.registerDynamicModelInput(CheckpointInputView, "/checkpoints", "/checkpoints");
         this.registerDynamicModelInput(LoraInputView, "/lora", "/lora");
         this.registerDynamicModelInput(LycorisInputView, "/lycoris", "/lycoris");
         this.registerDynamicModelInput(InversionInputView, "/inversions", "/inversions");
+        this.registerDynamicModelInput(VAEInputView, "/vae", "/vae");
+        this.registerDynamicModelInput(ControlNetModelInputView, "/controlnet", "/controlnet");
         this.registerDynamicModelInput(MotionModuleInputView, "/motion", "/motion");
 
         ModelPickerInputView.defaultOptions = async () => {

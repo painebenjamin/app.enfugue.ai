@@ -1,7 +1,7 @@
 # type: ignore
 import torch.nn as nn
 
-from .trident_conv import MultiScaleTridentConv
+from enfugue.diffusion.support.unimatch.trident_conv import MultiScaleTridentConv
 
 
 class ResidualBlock(nn.Module):

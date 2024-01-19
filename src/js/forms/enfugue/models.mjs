@@ -12,7 +12,7 @@ import {
     MultiLycorisInputView,
     MultiInversionInputView,
     ModelMergeModeInputView,
-    VaeInputView,
+    VAEInputView,
     CheckpointInputView,
     SchedulerInputView,
     PromptInputView,
@@ -81,7 +81,7 @@ class ModelFormView extends FormView {
         },
         "Additional Models": {
             "vae": {
-                "class": VaeInputView,
+                "class": VAEInputView,
                 "label": "VAE"
             },
             "refiner": {
@@ -92,7 +92,7 @@ class ModelFormView extends FormView {
                 }
             },
             "refiner_vae": {
-                "class": VaeInputView,
+                "class": VAEInputView,
                 "label": "Refining VAE"
             },
             "inpainter": {
@@ -103,7 +103,7 @@ class ModelFormView extends FormView {
                 }
             },
             "inpainter_vae": {
-                "class": VaeInputView,
+                "class": VAEInputView,
                 "label": "Inpainting VAE"
             },
             "motion_module": {
@@ -277,7 +277,7 @@ class AbridgedModelFormView extends ModelFormView {
         "Additional Models": {
             "vae": {
                 "label": "VAE",
-                "class": VaeInputView
+                "class": VAEInputView
             },
             "refiner": {
                 "label": "Refining Checkpoint",
@@ -288,7 +288,7 @@ class AbridgedModelFormView extends ModelFormView {
             },
             "refiner_vae": {
                 "label": "Refining VAE",
-                "class": VaeInputView
+                "class": VAEInputView
             },
             "inpainter": {
                 "label": "Inpainting Checkpoint",
@@ -299,7 +299,7 @@ class AbridgedModelFormView extends ModelFormView {
             },
             "inpainter_vae": {
                 "label": "Inpainting VAE",
-                "class": VaeInputView
+                "class": VAEInputView
             },
             "motion_module": {
                 "label": "Motion Module",

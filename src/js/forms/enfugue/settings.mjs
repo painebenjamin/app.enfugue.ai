@@ -1,6 +1,7 @@
 /** @module forms/enfugue/settings */
 import { FormView } from "../base.mjs";
 import { 
+    ControlNetModelInputView,
     CheckboxInputView,
     NumberInputView,
     SelectInputView,
@@ -139,107 +140,107 @@ class SystemSettingsFormView extends FormView {
         "ControlNets": {
             "canny": {
                 "label": "Canny Edge",
-                "class": ControlNetPathInputView
+                "class": ControlNetModelInputView
             },
             "canny_xl": {
                 "label": "Canny Edge XL",
-                "class": ControlNetPathInputView
+                "class": ControlNetModelInputView
             },
             "hed": {
                 "label": "Holistically-Nested Edge Detection (HED)",
-                "class": ControlNetPathInputView
+                "class": ControlNetModelInputView
             },
             "hed_xl": {
                 "label": "Holistically-Nested Edge Detection (HED) XL",
-                "class": ControlNetPathInputView
+                "class": ControlNetModelInputView
             },
             "pidi": {
                 "label": "Soft Edge Detection (PIDI)",
-                "class": ControlNetPathInputView
+                "class": ControlNetModelInputView
             },
             "pidi_xl": {
                 "label": "Soft Edge Detection (PIDI) XL",
-                "class": ControlNetPathInputView
+                "class": ControlNetModelInputView
             },
             "mlsd": {
                 "label": "Mobile Line Segment Detection (MLSD)",
-                "class": ControlNetPathInputView
+                "class": ControlNetModelInputView
             },
             "mlsd_xl": {
                 "label": "Mobile Line Segment Detection (MLSD) XL",
-                "class": ControlNetPathInputView
+                "class": ControlNetModelInputView
             },
             "line": {
                 "label": "Line Art",
-                "class": ControlNetPathInputView
+                "class": ControlNetModelInputView
             },
             "line_xl": {
                 "label": "Line Art XL",
-                "class": ControlNetPathInputView
+                "class": ControlNetModelInputView
             },
             "anime": {
                 "label": "Anime Line Art",
-                "class": ControlNetPathInputView
+                "class": ControlNetModelInputView
             },
             "anime_xl": {
                 "label": "Anime Line Art XL",
-                "class": ControlNetPathInputView
+                "class": ControlNetModelInputView
             },
             "scribble": {
                 "label": "Scribble",
-                "class": ControlNetPathInputView
+                "class": ControlNetModelInputView
             },
             "scribble_xl": {
                 "label": "Scribble XL",
-                "class": ControlNetPathInputView
+                "class": ControlNetModelInputView
             },
             "depth": {
                 "label": "Depth Detection (MiDaS)",
-                "class": ControlNetPathInputView
+                "class": ControlNetModelInputView
             },
             "depth_xl": {
                 "label": "Depth Detection (MiDaS) XL",
-                "class": ControlNetPathInputView
+                "class": ControlNetModelInputView
             },
             "normal": {
                 "label": "Normal Detection (Estimate)",
-                "class": ControlNetPathInputView
+                "class": ControlNetModelInputView
             },
             "normal_xl": {
                 "label": "Normal Detection (Estimate) XL",
-                "class": ControlNetPathInputView
+                "class": ControlNetModelInputView
             },
             "pose": {
                 "label": "Pose Detection (DWPose/OpenPose)",
-                "class": ControlNetPathInputView
+                "class": ControlNetModelInputView
             },
             "pose_xl": {
                 "label": "Pose Detection (DWPose/OpenPose) XL",
-                "class": ControlNetPathInputView
+                "class": ControlNetModelInputView
             },
             "qr": {
                 "label": "QR Code (QR Monster)",
-                "class": ControlNetPathInputView
+                "class": ControlNetModelInputView
             },
             "qr_xl": {
                 "label": "QR Code (QR Monster) XL",
-                "class": ControlNetPathInputView,
+                "class": ControlNetModelInputView,
             },
             "tile": {
                 "label": "Tile",
-                "class": ControlNetPathInputView
+                "class": ControlNetModelInputView
             },
             "tile_xl": {
                 "label": "Tile XL",
-                "class": ControlNetPathInputView
+                "class": ControlNetModelInputView
             },
             "inpaint": {
                 "label": "Inpaint",
-                "class": ControlNetPathInputView
+                "class": ControlNetModelInputView
             },
             "inpaint_xl": {
                 "label": "Inpaint XL",
-                "class": ControlNetPathInputView
+                "class": ControlNetModelInputView
             }
         }
     };

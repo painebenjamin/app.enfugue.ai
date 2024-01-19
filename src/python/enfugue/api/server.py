@@ -41,6 +41,7 @@ from enfugue.partner.civitai import CivitAI
 
 from enfugue.util import (
     check_make_directory,
+    check_make_directory_by_names,
     get_version,
     get_pending_versions,
     get_gpu_status,
@@ -79,6 +80,16 @@ __all__ = ["EnfugueAPIServerBase", "EnfugueAPIServer"]
 
 
 class EnfugueAPIServerBase(JSONWebServiceAPIServer, UserRESTExtensionServerBase):
+    MODEL_SYNONYMS = {
+        "vae_approx": ["vae_taesd"],
+        "controlnet": ["control_net"],
+        "checkpoint": ["Stable-diffusion"],
+        "motion": ["motion_module"],
+        "inversion": ["embedding", "ti"],
+        "lycoris": ["locon"],
+        "detection": ["mmdet"]
+    }
+
     XL_BASE_KEY =    "conditioner.embedders.1.model.transformer.resblocks.9.mlp.c_proj.bias"
     XL_REFINER_KEY = "conditioner.embedders.0.model.transformer.resblocks.9.mlp.c_proj.bias"
     INPUT_BLOCK_KEY = "model.diffusion_model.input_blocks.0.0.weight"
@@ -129,6 +140,61 @@ class EnfugueAPIServerBase(JSONWebServiceAPIServer, UserRESTExtensionServerBase)
                 OFFSET_LORA_XL,
             ]
         ])
+
+    @property
+    def default_vae(self) -> Dict[str, str]:
+        """
+        Gets the list of default VAE
+        """
+        return dict([
+            (get_file_name_from_url(url), url)
+            for url in [
+                VAE_EMA,
+                VAE_MSE,
+                VAE_XL,
+                VAE_XL16,
+                VAE_CONSISTENCY
+            ]
+        ])
+
+    @property
+    def default_controlnet(self) -> Dict[str, str]:
+        """
+        Gets the list of default VAE
+        """
+        return dict([
+            (get_file_name_from_url(url), url)
+            for url in [
+                CONTROLNET_CANNY,
+                CONTROLNET_CANNY_XL,
+                CONTROLNET_MLSD,
+                CONTROLNET_HED,
+                CONTROLNET_SCRIBBLE,
+                CONTROLNET_TILE,
+                CONTROLNET_INPAINT,
+                CONTROLNET_DEPTH,
+                CONTROLNET_DEPTH_XL,
+                CONTROLNET_NORMAL,
+                CONTROLNET_POSE,
+                CONTROLNET_POSE_XL,
+                CONTROLNET_PIDI,
+                CONTROLNET_PIDI_XL,
+                CONTROLNET_LINE,
+                CONTROLNET_ANIME,
+                CONTROLNET_TEMPORAL,
+                CONTROLNET_QR,
+                CONTROLNET_QR_XL,
+            ]
+        ])
+
+    @property
+    def engine_directories(self) -> List[str]:
+        """
+        Returns the list of all engine directories
+        """
+        return [
+            "cache", "diffusers", "checkpoint", "controlnet", "clip", "clip_vision", "ip_adapter", "vae", "vae_approx", "upscale", "language", "lora", "lycoris", "inversion", "motion", "tensorrt", "other", "images", "intermediate", "detection", "interpolation"
+        ]
 
     @property
     def thumbnail_height(self) -> int:
@@ -254,7 +320,7 @@ class EnfugueAPIServerBase(JSONWebServiceAPIServer, UserRESTExtensionServerBase)
         ONLY reads safetensors files
         """
         directory = self.get_configured_directory("checkpoint")
-        model_path = find_file_in_directory(directory, model)
+        model_path = find_file_in_directory(self.engine_root, model)
         if model_path is None:
             return None
 
@@ -327,10 +393,13 @@ class EnfugueAPIServerBase(JSONWebServiceAPIServer, UserRESTExtensionServerBase)
         """
         dirname = self.configuration.get(
             f"enfugue.engine.{model_type}",
-            os.path.join(self.engine_root, model_type),
+            None
         )
-        if dirname.startswith("~"):
-            dirname = os.path.expanduser(dirname)
+        if dirname is not None:
+            if dirname.startswith("~"):
+                dirname = os.path.expanduser(dirname)
+        else:
+            dirname = check_make_directory_by_names(self.engine_root, model_type, *self.MODEL_SYNONYMS.get(model_type, []))
         return os.path.realpath(dirname)
 
     def get_default_model(self, model: str) -> Optional[str]:
@@ -342,6 +411,10 @@ class EnfugueAPIServerBase(JSONWebServiceAPIServer, UserRESTExtensionServerBase)
             return self.default_checkpoints[base_model_name]
         if base_model_name in self.default_lora:
             return self.default_lora[base_model_name]
+        if base_model_name in self.default_vae:
+            return self.default_vae[base_model_name]
+        if base_model_name in self.default_controlnet:
+            return self.default_controlnet[base_model_name]
         return None
 
     def get_default_size_for_model(self, model: Optional[str]) -> int:
@@ -371,7 +444,7 @@ class EnfugueAPIServerBase(JSONWebServiceAPIServer, UserRESTExtensionServerBase)
         model_basename = os.path.splitext(os.path.basename(model))[0]
         model_dir = self.get_configured_directory(model_type)
         existing_model = find_file_in_directory(
-            model_dir,
+            self.engine_root,
             model_basename,
             extensions = [".ckpt", ".bin", ".pt", ".pth", ".safetensors"]
         )
@@ -531,28 +604,17 @@ class EnfugueAPIServerBase(JSONWebServiceAPIServer, UserRESTExtensionServerBase)
         inversion_dir = self.get_configured_directory("inversion")
         motion_dir = self.get_configured_directory("motion")
 
-        model = find_file_in_directory(checkpoint_dir, diffusion_model.model)
-        if not model:
-            raise ValueError(f"Could not find {diffusion_model.model} in {checkpoint_dir}")
-        
-        # We use casts to remove sqlalchemy metadata
-        model = str(model)
+        model = str(self.check_find_model("checkpoint", diffusion_model.model))
 
         refiner = diffusion_model.refiner
         if refiner:
-            refiner_model = find_file_in_directory(checkpoint_dir, refiner[0].model)
-            if not refiner_model:
-                raise ValueError(f"Could not find {refiner[0].model} in {checkpoint_dir}")
-            refiner = str(refiner_model)
+            refiner = self.check_find_model("checkpoint", refiner[0].model)
         else:
             refiner = None
 
         inpainter = diffusion_model.inpainter
         if inpainter:
-            inpainter_model = os.path.join(checkpoint_dir, inpainter[0].model)
-            if not inpainter_model:
-                raise ValueError(f"Could not find {inpainter[0].model} in {checkpoint_dir}")
-            inpainter = str(inpainter_model)
+            inpainter = str(self.check_find_model("checkpoint", inpainter[0].model))
         else:
             inpainter = None
 
@@ -564,47 +626,41 @@ class EnfugueAPIServerBase(JSONWebServiceAPIServer, UserRESTExtensionServerBase)
 
         vae = diffusion_model.vae
         if vae:
-            vae = str(diffusion_model.vae[0].name)
+            vae = str(self.check_find_model("vae", diffusion_model.vae[0].name))
         else:
             vae = None
 
         refiner_vae = diffusion_model.refiner_vae
         if refiner_vae:
-            refiner_vae = str(diffusion_model.refiner_vae[0].name)
+            refiner_vae = str(self.check_find_model("vae", diffusion_model.refiner_vae[0].name))
         else:
             refiner_vae = None
 
         inpainter_vae = diffusion_model.inpainter_vae
         if inpainter_vae:
-            inpainter_vae = str(diffusion_model.inpainter_vae[0].name)
+            inpainter_vae = str(self.check_find_model("vae", diffusion_model.inpainter_vae[0].name))
         else:
             inpainter_vae = None
 
         motion_module = diffusion_model.motion_module
         if motion_module:
-            motion_module = str(diffusion_model.motion_module[0].name)
+            motion_module = str(self.check_find_model("motion", diffusion_model.motion_module[0].name))
         else:
             motion_module = None
 
         lora = []
         for lora_model in diffusion_model.lora:
-            lora_model_path = find_file_in_directory(lora_dir, lora_model.model)
-            if not lora_model_path:
-                raise ValueError(f"Could not find {lora_model.model} in {lora_dir}")
+            lora_model_path = self.check_find_model("lora", lora_model.model)
             lora.append((str(lora_model_path), float(lora_model.weight)))
 
         lycoris = []
         for lycoris_model in diffusion_model.lycoris:
-            lycoris_model_path = find_file_in_directory(lycoris_dir, lycoris_model.model)
-            if not lycoris_model_path:
-                raise ValueError(f"Could not find {lycoris_model.model} in {lycoris_dir}")
+            lycoris_model_path = self.check_find_model("lycoris", lycoris_model.model)
             lycoris.append((str(lycoris_model_path), float(lycoris_model.weight)))
 
         inversion = []
         for inversion_model in diffusion_model.inversion:
-            inversion_model_path = find_file_in_directory(inversion_dir, inversion_model.model)
-            if not inversion_model_path:
-                raise ValueError(f"Could not find {inversion_model.model} in {inversion_dir}")
+            inversion_model_path = self.check_find_model("inversion", inversion_model.model)
             inversion.append(str(inversion_model_path))
 
         model_prompt = diffusion_model.prompt
@@ -769,21 +825,8 @@ class EnfugueAPIServerBase(JSONWebServiceAPIServer, UserRESTExtensionServerBase)
             is_initialized = self.user_config.get("enfugue.initialized", False)
             if not is_initialized:
                 directories = {}
-                for dirname in [
-                    "cache",
-                    "checkpoint",
-                    "diffusers",
-                    "lora",
-                    "lycoris",
-                    "inversion",
-                    "other",
-                    "tensorrt",
-                    "images",
-                    "intermediate",
-                ]:
-                    directories[dirname] = self.configuration.get(
-                        f"enfugue.engine.{dirname}", os.path.join(self.engine_root, dirname)
-                    )
+                for dirname in ["root"] + self.engine_directories:
+                    directories[dirname] = self.get_configured_directory(dirname)
 
                 announcements.append({"type": "initialize", "directories": directories})
 

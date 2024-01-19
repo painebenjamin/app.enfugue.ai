@@ -2,9 +2,9 @@
 import torch
 import torch.nn as nn
 
-from .attention import (single_head_full_attention, single_head_split_window_attention,
+from enfugue.diffusion.support.unimatch.attention import (single_head_full_attention, single_head_split_window_attention,
                         single_head_full_attention_1d, single_head_split_window_attention_1d)
-from .utils import generate_shift_window_attn_mask, generate_shift_window_attn_mask_1d
+from enfugue.diffusion.support.unimatch.utils import generate_shift_window_attn_mask, generate_shift_window_attn_mask_1d
 
 
 class TransformerLayer(nn.Module):

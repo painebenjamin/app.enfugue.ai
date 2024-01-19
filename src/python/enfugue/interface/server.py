@@ -182,8 +182,13 @@ class EnfugueInterfaceServer(
             ui_config = {}
 
         paths = self.configuration["server.cms.path"]
-        if not self.configuration.get("server.secure", False) and self.configuration.get("server.domain", None) is None:
-            root = f"http://{request.host}/"
+        logger.warning(dict(request.headers))
+        if self.configuration.get("server.domain", None) is None:
+            scheme = request.headers.get(
+                "X-Forwarded-Proto",
+                "https" if self.configuration.get("server.secure", False) else "http"
+            )
+            root = f"{scheme}://{request.host}/"
             paths["root"] = root
             paths["static"] = f"{root}static/"
             paths["api"] = f"{root}api/"

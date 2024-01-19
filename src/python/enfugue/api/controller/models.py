@@ -73,6 +73,70 @@ class EnfugueAPIModelsController(EnfugueAPIControllerBase):
         """
         return self.get_civitai_metadata(self.check_find_model("checkpoint", model_file))
 
+    @handlers.path("^/api/vae$")
+    @handlers.methods("GET")
+    @handlers.format()
+    @handlers.secured()
+    def get_vae(self, request: Request, response: Response) -> List[Dict[str, Any]]:
+        """
+        Gets installed vae.
+        """
+        vae_dir = self.get_configured_directory("vae")
+        vae = [
+            {
+                "name": os.path.basename(filename),
+                "directory": os.path.relpath(os.path.dirname(filename), vae_dir)
+            }
+            for filename in self.get_models_in_directory(vae_dir)
+        ]
+        for default_vae in self.default_vae.keys():
+            if default_vae not in [l["name"] for l in vae]:
+                vae.append({"name": default_vae, "directory": "available for download"})
+
+        return vae
+
+    @handlers.path("^/api/vae/(?P<model_file>[^\/]+)$")
+    @handlers.methods("GET")
+    @handlers.format()
+    @handlers.secured()
+    def get_vae_metadata(self, request: Request, response: Response, model_file: str) -> List[Dict[str, Any]]:
+        """
+        Gets metadata from CivitAI for a vae.
+        """
+        return self.get_civitai_metadata(self.check_find_model("vae", model_file))
+
+    @handlers.path("^/api/controlnet$")
+    @handlers.methods("GET")
+    @handlers.format()
+    @handlers.secured()
+    def get_controlnet(self, request: Request, response: Response) -> List[Dict[str, Any]]:
+        """
+        Gets installed controlnets.
+        """
+        controlnet_dir = self.get_configured_directory("controlnet")
+        controlnet = [
+            {
+                "name": os.path.basename(filename),
+                "directory": os.path.relpath(os.path.dirname(filename), controlnet_dir)
+            }
+            for filename in self.get_models_in_directory(controlnet_dir)
+        ]
+        for default_controlnet in self.default_controlnet.keys():
+            if default_controlnet not in [l["name"] for l in controlnet]:
+                controlnet.append({"name": default_controlnet, "directory": "available for download"})
+
+        return controlnet
+
+    @handlers.path("^/api/controlnet/(?P<model_file>[^\/]+)$")
+    @handlers.methods("GET")
+    @handlers.format()
+    @handlers.secured()
+    def get_controlnet_metadata(self, request: Request, response: Response, model_file: str) -> List[Dict[str, Any]]:
+        """
+        Gets metadata from CivitAI for a controlnet.
+        """
+        return self.get_civitai_metadata(self.check_find_model("controlnet", model_file))
+
     @handlers.path("^/api/lora$")
     @handlers.methods("GET")
     @handlers.format()

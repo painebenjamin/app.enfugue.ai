@@ -332,7 +332,7 @@ class EnfugueAPISystemController(EnfugueAPIControllerBase):
         Gets a summary of files and filesize in the installation
         """
         sizes = {}
-        for dirname in ["cache", "diffusers", "checkpoint", "lora", "lycoris", "inversion", "motion", "tensorrt", "other", "images", "intermediate"]:
+        for dirname in sorted(self.engine_directories):
             directory = self.get_configured_directory(dirname)
             items, files, size = get_directory_size(directory)
             sizes[dirname] = {"items": items, "files": files, "bytes": size, "path": directory}
@@ -421,7 +421,7 @@ class EnfugueAPISystemController(EnfugueAPIControllerBase):
             raise BadRequestError("File is missing.")
 
         filename = request.POST["file"].filename
-        directory = self.configuration.get(f"enfugue.engine.{dirname}", os.path.join(self.engine_root, dirname))
+        directory = self.get_configured_directory(dirname)
         if directory.startswith("~"):
             directory = os.path.expanduser(directory)
         if not os.path.exists(directory):

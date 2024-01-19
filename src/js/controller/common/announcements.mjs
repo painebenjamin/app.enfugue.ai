@@ -42,7 +42,36 @@ class InitializationAnnouncementView extends View {
         this.directories = directories;
         this.formView = new FormView(config);
         for (let directory in this.directories) {
-            this.formView.addInput("Directories", StringInputView, directory, titleCase(directory), { "required": true, "value": this.directories[directory] });
+            if (directory === "root") {
+                continue;
+            }
+            this.formView.addInput("Directories", StringInputView, directory, this.getDirectoryName(directory), { "required": true, "value": this.directories[directory] });
+        }
+        this.rootView = new FormView(config);
+        this.rootView.addInput("Root Directory", StringInputView, "root", "Root", { "required": true, "value": this.directories.root });
+    }
+
+    /**
+     * Gets the name of a directory
+     */
+    getDirectoryName(name) {
+        switch (name) {
+            case "controlnet":
+                return "ControlNet";
+            case "ip_adapter":
+                return "IP Adapter";
+            case "vae":
+                return "VAE";
+            case "vae_approx":
+                return "VAE (Approximate)";
+            case "lora":
+                return "LoRA";
+            case "lycoris":
+                return "LyCORIS";
+            case "tensorrt":
+                return "TensorRT";
+            default:
+                return titleCase(name);
         }
     }
 
@@ -51,27 +80,29 @@ class InitializationAnnouncementView extends View {
      */
     async build() {
         let node = await super.build();
-        node.append(E.h2().content("Welcome to Enfugue"));
-        node.append(E.p().content("Thank you for downloading Enfugue! I hope you enjoy it. Please read the following brief disclaimers before you begin."));
+        node.append(E.h2().content("Welcome to ENFUGUE"));
+        node.append(E.p().content("Thank you for downloading ENFUGUE! I hope you enjoy it. Please read the following brief disclaimers before you begin."));
         node.append(E.h3().content("Your Privacy"));
-        node.append(E.p().content("Enfugue does not track usage in any way. Your images, prompts, configurations, and all other details only exist on your computer and are never sent elsewhere over a network or otherwise, unless specifically requested by the user."));
+        node.append(E.p().content("ENFUGUE does not track usage in any way. Your images, prompts, configurations, and all other details only exist on your computer and are never sent elsewhere over a network or otherwise, unless specifically requested by the user."));
         node.append(
             E.p().content(
-                E.span().content("Some resources, such as public model data, is provided by "),
+                E.span().content("Some resources, such as public model data, are provided by "),
                 E.a().content("Hugging Face").href("https://huggingface.co/").target("_blank"),
-                E.span().content(" and by using this application Enfugue will reach out to their servers to download resources as needed. By doing so, you agree to their "),
+                E.span().content(" and by using this application ENFUGUE will reach out to their servers to download resources as needed. By doing so, you agree to their "),
                 E.a().content("Privacy Policy").href("https://huggingface.co/privacy").target("_blank"),
                 E.span().content(".")
             )
         );
         node.append(E.p().content("Additional resources may be downloaded from other providers at your request. Please review the privacy policy and terms of service of the resource providers stated when these resources are requested."));
         node.append(E.h3().content("Terms of Service"));
-        node.append(E.p().content("Enfugue makes no guarantees of this software's functionality, and by continuing you release Enfugue, Benjamin Paine, GitHub, Hugging Face, Stability AI, Runway, CivitAI, and all other parties whose software contributions are employed within Enfugue from any liability of any kind arising from use of the software, including but not limited to wear and tear on your hardware and expenses incurred by consuming bandwidth."))
-        node.append(E.p().content("Furthermore, you hold all the above parties blameless from any and all liability, damage, loss, and expense (including without limitation reasonable attorney’s fees and court costs) arising from claims against parties that Enfugue, or your use of the same as permitted by this Agreement, infringe the intellectual property rights of a third party."));
-        node.append(E.p().class("strong").content("Enfugue is and always will be free and open-source software."));
-        node.append(E.p().content("To support further development, please consider financially supporting it if you are able. Simply click 'About' under 'Help' above to see ways you can help keep Enfugue improving."));
+        node.append(E.p().content("ENFUGUE makes no guarantees of this software's functionality, and by continuing you release ENFUGUE, Benjamin Paine, GitHub, Hugging Face, Stability AI, Runway, CivitAI, and all other parties whose software contributions are employed within ENFUGUE from any liability of any kind arising from use of the software, including but not limited to wear and tear on your hardware and expenses incurred by consuming bandwidth."))
+        node.append(E.p().content("Furthermore, you hold all the above parties blameless from any and all liability, damage, loss, and expense (including without limitation reasonable attorney’s fees and court costs) arising from claims against parties that ENFUGUE, or your use of the same as permitted by this Agreement, infringe the intellectual property rights of a third party."));
+        node.append(E.p().class("strong").content("ENFUGUE is and always will be free and open-source software."));
+        node.append(E.p().content("To support further development, please consider financially supporting it if you are able. Simply click 'About' under 'Help' above to see ways you can help keep ENFUGUE improving."));
         node.append(E.h2().content("Directories"));
-        node.append(E.p().content("Use these fields to specify the directories to use for your installation. These do not need to be solely used by Enfugue, and Enfugue will never delete anything from these directories unless you specifically request."));
+        node.append(E.p().content("Use these fields to specify the directories to use for your installation. These do not need to be solely used by ENFUGUE, and ENFUGUE will never delete anything from these directories unless you specifically request."));
+        node.append(E.p().content("If you have another Stable Diffusion application and you would like ENFUGUE to use it's directories, specify the root directory to that of the other application, and ENFUGUE will locate matching directories and configure itself appopriately."));
+        node.append(await this.rootView.getNode());
         node.append(await this.formView.getNode());
         return node;
     }
@@ -88,7 +119,7 @@ class DownloadAnnouncementHeaderView extends View {
         let node = await super.build();
         node.content(
             E.h2().content("Downloads"),
-            E.p().content("The following downloads are required by Enfugue to function. They are the base Stable Diffusion models, from which more fine-tuned models are made. These models are used when you are not using any other models, as well as when calculating derived models."),
+            E.p().content("The following downloads are required by ENFUGUE to function. They are the base Stable Diffusion models, from which more fine-tuned models are made. These models are used when you are not using any other models, as well as when calculating derived models."),
             E.p().content("Click the icon in each row to being downloading them. If you do not download them now, they will be downloaded the first time they are needed.")
         );
         return node;
@@ -106,7 +137,7 @@ class OptionalDownloadAnnouncementHeaderView extends View {
         let node = await super.build();
         node.content(
             E.h2().content("Optional Downloads"),
-            E.p().content("The following downloads are optional. They are newer, more powerful versions of Stable Diffusion that can be used in Enfugue."),
+            E.p().content("The following downloads are optional. They are newer, more powerful versions of Stable Diffusion that can be used in ENFUGUE."),
             E.p().content("For Stable Diffusion XL, you will require a GPU with at least 8 GB of VRAM. If you have between 8 GB and 12 GB of VRAM, it is recommended to enable 'Sequential Model Loading' in the settings menu for best performance with SDXL."),
             E.p().content("Click the icon in each row to being downloading them. You can also select the appropriate checkpoint from the checkpoint picker at any time, and the file will be downloaded if it has not yet been.")
         );
@@ -155,7 +186,7 @@ class UpdateAnnouncementHeaderView extends View {
         let node = await super.build();
         node.content(
             E.h2().content("Updates"),
-            E.p().content("An updated version of Enfugue is available. See below for details regarding new features and fixes."),
+            E.p().content("An updated version of ENFUGUE is available. See below for details regarding new features and fixes."),
             E.p().content(
                 E.span().content("If you are managing your own installation, simply executing "),
                 E.createElement("code").content("pip install enfugue --update"),
@@ -233,7 +264,28 @@ class AnnouncementsController extends Controller {
                         InitializationAnnouncementView, 
                         initializeAnnouncement[0].directories
                     ),
+                    rootForm = initializationAnnouncementView.rootView,
                     directoryForm = initializationAnnouncementView.formView;
+
+                rootForm.onSubmit(async (newRoot) => {
+                    try {
+                        console.log(newRoot);
+                        await this.model.post("installation/root/move", null, null, {"directory": newRoot.root});
+                        let installation = await this.model.get("installation"),
+                            newDirectories = Object.getOwnPropertyNames(installation).reduce((carry, item) => {
+                                carry[item] = installation[item].path;
+                                return carry;
+                            }, {});
+                        directoryForm.setValues(newDirectories);
+                    } catch(e) {
+                        rootForm.setError(e);
+                        rootForm.enable();
+                        return;
+                    }
+                    this.notify("info", "Success", "Directories successfully set.");
+                    rootForm.clearError();
+                    rootForm.enable();
+                });
 
                 directoryForm.onChange(() => {
                     acknowledgeButton.disable();

@@ -98,6 +98,7 @@ class ImageEditorVideoNodeView extends ImageEditorNodeView {
             });
             reader.readAsDataURL(videoToLoad);
         }
+        this.contentChanged();
     }
 
     /**

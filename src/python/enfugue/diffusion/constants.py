@@ -43,8 +43,9 @@ __all__ = [
     "VAE_MSE",
     "VAE_XL",
     "VAE_XL16",
-    "VAE_LITERAL",
     "VAE_CONSISTENCY",
+    "VAE_PREVIEW",
+    "VAE_PREVIEW_XL",
     "CONTROLNET_SPARSE_RGB",
     "CONTROLNET_SPARSE_SCRIBBLE",
     "CONTROLNET_CANNY",
@@ -242,127 +243,38 @@ OPTICAL_FLOW_METHOD_LITERAL = Literal[
 ]
 
 # VAE repos/files
-VAE_EMA = (
-    "stabilityai/sd-vae-ft-ema",
-    "vae-ft-ema-560000-ema-pruned",
-    "sd-vae-ft-ema-original",
-    "sd-vae-ft-ema",
-)
-VAE_MSE = (
-    "stabilityai/sd-vae-ft-mse",
-    "vae-ft-mse-840000-ema-pruned",
-    "sd-vae-ft-mse-original",
-    "sd-vae-ft-mse",
-)
-VAE_XL = (
-    "stabilityai/sdxl-vae",
-    "sdxl-vae",
-    "sdxl_vae"
-)
-VAE_XL16 = (
-    "madebyollin/sdxl-vae-fp16-fix",
-    "sdxl-vae-fp16-fix",
-    "sdxl-vae-fp16",
-    "sdxl_vae_fp16_fix",
-    "sdxl_vae_fp16"
-)
-VAE_CONSISTENCY = (
-    "openai/consistency-decoder",
-    "consistency-decoder-vae",
-    "consistency_vae",
-    "dalle_3_vae"
-)
+VAE_EMA = "https://huggingface.co/stabilityai/sd-vae-ft-ema/resolve/main/diffusion_pytorch_model.safetensors?filename=sd-vae-ft-ema.safetensors"
+VAE_MSE = "https://huggingface.co/stabilityai/sd-vae-ft-mse/resolve/main/diffusion_pytorch_model.safetensors?filename=sd-vae-ft-mse.safetensors"
+VAE_XL = "https://huggingface.co/stabilityai/sdxl-vae/resolve/main/sdxl_vae.safetensors"
+VAE_XL16 = "https://huggingface.co/madebyollin/sdxl-vae-fp16-fix/resolve/main/diffusion_pytorch_model.safetensors?filename=sdxl-vae-fp16-fix.safetensors"
+VAE_CONSISTENCY = "https://huggingface.co/openai/consistency-decoder/resolve/main/diffusion_pytorch_model.safetensors?filename=consistency-decoder-vae.safetensors"
+VAE_PREVIEW = "https://huggingface.co/madebyollin/taesd/resolve/main/diffusion_pytorch_model.safetensors?filename=taesd.safetensors"
+VAE_PREVIEW_XL = "https://huggingface.co/madebyollin/taesdxl/resolve/main/diffusion_pytorch_model.safetensors?filename=taesdxl.safetensors"
 
 # ControlNet repos/files
-CONTROLNET_CANNY = (
-    "lllyasviel/control_v11p_sd15_canny",
-    "control_v11p_sd15_canny",
-    "control_sd15_canny",
-)
-CONTROLNET_MLSD = (
-    "lllyasviel/control_v11p_sd15_mlsd",
-    "control_v11p_sd15_mlsd",
-    "control_sd15_mlsd",
-)
-CONTROLNET_HED = (
-    "lllyasviel/sd-controlnet-hed",
-    "control_sd15_hed",
-    "sd-controlnet-hed",
-)
-CONTROLNET_SCRIBBLE = (
-    "lllyasviel/control_v11p_sd15_scribble",
-    "control_v11p_sd15_scribble",
-    "control_sd15_scribble",
-)
-CONTROLNET_TILE = (
-    "lllyasviel/control_v11f1e_sd15_tile",
-    "control_v11f1e_sd15_tile",
-    "control_sd15_tile",
-)
-CONTROLNET_INPAINT = (
-    "lllyasviel/control_v11p_sd15_inpaint",
-    "control_v11p_sd15_inpaint",
-    "control_sd15_inpaint",
-)
-CONTROLNET_DEPTH = (
-    "lllyasviel/control_v11f1p_sd15_depth",
-    "control_v11f1p_sd15_depth",
-    "control_sd15_depth",
-)
-CONTROLNET_NORMAL = (
-    "lllyasviel/control_v11p_sd15_normalbae",
-    "control_v11p_sd15_normalbae",
-    "control_sd15_normal",
-)
-CONTROLNET_POSE = (
-    "lllyasviel/control_v11p_sd15_openpose",
-    "control_v11p_sd15_openpose",
-    "control_sd15_openpose",
-)
-CONTROLNET_PIDI = (
-    "lllyasviel/control_v11p_sd15_softedge",
-    "control_v11p_sd15_softedge",
-)
-CONTROLNET_PIDI_XL = (
-    "SargeZT/controlnet-sd-xl-1.0-softedge-dexined",
-    "controlnet-sd-xl-1.0-softedge-dexined"
-)
-CONTROLNET_LINE = (
-    "lllyasviel/control_v11p_sd15_lineart",
-    "control_v11p_sd15_lineart",
-)
-CONTROLNET_ANIME = (
-    "lllyasviel/control_v11p_sd15s2_lineart_anime",
-    "control_v11p_sd15s2_lineart_anime",
-)
-CONTROLNET_TEMPORAL = (
-    "CiaraRowles/TemporalNet",
-    "TemporalNet", # TODO
-)
-CONTROLNET_QR = (
-    "https://huggingface.co/monster-labs/control_v1p_sd15_qrcode_monster/resolve/main/v2/control_v1p_sd15_qrcode_monster_v2.safetensors",
-    "control_v1p_sd15_qrcode_monster_v2",
-    "control_v1p_sd15_qrcode_monster",
-)
-CONTROLNET_QR_XL = (
-    "https://huggingface.co/monster-labs/control_v1p_sdxl_qrcode_monster/resolve/main/diffusion_pytorch_model.safetensors?filename=control_v1p_sdxl_qrcode_monster.safetensors",
-    "control_v1p_sdxl_qrcode_monster"
-)
-CONTROLNET_CANNY_XL = (
-    "diffusers/controlnet-canny-sdxl-1.0",
-    "diffusers_xl_canny_full",
-    "controlnet-canny-sdxl-1.0",
-)
-CONTROLNET_DEPTH_XL = (
-    "diffusers/controlnet-depth-sdxl-1.0",
-    "diffusers_xl_depth_full",
-    "controlnet-depth-sdxl-1.0",
-)
-CONTROLNET_POSE_XL = (
-    "thibaud/controlnet-openpose-sdxl-1.0",
-    "OpenPoseXL2",
-    "controlnet-openpose-sdxl-1.0",
-)
+CONTROLNET_CANNY = "https://huggingface.co/lllyasviel/control_v11p_sd15_canny/resolve/main/diffusion_pytorch_model.safetensors?filename=control_v11p_sd15_canny.safetensors"
+CONTROLNET_MLSD = "https://huggingface.co/lllyasviel/control_v11p_sd15_mlsd/resolve/main/diffusion_pytorch_model.safetensors?filename=control_v11p_sd15_mlsd.safetensors"
+CONTROLNET_HED = "https://huggingface.co/lllyasviel/sd-controlnet-hed/resolve/main/diffusion_pytorch_model.safetensors?filename=sd-controlnet-hed.safetensors"
+CONTROLNET_SCRIBBLE = "https://huggingface.co/lllyasviel/control_v11p_sd15_scribble/resolve/main/diffusion_pytorch_model.safetensors?filename=control_v11p_sd15_scribble.safetensors"
+CONTROLNET_TILE = "https://huggingface.co/lllyasviel/control_v11f1e_sd15_tile/resolve/main/diffusion_pytorch_model.bin?filename=control_v11f1e_sd15_tile.bin"
+CONTROLNET_INPAINT = "https://huggingface.co/lllyasviel/control_v11p_sd15_inpaint/resolve/main/diffusion_pytorch_model.safetensors?filename=control_v11p_sd15_inpaint.safetensors"
+CONTROLNET_DEPTH = "https://huggingface.co/lllyasviel/control_v11f1p_sd15_depth/resolve/main/diffusion_pytorch_model.safetensors?filename=control_v11f1p_sd15_depth.safetensors"
+CONTROLNET_NORMAL = "https://huggingface.co/lllyasviel/control_v11p_sd15_normalbae/resolve/main/diffusion_pytorch_model.safetensors?filename=control_v11p_sd15_normalbae.safetensors"
+CONTROLNET_POSE = "https://huggingface.co/lllyasviel/control_v11p_sd15_openpose/resolve/main/diffusion_pytorch_model.safetensors?filename=control_v11p_sd15_openpose.safetensors"
+CONTROLNET_PIDI = "https://huggingface.co/lllyasviel/control_v11p_sd15_softedge/resolve/main/diffusion_pytorch_model.safetensors?filename=control_v11p_sd15_softedge.safetensors"
+CONTROLNET_LINE = "https://huggingface.co/lllyasviel/control_v11p_sd15_lineart/resolve/main/diffusion_pytorch_model.safetensors?filename=control_v11p_sd15_lineart.safetensors"
+CONTROLNET_ANIME = "https://huggingface.co/lllyasviel/control_v11p_sd15s2_lineart_anime/resolve/main/diffusion_pytorch_model.safetensors?filename=control_v11p_sd15s2_lineart_anime.safetensors"
+
+CONTROLNET_TEMPORAL = "https://huggingface.co/CiaraRowles/TemporalNet/resolve/main/diffusion_pytorch_model.safetensors?filename=temporalnet.safetensors"
+CONTROLNET_QR = "https://huggingface.co/monster-labs/control_v1p_sd15_qrcode_monster/resolve/main/v2/control_v1p_sd15_qrcode_monster_v2.safetensors"
+
+CONTROLNET_PIDI_XL = "https://huggingface.co/SargeZT/controlnet-sd-xl-1.0-softedge-dexined/resolve/main/controlnet-sd-xl-1.0-softedge-dexined.safetensors"
+CONTROLNET_QR_XL = "https://huggingface.co/monster-labs/control_v1p_sdxl_qrcode_monster/resolve/main/diffusion_pytorch_model.safetensors?filename=control_v1p_sdxl_qrcode_monster.safetensors"
+
+CONTROLNET_CANNY_XL = "https://huggingface.co/diffusers/controlnet-canny-sdxl-1.0/resolve/main/diffusion_pytorch_model.safetensors?filename=controlnet-canny-sdxl-1.0.safetensors"
+CONTROLNET_DEPTH_XL = "https://huggingface.co/diffusers/controlnet-depth-sdxl-1.0/resolve/main/diffusion_pytorch_model.safetensors?filename=controlnet-depth-sdxl-1.0.safetensors"
+CONTROLNET_POSE_XL = "https://huggingface.co/thibaud/controlnet-openpose-sdxl-1.0/resolve/main/OpenPoseXL2.safetensors"
+
 CONTROLNET_SPARSE_RGB = "https://huggingface.co/guoyww/animatediff/resolve/main/v3_sd15_sparsectrl_rgb.ckpt"
 CONTROLNET_SPARSE_SCRIBBLE = "https://huggingface.co/guoyww/animatediff/resolve/main/v3_sd15_sparsectrl_scribble.ckpt"
 
