@@ -4385,7 +4385,7 @@ class DiffusionPipelineManager:
             AutoencoderTiny._dict_from_json_file(vae_config)
         )
         vae_model.load_state_dict(load_state_dict(path), strict=False)
-        return vae_model.to(self.device)
+        return vae_model.to(device=self.device, dtype=self.dtype)
 
     def get_scheduler_class(
         self,
