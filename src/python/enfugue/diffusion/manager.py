@@ -3357,6 +3357,7 @@ class DiffusionPipelineManager:
 
                 if self.model_diffusers_cache_dir is None:
                     raise IOError("Couldn't create engine cache, check logs.")
+
                 if not self.is_sdxl:
                     kwargs["tokenizer_2"] = None
                     kwargs["text_encoder_2"] = None
@@ -3365,9 +3366,13 @@ class DiffusionPipelineManager:
                     kwargs["build_half"] = True
                     kwargs["variant"] = "fp16"
 
+                if kwargs["vae"] is None:
+                    kwargs.pop("vae")
+
                 logger.debug(
                     f"Initializing TensorRT pipeline from diffusers cache directory at {self.model_diffusers_cache_dir}. Arguments are {redact_for_log(kwargs)}"
                 )
+
                 pipeline = self.pipeline_class.from_pretrained(
                     self.model_diffusers_cache_dir,
                     local_files_only=self.offline,
@@ -3382,6 +3387,9 @@ class DiffusionPipelineManager:
 
                 if "16" in str(self.dtype):
                     kwargs["variant"] = "fp16"
+
+                if kwargs["vae"] is None:
+                    kwargs.pop("vae")
 
                 logger.debug(
                     f"Initializing pipeline from diffusers cache directory at {self.model_diffusers_cache_dir}. Arguments are {redact_for_log(kwargs)}"
@@ -3521,6 +3529,9 @@ class DiffusionPipelineManager:
                     kwargs["build_half"] = True
                     kwargs["variant"] = "fp16"
 
+                if kwargs["vae"] is None:
+                    kwargs.pop("vae")
+
                 logger.debug(
                     f"Initializing refiner TensorRT pipeline from diffusers cache directory at {self.refiner_diffusers_cache_dir}. Arguments are {redact_for_log(kwargs)}"
                 )
@@ -3543,6 +3554,9 @@ class DiffusionPipelineManager:
 
                 if "16" in str(self.dtype):
                     kwargs["variant"] = "fp16"
+
+                if kwargs["vae"] is None:
+                    kwargs.pop("vae")
 
                 logger.debug(
                     f"Initializing refiner pipeline from diffusers cache directory at {self.refiner_diffusers_cache_dir}. Arguments are {redact_for_log(kwargs)}"
@@ -3700,6 +3714,9 @@ class DiffusionPipelineManager:
                     kwargs["variant"] = "fp16"
                     kwargs["build_half"] = True
 
+                if kwargs["vae"] is None:
+                    kwargs.pop("vae")
+
                 logger.debug(
                     f"Initializing inpainter TensorRT pipeline from diffusers cache directory at {self.inpainter_diffusers_cache_dir}. Arguments are {redact_for_log(kwargs)}"
                 )
@@ -3719,6 +3736,9 @@ class DiffusionPipelineManager:
                     kwargs["tokenizer_2"] = None
                 if "16" in str(self.dtype):
                     kwargs["variant"] = "fp16"
+
+                if kwargs["vae"] is None:
+                    kwargs.pop("vae")
                 
                 logger.debug(
                     f"Initializing inpainter pipeline from diffusers cache directory at {self.inpainter_diffusers_cache_dir}. Arguments are {redact_for_log(kwargs)}"
@@ -3875,6 +3895,9 @@ class DiffusionPipelineManager:
                     kwargs["variant"] = "fp16"
                     kwargs["build_half"] = True
 
+                if kwargs["vae"] is None:
+                    kwargs.pop("vae")
+
                 logger.debug(
                     f"Initializing animator TensorRT pipeline from diffusers cache directory at {self.animator_diffusers_cache_dir}. Arguments are {redact_for_log(kwargs)}"
                 )
@@ -3893,6 +3916,9 @@ class DiffusionPipelineManager:
                     kwargs["tokenizer_2"] = None
                 if "16" in str(self.dtype):
                     kwargs["variant"] = "fp16"
+
+                if kwargs["vae"] is None:
+                    kwargs.pop("vae")
                 
                 logger.debug(
                     f"Initializing animator pipeline from diffusers cache directory at {self.animator_diffusers_cache_dir}. Arguments are {redact_for_log(kwargs)}"
