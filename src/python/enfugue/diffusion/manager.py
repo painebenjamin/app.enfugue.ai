@@ -5359,12 +5359,13 @@ class DiffusionPipelineManager:
                     if hasattr(self, "_pipeline"):
                         if self._ip_adapter_model is None:
                             if self._pipeline.ip_adapter_loaded:
-                                self.unload_pipeline("disabling IP adapter")
+                                self.unload_pipeline("disabling IP adapter", False)
                         else:
                             if not self._pipeline.ip_adapter_loaded:
-                                self.unload_pipeline("enabling IP adapter")
+                                self.unload_pipeline("enabling IP adapter", False)
                             elif self.ip_adapter.model != self._ip_adapter_model:
-                                self.unload_pipeline("changing IP adapter model")
+                                self.unload_pipeline("changing IP adapter model", False)
+
                     pipe = self.pipeline # type: ignore
 
                 # Check refining settings
