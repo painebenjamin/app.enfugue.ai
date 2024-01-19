@@ -28,7 +28,7 @@ class ControlsController extends MenuController {
     /**
      * @var int The height of the controls window
      */
-    static controlsWindowHeight = 700;
+    static controlsWindowHeight = 800;
     
     /**
      * @var string The keyboard shortcut

@@ -235,7 +235,7 @@ class InstallationController extends MenuController {
     /**
      * @var int The height of the summary window
      */
-    static summaryWindowHeight = 620;
+    static summaryWindowHeight = 960;
     
     /**
      * @var int The width of the manager window

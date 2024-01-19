@@ -182,7 +182,6 @@ class EnfugueInterfaceServer(
             ui_config = {}
 
         paths = self.configuration["server.cms.path"]
-        logger.warning(dict(request.headers))
         if self.configuration.get("server.domain", None) is None:
             scheme = request.headers.get(
                 "X-Forwarded-Proto",

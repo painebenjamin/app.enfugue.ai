@@ -287,7 +287,6 @@ class DiffusionPipelineManager:
             get_domain_from_url(remote_url)
         )
         self.task_callback(f"Downloading {file_label}")
-        logger.critical(f"{remote_url} {output_path}")
 
         check_download(
             remote_url,

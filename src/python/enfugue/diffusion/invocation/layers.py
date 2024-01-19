@@ -1407,8 +1407,6 @@ class LayeredInvocation:
                 ):
                     raise BadRequestError("A text prompt was required but not found. Please enter a prompt.")
 
-                else:
-                    logger.critical(f"{invocation_kwargs}")
                 # Prepare the pipeline manager
                 self.prepare_pipeline(pipeline)
                 # Determine if we're doing cropped inpainting
