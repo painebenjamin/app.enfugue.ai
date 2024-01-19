@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 from typing import TYPE_CHECKING, Optional, Iterator, Callable, Iterable, Literal, List, Union, Tuple
 from enfugue.util import logger, reiterator
+from pibble.util.helpers import OutputCatcher
 
 if TYPE_CHECKING:
     from numpy import ndarray as NDArray
@@ -75,18 +76,29 @@ class Video:
         import numpy as np
 
         clip_frames = [np.array(frame) for frame in self.frames] # type: ignore[attr-defined]
-        clip = ImageSequenceClip(clip_frames, fps=rate)
 
-        if self.audio is not None:
-            clip.audio = self.audio.get_composite_clip(
-                maximum_seconds=len(clip_frames)/rate
-            )
+        catcher = OutputCatcher()
+        with catcher:
+            try:
+                clip = ImageSequenceClip(clip_frames, fps=rate)
 
-        clip.write_videofile(path, fps=rate)
+                if self.audio is not None:
+                    clip.audio = self.audio.get_composite_clip(
+                        maximum_seconds=len(clip_frames)/rate
+                    )
 
-        if not os.path.exists(path):
-            raise IOError(f"Nothing was written to {path}")
-        return os.path.getsize(path)
+                clip.write_videofile(path, fps=rate, logger=None)
+
+                if not os.path.exists(path):
+                    raise IOError(f"Nothing was written to {path}")
+                return os.path.getsize(path)
+            finally:
+                out, err = catcher.output()
+                if out:
+                    logger.debug(f"stdout: {out}")
+                if err:
+                    logger.info(f"stderr (may not be an error:) {err}")
+                catcher.clean()
 
     @classmethod
     def file_to_frames(
