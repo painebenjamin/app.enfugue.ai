@@ -14,8 +14,9 @@ dependencies:
   - ffmpeg
   - git
   - pip:
-    - torch==2.2.0.dev20231107+cu121
-    - torchvision==0.17.0.dev20231107+cu121
+    - torch==2.3.0.dev20240119+cu121
+    - torchvision==0.18.0.dev20240119+cu121
+    - torchaudio==2.2.0.dev20240119+cu121
     - brotli>=1.0.9
     - cheroot>=9.0.0
     - nvidia-pyindex>=1.0.9
@@ -55,7 +56,10 @@ dependencies:
     - sentencepiece>=0.1
     - compel>=2.0
     - diffusers>=0.25.0
-    - enfugue==0.3.2.post2
+    - enfugue==0.3.3.post2
+    - moviepy>=1.0
+    - open-clip-torch>=2.20
+    - xformers>=0.0.22
     - git+https://github.com/CompVis/taming-transformers.git@master#egg=taming-transformers
     - git+https://github.com/openai/CLIP.git@main#egg=clip
     - git+https://github.com/CompVis/stable-diffusion.git@main#egg=latent-diffusion

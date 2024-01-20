@@ -12,8 +12,9 @@ dependencies:
   - git
   - pip:
     - brotli>=1.0.9
-    - torch>=2.0.1
-    - torchvision>=0.15.2
+    - torch>=2.1.2
+    - torchvision>=0.16.2
+    - torchaudio>=2.1.2
     - cheroot>=9.0.0
     - nvidia-pyindex>=1.0.9
     - pibble[cherrypy]>=0.7
@@ -54,7 +55,9 @@ dependencies:
     - sentencepiece>=0.1
     - compel>=2.0
     - diffusers>=0.25.0
-    - enfugue==0.3.2.post2
+    - enfugue==0.3.3.post2
+    - moviepy>=1.0
+    - open-clip-torch>=2.20
     - git+https://github.com/CompVis/taming-transformers.git@master#egg=taming-transformers
     - git+https://github.com/openai/CLIP.git@main#egg=clip
     - git+https://github.com/CompVis/stable-diffusion.git@main#egg=latent-diffusion

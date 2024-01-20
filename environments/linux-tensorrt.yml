@@ -7,7 +7,6 @@ channels:
 dependencies:
   - cuda-toolkit=11.7.1
   - python=3.10.11
-  - torchvision=0.14.1
   - pytorch=1.13.1
   - opencv
   - openh264
@@ -17,6 +16,9 @@ dependencies:
   - git
   - pip:
     - torch==1.13.1+cu117
+    - torchaudio==0.13.1+cu117
+    - torchvision==0.15.2+cu117
+    - xformers>=0.0.22
     - brotli>=1.0.9
     - cheroot>=9.0.0
     - nvidia-pyindex>=1.0.9
@@ -61,7 +63,9 @@ dependencies:
     - sentencepiece>=0.1
     - compel>=2.0
     - diffusers>=0.25.0
-    - enfugue==0.3.2.post2
+    - moviepy>=1.0
+    - open-clip-torch
+    - enfugue==0.3.3.post2
     - git+https://github.com/CompVis/taming-transformers.git@master#egg=taming-transformers
     - git+https://github.com/openai/CLIP.git@main#egg=clip
     - git+https://github.com/CompVis/stable-diffusion.git@main#egg=latent-diffusion
