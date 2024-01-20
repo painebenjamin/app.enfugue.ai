@@ -1,5 +1,5 @@
 <p align="center">
-    <img src="https://github.com/painebenjamin/app.enfugue.ai/assets/57536852/2af58adc-6921-4ee9-b668-e741eba80e7f" alt="ENFUGUE Web UI v0.3.2">
+    <img src="https://user-images.githubusercontent.com/57536852/297959777-1ba4ae57-6309-447f-b1f1-0b3331e6f347.gif" alt="ENFUGUE Web UI v0.3.3">
 </p>
 <h3 align="center">ENFUGUE is an open-source web app for making studio-grade images and video using generative AI.</h3>
 <p align="center"><i>For server or desktop, beginners or pros.</i></p>

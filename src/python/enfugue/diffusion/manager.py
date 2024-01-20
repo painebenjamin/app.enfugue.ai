@@ -673,7 +673,6 @@ class DiffusionPipelineManager:
         """
         Sets a new refiner vae.
         """
-        pretrained_path = self.get_vae_path(new_vae)
         existing_vae = getattr(self, "_refiner_vae", None)
 
         if (
@@ -686,8 +685,9 @@ class DiffusionPipelineManager:
                 self._refiner_vae = None
                 self.unload_refiner("VAE resetting to default")
             else:
+                vae_path = self.check_download_model(self.engine_vae_dir, new_vae)
                 self._refiner_vae_name = new_vae
-                self._refiner_vae = self.get_vae(pretrained_path)
+                self._refiner_vae = self.get_vae(vae_path)
                 if self.refiner_tensorrt_is_ready and "vae" in self.TENSORRT_STAGES:
                     self.unload_refiner("VAE changing")
                 elif hasattr(self, "_refiner_pipeline"):
@@ -695,7 +695,7 @@ class DiffusionPipelineManager:
                     self._refiner_pipeline.vae = self._refiner_vae # type: ignore[assignment]
                     if self.refiner_is_sdxl:
                         self._refiner_pipeline.register_to_config( # type: ignore[attr-defined]
-                            force_full_precision_vae = new_vae in ["xl", "stabilityai/sdxl-vae"] or (new_vae.endswith("sdxl_vae.safetensors") and "16" not in new_vae)
+                            force_full_precision_vae = "xl" in new_vae and "16" not in new_vae
                         )
 
     @property
@@ -724,7 +724,6 @@ class DiffusionPipelineManager:
         """
         Sets a new inpainter vae.
         """
-        pretrained_path = self.get_vae_path(new_vae)
         existing_vae = getattr(self, "_inpainter_vae", None)
 
         if (
@@ -737,8 +736,9 @@ class DiffusionPipelineManager:
                 self._inpainter_vae = None
                 self.unload_inpainter("VAE resetting to default")
             else:
+                vae_path = self.check_download_model(self.engine_vae_dir, new_vae)
                 self._inpainter_vae_name = new_vae
-                self._inpainter_vae = self.get_vae(pretrained_path)
+                self._inpainter_vae = self.get_vae(vae_path)
                 if self.inpainter_tensorrt_is_ready and "vae" in self.TENSORRT_STAGES:
                     self.unload_inpainter("VAE changing")
                 elif hasattr(self, "_inpainter_pipeline"):
@@ -746,7 +746,7 @@ class DiffusionPipelineManager:
                     self._inpainter_pipeline.vae = self._inpainter_vae # type: ignore[assignment]
                     if self.inpainter_is_sdxl:
                         self._inpainter_pipeline.register_to_config( # type: ignore[attr-defined]
-                            force_full_precision_vae = new_vae in ["xl", "stabilityai/sdxl-vae"] or (new_vae.endswith("sdxl_vae.safetensors") and "16" not in new_vae)
+                            force_full_precision_vae = "xl" in new_vae and "16" not in new_vae
                         )
 
     @property
@@ -775,7 +775,6 @@ class DiffusionPipelineManager:
         """
         Sets a new animator vae.
         """
-        pretrained_path = self.get_vae_path(new_vae)
         existing_vae = getattr(self, "_animator_vae", None)
 
         if (
@@ -788,8 +787,9 @@ class DiffusionPipelineManager:
                 self._animator_vae = None
                 self.unload_animator("VAE resetting to default")
             else:
+                vae_path = self.check_download_model(self.engine_vae_dir, new_vae)
                 self._animator_vae_name = new_vae
-                self._animator_vae = self.get_vae(pretrained_path)
+                self._animator_vae = self.get_vae(vae_path)
                 if self.animator_tensorrt_is_ready and "vae" in self.TENSORRT_STAGES:
                     self.unload_animator("VAE changing")
                 elif hasattr(self, "_animator_pipeline"):
@@ -797,7 +797,7 @@ class DiffusionPipelineManager:
                     self._animator_pipeline.vae = self._animator_vae # type: ignore [assignment]
                     if self.animator_is_sdxl:
                         self._animator_pipeline.register_to_config( # type: ignore[attr-defined]
-                            force_full_precision_vae = new_vae in ["xl", "stabilityai/sdxl-vae"]
+                            force_full_precision_vae = "xl" in new_vae and "16" not in new_vae
                         )
 
     @property
@@ -3357,6 +3357,7 @@ class DiffusionPipelineManager:
 
                 if self.model_diffusers_cache_dir is None:
                     raise IOError("Couldn't create engine cache, check logs.")
+
                 if not self.is_sdxl:
                     kwargs["tokenizer_2"] = None
                     kwargs["text_encoder_2"] = None
@@ -3365,9 +3366,13 @@ class DiffusionPipelineManager:
                     kwargs["build_half"] = True
                     kwargs["variant"] = "fp16"
 
+                if kwargs["vae"] is None:
+                    kwargs.pop("vae")
+
                 logger.debug(
                     f"Initializing TensorRT pipeline from diffusers cache directory at {self.model_diffusers_cache_dir}. Arguments are {redact_for_log(kwargs)}"
                 )
+
                 pipeline = self.pipeline_class.from_pretrained(
                     self.model_diffusers_cache_dir,
                     local_files_only=self.offline,
@@ -3382,6 +3387,9 @@ class DiffusionPipelineManager:
 
                 if "16" in str(self.dtype):
                     kwargs["variant"] = "fp16"
+
+                if kwargs["vae"] is None:
+                    kwargs.pop("vae")
 
                 logger.debug(
                     f"Initializing pipeline from diffusers cache directory at {self.model_diffusers_cache_dir}. Arguments are {redact_for_log(kwargs)}"
@@ -3521,6 +3529,9 @@ class DiffusionPipelineManager:
                     kwargs["build_half"] = True
                     kwargs["variant"] = "fp16"
 
+                if kwargs["vae"] is None:
+                    kwargs.pop("vae")
+
                 logger.debug(
                     f"Initializing refiner TensorRT pipeline from diffusers cache directory at {self.refiner_diffusers_cache_dir}. Arguments are {redact_for_log(kwargs)}"
                 )
@@ -3543,6 +3554,9 @@ class DiffusionPipelineManager:
 
                 if "16" in str(self.dtype):
                     kwargs["variant"] = "fp16"
+
+                if kwargs["vae"] is None:
+                    kwargs.pop("vae")
 
                 logger.debug(
                     f"Initializing refiner pipeline from diffusers cache directory at {self.refiner_diffusers_cache_dir}. Arguments are {redact_for_log(kwargs)}"
@@ -3700,6 +3714,9 @@ class DiffusionPipelineManager:
                     kwargs["variant"] = "fp16"
                     kwargs["build_half"] = True
 
+                if kwargs["vae"] is None:
+                    kwargs.pop("vae")
+
                 logger.debug(
                     f"Initializing inpainter TensorRT pipeline from diffusers cache directory at {self.inpainter_diffusers_cache_dir}. Arguments are {redact_for_log(kwargs)}"
                 )
@@ -3719,6 +3736,9 @@ class DiffusionPipelineManager:
                     kwargs["tokenizer_2"] = None
                 if "16" in str(self.dtype):
                     kwargs["variant"] = "fp16"
+
+                if kwargs["vae"] is None:
+                    kwargs.pop("vae")
                 
                 logger.debug(
                     f"Initializing inpainter pipeline from diffusers cache directory at {self.inpainter_diffusers_cache_dir}. Arguments are {redact_for_log(kwargs)}"
@@ -3875,6 +3895,9 @@ class DiffusionPipelineManager:
                     kwargs["variant"] = "fp16"
                     kwargs["build_half"] = True
 
+                if kwargs["vae"] is None:
+                    kwargs.pop("vae")
+
                 logger.debug(
                     f"Initializing animator TensorRT pipeline from diffusers cache directory at {self.animator_diffusers_cache_dir}. Arguments are {redact_for_log(kwargs)}"
                 )
@@ -3893,6 +3916,9 @@ class DiffusionPipelineManager:
                     kwargs["tokenizer_2"] = None
                 if "16" in str(self.dtype):
                     kwargs["variant"] = "fp16"
+
+                if kwargs["vae"] is None:
+                    kwargs.pop("vae")
                 
                 logger.debug(
                     f"Initializing animator pipeline from diffusers cache directory at {self.animator_diffusers_cache_dir}. Arguments are {redact_for_log(kwargs)}"
