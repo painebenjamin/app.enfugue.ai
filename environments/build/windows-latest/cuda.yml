@@ -36,7 +36,7 @@ dependencies:
     - streamlit>=0.73,<0.74
     - einops>=0.6.1,<0.7
     - torch-fidelity>=0.3,<0.4
-    - transformers>=4.30,<4.33
+    - transformers>=4.36,<5.0
     - torchmetrics>=1.1,<1.2
     - kornia>=0.6.10,<0.7
     - polygraphy>=0.47,<0.48
