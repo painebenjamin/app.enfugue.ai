@@ -443,13 +443,14 @@ class EnfugueAPIServerBase(JSONWebServiceAPIServer, UserRESTExtensionServerBase)
             return model
         model_basename = os.path.splitext(os.path.basename(model))[0]
         model_dir = self.get_configured_directory(model_type)
-        existing_model = find_file_in_directory(
-            self.engine_root,
-            model_basename,
-            extensions = [".ckpt", ".bin", ".pt", ".pth", ".safetensors"]
-        )
-        if existing_model:
-            return existing_model
+        for directory in [model_dir, self.engine_root]:
+            existing_model = find_file_in_directory(
+                directory,
+                model_basename,
+                extensions = [".ckpt", ".bin", ".pt", ".pth", ".safetensors"]
+            )
+            if existing_model:
+                return existing_model
         check_default_model = self.get_default_model(model)
         if check_default_model:
             return check_default_model
