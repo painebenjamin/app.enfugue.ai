@@ -267,21 +267,24 @@ class DiffusionPipelineManager:
         Downloads a model directly to the model folder if enabled.
         """
         if not remote_url.startswith("http"):
-            return remote_url
-        output_file = get_file_name_from_url(remote_url)
+            output_file = os.path.basename(remote_url)
+        else:
+            output_file = get_file_name_from_url(remote_url)
+
         output_path = os.path.join(local_dir, output_file)
 
         for directory in [local_dir, self.engine_root]:
             found_path = find_file_in_directory(
-                self.engine_root,
+                directory,
                 os.path.splitext(output_file)[0],
                 extensions = [".ckpt", ".bin", ".pt", ".pth", ".safetensors"]
             )
-
             if found_path:
                 return found_path
 
-        if self.offline:
+        if not remote_url.startswith("http"):
+            raise ValueError(f"Resource '{remote_url}' is not a URL and cannot be found on-disk.")
+        elif self.offline:
             raise ValueError(f"File {output_file} does not exist in {local_dir} and offline mode is enabled, refusing to download from {remote_url}")
 
         file_label = "{0} from {1}".format(

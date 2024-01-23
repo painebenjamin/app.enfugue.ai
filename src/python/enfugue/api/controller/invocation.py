@@ -177,9 +177,14 @@ class EnfugueAPIInvocationController(EnfugueAPIControllerBase):
                 request.parsed.pop("inpainter_size", None)
                 request.parsed.pop("inpainter_vae", None)
 
-            vae = request.parsed.pop("vae", None)
-            if vae is not None:
-                plan_kwargs["vae"] = self.check_find_model("vae", vae)
+            for vae_key in ["vae", "inpainter_vae", "refiner_vae"]:
+                maybe_vae = request.parsed.pop(vae_key, None)
+                if maybe_vae is not None:
+                    plan_kwargs[vae_key] = self.check_find_model("vae", maybe_vae)
+
+            motion_module = request.parsed.pop("motion_module", None)
+            if motion_module is not None:
+                plan_kwargs["motion_module"] = self.check_find_model("motion", motion_module)
 
             lora = request.parsed.pop("lora", [])
             plan_kwargs["lora"] = self.check_find_adaptations("lora", True, lora) if lora else None
