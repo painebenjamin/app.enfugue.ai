@@ -5,14 +5,10 @@
 # @Function      : 
 
 from __future__ import division
-import datetime
 import numpy as np
-import onnx
 import onnxruntime
 import os
-import os.path as osp
 import cv2
-import sys
 
 def softmax(z):
     assert len(z.shape) == 2
@@ -77,7 +73,7 @@ class RetinaFace:
         self.taskname = 'detection'
         if self.session is None:
             assert self.model_file is not None
-            assert osp.exists(self.model_file)
+            assert os.path.exists(self.model_file)
             self.session = onnxruntime.InferenceSession(self.model_file, None)
         self.center_cache = {}
         self.nms_thresh = 0.4

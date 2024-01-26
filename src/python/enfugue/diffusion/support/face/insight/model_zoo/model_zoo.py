@@ -5,7 +5,6 @@
 # @Function      : 
 
 import os
-import os.path as osp
 import glob
 import onnxruntime
 
