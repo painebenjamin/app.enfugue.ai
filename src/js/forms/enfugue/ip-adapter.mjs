@@ -21,8 +21,10 @@ class IPAdapterFormView extends FormView {
                         "plus": "Plus",
                         "plus-face": "Plus Face",
                         "full-face": "Full Face",
+                        "face-id": "Face ID",
+                        "face-id-plus": "Face ID Plus"
                     },
-                    "tooltip": "Which IP adapter model to use. 'Plus' will in general find more detail in the source image while considerably adjusting the impact of your prompt, and 'Plus Face' will ignore much of the image except for facial features. 'Full Face' is similar to 'Plus Face' but extracts more features."
+                    "tooltip": "Which IP adapter model to use. 'Plus' will in general find more detail in the source image while considerably adjusting the impact of your prompt, and 'Plus Face' will ignore much of the image except for facial features. 'Full Face' is similar to 'Plus Face' but extracts more features.<br /><br />'Face ID' will extract features only from faces using the InsightFace model. 'Face ID Plus' will do this as well as the standard CLIP-based feature extraction."
                 }
             }
         }

@@ -167,6 +167,13 @@ class LayeredInvocation:
     interpolate_frames: Optional[int]=None
     reflect: bool=False
 
+    @property
+    def face_isolate_dilate(self) -> int:
+        """
+        The number of pixels to dilate face masks by
+        """
+        return 256
+
     @staticmethod
     def merge_prompts(*args: Tuple[Optional[str], float]) -> Optional[str]:
         """
@@ -1089,8 +1096,9 @@ class LayeredInvocation:
                         face_only = layer.get("face_only", False)
                         if face_only:
                             face_mask = processors["pose"].detail_mask(layer_image, include_face=True, include_hands=False) # type: ignore[attr-defined]
+                            face_mask = dilate_erode(face_mask, self.face_isolate_dilate)
                             (x0, y0), (x1, y1) = self.get_inpaint_bounding_box(face_mask, size=512, feather=64)
-                            ip_image = Image.new("RGB", (x1-x0, y1-y0), (255,255,255)) # Full white
+                            ip_image = Image.new("RGB", (x1-x0, y1-y0), (0,0,0)) # Full black
                             ip_image.paste(layer_image, (-x0, -y0), mask=face_mask.convert("L"))
                         else:
                             ip_image = layer_image
@@ -2227,10 +2235,12 @@ class LayeredInvocation:
                     yield no_resize
 
             if task_callback:
-                task_callback(f"Upscaling samples")
+                task_callback(f"Preparing upscale model")
 
             with get_upscale_image() as upscale_image:
                 pipeline.stop_keepalive()
+                if task_callback:
+                    task_callback(f"Upscaling samples")
                 if progress_callback is not None:
                     progress_callback(0, len(images), 0.0)
                 for i, image in enumerate(images):

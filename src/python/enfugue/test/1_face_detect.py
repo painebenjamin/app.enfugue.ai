@@ -5,9 +5,10 @@ import requests
 from datetime import datetime
 
 from enfugue.diffusion.manager import DiffusionPipelineManager
-from enfugue.diffusion.util import debug_tensors
+from enfugue.diffusion.util import debug_tensors, get_vram_info
 from enfugue.util import image_from_uri, logger
 
+from pibble.util.numeric import human_size
 from pibble.util.log import DebugUnifiedLoggingContext
 
 BASE_IMAGES = [
@@ -31,9 +32,31 @@ def main() -> None:
         for i, image in enumerate(images):
             image.save(os.path.join(save_dir, f"base-{i}.png"))
 
-        with manager.face_analyzer.insightface() as detect:
-            for i, image in enumerate(images):
-                debug_tensors(embeddings=detect(image))
+        for i in range(2):
+            free, total = get_vram_info()
+            logger.info("Starting at {0} free.".format(human_size(free)))
+            with manager.face_analyzer.insightface() as detect:
+                new_free, total = get_vram_info()
+                logger.info("{0} after initializing.".format(human_size(new_free)))
+                loaded = free - new_free
+                logger.info("Used {0} to load.".format(
+                    human_size(loaded)
+                ))
+                for i, image in enumerate(images):
+                    debug_tensors(embeddings=detect(image))
+                new_free, total = get_vram_info()
+                loaded = free - new_free
+                logger.info("Used {0} after inference.".format(
+                    human_size(loaded)
+                ))
+
+            new_free, total = get_vram_info()
+            loaded = free - new_free
+            logger.info("Used {0} after cleaning.".format(
+                human_size(loaded)
+            ))
+            import time
+            time.sleep(2)
 
 if __name__ == "__main__":
     main()

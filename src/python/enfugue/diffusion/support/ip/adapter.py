@@ -5,11 +5,16 @@ from typing_extensions import Self
 from contextlib import contextmanager
 from enfugue.util import logger
 from enfugue.diffusion.support.model import SupportModel
+from pibble.util.files import load_json
 
 if TYPE_CHECKING:
     import torch
     from PIL import Image
     from enfugue.diffusion.constants import IP_ADAPTER_LITERAL
+    from enfugue.diffusion.support.face import (
+        FaceAnalyzer,
+        FaceAnalyzerImageProcessor
+    )
     from enfugue.diffusion.support.ip.projection import ImageProjectionModel
     from enfugue.diffusion.support.ip.resampler import Resampler # type: ignore
     from enfugue.diffusion.support.ip.attention import ( # type: ignore[attr-defined]
@@ -22,13 +27,13 @@ if TYPE_CHECKING:
     from transformers import (
         CLIPVisionModelWithProjection,
         CLIPImageProcessor,
-        PretrainedConfig
     )
 
 class IPAdapter(SupportModel):
     """
     Modifies the tencent IP adapter so it can load/unload at will
     """
+    scale: float = 1.0
     cross_attention_dim: int = 768
     lora_rank: int = 128
     is_sdxl: bool = False
@@ -46,7 +51,10 @@ class IPAdapter(SupportModel):
     FACE_ID_ADAPTER_PATH = "https://huggingface.co/h94/IP-Adapter-FaceID/resolve/main/ip-adapter-faceid_sd15.bin"
     FACE_ID_PLUS_PATH = "https://huggingface.co/h94/IP-Adapter-FaceID/resolve/main/ip-adapter-faceid-plusv2_sd15.bin"
     FACE_ID_PORTRAIT_PATH = "https://huggingface.co/h94/IP-Adapter-FaceID/resolve/main/ip-adapter-faceid-portrait_sd15.bin"
-    
+
+    FACE_ID_ENCODER_PATH = "https://huggingface.co/laion/CLIP-ViT-H-14-laion2B-s32B-b79K/resolve/main/model.safetensors"
+    FACE_ID_ENCODER_CONFIG_PATH = "https://huggingface.co/laion/CLIP-ViT-H-14-laion2B-s32B-b79K/resolve/main/config.json"
+
     XL_ADAPTER_PATH = "https://huggingface.co/h94/IP-Adapter/resolve/main/sdxl_models/ip-adapter_sdxl.bin"
     FINE_GRAINED_XL_ADAPTER_PATH = "https://huggingface.co/h94/IP-Adapter/resolve/main/sdxl_models/ip-adapter-plus_sdxl_vit-h.bin"
     FACE_XL_ADAPTER_PATH = "https://huggingface.co/h94/IP-Adapter/resolve/main/sdxl_models/ip-adapter-plus-face_sdxl_vit-h.bin"
@@ -102,6 +110,7 @@ class IPAdapter(SupportModel):
 
         self.is_sdxl = is_sdxl
         self.model = model
+        self.scale = scale
         self.cross_attention_dim = unet.config.cross_attention_dim # type: ignore[attr-defined]
 
         new_attention_processors: Dict[str, Any] = {}
@@ -273,11 +282,49 @@ class IPAdapter(SupportModel):
         from enfugue.diffusion.support.ip.attention import ( # type: ignore[attr-defined]
             IPAttentionProcessor,
             IPAttentionProcessor2_0,
+            LoRAIPAttentionProcessor,
+            FaceIDLoRAIPAttentionProcessor,
+            FaceIDLoRAIPAttentionProcessor2_0
         )
 
         for processor in get_attn_processors(unet):
-            if isinstance(processor, IPAttentionProcessor) or isinstance(processor, IPAttentionProcessor2_0):
-                processor.scale = scale
+            for attention_class in [
+                IPAttentionProcessor,
+                IPAttentionProcessor2_0,
+                LoRAIPAttentionProcessor,
+                FaceIDLoRAIPAttentionProcessor,
+                FaceIDLoRAIPAttentionProcessor2_0
+            ]:
+                if isinstance(processor, attention_class):
+                    processor.scale = scale
+                    break
+
+        self.scale = scale
+
+    @property
+    def face_id_encoder_model(self) -> str:
+        """
+        Gets the path to the IP model for face ID (1.5 and XL)
+        Downloads if needed
+        """
+        return self.get_model_file(
+            self.FACE_ID_ENCODER_PATH,
+            directory=self.kwargs.get("clip_vision_dir", None),
+            filename="CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors",
+            extensions=[".bin", ".pth", ".safetensors"]
+        )
+
+    @property
+    def face_id_encoder_config(self) -> str:
+        """
+        Gets the path to the IP model for face ID (1.5 and XL)
+        Downloads if needed
+        """
+        return self.get_model_file(
+            self.FACE_ID_ENCODER_CONFIG_PATH,
+            directory=self.kwargs.get("clip_vision_dir", None),
+            filename="CLIP-ViT-H-14-laion2B-s32B-b79K-config.json"
+        )
 
     @property
     def default_encoder_model(self) -> str:
@@ -285,6 +332,8 @@ class IPAdapter(SupportModel):
         Gets the path to the IP model for 1.5
         Downloads if needed
         """
+        if self.use_plus_proj:
+            return self.face_id_encoder_model
         return self.get_model_file(
             self.DEFAULT_ENCODER_PATH,
             directory=self.kwargs.get("clip_vision_dir", None),
@@ -298,6 +347,8 @@ class IPAdapter(SupportModel):
         Gets the path to the IP model for 1.5
         Downloads if needed
         """
+        if self.use_plus_proj:
+            return self.face_id_encoder_config
         return self.get_model_file(
             self.DEFAULT_ENCODER_CONFIG_PATH,
             directory=self.kwargs.get("clip_vision_dir", None),
@@ -346,7 +397,8 @@ class IPAdapter(SupportModel):
         """
         if self.use_fine_grained:
             return self.default_encoder_model
-
+        if self.use_plus_proj:
+            return self.face_id_encoder_model
         return self.get_model_file(
             self.XL_ENCODER_PATH,
             directory=self.kwargs.get("clip_vision_dir", None),
@@ -362,7 +414,8 @@ class IPAdapter(SupportModel):
         """
         if self.use_fine_grained:
             return self.default_encoder_config
-
+        if self.use_plus_proj:
+            return self.face_id_encoder_config
         return self.get_model_file(
             self.XL_ENCODER_CONFIG_PATH,
             directory=self.kwargs.get("clip_vision_dir", None),
@@ -404,9 +457,18 @@ class IPAdapter(SupportModel):
         """
         if self.model == "full-face" and not self.is_sdxl:
             return 257
-        elif self.model in ["plus", "plus-face", "full-face"]:
+        elif self.model in ["plus", "plus-face", "full-face"] or (
+            self.model in ["face-id-portrait"] and not self.is_sdxl
+        ):
             return 16
         return 4
+
+    @property
+    def combine_conditions(self) -> bool:
+        """
+        Returns whether or not conditions should be combined
+        """
+        return self.model == "face-id-portrait" and not self.is_sdxl
 
     @property
     def tokens(self) -> int:
@@ -427,25 +489,26 @@ class IPAdapter(SupportModel):
         """
         Gets the encoder, initializes if needed
         """
-        from transformers import (
+        from transformers.models.clip import (
             CLIPVisionModelWithProjection,
-            PretrainedConfig
+            CLIPVisionConfig
         )
         if not hasattr(self, "_encoder"):
             if self.is_sdxl:
-                logger.debug(f"Initializing CLIPVisionModelWithProjection from {self.xl_encoder_model}")
-                self._encoder = CLIPVisionModelWithProjection.from_pretrained(
-                    self.xl_encoder_model,
-                    config=PretrainedConfig.from_json_file(self.xl_encoder_config),
-                    use_safetensors="safetensors" in self.xl_encoder_model,
-                )
+                logger.debug(f"Initializing CLIPVisionModelWithProjection from {self.xl_encoder_model} using configuration {self.xl_encoder_config}")
+                model = self.xl_encoder_model
+                config_dict = load_json(self.xl_encoder_config)
             else:
-                logger.debug(f"Initializing CLIPVisionModelWithProjection from {self.default_encoder_model}")
-                self._encoder = CLIPVisionModelWithProjection.from_pretrained(
-                    self.default_encoder_model,
-                    config=PretrainedConfig.from_json_file(self.default_encoder_config),
-                    use_safetensors="safetensors" in self.default_encoder_model,
-                )
+                logger.debug(f"Initializing CLIPVisionModelWithProjection from {self.default_encoder_model} using configuration {self.default_encoder_config}")
+                model = self.default_encoder_model
+                config_dict = load_json(self.default_encoder_config)
+            if "vision_config" in config_dict:
+                config_dict = config_dict["vision_config"]
+            self._encoder = CLIPVisionModelWithProjection.from_pretrained(
+                model,
+                config=CLIPVisionConfig.from_dict(config_dict),
+                use_safetensors="safetensors" in model,
+            )
         return self._encoder
 
     @encoder.deleter
@@ -541,6 +604,47 @@ class IPAdapter(SupportModel):
             self._processor = CLIPImageProcessor()
         return self._processor
 
+    @property
+    def face_analyzer(self) -> FaceAnalyzer:
+        """
+        Gets the face analyzer if set. Otherwise, creates.
+        """
+        if not hasattr(self, "_face_analyzer"):
+            from enfugue.diffusion.support.face import FaceAnalyzer
+            self._face_analyzer = FaceAnalyzer(
+                self.root_dir,
+                self.kwargs.get("detection_dir", self.model_dir),
+                device=self.device,
+                dtype=self.dtype,
+                offline=self.offline
+            )
+            self._face_analyzer.task_callback = self.task_callback
+        return self._face_analyzer
+
+    @property
+    def face_processor(self) -> FaceAnalyzerImageProcessor:
+        """
+        Gets the face processor if set.
+        """
+        if not hasattr(self, "_face_processor"):
+            raise RuntimeError("Face processor not initialized before being requested.")
+        return self._face_processor
+
+    @face_processor.setter
+    def face_processor(self, analyze: FaceAnalyzerImageProcessor) -> None:
+        """
+        Sets the face processor.
+        """
+        self._face_processor = analyze
+
+    @face_processor.deleter
+    def face_processor(self) -> None:
+        """
+        Unsets the face processor.
+        """
+        if hasattr(self, "_face_processor"):
+            del self._face_processor
+
     @contextmanager
     def context(self) -> Iterator[Self]:
         """
@@ -548,10 +652,19 @@ class IPAdapter(SupportModel):
         """
         import torch
         with super(IPAdapter, self).context():
-            self.encoder.to(device=self.device, dtype=self.dtype)
             self.projector.to(device=self.device, dtype=self.dtype)
-            with torch.inference_mode():
-                yield self
+            if self.use_face_id:
+                if self.use_plus_proj:
+                    self.encoder.to(device=self.device, dtype=self.dtype)
+                with self.face_analyzer.insightface() as face_processor:
+                    self.face_processor = face_processor
+                    with torch.inference_mode():
+                        yield self
+                    del self.face_processor
+            else:
+                self.encoder.to(device=self.device, dtype=self.dtype)
+                with torch.inference_mode():
+                    yield self
         self.to("cpu")
 
     def to(
@@ -579,10 +692,32 @@ class IPAdapter(SupportModel):
         Probes an image by interrogating prompt embeds
         """
         import torch
-        with self.context():
-            if not isinstance(images, list):
-                images = [images]
+        if not isinstance(images, list):
+            images = [images]
 
+        if self.use_face_id:
+            faceid_tensors = [
+                self.face_processor(image)
+                for image in images
+            ]
+            faceid_tensors = [
+                tensor for tensor in faceid_tensors
+                if tensor is not None
+            ]
+
+            if faceid_tensors:
+                faceid_embeds = torch.cat(faceid_tensors, dim=0) # type: ignore[arg-type]
+            else:
+                faceid_embeds = torch.zeros((1, self.projector.id_embeddings_dim))
+
+            faceid_embeds = faceid_embeds.to(
+                device=self.device,
+                dtype=self.dtype
+            )
+        else:
+            faceid_embeds = None
+
+        if not self.use_face_id or self.use_plus_proj:
             clip_image = self.processor(
                 images=images,
                 return_tensors="pt"
@@ -591,23 +726,40 @@ class IPAdapter(SupportModel):
             clip_image = clip_image.to(self.device, dtype=self.dtype)
             clip_image_encoded = self.encoder(
                 clip_image,
-                output_hidden_states=self.use_fine_grained
+                output_hidden_states=self.use_fine_grained or self.use_plus_proj
             )
 
-            if self.use_fine_grained:
+            if self.use_fine_grained or self.use_plus_proj:
                 clip_image_embeds = clip_image_encoded.hidden_states[-2]
             else:
                 clip_image_embeds = clip_image_encoded.image_embeds
+        else:
+            clip_image_embeds = None
 
-            image_prompt_embeds = self.projector(clip_image_embeds)
+        if self.use_fine_grained or self.use_plus_proj:
+            uncond_clip_image_embeds = self.encoder(
+                torch.zeros_like(clip_image),
+                output_hidden_states=True
+            ).hidden_states[-2]
+        elif clip_image_embeds is not None:
+            uncond_clip_image_embeds = torch.zeros_like(clip_image_embeds)
+        else:
+            uncond_clip_image_embeds = None
 
-            if self.use_fine_grained:
-                image_uncond_prompt_input = self.encoder(
-                    torch.zeros_like(clip_image),
-                    output_hidden_states=True
-                ).hidden_states[-2]
+        if clip_image_embeds is not None:
+            clip_image_embeds = clip_image_embeds.to(dtype=self.dtype)
+        if uncond_clip_image_embeds is not None:
+            uncond_clip_image_embeds = uncond_clip_image_embeds.to(dtype=self.dtype)
+
+        if self.use_face_id:
+            if self.use_plus_proj:
+                image_prompt_embeds = self.projector(faceid_embeds, clip_image_embeds, shortcut=True, scale=self.scale)
+                image_uncond_prompt_embeds = self.projector(torch.zeros_like(faceid_embeds), uncond_clip_image_embeds, shortcut=True, scale=self.scale)
             else:
-                image_uncond_prompt_input = torch.zeros_like(clip_image_embeds)
+                image_prompt_embeds = self.projector(faceid_embeds)
+                image_uncond_prompt_embeds = self.projector(torch.zeros_like(faceid_embeds))
+        else:
+            image_prompt_embeds = self.projector(clip_image_embeds)
+            image_uncond_prompt_embeds = self.projector(uncond_clip_image_embeds)
 
-            image_uncond_prompt_embeds = self.projector(image_uncond_prompt_input)
-            return image_prompt_embeds, image_uncond_prompt_embeds
+        return image_prompt_embeds, image_uncond_prompt_embeds

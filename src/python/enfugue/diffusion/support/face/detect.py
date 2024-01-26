@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 from enfugue.diffusion.support.model import SupportModel
 
-from typing import Iterator, Any, TYPE_CHECKING
+from typing import Iterator, Any, Optional, TYPE_CHECKING
 
 from contextlib import contextmanager
 
@@ -22,7 +22,7 @@ class FaceAnalyzerImageProcessor:
         super(FaceAnalyzerImageProcessor, self).__init__(**kwargs)
         self.analyzer = analyzer
 
-    def __call__(self, image: Image.Image) -> torch.Tensor:
+    def __call__(self, image: Image.Image) -> Optional[torch.Tensor]:
         """
         Runs the detector.
         """
@@ -30,10 +30,9 @@ class FaceAnalyzerImageProcessor:
         from enfugue.diffusion.util import ComputerVision
         image = ComputerVision.convert_image(image)
         faces = self.analyzer.get(image)
-        return torch.cat([
-            torch.from_numpy(face.normed_embedding).unsqueeze(0)
-            for face in faces
-        ], dim=0)
+        if not faces:
+            return None
+        return torch.from_numpy(faces[0].normed_embedding).unsqueeze(0)
 
 class FaceAnalyzer(SupportModel):
     """
@@ -68,4 +67,5 @@ class FaceAnalyzer(SupportModel):
             processor = FaceAnalyzerImageProcessor(analyzer)
             yield processor
             del processor
+            analyzer.prepare(ctx_id=-1) # Release execution contexts
             del analyzer

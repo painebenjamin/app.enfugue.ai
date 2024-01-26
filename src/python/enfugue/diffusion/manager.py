@@ -4269,6 +4269,7 @@ class DiffusionPipelineManager:
                 dtype=self.dtype,
                 offline=self.offline,
                 clip_vision_dir=self.engine_clip_vision_dir,
+                detection_dir=self.engine_detection_dir
             )
             self._ip_adapter.task_callback = self.task_callback
         return self._ip_adapter

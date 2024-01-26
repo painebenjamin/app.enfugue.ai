@@ -4237,6 +4237,7 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                         device=device,
                         dtype=encoded_prompts.dtype
                     )
+
                     for images, scale in ip_adapter_images:
                         image_prompt_embeds = torch.Tensor().to(
                             device=device,
@@ -4273,7 +4274,6 @@ class EnfugueStableDiffusionPipeline(StableDiffusionPipeline):
                                     image_uncond_prompt_embeds,
                                     image_uncond_prompt_embeds[-1].unsqueeze(0).repeat(animation_frames - embed_frames + 1, 1, 1, 1)
                                 ], dim=0)
-                            
 
                         image_prompt_embeds *= scale / ip_adapter_scale # type: ignore[operator]
                         image_uncond_prompt_embeds *= scale / ip_adapter_scale # type: ignore[operator]

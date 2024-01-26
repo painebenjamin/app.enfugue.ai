@@ -96,4 +96,3 @@ class FaceAnalysis:
             #            cv2.circle(dimg, (lmk[l][0], lmk[l][1]), 1, color,
             #                       2)
         return dimg
-

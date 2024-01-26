@@ -43,6 +43,7 @@ class FaceIDMLPProjectionModel(torch.nn.Module):
 
         self.cross_attention_dim = cross_attention_dim
         self.num_tokens = num_tokens
+        self.id_embeddings_dim = id_embeddings_dim
 
         self.proj = torch.nn.Sequential(
             torch.nn.Linear(id_embeddings_dim, id_embeddings_dim*2),
@@ -96,6 +97,7 @@ class ProjectionPlusModel(torch.nn.Module):
         
         self.cross_attention_dim = cross_attention_dim
         self.num_tokens = num_tokens
+        self.id_embeddings_dim = id_embeddings_dim
         
         self.proj = torch.nn.Sequential(
             torch.nn.Linear(id_embeddings_dim, id_embeddings_dim*2),
