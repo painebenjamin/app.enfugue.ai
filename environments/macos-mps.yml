@@ -55,7 +55,7 @@ dependencies:
     - sentencepiece>=0.1
     - compel>=2.0
     - diffusers>=0.25.0
-    - enfugue==0.3.3.post3
+    - enfugue==0.3.3.post4
     - moviepy>=1.0
     - open-clip-torch>=2.20
     - git+https://github.com/CompVis/taming-transformers.git@master#egg=taming-transformers
