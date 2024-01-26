@@ -62,7 +62,8 @@ if TYPE_CHECKING:
         Interpolator,
         Conversation,
         DragAnimatorPipeline,
-        Unimatch
+        Unimatch,
+        FaceAnalyzer
     )
     from torch import Tensor
 
@@ -4322,6 +4323,23 @@ class DiffusionPipelineManager:
             )
             self._unimatch.task_callback = self.task_callback
         return self._unimatch
+
+    @property
+    def face_analyzer(self) -> FaceAnalyzer:
+        """
+        Gets the face analyzer.
+        """
+        if not hasattr(self, "_face_analyzer"):
+            from enfugue.diffusion.support import FaceAnalyzer
+            self._face_analyzer = FaceAnalyzer(
+                self.engine_root,
+                self.engine_detection_dir,
+                device=self.device,
+                dtype=self.dtype,
+                offline=self.offline
+            )
+            self._face_analyzer.task_callback = self.task_callback
+        return self._face_analyzer
 
     # Diffusers model getters
 

@@ -30,23 +30,28 @@ class IPAdapter(SupportModel):
     Modifies the tencent IP adapter so it can load/unload at will
     """
     cross_attention_dim: int = 768
+    lora_rank: int = 128
     is_sdxl: bool = False
     model: IP_ADAPTER_LITERAL = "default"
 
     DEFAULT_ENCODER_CONFIG_PATH = "https://huggingface.co/h94/IP-Adapter/resolve/main/models/image_encoder/config.json"
     DEFAULT_ENCODER_PATH = "https://huggingface.co/h94/IP-Adapter/resolve/main/models/image_encoder/pytorch_model.bin"
-    DEFAULT_ADAPTER_PATH = "https://huggingface.co/h94/IP-Adapter/resolve/main/models/ip-adapter_sd15.bin"
+    XL_ENCODER_CONFIG_PATH = "https://huggingface.co/h94/IP-Adapter/resolve/main/sdxl_models/image_encoder/config.json"
+    XL_ENCODER_PATH = "https://huggingface.co/h94/IP-Adapter/resolve/main/sdxl_models/image_encoder/pytorch_model.bin"
 
+    DEFAULT_ADAPTER_PATH = "https://huggingface.co/h94/IP-Adapter/resolve/main/models/ip-adapter_sd15.bin"
     FINE_GRAINED_ADAPTER_PATH = "https://huggingface.co/h94/IP-Adapter/resolve/main/models/ip-adapter-plus_sd15.bin"
     FACE_ADAPTER_PATH = "https://huggingface.co/h94/IP-Adapter/resolve/main/models/ip-adapter-plus-face_sd15.bin"
     FACE_FULL_ADAPTER_PATH = "https://huggingface.co/h94/IP-Adapter/resolve/main/models/ip-adapter-full-face_sd15.bin"
+    FACE_ID_ADAPTER_PATH = "https://huggingface.co/h94/IP-Adapter-FaceID/resolve/main/ip-adapter-faceid_sd15.bin"
+    FACE_ID_PLUS_PATH = "https://huggingface.co/h94/IP-Adapter-FaceID/resolve/main/ip-adapter-faceid-plusv2_sd15.bin"
+    FACE_ID_PORTRAIT_PATH = "https://huggingface.co/h94/IP-Adapter-FaceID/resolve/main/ip-adapter-faceid-portrait_sd15.bin"
     
-    XL_ENCODER_CONFIG_PATH = "https://huggingface.co/h94/IP-Adapter/resolve/main/sdxl_models/image_encoder/config.json"
-    XL_ENCODER_PATH = "https://huggingface.co/h94/IP-Adapter/resolve/main/sdxl_models/image_encoder/pytorch_model.bin"
     XL_ADAPTER_PATH = "https://huggingface.co/h94/IP-Adapter/resolve/main/sdxl_models/ip-adapter_sdxl.bin"
-
     FINE_GRAINED_XL_ADAPTER_PATH = "https://huggingface.co/h94/IP-Adapter/resolve/main/sdxl_models/ip-adapter-plus_sdxl_vit-h.bin"
     FACE_XL_ADAPTER_PATH = "https://huggingface.co/h94/IP-Adapter/resolve/main/sdxl_models/ip-adapter-plus-face_sdxl_vit-h.bin"
+    FACE_ID_XL_ADAPTER_PATH = "https://huggingface.co/h94/IP-Adapter-FaceID/resolve/main/ip-adapter-faceid_sdxl.bin"
+    FACE_ID_XL_PLUS_PATH = "https://huggingface.co/h94/IP-Adapter-FaceID/resolve/main/ip-adapter-faceid-plusv2_sdxl.bin"
 
     def load(
         self,
@@ -76,7 +81,11 @@ class IPAdapter(SupportModel):
             AttentionProcessor,
             AttentionProcessor2_0,
             LoRAAttentionProcessor,
-            LoRAIPAttentionProcessor
+            LoRAIPAttentionProcessor,
+            FaceIDLoRAAttentionProcessor,
+            FaceIDLoRAAttentionProcessor2_0,
+            FaceIDLoRAIPAttentionProcessor,
+            FaceIDLoRAIPAttentionProcessor2_0
         )
         from enfugue.diffusion.animate.diff.sparse_controlnet import SparseControlNetModel # type: ignore[attr-defined]
 
@@ -99,6 +108,7 @@ class IPAdapter(SupportModel):
 
         for name in unet.attn_processors.keys():
             current_processor = unet.attn_processors[name]
+            use_torch_2 = type(current_processor) in [AttnProcessor2_0, LoRAAttnProcessor2_0]
             cross_attention_dim = None if name.endswith("attn1.processor") else self.cross_attention_dim
 
             if name.startswith("mid_block"):
@@ -110,24 +120,46 @@ class IPAdapter(SupportModel):
                 block_id = int(name[len("down_blocks.")])
                 hidden_size = unet.config.block_out_channels[block_id] # type: ignore[attr-defined]
 
+            processor_kwargs: Dict[str, Any] = {}
             if cross_attention_dim is None:
-                if type(current_processor) in [AttnProcessor2_0, LoRAAttnProcessor2_0]:
+                if self.use_face_id:
+                    if use_torch_2:
+                        attn_class = FaceIDLoRAAttentionProcessor2_0
+                    else:
+                        attn_class = FaceIDLoRAAttentionProcessor
+                    processor_kwargs["hidden_size"] = hidden_size
+                    processor_kwargs["cross_attention_dim"] = cross_attention_dim
+                    processor_kwargs["rank"] = self.lora_rank
+                elif use_torch_2:
                     attn_class = AttentionProcessor2_0
                 else:
                     attn_class = AttentionProcessor
-                new_attention_processors[name] = attn_class()
+                new_attention_processors[name] = attn_class(**processor_kwargs).to(
+                    self.device,
+                    dtype=self.dtype
+                )
             else:
-                if type(current_processor) in [AttnProcessor2_0, LoRAAttnProcessor2_0]:
+                processor_kwargs = {
+                    "hidden_size": hidden_size,
+                    "cross_attention_dim": cross_attention_dim,
+                    "scale": scale,
+                    "num_tokens": self.tokens
+                }
+                if self.use_face_id:
+                    processor_kwargs["rank"] = self.lora_rank
+                    if use_torch_2:
+                        ip_attn_class = FaceIDLoRAIPAttentionProcessor2_0
+                    else:
+                        ip_attn_class = FaceIDLoRAIPAttentionProcessor
+                elif use_torch_2:
                     ip_attn_class = IPAttentionProcessor2_0
                 else:
                     ip_attn_class = IPAttentionProcessor
 
-                new_attention_processors[name] = ip_attn_class(
-                    hidden_size=hidden_size,
-                    cross_attention_dim=cross_attention_dim,
-                    scale=scale,
-                    num_tokens=self.tokens,
-                ).to(self.device, dtype=self.dtype)
+                new_attention_processors[name] = ip_attn_class(**processor_kwargs).to(
+                    self.device,
+                    dtype=self.dtype
+                )
 
         keepalive_callback()
         unet.set_attn_processor(new_attention_processors)
@@ -168,6 +200,27 @@ class IPAdapter(SupportModel):
         Returns true if using a full model
         """
         return self.model == "full-face" and not self.is_sdxl
+
+    @property
+    def use_plus_proj(self) -> bool:
+        """
+        Returns true if using a plus face ID model
+        """
+        return self.model == "face-id-plus"
+
+    @property
+    def use_mlp_id(self) -> bool:
+        """
+        Returns true if using a non-plus face ID model
+        """
+        return self.model in ["face-id", "face-id-portrait"]
+
+    @property
+    def use_face_id(self) -> bool:
+        """
+        Returns true if using any face ID model
+        """
+        return self.model in ["face-id", "face-id-portrait", "face-id-plus"]
 
     def check_download(
         self,
@@ -266,6 +319,15 @@ class IPAdapter(SupportModel):
         elif self.model == "plus":
             model_url = self.FINE_GRAINED_ADAPTER_PATH
             filename = "ip-adapter-plus_sd15.pth"
+        elif self.model == "face-id":
+            model_url = self.FACE_ID_ADAPTER_PATH
+            filename = "ip-adapter-faceid_sd15.pth"
+        elif self.model == "face-id-plus":
+            model_url = self.FACE_ID_PLUS_PATH
+            filename = "ip-adapter-faceid-plusv2_sd15.pth"
+        elif self.model == "face-id-portrait":
+            model_url = self.FACE_ID_PORTRAIT_PATH
+            filename = "ip-adapter-faceid-portrait_sd15.pth"
         else:
             model_url = self.DEFAULT_ADAPTER_PATH
             filename = "ip-adapter_sd15.pth"
@@ -319,6 +381,12 @@ class IPAdapter(SupportModel):
         elif self.model == "plus":
             model_url = self.FINE_GRAINED_XL_ADAPTER_PATH
             filename = "ip-adapter-plus_sdxl_vit-h.pth"
+        elif self.model == "face-id":
+            model_url = self.FACE_ID_XL_ADAPTER_PATH
+            filename = "ip-adapter-faceid_sdxl.pth"
+        elif self.model == "face-id-plus":
+            model_url = self.FACE_ID_XL_PLUS_PATH
+            filename = "ip-adapter-faceid-plusv2_sdxl.pth"
         else:
             model_url = self.XL_ADAPTER_PATH
             filename = "ip-adapter_sdxl.pth"
@@ -418,6 +486,21 @@ class IPAdapter(SupportModel):
                 self._projector = MLPProjectionModel(
                     cross_attention_dim=self.cross_attention_dim,
                     clip_embeddings_dim=self.encoder.config.hidden_size,
+                )
+            elif self.use_mlp_id:
+                from enfugue.diffusion.support.ip.projection import FaceIDMLPProjectionModel
+                self._projector = FaceIDMLPProjectionModel( # type: ignore[assignment]
+                    cross_attention_dim=self.cross_attention_dim,
+                    id_embeddings_dim=512,
+                    num_tokens=self.tokens,
+                )
+            elif self.use_plus_proj:
+                from enfugue.diffusion.support.ip.projection import ProjectionPlusModel
+                self._projector = ProjectionPlusModel( # type: ignore[assignment]
+                    cross_attention_dim=self.cross_attention_dim,
+                    id_embeddings_dim=512,
+                    clip_embeddings_dim=self.encoder.config.hidden_size,
+                    num_tokens=self.tokens,
                 )
             elif self.use_fine_grained:
                 from enfugue.diffusion.support.ip.resampler import Resampler # type: ignore[attr-defined]

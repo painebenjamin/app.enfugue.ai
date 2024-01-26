@@ -233,7 +233,8 @@ NOISE_METHOD_LITERAL = Literal[
     "velvet", "violet", "random_mix"
 ]
 IP_ADAPTER_LITERAL = Literal[
-    "default", "plus", "plus-face", "full-face"
+    "default", "plus", "plus-face", "full-face",
+    "face-id", "face-id-plus", "face-id-portrait"
 ]
 ANIMATION_ENGINE_LITERAL = Literal[
     "ad_hsxl", "svd"

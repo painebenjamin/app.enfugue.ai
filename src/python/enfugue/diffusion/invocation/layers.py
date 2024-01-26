@@ -181,14 +181,15 @@ class LayeredInvocation:
         ])
 
     @staticmethod
-    def parse_frame_range(frames: Optional[Union[int, List[int], str]]) -> Optional[List[int]]:
+    def parse_frame_range(frames: Optional[Union[int, List[int], str]], one_index: bool = False) -> Optional[List[int]]:
         """
         Parses a comma-separated frame string
         """
+        offset = 1 if one_index else 0
         if isinstance(frames, int):
-            return [frames-1]
+            return [frames-offset]
         elif isinstance(frames, list):
-            frames = [int(f)-1 for f in frames]
+            frames = [int(f)-offset for f in frames]
             frames.sort()
             return frames
         elif isinstance(frames, str) and len(frames) > 0:
@@ -197,9 +198,9 @@ class LayeredInvocation:
             for frame_part in frame_parts:
                 frame_range = frame_part.split("-")
                 if len(frame_range) == 1:
-                    frame_indexes.append(int(frame_range[0])-1)
+                    frame_indexes.append(int(frame_range[0])-offset)
                 else:
-                    frame_indexes.extend(list(range(int(frame_range[0])-1, int(frame_range[1]))))
+                    frame_indexes.extend(list(range(int(frame_range[0])-offset, int(frame_range[1]))))
             return list(sorted(set(frame_indexes)))
         return None
 
@@ -590,7 +591,7 @@ class LayeredInvocation:
 
             skip_frames = layer.pop("skip_frames", None)
             divide_frames = layer.pop("divide_frames", None)
-            frames = cls.parse_frame_range(layer.pop("frame", None))
+            frames = cls.parse_frame_range(layer.pop("frame", None), True)
 
             if skip_frames and isinstance(layer["image"], list):
                 layer["image"] = layer["image"][skip_frames:]
@@ -890,7 +891,7 @@ class LayeredInvocation:
             visible_frames: List[bool] = [False] * (1 if not self.animation_frames else self.animation_frames)
             for i, layer in enumerate(self.layers):
                 layer_image = layer.get("image", None)
-                layer_frames = self.parse_frame_range(layer.get("frame", None))
+                layer_frames = self.parse_frame_range(layer.get("frame", None), False)
 
                 if isinstance(layer_image, str):
                     layer_image = get_frames_or_image_from_file(layer_image)
@@ -922,7 +923,6 @@ class LayeredInvocation:
                 if layer.get("visibility", None) in ["visible", "denoised"]:
                     for frame in layer_frames:
                         visible_frames[frame] = True
-
                 control_units = layer.get("control_units", None)
                 if control_units:
                     for control_unit in control_units:
@@ -984,7 +984,7 @@ class LayeredInvocation:
                     offset_y = layer.get("offset_y", None)
                     opacity = layer.get("opacity", None)
                     remove_background = layer.get("remove_background", None)
-                    frames = self.parse_frame_range(layer.get("frame", None))
+                    frames = self.parse_frame_range(layer.get("frame", None), False)
 
                     # Capabilities of layer
                     visibility = layer.get("visibility", None)
@@ -2239,7 +2239,7 @@ class LayeredInvocation:
                         continue
                     logger.debug(f"Upscaling sample {i} by {amount} using {method}")
                     images[i] = upscale_image(image)
-                    upscale_time = (datetime.now() - upscale_start).total_seconds()
+                    upscale_time = max((datetime.now() - upscale_start).total_seconds(), 1e-5)
                     if progress_callback:
                         progress_callback(i+1, len(images), 1/upscale_time)
 

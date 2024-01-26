@@ -6,6 +6,7 @@ import torch
 import torch.nn as nn
 
 # FFN
+
 def FeedForward(dim, mult=4):
     inner_dim = int(dim * mult)
     return nn.Sequential(
@@ -116,5 +117,41 @@ class Resampler(nn.Module):
             latents = attn(x, latents) + latents
             latents = ff(latents) + latents
             
+        latents = self.proj_out(latents)
+        return self.norm_out(latents)
+
+class FacePerceiverResampler(torch.nn.Module):
+    def __init__(
+        self,
+        *,
+        dim=768,
+        depth=4,
+        dim_head=64,
+        heads=16,
+        embedding_dim=1280,
+        output_dim=768,
+        ff_mult=4,
+    ):
+        super().__init__()
+        
+        self.proj_in = torch.nn.Linear(embedding_dim, dim)
+        self.proj_out = torch.nn.Linear(dim, output_dim)
+        self.norm_out = torch.nn.LayerNorm(output_dim)
+        self.layers = torch.nn.ModuleList([])
+        for _ in range(depth):
+            self.layers.append(
+                torch.nn.ModuleList(
+                    [
+                        PerceiverAttention(dim=dim, dim_head=dim_head, heads=heads),
+                        FeedForward(dim=dim, mult=ff_mult),
+                    ]
+                )
+            )
+
+    def forward(self, latents, x):
+        x = self.proj_in(x)
+        for attn, ff in self.layers:
+            latents = attn(x, latents) + latents
+            latents = ff(latents) + latents
         latents = self.proj_out(latents)
         return self.norm_out(latents)

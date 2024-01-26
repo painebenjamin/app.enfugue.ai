@@ -96,7 +96,7 @@ packaged_files = []
 
 here = os.path.dirname(os.path.abspath(__file__))
 package_dir = os.path.join(here, package_name)
-data_dirs = ["static", "config"]
+data_dirs = ["static", "config", "support/face/insight/data/objects"]
 for data_dir in data_dirs:
     data_dir_path = os.path.join(package_dir, data_dir)
     for dir_path, sub_dirs, file_names in os.walk(data_dir_path):
