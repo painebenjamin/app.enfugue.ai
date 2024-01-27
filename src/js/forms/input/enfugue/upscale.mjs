@@ -40,7 +40,6 @@ class UpscaleMethodInputView extends SelectInputView {
         "esrgan": "ESRGAN",
         "esrganime": "ESRGANime",
         "gfpgan": "GFPGAN",
-        "ccsr": "CCSR",
         "lanczos": "Lanczos",
         "bicubic": "Bicubic",
         "bilinear": "Bilinear",
@@ -55,7 +54,7 @@ class UpscaleMethodInputView extends SelectInputView {
     /**
      * @var string The tooltip
      */
-    static tooltip = "The upscaling method has a significant effect on the output image. The best general-purpose upscaling method is selected by default.<br />When selecting multiple methods, the first is used for the first upscale, the second for the second (when using iterative upscaling), etc.<br /><strong>ESRGAN</strong>: Short for Enhanced Super-Resolution Generative Adversarial Network, this is an AI upscaling method that tries to maintain sharp edges where they should be sharp, and soft where they should be soft, filling in details along the way.<br /><strong>ESRGANime</strong>: Similar to the above, but with sharper lines for cartoon or anime style.<br /><strong>GFPGAN</strong>: Short for Generative Facial Prior Generative Adversarial Network, this is an AI Upscaling method with face restoration. This results in photorealistic faces more often than not, but can erase desired features; it is best paired with upscale diffusion.<br /><strong>CCSR</strong>: Short for Content Consistent Super-Resolution, this is an AI Upscaling method that takes a relatively long time, but produces exceptional results that do not need further refinement.<br /><strong>Lanczos</strong>: An algorithm with blurry but consistent results.<br /><strong>Bicubic</strong>: An algorithm that can result in slightly sharper edges than Lanczos, but can have jagged edges on curves and diagonal lines.<br /><strong>Bilinear</strong>: A very fast algorithm with overall the blurriest results.<br /><strong>Nearest</strong>: Maintain sharp pixel boundaries, resulting in a pixelated or retro look.";
+    static tooltip = "The upscaling method has a significant effect on the output image. The best general-purpose upscaling method is selected by default.<br />When selecting multiple methods, the first is used for the first upscale, the second for the second (when using iterative upscaling), etc.<br /><strong>ESRGAN</strong>: Short for Enhanced Super-Resolution Generative Adversarial Network, this is an AI upscaling method that tries to maintain sharp edges where they should be sharp, and soft where they should be soft, filling in details along the way.<br /><strong>ESRGANime</strong>: Similar to the above, but with sharper lines for cartoon or anime style.<br /><strong>GFPGAN</strong>: Short for Generative Facial Prior Generative Adversarial Network, this is an AI Upscaling method with face restoration. This results in photorealistic faces more often than not, but can erase desired features; it is best paired with upscale diffusion.<br /><strong>Lanczos</strong>: An algorithm with blurry but consistent results.<br /><strong>Bicubic</strong>: An algorithm that can result in slightly sharper edges than Lanczos, but can have jagged edges on curves and diagonal lines.<br /><strong>Bilinear</strong>: A very fast algorithm with overall the blurriest results.<br /><strong>Nearest</strong>: Maintain sharp pixel boundaries, resulting in a pixelated or retro look.";
 }
 
 /**

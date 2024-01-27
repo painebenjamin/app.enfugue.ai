@@ -75,7 +75,7 @@ class CCSRProcessor(SupportModelImageProcessor):
         strength: float=1.0,
         tile_diffusion_size: Optional[int]=512,
         tile_diffusion_stride: Optional[int]=256,
-        tile_vae_decode_size: Optional[int]=224,
+        tile_vae_decode_size: Optional[int]=160,
         tile_vae_encode_size: Optional[int]=1024,
         color_fix_type: Optional[Literal["wavelet", "adain"]]="adain",
         t_min: float=0.3333,

@@ -38,7 +38,7 @@ class AboutView extends View {
                 E.span().content("Enfugue is developed by "),
                 E.a().href("mailto:benjamin@enfugue.ai").content("Benjamin Paine"),
                 E.span().content(" and licensed under the "),
-                E.a().href("https://www.gnu.org/licenses/agpl-3.0.html").target("_blank").content("GNU Affero General Public License (AGPL) v3.0"),
+                E.a().href("https://www.gnu.org/licenses/gpl-3.0.html").target("_blank").content("GNU General Public License (GPL) v3.0"),
                 E.span().content(".")
             ),
             E.p().content(

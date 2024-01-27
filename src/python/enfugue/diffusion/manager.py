@@ -263,7 +263,7 @@ class DiffusionPipelineManager:
 
         huggingface_hub.file_download.http_get = http_get
 
-    def check_download_model(self, local_dir: str, remote_url: str) -> str:
+    def check_download_model(self, local_dir: str, remote_url: str, raise_when_unfindable: bool=True) -> str:
         """
         Downloads a model directly to the model folder if enabled.
         """
@@ -284,7 +284,9 @@ class DiffusionPipelineManager:
                 return found_path
 
         if not remote_url.startswith("http"):
-            raise ValueError(f"Resource '{remote_url}' is not a URL and cannot be found on-disk.")
+            if raise_when_unfindable:
+                raise ValueError(f"Resource '{remote_url}' is not a URL and cannot be found on-disk.")
+            return output_path
         elif self.offline:
             raise ValueError(f"File {output_file} does not exist in {local_dir} and offline mode is enabled, refusing to download from {remote_url}")
 
@@ -3657,10 +3659,11 @@ class DiffusionPipelineManager:
             if not self.inpainter:
                 target_checkpoint_path = self.default_inpainter_path
                 logger.debug(f"No inpainter explicitly set, will look for inpainter from {target_checkpoint_path}")
-                target_checkpoint_path = self.check_download_model(self.engine_checkpoints_dir, target_checkpoint_path)
+                target_checkpoint_path = self.check_download_model(self.engine_checkpoints_dir, target_checkpoint_path, raise_when_unfindable=False)
                 if not os.path.exists(target_checkpoint_path):
                     if self.create_inpainter:
                         logger.info(f"Creating inpainting checkpoint from {self.model}")
+                        self.task_callback("Creating inpainter from {self.model}")
                         self.create_inpainting_checkpoint(
                             self.model,
                             target_checkpoint_path,

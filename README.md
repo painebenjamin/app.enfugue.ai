@@ -10,7 +10,7 @@
     <a href="https://discord.gg/TT7RTnhfed" target="_blank"><img src="https://img.shields.io/discord/1182768218079772672?style=flat&color=ff3366&logo=discord&logoColor=ffffff&label=Discord" alt="discord"></a>
     <img src="https://img.shields.io/github/stars/painebenjamin/app.enfugue.ai?style=social" alt="stars - app.enfugue.ai">
     <img src="https://img.shields.io/github/forks/painebenjamin/app.enfugue.ai?style=social" alt="forks - app.enfugue.ai"><br />
-    <a href="https://github.com/painebenjamin/app.enfugue.ai/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-AGPL3-ff3366" alt="License"></a>
+    <a href="https://github.com/painebenjamin/app.enfugue.ai/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-GPL3-ff3366" alt="License"></a>
     <a href="https://github.com/painebenjamin/app.enfugue.ai/releases/"><img src="https://img.shields.io/github/tag/painebenjamin/app.enfugue.ai?include_prereleases=&sort=semver&color=ff3366" alt="GitHub tag"></a>
     <a href="https://github.com/painebenjamin/app.enfugue.ai/releases/"><img alt="GitHub release (with filter)" src="https://img.shields.io/github/v/release/painebenjamin/app.enfugue.ai?color=ff3366"></a>
     <a href="https://pypi.org/project/enfugue"><img alt="PyPI - Version" src="https://img.shields.io/pypi/v/enfugue?color=ff3366"></a>

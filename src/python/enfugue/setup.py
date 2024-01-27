@@ -112,7 +112,7 @@ setup(
     version=f"{version_major}.{version_minor}.{version_patch}",
     packages=find_packages("."),
     package_data={package_name: ["py.typed", "version.txt", *package_data]},
-    license="agpl-3.0",
+    license="gpl-3.0",
     entry_points={"console_scripts": ["enfugue = enfugue.scripts.deprecate_main:deprecate_main"]},
     install_requires=install_requires,
     extras_require=extras_require,
