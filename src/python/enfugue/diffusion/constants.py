@@ -197,7 +197,7 @@ SCHEDULER_LITERAL = Literal[
 UPSCALE_LITERAL = Literal[
     "esrgan", "esrganime", "gfpgan",
     "lanczos", "bilinear", "bicubic",
-    "nearest"
+    "nearest", "ccsr"
 ]
 CONTROLNET_LITERAL = Literal[
     "canny", "mlsd", "hed",

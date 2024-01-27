@@ -74,7 +74,7 @@ dependencies:
     - pyinstaller-hooks-contrib==2023.11
     - onnx>=1.14,<2.0
     - onnxruntime-gpu>=1.14,<2.0
-    - git+https://github.com/CompVis/taming-transformers.git@master#egg=taming-transformers
+    - taming-transfomers
     - git+https://github.com/openai/CLIP.git@main#egg=clip
     - git+https://github.com/CompVis/stable-diffusion.git@main#egg=latent-diffusion
     - --extra-index-url https://download.pytorch.org/whl/cu118

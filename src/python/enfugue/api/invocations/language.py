@@ -21,7 +21,7 @@ class CaptionInvocationMonitor(InvocationMonitor):
     def __init__(
         self,
         engine: DiffusionEngine,
-        communication_timeout: Optional[int] = 180,
+        communication_timeout: Optional[int]=180,
         **kwargs: Any,
     ) -> None:
         super(CaptionInvocationMonitor, self).__init__(

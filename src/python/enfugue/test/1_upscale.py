@@ -55,5 +55,13 @@ def main() -> None:
                 )
                 time_function(lambda: esrgan(image, outscale=4), f"4× GFPGAN Image {i}")
 
+        with manager.upscaler.ccsr() as ccsr:
+            time_function(lambda: ccsr(images[0], outscale=2), "2× CCSR Image").save(
+                os.path.join(save_dir, "ccsr-2x.png")
+            )
+            time_function(lambda: ccsr(images[0], outscale=4), "4× CCSR Image").save(
+                os.path.join(save_dir, "ccsr-4x.png")
+            )
+
 if __name__ == "__main__":
     main()

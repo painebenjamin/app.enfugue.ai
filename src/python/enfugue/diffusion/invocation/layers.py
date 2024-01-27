@@ -2200,8 +2200,10 @@ class LayeredInvocation:
 
             @contextmanager
             def get_upscale_image() -> Iterator[Callable[[Image], Image]]:
-                if method in ["esrgan", "esrganime", "gfpgan"]:
-                    if refiner:
+                if method in ["esrgan", "esrganime", "gfpgan", "ccsr"]:
+                    if method == "ccsr":
+                        pipeline.unload_all("clearing memory for upscaler")
+                    elif refiner:
                         pipeline.unload_pipeline("clearing memory for upscaler")
                         pipeline.unload_inpainter("clearing memory for upscaler")
                         pipeline.offload_refiner()
@@ -2210,7 +2212,17 @@ class LayeredInvocation:
                         pipeline.offload_animator()
                         pipeline.offload_inpainter()
                         pipeline.unload_refiner("clearing memory for upscaler")
-                    if method == "gfpgan":
+                    if method == "ccsr":
+                        with pipeline.upscaler.ccsr() as upscale:
+                            def execute_upscale(image: Image) -> Image:
+                                return upscale( # type: ignore[call-arg]
+                                    image,
+                                    outscale=amount,
+                                    tile_diffusion_size=None if not tiling_unet else 512,
+                                    tile_diffusion_stride=256,
+                                )
+                            yield execute_upscale
+                    elif method == "gfpgan":
                         with pipeline.upscaler.gfpgan(tile=512) as upscale:
                             def execute_upscale(image: Image) -> Image:
                                 return upscale(image, outscale=amount) # type: ignore[call-arg]

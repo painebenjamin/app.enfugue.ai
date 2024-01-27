@@ -44,8 +44,8 @@ class PositionalEncoding(nn.Module):
         # so it's part of the model's state but not the parameters.
         self.register_buffer('positional_encoding', positional_encoding)
 
-    def forward(self, hidden_states: torch.Tensor, length: int) -> torch.Tensor:
-        hidden_states = hidden_states + self.positional_encoding[:, :length]
+    def forward(self, hidden_states: torch.Tensor, length: int, scale: float = 1.0) -> torch.Tensor:
+        hidden_states = hidden_states + self.positional_encoding[:, :length] * (1.0 + scale)
         return self.dropout(hidden_states)
 
 
@@ -67,6 +67,8 @@ class TemporalAttention(Attention):
         if not hasattr(self, "_default_scale"):
             self._default_scale = self.scale
         self.scale = multiplier / (self.inner_dim // self.heads)
+        from enfugue.util import logger
+        logger.critical(self.scale)
 
     def reset_scale_multiplier(self) -> None:
         self.scale = self._default_scale
@@ -74,7 +76,7 @@ class TemporalAttention(Attention):
     def forward(self, hidden_states, encoder_hidden_states=None, attention_mask=None, number_of_frames=8):
         sequence_length = hidden_states.shape[1]
         hidden_states = rearrange(hidden_states, "(b f) s c -> (b s) f c", f=number_of_frames)
-        hidden_states = self.pos_encoder(hidden_states, length=number_of_frames)
+        hidden_states = self.pos_encoder(hidden_states, length=number_of_frames, scale=self.scale)
 
         if encoder_hidden_states is not None:
             encoder_hidden_states = repeat(encoder_hidden_states, "b n c -> (b s) n c", s=sequence_length)

@@ -3435,6 +3435,7 @@ class DiffusionPipelineManager:
                         model=self._ip_adapter_model,
                         task_callback=self.task_callback,
                     )
+                    self.task_callback("Loading IP Adapter")
                     pipeline.load_ip_adapter(
                         device=self.device,
                         model=self._ip_adapter_model,
@@ -4194,6 +4195,15 @@ class DiffusionPipelineManager:
                 logger.debug("Offloading animator to CPU")
                 self._animator_pipeline = self._animator_pipeline.to("cpu") # type: ignore[attr-defined]
             self.clear_memory()
+
+    def unload_all(self, reason: str = "None") -> None:
+        """
+        Unloads pipelines that are present.
+        """
+        self.unload_pipeline(reason)
+        self.unload_refiner(reason)
+        self.unload_inpainter(reason)
+        self.unload_animator(reason)
 
     def offload_all(self) -> None:
         """
