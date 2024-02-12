@@ -18,17 +18,17 @@
     <a href="https://pypi.org/project/enfugue"><img alt="PyPI - Downloads" src="https://img.shields.io/pypi/dm/enfugue?logo=python&logoColor=white&color=ff3366"></a>
 </p>
 <div align="center">
-<img src="https://github.com/painebenjamin/app.enfugue.ai/assets/57536852/28b4bc57-ab6c-4c83-b1cb-b8c16332779d" width="260" />
-<img src="https://github.com/painebenjamin/app.enfugue.ai/assets/57536852/7ec7528d-de24-4c08-b5d0-061dcc675e21" width="260" />
-<img src="https://github.com/painebenjamin/app.enfugue.ai/assets/57536852/2215ef54-d820-4e78-869d-330eee5f297c" width="260" />
+<a href="https://github.com/painebenjamin/app.enfugue.ai/assets/57536852/28b4bc57-ab6c-4c83-b1cb-b8c16332779d" target="_blank"><img src="https://github.com/painebenjamin/app.enfugue.ai/assets/57536852/28b4bc57-ab6c-4c83-b1cb-b8c16332779d" width="260" /></a>
+<a href="https://github.com/painebenjamin/app.enfugue.ai/assets/57536852/7ec7528d-de24-4c08-b5d0-061dcc675e21" target="_blank"><img src="https://github.com/painebenjamin/app.enfugue.ai/assets/57536852/7ec7528d-de24-4c08-b5d0-061dcc675e21" width="260" /></a>
+<a href="https://github.com/painebenjamin/app.enfugue.ai/assets/57536852/2215ef54-d820-4e78-869d-330eee5f297c" target="_blank"><img src="https://github.com/painebenjamin/app.enfugue.ai/assets/57536852/2215ef54-d820-4e78-869d-330eee5f297c" width="260" /></a>
 <br />
-<img src="https://github.com/painebenjamin/app.enfugue.ai/assets/57536852/f0bca178-9a50-45f8-94a3-fa54cabf23bd" width="260" />
-<img src="https://github.com/painebenjamin/app.enfugue.ai/assets/57536852/7e1adeb3-642a-43b0-9a2b-b244d50fa44b" width="260" />
-<img src="https://github.com/painebenjamin/app.enfugue.ai/assets/57536852/1596f720-e609-4e24-ab1d-c90a34821687" width="260" />
+<a href="https://github.com/painebenjamin/app.enfugue.ai/assets/57536852/f0bca178-9a50-45f8-94a3-fa54cabf23bd" target="_blank"><img src="https://github.com/painebenjamin/app.enfugue.ai/assets/57536852/f0bca178-9a50-45f8-94a3-fa54cabf23bd" width="260" /></a>
+<a href="https://github.com/painebenjamin/app.enfugue.ai/assets/57536852/7e1adeb3-642a-43b0-9a2b-b244d50fa44b" target="_blank"><img src="https://github.com/painebenjamin/app.enfugue.ai/assets/57536852/7e1adeb3-642a-43b0-9a2b-b244d50fa44b" width="260" /></a>
+<a href="https://github.com/painebenjamin/app.enfugue.ai/assets/57536852/1596f720-e609-4e24-ab1d-c90a34821687" target="_blank"><img src="https://github.com/painebenjamin/app.enfugue.ai/assets/57536852/1596f720-e609-4e24-ab1d-c90a34821687" width="260" /></a>
 <br />
-<img src="https://github.com/painebenjamin/app.enfugue.ai/assets/57536852/85749fca-dd0b-47e3-a491-6d6219168bb0" width="260" />
-<img src="https://github.com/painebenjamin/app.enfugue.ai/assets/57536852/98a6ac73-9b03-446c-91b2-9d09d6ce428a" width="260" />
-<img src="https://github.com/painebenjamin/app.enfugue.ai/assets/57536852/44a7c5fb-87f0-4594-a8ee-f54de7e8f46d" width="260" />
+<a href="https://github.com/painebenjamin/app.enfugue.ai/assets/57536852/85749fca-dd0b-47e3-a491-6d6219168bb0" target="_blank"><img src="https://github.com/painebenjamin/app.enfugue.ai/assets/57536852/85749fca-dd0b-47e3-a491-6d6219168bb0" width="260" /></a>
+<a href="https://github.com/painebenjamin/app.enfugue.ai/assets/57536852/98a6ac73-9b03-446c-91b2-9d09d6ce428a" target="_blank"><img src="https://github.com/painebenjamin/app.enfugue.ai/assets/57536852/98a6ac73-9b03-446c-91b2-9d09d6ce428a" width="260" /></a>
+<a href="https://github.com/painebenjamin/app.enfugue.ai/assets/57536852/44a7c5fb-87f0-4594-a8ee-f54de7e8f46d" target="_blank"><img src="https://github.com/painebenjamin/app.enfugue.ai/assets/57536852/44a7c5fb-87f0-4594-a8ee-f54de7e8f46d" width="260" /></a>
 <br />
 <em>Views of the ENFUGUE user interface in various configurable themes, click to view full-size.</em>
 </div><br />
