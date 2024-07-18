@@ -90,7 +90,7 @@ Many configuration options are available, but none are required. If you want to 
 
 ## Accessing the UI
 
-By default,the UI deploys two servers, one with and without SSL. After starting the server, open a browser and navigate to `https://app.enfugue.ai:45554`. If that doesn't work due to your networking configuration, you can instead access the server at `http://127.0.0.1:45555` or `http://localhost:45555`. Some features are only available in a secure environment and will be disabled when using the insecure server, review the troubleshooting and configuration guides to figure out why it may not be working.
+By default, the UI deploys two servers, one with and without SSL. After starting the server, open a browser and navigate to `https://app.enfugue.ai:45554`. If that doesn't work due to your networking configuration, you can instead access the server at `http://127.0.0.1:45555` or `http://localhost:45555`. Some features are only available in a secure environment and will be disabled when using the insecure server, review the troubleshooting and configuration guides to figure out why it may not be working.
 
 ## Quickstart Guide
 
