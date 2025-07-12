@@ -15,4 +15,6 @@ if [ "${CUDNN_PATH}" != "" ]; then
     export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$CUDNN_PATH/lib
 fi
 
+
+
 python -m enfugue chat --config ../../config/development/server.yml $@
